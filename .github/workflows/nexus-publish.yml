@@ -28,6 +28,8 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    # The secrets live in the automation environment, which only master and v* tags can use.
+    environment: automation
     steps:
       - name: Check Nexus configuration
         id: configured
