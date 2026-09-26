@@ -1,6 +1,6 @@
 # Planned
 
-The order AnybandUI's features arrive in Neo Angband, from the character card and message log through items, spells, stores and effects to touch controls and a bridge for the native client. Each phase ends in a release you can switch on, and each feature inside a phase gets its own toggle on the Mods screen. Nothing listed here is in the mod yet; [CHANGELOG.md](CHANGELOG.md) records what has shipped.
+The order AnybandUI's features arrive in Neo Angband, from the character card and message log through items, spells, stores and effects to touch controls and a bridge for the native client. Each phase ends in a release you can switch on, and each feature inside a phase gets its own toggle on the Mods screen. Nothing listed here is in the mod yet; [CHANGELOG.md](CHANGELOG.md) records what has shipped. The port is tracked as [neostryder/neo-angband#284](https://github.com/neostryder/neo-angband/issues/284).
 
 ## What gets ported
 
@@ -18,7 +18,7 @@ The game owns rules, validation, dice, knowledge, item eligibility, targeting an
 
 ## Seams needed in Neo Angband
 
-Phases 0 and 1 fit the seams Neo Angband has today. The later phases need the six below, and each lets a mod observe or submit something the game already does.
+Phases 0 and 1 fit the seams Neo Angband has today. The later phases need the six below, and each lets a mod observe or submit something the game already does. They are tracked as [neostryder/neo-angband#285](https://github.com/neostryder/neo-angband/issues/285).
 
 1. **A consistent snapshot boundary.** One token per input wait, covering player, knowledge, prompt and map together, plus the current phase and whether a message pause is waiting. Today each agent view read is separate and the map frame arrives on repaint.
 2. **Remembered and actual views of items, terrain and the whole level.** Separately named fields for what the character remembers and what is really there, and an iterator over the whole known level for the free camera and map overview.
@@ -76,6 +76,10 @@ Touch, controller and phone-sized screens, built on the same panels. Tap, double
 ### Phase 10: the full-v1 bridge
 
 A small launcher that runs Neo Angband headless and serves the view model over full-v1, so the native AnybandUI client lists Neo Angband in its engine picker. It passes his `protocol/check_engine.py` smoke check before it ships.
+
+## Keeping in step with AnybandUI
+
+AnybandUI keeps developing in its own repository, and this mod follows it. `UPSTREAM.md` records the AnybandUI commit each ported feature is based on, and a sync pass walks the `deluxe` commits since the last recorded one. Each commit gets one row: ported (with the commit here that carries it), not applicable (engine-side or specific to the native build), or pending. Changes can arrive from either direction. A feature built first in AnybandUI is ported here, and a pull request here can be offered back to AnybandUI when it fits the native client.
 
 ## Works with the other mods
 
