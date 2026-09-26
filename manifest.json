@@ -1,0 +1,20 @@
+{
+  "id": "anybandui",
+  "name": "AnybandUI",
+  "version": "0.1.0",
+  "shape": "plugin",
+  "facets": [
+    "plugin"
+  ],
+  "modApi": 1,
+  "engine": ">=1.18.0",
+  "dependencies": {
+    "core": "*"
+  },
+  "capabilities": [],
+  "author": "WurliMonkhaven, neostryder",
+  "license": "GPL-2.0-only",
+  "description": "A mouse-first desktop interface for Neo Angband, ported from Wurli Monkhaven's AnybandUI: dockable panels, a number-key quickbar, item comparison, store and spell windows, and optional CRT and dungeon effects.\n\nThis early version sets up the mod and adds nothing to the screen yet. The game's rules are untouched, and turning the mod off restores the standard interface.",
+  "rules": [],
+  "repository": "https://github.com/neostryder/neo-angband-mod-anybandui"
+}
