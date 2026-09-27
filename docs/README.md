@@ -1,6 +1,6 @@
 # AnybandUI: quick reference
 
-A mouse-first desktop interface for Neo Angband, ported from Wurli Monkhaven's AnybandUI. The [repository README](../README.md) describes the planned features, and [PLANNED.md](../PLANNED.md) holds the order they arrive in.
+A mouse-first desktop interface for Neo Angband, ported from Wurli Monkhaven's AnybandUI. The [repository README](../README.md) lists what it does, and [PLANNED.md](../PLANNED.md) lists what comes in later releases.
 
 ## Settings
 

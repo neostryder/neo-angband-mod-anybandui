@@ -118,9 +118,3 @@ The high-contrast and colourblind filters come across as their own switches, off
 - **Pickup previews.** Hovering a floor item shows the comparison table against what you are wearing, before you pick it up.
 - **Inscription and ignore rules as a panel.** A visual editor for the game's inscriptions and quality ignore settings, behind the existing "Item rules" button.
 - **Theme packs.** Palettes and panel chrome as data, including a Linoleum-matched theme and a plain terminal theme for veterans who want the new controls without the new look.
-
-## Before the first visible release
-
-- The mod joins the game's list of recommended mods in `mods/registry.json`.
-- The enable screenshot goes in `docs/img/anybandui-enable.jpg`.
-- Every font, sound and shader brought over is listed in `CREDITS.md` with its licence.

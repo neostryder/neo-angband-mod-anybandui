@@ -1,12 +1,10 @@
 # Terms of Use for the Neo Angband AnybandUI Mod
 
-Effective date: 2026-09-26.
+Effective date: 2026-09-27.
 
-AnybandUI is an optional mod folder that runs inside Neo Angband. There is no hosted service behind it. It will replace the game's interface with one ported from Wurli Monkhaven's AnybandUI frontend, and it stays off until you enable it on the Mods screen.
+AnybandUI is an optional mod folder that runs inside Neo Angband. There is no hosted service behind it. It adds an interface ported from Wurli Monkhaven's AnybandUI frontend, and it stays off until you enable it on the Mods screen.
 
-Version 0.1.0 declares no capabilities in its manifest. Its plugin reads no game state, draws nothing on screen, and writes a single line to the game's log when it loads. It makes no network requests, stores no data of its own, and never draws a random number, so your save and the game's dice are untouched.
-
-Each later version lists the capabilities its features need in its manifest, for example reading the character and the map or replacing the sidebar, and this page names them in the same release.
+Version 1.0.0 asks for 21 capabilities, and the Mods screen lists each one before you enable the mod. They let it replace the sidebar, the status line and the message line, tint the game's display, put its own panels in the game's window layout, read what the game already shows you (the map, your character, pack and equipment, floor items, spells, stores, messages and the monsters you can see), send commands and prompt answers the way your keyboard does, and follow combat, healing, movement and explosion events for its effects. It makes no network requests and never draws a random number, so your save and the game's dice are untouched. It saves its own preferences through the game, such as your quickbar slots for each character, your zoom level, and which monsters you have met.
 
 When you install or update the mod from the in-game mod manager, the game's host fetches the mod's public files from GitHub. The core Neo Angband Terms and Privacy Policy cover that shared host behavior, including local storage, update checks, and the risks of optional third-party mods.
 
