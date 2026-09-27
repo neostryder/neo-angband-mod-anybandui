@@ -495,7 +495,8 @@ var DEFAULT_SETTINGS = {
   showHeadings: true,
   hoverDelayMs: 550,
   zoomIndex: 7,
-  panelZoom: {}
+  panelZoom: {},
+  effects: {}
 };
 var themes = /* @__PURE__ */ new Set(["terminal-original", "dark-graphite", "light-paper", "amber-terminal", "midnight-ice"]);
 var fonts = new Set(FONT_FILES);
@@ -508,7 +509,8 @@ function validateSettings(value2) {
     showHeadings: typeof record2["showHeadings"] === "boolean" ? record2["showHeadings"] : DEFAULT_SETTINGS.showHeadings,
     hoverDelayMs: typeof record2["hoverDelayMs"] === "number" && Number.isInteger(record2["hoverDelayMs"]) ? Math.max(0, Math.min(5e3, record2["hoverDelayMs"])) : DEFAULT_SETTINGS.hoverDelayMs,
     zoomIndex: typeof record2["zoomIndex"] === "number" && Number.isInteger(record2["zoomIndex"]) ? Math.max(0, Math.min(18, record2["zoomIndex"])) : DEFAULT_SETTINGS.zoomIndex,
-    panelZoom: record2["panelZoom"] && typeof record2["panelZoom"] === "object" && !Array.isArray(record2["panelZoom"]) ? Object.fromEntries(Object.entries(record2["panelZoom"]).filter(([id, step]) => id.length > 0 && typeof step === "number" && Number.isInteger(step) && step >= 0 && step <= 6)) : DEFAULT_SETTINGS.panelZoom
+    panelZoom: record2["panelZoom"] && typeof record2["panelZoom"] === "object" && !Array.isArray(record2["panelZoom"]) ? Object.fromEntries(Object.entries(record2["panelZoom"]).filter(([id, step]) => id.length > 0 && typeof step === "number" && Number.isInteger(step) && step >= 0 && step <= 6)) : DEFAULT_SETTINGS.panelZoom,
+    effects: record2["effects"] && typeof record2["effects"] === "object" && !Array.isArray(record2["effects"]) ? Object.fromEntries(Object.entries(record2["effects"]).filter(([id, value3]) => id.length > 0 && typeof value3 === "number" && Number.isFinite(value3)).map(([id, value3]) => [id, Math.max(0, Math.min(100, Math.round(value3)))])) : DEFAULT_SETTINGS.effects
   };
 }
 
@@ -517,9 +519,11 @@ var COLORBLIND_FILTER_ID = "anybandui-accessibility-colorblind";
 var HIGH_CONTRAST_FILTER = "contrast(1.55) saturate(1.2)";
 var COLORBLIND_MATRIX = "0.812 0.199 -0.011 0 0 0 1 0 0 0 -0.188 0.199 0.989 0 0 0 0 0 1 0";
 function accessibilityFilter(flags) {
-  if (flags["anybandui.colourblind"] === true) return `url("#${COLORBLIND_FILTER_ID}")`;
-  if (flags["anybandui.highContrast"] === true) return HIGH_CONTRAST_FILTER;
-  return null;
+  const filters = [];
+  if (flags["anybandui.colourblind"] === true) filters.push(`url("#${COLORBLIND_FILTER_ID}")`);
+  else if (flags["anybandui.highContrast"] === true) filters.push(HIGH_CONTRAST_FILTER);
+  if (flags["anybandui.crt"] === true) filters.push("contrast(1.08) saturate(1.25) brightness(1.02)");
+  return filters.length ? filters.join(" ") : null;
 }
 function ensureColorblindFilter() {
   if (typeof document === "undefined" || document.getElementById(COLORBLIND_FILTER_ID)) return;
@@ -5438,6 +5442,179 @@ function installStores(ctx) {
   };
 }
 
+// src/effects.ts
+function healthIntensity(hp, maxHp, warning) {
+  if (!(hp !== void 0 && maxHp && maxHp > 0 && hp > 0)) return 0;
+  const threshold = warning !== void 0 && warning > 0 ? warning * 10 : 30;
+  const ratio = hp / maxHp * 100;
+  return ratio > threshold ? 0 : Math.max(0, Math.min(1, (threshold - ratio) / Math.max(1, threshold) + 0.12));
+}
+function chooseEffectMotion(reduced) {
+  return reduced ? "static" : "motion";
+}
+function effectGrids(s, known) {
+  const asleep = [], uniques = [], artifacts = [];
+  for (const m of s?.core.monsters ?? []) if (m.visible) {
+    if (m.asleep) asleep.push(m.grid);
+    if (m.raceFlags.includes("UNIQUE")) uniques.push(m.grid);
+  }
+  for (const c of known?.cells ?? []) if (c.remembered.objects.some((o) => !!o && typeof o === "object" && o.artifact === true)) artifacts.push({ x: c.x, y: c.y });
+  return { asleep, uniques, artifacts };
+}
+function actorGrid(s, who) {
+  if (who === null) return null;
+  if (who === "player") return s?.core.player?.grid ?? null;
+  return s?.core.monsters?.find((m) => m.id === who)?.grid ?? null;
+}
+function eventCue(e, locate = () => null) {
+  if (!e.seen) return [];
+  if (e.event === "combat-outcome") {
+    const caster = e.kind === "spell" ? locate(e.attacker) : null;
+    return [...caster ? [{ grid: caster, kind: "cast" }] : [], { grid: e.grid, kind: e.died ? "death" : e.hit ? "hit" : "miss" }];
+  }
+  if (e.event === "heal") return [{ grid: e.grid, kind: "heal" }];
+  return e.kind === "teleport" ? [{ grid: e.from, kind: "departure" }, { grid: e.to, kind: "arrival" }] : [];
+}
+function installEffects(ctx) {
+  const flags = ctx.flags ?? {};
+  const enabled = ["anybandui.crt", "anybandui.lowHealthEffect", "anybandui.deathEffect", "anybandui.itemGlow", "anybandui.sleepMarks", "anybandui.presenceHaze", "anybandui.spellEffects"].some((x) => flags[x]);
+  const display = ctx.display;
+  if (!enabled || !display || typeof document === "undefined") return () => {
+  };
+  const activeDisplay = display;
+  const canvas = document.createElement("canvas");
+  canvas.setAttribute("aria-hidden", "true");
+  Object.assign(canvas.style, { position: "fixed", pointerEvents: "none", zIndex: "2", display: "none" });
+  document.body.append(canvas);
+  const maybeContext = canvas.getContext("2d");
+  if (!maybeContext) {
+    canvas.remove();
+    return () => {
+    };
+  }
+  const g = maybeContext;
+  const cues = [];
+  let raf = 0, previousPhase = null, deadBurstAt = 0;
+  const reduced = () => globalThis.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+  const add = (e) => {
+    for (const cue of eventCue(e, (who) => actorGrid(ctx.snapshot?.() ?? null, who))) {
+      const strength = Math.max(0, Math.min(100, validateSettings(ctx.prefs?.get()).effects[cue.kind] ?? 100));
+      if (strength > 0) cues.push({ ...cue, started: performance.now(), strength });
+    }
+    request();
+  };
+  const combat = (e) => add({ event: "combat-outcome", ...e });
+  const heal = (e) => add({ event: "heal", ...e });
+  const motion = (e) => add({ event: "motion", ...e });
+  const listen = flags["anybandui.spellEffects"] === true;
+  if (listen) {
+    ctx.events?.on("combat-outcome", combat);
+    ctx.events?.on("heal", heal);
+    ctx.events?.on("motion", motion);
+  }
+  function request() {
+    if (!raf) raf = requestAnimationFrame(draw);
+  }
+  function draw(now) {
+    raf = 0;
+    const view = activeDisplay.snapshot(), rect = mapProjection(view);
+    const snap = ctx.snapshot?.() ?? null;
+    if (!rect || view.mode !== "play") {
+      canvas.style.display = "none";
+      return;
+    }
+    canvas.style.display = "block";
+    canvas.style.left = `${rect.x}px`;
+    canvas.style.top = `${rect.y}px`;
+    canvas.style.width = `${rect.width}px`;
+    canvas.style.height = `${rect.height}px`;
+    const dpr = devicePixelRatio || 1;
+    canvas.width = Math.round(rect.width * dpr);
+    canvas.height = Math.round(rect.height * dpr);
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, rect.width, rect.height);
+    const cellW = rect.width / view.viewport.size.width, cellH = rect.height / view.viewport.size.height;
+    const cell = (p) => ({ x: (p.x - view.viewport.origin.x + 0.5) * cellW, y: (p.y - view.viewport.origin.y + 0.5) * cellH });
+    const effectSettings = validateSettings(ctx.prefs?.get()).effects;
+    const intensity = (key) => Math.max(0, Math.min(100, effectSettings[key] ?? 100)) / 100;
+    const staticMode = chooseEffectMotion(reduced()) === "static";
+    if (flags["anybandui.crt"] && intensity("crt") > 0) {
+      g.fillStyle = `rgba(0,0,0,${0.1 * intensity("crt")})`;
+      for (let y = 0; y < rect.height; y += 3) g.fillRect(0, y, rect.width, 1);
+      if (!staticMode) {
+        const y = now / 14 % rect.height;
+        g.fillStyle = "rgba(120,220,255,.08)";
+        g.fillRect(0, y, rect.width, Math.max(2, cellH * 0.18));
+      }
+    }
+    if (flags["anybandui.lowHealthEffect"] && intensity("lowHealth") > 0) {
+      const p = snap?.core.player;
+      const v = healthIntensity(p?.hp, p?.maxHp, void 0) * intensity("lowHealth");
+      if (v) {
+        g.fillStyle = `rgba(255,20,25,${v * (staticMode ? 0.1 : 0.08 + 0.08 * Math.sin(now / 45))})`;
+        g.fillRect(0, 0, rect.width, rect.height);
+      }
+    }
+    if (snap?.phase === "dead" && previousPhase !== "dead" && flags["anybandui.deathEffect"] && intensity("death") > 0) {
+      deadBurstAt = now;
+      const at = snap.core.player?.grid;
+      if (at) cues.push({ grid: at, kind: "death", started: now, strength: 100 });
+    }
+    previousPhase = snap?.phase ?? null;
+    const known = ctx.knownLevel?.() ?? null, grids = effectGrids(snap, known);
+    if (flags["anybandui.itemGlow"]) for (const p of grids.artifacts) paint(p, "#ffd36a", intensity("itemGlow"));
+    if (flags["anybandui.sleepMarks"]) for (const p of grids.asleep) {
+      const q = cell(p);
+      g.strokeStyle = `rgba(190,220,255,${intensity("sleepMarks")})`;
+      g.lineWidth = 1.5;
+      g.beginPath();
+      g.moveTo(q.x - 3, q.y - cellH * 0.38);
+      g.lineTo(q.x, q.y - cellH * 0.52);
+      g.lineTo(q.x + 3, q.y - cellH * 0.38);
+      g.stroke();
+    }
+    if (flags["anybandui.presenceHaze"]) for (const p of grids.uniques) paint(p, "#b45cff", intensity("presenceHaze") * ((snap?.core.monsters ?? []).some((m) => m.visible && m.grid.x === p.x && m.grid.y === p.y && m.race === "Morgoth, Lord of Darkness") ? 1 : 0.65));
+    let active = false;
+    for (const c of cues) {
+      const age = (now - c.started) / 650;
+      if (age >= (staticMode ? 0.08 : 1)) continue;
+      active = true;
+      const q = cell(c.grid), a = staticMode ? 0.45 : (1 - age) * c.strength / 100;
+      g.strokeStyle = `rgba(${c.kind === "heal" ? "100,255,160" : c.kind === "cast" ? "100,190,255" : "255,190,90"},${a})`;
+      g.lineWidth = 2;
+      g.beginPath();
+      g.arc(q.x, q.y, staticMode ? 5 : 4 + age * cellH * 0.55, 0, Math.PI * 2);
+      g.stroke();
+    }
+    cues.splice(0, cues.length, ...cues.filter((c) => now - c.started < 650));
+    if (flags["anybandui.deathEffect"] && deadBurstAt && now - deadBurstAt < 900) active = true;
+    if (active || !staticMode && (flags["anybandui.crt"] && intensity("crt") > 0 || flags["anybandui.lowHealthEffect"] && healthIntensity(snap?.core.player?.hp, snap?.core.player?.maxHp, void 0) > 0 || flags["anybandui.sleepMarks"] && grids.asleep.length > 0 || flags["anybandui.itemGlow"] && grids.artifacts.length > 0 || flags["anybandui.presenceHaze"] && grids.uniques.length > 0)) request();
+    function paint(p, color, a) {
+      if (!a) return;
+      const q = cell(p);
+      g.fillStyle = color;
+      g.globalAlpha = a * (staticMode ? 1 : 0.5 + 0.5 * Math.sin(now / 180));
+      g.beginPath();
+      g.arc(q.x, q.y, Math.max(3, cellW * 0.42), 0, Math.PI * 2);
+      g.fill();
+      g.globalAlpha = 1;
+    }
+  }
+  const tick = globalThis.setInterval(request, 250);
+  request();
+  return () => {
+    globalThis.clearInterval(tick);
+    if (raf) cancelAnimationFrame(raf);
+    if (listen) {
+      ctx.events?.off("combat-outcome", combat);
+      ctx.events?.off("heal", heal);
+      ctx.events?.off("motion", motion);
+    }
+    canvas.remove();
+    cues.length = 0;
+  };
+}
+
 // plugin.ts
 var quiverDisplay;
 var tileDisplay;
@@ -5449,9 +5626,10 @@ var plugin_default = {
     this.uninstall();
     ctx.log(`AnybandUI loaded on engine ${ctx.engine}`);
     const flags = ctx.flags ?? {};
+    displayCleanups.push(installEffects({ flags, ...ctx.snapshot ? { snapshot: ctx.snapshot } : {}, ...ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {}, ...ctx.events ? { events: ctx.events } : {}, ...ctx.display?.snapshot ? { display: ctx.display } : {}, ...ctx.prefs ? { prefs: ctx.prefs } : {} }));
     displayCleanups.push(installItems(ctx));
     displayCleanups.push(installStores(ctx));
-    if (flags["anybandui.highContrast"] || flags["anybandui.colourblind"]) {
+    if (flags["anybandui.highContrast"] || flags["anybandui.colourblind"] || flags["anybandui.crt"]) {
       installAccessibilityAccommodations({ flags, ...ctx.display ? { display: ctx.display } : {}, log: ctx.log });
     }
     if (flags["anybandui.quiverItemization"]) {

@@ -22,9 +22,13 @@ export interface AccessibilityContext {
  * priority because it closes an information-access gap (#209).
  */
 export function accessibilityFilter(flags: Readonly<Record<string, boolean>>): string | null {
-  if (flags["anybandui.colourblind"] === true) return `url("#${COLORBLIND_FILTER_ID}")`;
-  if (flags["anybandui.highContrast"] === true) return HIGH_CONTRAST_FILTER;
-  return null;
+  const filters: string[] = [];
+  if (flags["anybandui.colourblind"] === true) filters.push(`url("#${COLORBLIND_FILTER_ID}")`);
+  else if (flags["anybandui.highContrast"] === true) filters.push(HIGH_CONTRAST_FILTER);
+  // CSS filters compose in order; the accessibility transform runs first so
+  // the CRT finish cannot replace the selected accessibility accommodation.
+  if (flags["anybandui.crt"] === true) filters.push("contrast(1.08) saturate(1.25) brightness(1.02)");
+  return filters.length ? filters.join(" ") : null;
 }
 
 /** SVG is required because CSS contrast cannot express a non-diagonal color matrix. */

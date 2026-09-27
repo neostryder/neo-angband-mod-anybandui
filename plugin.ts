@@ -37,6 +37,8 @@ import { installMapMouse } from "./src/map-mouse.js";
 import { installPhase4 } from "./src/phase4.js";
 import type { Phase4Context, StoreContext } from "./src/seams.js";
 import { installStores } from "./src/panels/stores.js";
+import { installEffects } from "./src/effects.js";
+import type { EffectContext } from "./src/seams.js";
 
 /**
  * What this plugin needs from the host's context, structurally.
@@ -62,6 +64,7 @@ interface RegisterCtx extends MouseSeams {
   readonly tiles?: FirstEncounterContext["tiles"];
   readonly prefs?: FirstEncounterContext["prefs"];
   readonly subwindows?: ZoomPanContext["subwindows"];
+  readonly events?: EffectContext["events"];
 }
 
 let quiverDisplay: RegisterCtx["display"];
@@ -78,9 +81,10 @@ export default {
     this.uninstall();
     ctx.log(`AnybandUI loaded on engine ${ctx.engine}`);
     const flags = ctx.flags ?? {};
+    displayCleanups.push(installEffects({ flags, ...(ctx.snapshot ? { snapshot: ctx.snapshot as NonNullable<EffectContext["snapshot"]> } : {}), ...(ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {}), ...(ctx.events ? { events: ctx.events } : {}), ...(ctx.display?.snapshot ? { display: ctx.display as NonNullable<EffectContext["display"]> } : {}), ...(ctx.prefs ? { prefs: ctx.prefs } : {}) }));
     displayCleanups.push(installItems(ctx as unknown as ItemsContext));
     displayCleanups.push(installStores(ctx as unknown as StoreContext));
-    if (flags["anybandui.highContrast"] || flags["anybandui.colourblind"]) {
+    if (flags["anybandui.highContrast"] || flags["anybandui.colourblind"] || flags["anybandui.crt"]) {
       installAccessibilityAccommodations({ flags, ...(ctx.display ? { display: ctx.display } : {}), log: ctx.log });
     }
     if (flags["anybandui.quiverItemization"]) {

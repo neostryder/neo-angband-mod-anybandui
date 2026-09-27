@@ -46,7 +46,14 @@ A mouse-first desktop interface for Neo Angband, ported from Wurli Monkhaven's A
 | Store comparison | `anybandui.storeComparison` | off | When you select something you could wear, compares it with your current equipment, the same way the item panel does. |
 | Store buttons | `anybandui.storeTransactions` | off | Adds Buy, Sell, Stash, Retrieve and Leave buttons to the store window. Only Leave works on this version of the game. The others wait for a version that asks its usual quantity and price questions before a sale. |
 | Store questions | `anybandui.storePrompts` | off | When the store asks how many or whether to accept a price, answers it with buttons in the store window instead of the keyboard. |
+| CRT display | `anybandui.crt` | off | Gives the dungeon view the look of an old monitor: slightly richer colours, faint scanlines, and a slow band of light that sweeps down the screen. The sweep stops when your system asks for reduced motion. |
+| Low health warning | `anybandui.lowHealthEffect` | off | Tints the dungeon view red when your hit points fall to 30 percent or lower, deepening as they drop, with a pulse unless your system asks for reduced motion. |
+| Death burst | `anybandui.deathEffect` | off | Draws a burst on your character's square at the moment of death. |
+| Artifact glow | `anybandui.itemGlow` | off | Makes a soft gold glow around each artifact you know is lying on the floor. |
+| Sleeping creature marks | `anybandui.sleepMarks` | off | Puts a small mark above each sleeping creature you can see. |
+| Unique presence haze | `anybandui.presenceHaze` | off | Surrounds each unique creature you can see with a violet haze, heavier around Morgoth. |
+| Combat rings | `anybandui.spellEffects` | off | Draws a brief ring where a spell is cast, where a blow or shot lands or misses, where a creature dies, where someone heals, and at both ends of a teleport. Only things your character sees get a ring. |
 
 ## What it needs
 
-`ui:sidebar.replace`, `ui:status.replace`, `ui:messages.replace`, `display:filter`, `ui:panel.mount`, `state:map.read`, `state:interaction.read`, `state:inventory.read`, `state:player.read`, `state:spells.read`, `state:stores.read`, `input:intent`, and `input:prompt.reply`.
+`ui:sidebar.replace`, `ui:status.replace`, `ui:messages.replace`, `display:filter` (used by the CRT colour treatment), `ui:panel.mount`, `state:map.read`, `state:interaction.read`, `state:inventory.read`, `state:player.read`, `state:spells.read`, `state:stores.read`, `input:intent`, `input:prompt.reply`, `event:combat-outcome`, `event:heal`, and `event:motion`.

@@ -17,6 +17,11 @@ describe("visual accessibility accommodations", () => {
     expect(accessibilityFilter({ "anybandui.colourblind": true, "anybandui.highContrast": true })).toBe(`url("#${COLORBLIND_FILTER_ID}")`);
   });
 
+  it("keeps the CRT finish after the selected accessibility filter", () => {
+    expect(accessibilityFilter({ "anybandui.colourblind": true, "anybandui.highContrast": true, "anybandui.crt": true }))
+      .toBe(`url("#${COLORBLIND_FILTER_ID}") contrast(1.08) saturate(1.25) brightness(1.02)`);
+  });
+
   it("uses the scoped display seam and clears it on uninstall", () => {
     const setVisualFilter = vi.fn((_filter: string | null, _options: { scope: "game" }) => {});
     installAccessibilityAccommodations({ flags: { "anybandui.highContrast": true }, display: { setVisualFilter } });
