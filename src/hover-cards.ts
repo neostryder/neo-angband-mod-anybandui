@@ -3,7 +3,7 @@ import { THEMES } from "./theme.js";
 import type { DisplaySnapshot, Point, ZoomDisplay } from "./zoom.js";
 import { pointInRect } from "./zoom.js";
 import { featureCode, landmarkKind, mapProjection } from "./map-overview.js";
-import type { InputSnapshot } from "./seams.js";
+import type { Grid, MonsterRecallResult, RecallSeam, RecallSnapshot } from "./seams.js";
 
 interface LookCore {
   describeLookGrid(state: unknown, grid: Point, mode: number): { text: string; mon?: { hp?: number; maxhp?: number } | null };
@@ -21,7 +21,8 @@ interface HoverContext {
   prefs?: { get(): unknown };
   log?: (message: string) => void;
   knownLevel?: () => { cells: readonly { x: number; y: number; remembered: { feat: number; featCode?: string } }[] } | null;
-  snapshot?: () => InputSnapshot | null;
+  snapshot?: () => RecallSnapshot | null;
+  inspect?: RecallSeam;
 }
 
 export function hoverGrid(snapshot: DisplaySnapshot, point: Point): Point | null {
@@ -49,9 +50,48 @@ export function snapLandmark(snapshot: DisplaySnapshot, point: Point, cells: rea
   return chosen;
 }
 
+/* The fixed sentence the game writes for a race with no recorded kills. It
+ * tells the player nothing on a card, so the line after it is used instead. */
+const NO_BATTLES = "No battles to the death are recalled.";
+const RECALL_LIMIT = 90;
+
+/**
+ * One short line from the game's own monster recall. The recall's first line
+ * is the race's title, which the look text above already names; the next
+ * sentence is the kill record or the race's description. Long sentences are
+ * cut at a word so the card stays small.
+ */
+export function recallLine(recall: Pick<MonsterRecallResult, "text"> | null | undefined): string | null {
+  const body = recall?.text.split("\n").slice(1).join(" ").replace(/\s+/g, " ").trim();
+  if (!body) return null;
+  const sentences = body.split(/(?<=[.!?])\s+/).filter((sentence) => sentence && sentence !== NO_BATTLES);
+  const first = sentences[0];
+  if (!first) return null;
+  if (first.length <= RECALL_LIMIT) return first;
+  const cut = first.slice(0, RECALL_LIMIT - 3);
+  return `${cut.slice(0, Math.max(cut.lastIndexOf(" "), 1)).replace(/[,;:]$/, "")}...`;
+}
+
+/**
+ * The recall line for a creature at a grid, or null.
+ *
+ * Two gates keep it to what the character knows. The snapshot must list a
+ * visible monster on that grid, so an unseen or camouflaged creature is
+ * never looked up, and monsterRecall itself returns null for a race the
+ * character has not seen. The read throws when state:monsters.read is not
+ * granted, which counts as no line.
+ */
+export function creatureRecall(ctx: Pick<HoverContext, "snapshot" | "inspect">, grid: Grid): string | null {
+  if (!ctx.inspect?.monsterRecall || !ctx.snapshot) return null;
+  try {
+    const monster = ctx.snapshot()?.core.monsters?.find((entry) => entry.visible && entry.grid.x === grid.x && entry.grid.y === grid.y);
+    return monster ? recallLine(ctx.inspect.monsterRecall(monster.raceIndex)) : null;
+  } catch { return null; }
+}
+
 /* describeLookGrid is the game's own knowledge-gated formatter. Reading the
  * actual chunk or a renderer tile here could disclose an unseen monster. */
-export function knownCard(core: LookCore, state: NonNullable<HoverContext["state"]>, grid: Point, map: boolean): string | null {
+export function knownCard(core: LookCore, state: NonNullable<HoverContext["state"]>, grid: Point, map: boolean, recall?: string | null): string | null {
   const look = core.describeLookGrid(state, grid, 0);
   const text = look?.text?.trim();
   if (!text) return null;
@@ -67,6 +107,8 @@ export function knownCard(core: LookCore, state: NonNullable<HoverContext["state
     const count = Math.max(0, Math.min(10, Math.round(10 * hp / max)));
     lines.push(`[${"#".repeat(count)}${"-".repeat(10 - count)}]`);
   }
+  // Only a creature the look text itself describes gets a recall line.
+  if (!self && look.mon && recall) lines.push(recall);
   if (self && core.TMD && state.actor?.player?.timed) {
     const statuses = Object.entries(core.TMD).filter(([, index]) => (state.actor?.player?.timed?.[index] ?? 0) > 0)
       .map(([name]) => name.toLowerCase().replaceAll("_", " "));
@@ -125,7 +167,7 @@ export function installHoverCards(ctx: HoverContext): () => void {
     const current = resolve(point);
     if (!current || current.grid.x !== grid.x || current.grid.y !== grid.y || current.map !== map) { hide(); return; }
     if (!ctx.state) return;
-    const content = knownCard(core, ctx.state, grid, map);
+    const content = knownCard(core, ctx.state, grid, map, map ? null : creatureRecall(ctx, grid));
     if (!content) return;
     body.textContent = content;
     preview.style.display = paintPreview(display.snapshot(), grid, map, preview) ? "block" : "none";

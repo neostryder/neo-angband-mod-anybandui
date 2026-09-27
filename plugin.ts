@@ -134,6 +134,7 @@ export default {
         display }));
       displayCleanups.push(installHoverCards({ flags: { ...flags, "anybandui.mapHoverCards": false }, display,
         ...(ctx.snapshot ? { snapshot: ctx.snapshot } : {}),
+        ...(ctx.inspect ? { inspect: ctx.inspect as NonNullable<Parameters<typeof installHoverCards>[0]["inspect"]> } : {}),
         ...(ctx.core ? { core: ctx.core as unknown as NonNullable<Parameters<typeof installHoverCards>[0]["core"]> } : {}),
         ...(ctx.knownLevel ? { knownLevel: ctx.knownLevel as NonNullable<Parameters<typeof installHoverCards>[0]["knownLevel"]> } : {}),
         ...(ctx.state ? { state: ctx.state as unknown as NonNullable<ZoomPanContext["state"]> } : {}), ...(ctx.prefs ? { prefs: ctx.prefs } : {}), log: ctx.log }));
@@ -251,10 +252,11 @@ export default {
       statusRepaint = () => { if (last) output.status!.present(last[0], last[1]); };
     }
     if (enabled.messages) {
-      const host = createPanelHost(doc, [{ key: "messages", render: renderMessageLog, select: (m) => [m.messages, m.message_pending] }], theme);
+      const acknowledge = source.acknowledge;
+      const host = createPanelHost(doc, [{ key: "messages", render: (mount, model) => renderMessageLog(mount, model, acknowledge ? { acknowledge } : {}), select: (m) => [m.messages, m.message_pending] }], theme);
       output.messages = { present(section: HudSection, frame: HudFrame) {
         source.hud.messages!.present(section, frame);
-        const model = source.snapshot();
+        const model = source.snapshot({ messages: true });
         if (model) host.present(section, frame, model);
         if (model) pane?.paint(model);
       } };

@@ -8,7 +8,7 @@ A mouse-first desktop interface for Neo Angband, ported from Wurli Monkhaven's A
 | --- | --- | --- | --- |
 | TODO-PROSE | `anybandui.sidebar` | off | TODO-PROSE |
 | TODO-PROSE | `anybandui.status` | off | TODO-PROSE |
-| Message log | `anybandui.messages` | off | Replaces the message line with a scrolling log. Repeated messages fold into one line with a count, and a search box finds an older message. |
+| TODO-PROSE | `anybandui.messages` | off | TODO-PROSE |
 | Accessibility: high-contrast display | `anybandui.highContrast` | off | Boosts contrast and colour separation over each finished frame, in text mode and with tiles, across the dungeon, maps, menus and this mod's panels. |
 | Accessibility: colourblind correction | `anybandui.colourblind` | off | Applies a red-green colour correction over each finished frame, in text mode and with tiles, across the dungeon, maps, menus and this mod's panels. |
 | First-encounter alerts | `anybandui.firstEncounter` | off | The first time this character meets a kind of monster, or picks up an artifact, a small card appears in the corner with its name and native depth. A monster's card carries a threat badge: Unique, Deadly (well out of depth), Out of depth, or First sighting. The card never takes the keyboard or blocks a click, and clears itself after a few seconds. Each character keeps its own record. Reported by `Wozar` on r/angband. |
@@ -21,8 +21,8 @@ A mouse-first desktop interface for Neo Angband, ported from Wurli Monkhaven's A
 | Keep the target in view | `anybandui.keepTargetInView` | off | While you aim, the view moves so the targeting cursor stays on screen. |
 | Centre on a new level | `anybandui.recentreOnFloor` | off | Arriving on a new level centres the view on your character. |
 | Hover cards on the map overview | `anybandui.mapHoverCards` | off | Resting the pointer on a cell of the map overview, or holding a finger on it, opens a card with a magnified tile and what you know about that cell: terrain, creature, item, trap or shop. It shows nothing your character has not seen. |
-| Hover cards on the dungeon view | `anybandui.dungeonHoverCards` | off | Resting the pointer on a tile of the dungeon view opens a card with what you know about it: the creature or character there with a small health bar, the terrain, and up to five items on the floor. The delay before a card opens is one setting shared with the map overview's cards, 550 ms to start with. |
-| Click to walk | `anybandui.clickToWalk` | off | Left-click a tile in the dungeon view to step there, or to travel there if it is further away. Clicking a creature next to you attacks it, and while you aim, a click picks the target. |
+| TODO-PROSE | `anybandui.dungeonHoverCards` | off | TODO-PROSE |
+| TODO-PROSE | `anybandui.clickToWalk` | off | TODO-PROSE |
 | Tile action menu | `anybandui.dungeonActions` | off | Right-click a tile in the dungeon view for a menu of what you can do there: walk, look, target, pick up, open or close a door, tunnel, disarm a trap, or take the stairs. The game decides which of these the tile allows. While you aim, the menu offers Select tile and Cancel. |
 | Gold aiming path | `anybandui.aimPath` | off | While you choose a target, a gold line shows the path your spell or missile would take to the tile under the pointer. The game works the path out itself, so the line stops wherever the shot would. |
 | Walking route preview | `anybandui.walkRoutePreview` | off | Draws a gold line along the route you would walk to reach the tile under the pointer, worked out the same way the travel command plans it. |
@@ -56,4 +56,4 @@ A mouse-first desktop interface for Neo Angband, ported from Wurli Monkhaven's A
 
 ## What it needs
 
-`ui:sidebar.replace`, `ui:status.replace`, `ui:messages.replace`, `display:filter` (used by the CRT colour treatment), `ui:panel.mount`, `state:map.read`, `state:interaction.read`, `state:inventory.read`, `state:player.read`, `state:spells.read`, `state:stores.read`, `input:intent`, `input:prompt.reply`, `event:combat-outcome`, `event:heal`, `event:motion`, and `event:driver-changed`.
+`ui:sidebar.replace`, `ui:status.replace`, `ui:messages.replace`, `display:filter` (used by the CRT colour treatment), `ui:panel.mount`, `state:map.read`, `state:interaction.read`, `state:inventory.read`, `state:player.read`, `state:spells.read`, `state:stores.read`, `input:intent`, `input:prompt.reply`, `event:combat-outcome`, `event:heal`, `event:motion`, and `event:driver-changed`, `state:messages.read`, `state:monsters.read`.

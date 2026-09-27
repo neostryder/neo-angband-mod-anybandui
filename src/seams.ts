@@ -44,7 +44,7 @@ export interface KnownLevel {
 }
 export interface AgentCommand { readonly code: string; readonly dir?: number; readonly args?: Readonly<Record<string, unknown>> }
 export type PlayerIntent =
-  | { readonly kind: "travel"; readonly x: number; readonly y: number }
+  | { readonly kind: "travel"; readonly x: number; readonly y: number; readonly modifiers?: Readonly<{ shift?: boolean; ctrl?: boolean }> }
   | { readonly kind: "target"; readonly x: number; readonly y: number }
   | { readonly kind: "command"; readonly command: AgentCommand };
 export interface IntentResult { readonly accepted: boolean; readonly reason?: string; readonly code?: string }
@@ -183,3 +183,17 @@ export interface ActiveBlastView { readonly token: InputToken; readonly radius: 
 export interface TextPrompt { readonly kind: "text"; readonly promptId: number; readonly label: string; readonly maxLength: number; readonly defaultValue: string; readonly tag?: "rest" }
 export interface StopRestingIntent { readonly kind: "stop-resting" }
 export interface CommandCatalogue { readonly token: InputToken; readonly commands: readonly { readonly code: string; readonly args: string; readonly phase: "play" | "store" }[]; readonly intents: readonly { readonly kind: string; readonly args: string }[] }
+
+// Map clicks, hover cards and messages. MessageHistory mirrors the `messages`
+// part of packages/web/src/input-snapshot.ts InputSnapshot; AckPrompt mirrors
+// the "ack" arm of prompt-view.ts PromptDescriptor and AckReply the matching
+// PromptAnswer; MonsterRecallResult mirrors packages/core/src/agent/types.ts
+// InspectResult as monsterRecall returns it (inspect.ts).
+export interface MessageHistory { readonly token: InputToken; readonly entries: readonly string[] }
+export type AckPrompt = PromptBase & { readonly kind: "ack"; readonly label: string; readonly tag: "more" };
+export interface AckReply { readonly action: "acknowledge" }
+export interface MonsterRecallResult { readonly token: InputToken; readonly title: string; readonly text: string }
+export interface MessageSnapshot extends Omit<InputSnapshot, "prompt"> { readonly messages?: MessageHistory | null; readonly prompt: InputSnapshot["prompt"] | AckPrompt }
+export interface RecallSnapshot extends Omit<InputSnapshot, "core"> { readonly core: CoreSnapshot & { readonly monsters?: readonly EffectMonsterView[] | null } }
+export interface MessageSeams { readonly snapshot?: () => MessageSnapshot | null; readonly prompt?: { reply(promptId: number, answer: AckReply): IntentResult } }
+export interface RecallSeam { monsterRecall?(raceIndex: number): MonsterRecallResult | null }

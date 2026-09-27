@@ -169,30 +169,85 @@ function adapt(view, frame, input = {}) {
     player,
     dungeon: dungeonPayload(player),
     messages: messagePayload(input),
-    message_pending: void 0
+    message_pending: input.messagePending
   };
 }
 
+// src/input-owner.ts
+var PLAYER = Object.freeze({ kind: "player" });
+function currentDriver(ctx) {
+  const read = ctx?.driver;
+  const driver = typeof read === "function" ? read() : void 0;
+  return driver?.kind === "controller" && typeof driver.owner === "string" ? driver : PLAYER;
+}
+function playerIsDriving(ctx) {
+  return currentDriver(ctx).kind === "player";
+}
+
 // src/view-model/source.ts
+var MATCH_WINDOW = 8;
+function messageHistory(entries, log) {
+  const core = log === void 0 ? [] : Array.from({ length: log.num() }, (_, age) => ({
+    text: log.str(age),
+    count: log.count(age),
+    category: log.type(age)
+  }));
+  if (!entries) return core;
+  const history = [];
+  let next = 0;
+  for (let index = entries.length - 1; index >= 0; index--) {
+    const text = entries[index];
+    let found = -1;
+    for (let age = next; age < Math.min(core.length, next + MATCH_WINDOW); age++) {
+      if (core[age].text === text) {
+        found = age;
+        break;
+      }
+    }
+    if (found < 0) {
+      history.push({ text, count: void 0, category: void 0 });
+      continue;
+    }
+    history.push(core[found]);
+    next = found + 1;
+  }
+  return history;
+}
+function messagePending(snap) {
+  if (!snap) return void 0;
+  if (snap.prompt?.kind === "ack" && snap.prompt.tag === "more") return true;
+  if (snap.phase === null || snap.phase === void 0) return void 0;
+  return snap.messagePending === true;
+}
 function createSource(ctx) {
   let latest;
   const present = (_section, frame) => {
     latest = frame;
   };
+  const read = () => {
+    try {
+      return ctx.snapshot?.() ?? null;
+    } catch {
+      return null;
+    }
+  };
+  const acknowledge = () => {
+    if (!ctx.prompt || !playerIsDriving(ctx)) return false;
+    const prompt = read()?.prompt;
+    if (prompt?.kind !== "ack" || prompt.tag !== "more") return false;
+    return ctx.prompt.reply(prompt.promptId, { action: "acknowledge" }).accepted;
+  };
   return {
     hud: { sidebar: { present }, messages: { present }, status: { present } },
-    snapshot() {
+    ...ctx.prompt ? { acknowledge } : {},
+    snapshot(options = {}) {
       if (ctx.state === void 0) return void 0;
       const state = ctx.state;
-      const log = state.messages;
-      const history = log === void 0 ? [] : Array.from({ length: log.num() }, (_, age) => ({
-        text: log.str(age),
-        count: log.count(age),
-        category: log.type(age)
-      }));
+      const snap = options.messages ? read() : null;
+      const pending = messagePending(snap);
       return adapt(ctx.core.createAgentView(state), latest, {
         name: state.actor.player.fullName,
-        history,
+        history: messageHistory(snap?.messages?.entries, state.messages),
         study: state.actor.player.upkeep.newSpells,
         repeat: state.cmdQueue?.[0]?.repeatRemaining ?? 0,
         resting: state.resting !== void 0,
@@ -200,7 +255,8 @@ function createSource(ctx) {
         unignoring: state.unignoring ?? 0,
         recall: state.actor.player.wordRecall,
         descent: state.actor.player.deepDescent,
-        extraMoves: state.playerState?.numMoves ?? 0
+        extraMoves: state.playerState?.numMoves ?? 0,
+        ...pending === void 0 ? {} : { messagePending: pending }
       });
     }
   };
@@ -2560,13 +2616,26 @@ function renderTrackedCreature(mount, model) {
 
 // src/panels/message-log.ts
 var ink = { system: "#64a0b5b4", combat: "#c88f5fb4", loot: "#b1a962b4", other: "#5b8a71a0" };
-function renderMessageLog(mount, model) {
+function renderMessageLog(mount, model, options = {}) {
   const previous = mount.querySelector("input")?.value ?? "";
   mount.replaceChildren();
   const heading = node(mount, "div", "heading", "Messages");
   if (model.message_pending === true) {
     heading.style.color = "#ffba4d";
-    node(mount, "div", "ribbon", "Messages waiting");
+    const acknowledge = options.acknowledge;
+    if (acknowledge) {
+      const ribbon = node(mount, "button", "ribbon", "Messages waiting");
+      ribbon.type = "button";
+      ribbon.style.pointerEvents = "auto";
+      ribbon.style.cursor = "pointer";
+      ribbon.style.background = "transparent";
+      ribbon.style.font = "inherit";
+      ribbon.style.width = "100%";
+      ribbon.style.textAlign = "left";
+      ribbon.addEventListener("click", () => {
+        if (!acknowledge()) ribbon.disabled = true;
+      });
+    } else node(mount, "div", "ribbon", "Messages waiting");
   }
   const search = node(mount, "input");
   search.type = "search";
@@ -3297,7 +3366,28 @@ function snapLandmark(snapshot, point, cells) {
   }
   return chosen;
 }
-function knownCard(core, state, grid, map) {
+var NO_BATTLES = "No battles to the death are recalled.";
+var RECALL_LIMIT = 90;
+function recallLine(recall) {
+  const body = recall?.text.split("\n").slice(1).join(" ").replace(/\s+/g, " ").trim();
+  if (!body) return null;
+  const sentences = body.split(/(?<=[.!?])\s+/).filter((sentence) => sentence && sentence !== NO_BATTLES);
+  const first = sentences[0];
+  if (!first) return null;
+  if (first.length <= RECALL_LIMIT) return first;
+  const cut = first.slice(0, RECALL_LIMIT - 3);
+  return `${cut.slice(0, Math.max(cut.lastIndexOf(" "), 1)).replace(/[,;:]$/, "")}...`;
+}
+function creatureRecall(ctx, grid) {
+  if (!ctx.inspect?.monsterRecall || !ctx.snapshot) return null;
+  try {
+    const monster = ctx.snapshot()?.core.monsters?.find((entry2) => entry2.visible && entry2.grid.x === grid.x && entry2.grid.y === grid.y);
+    return monster ? recallLine(ctx.inspect.monsterRecall(monster.raceIndex)) : null;
+  } catch {
+    return null;
+  }
+}
+function knownCard(core, state, grid, map, recall) {
   const look = core.describeLookGrid(state, grid, 0);
   const text = look?.text?.trim();
   if (!text) return null;
@@ -3316,6 +3406,7 @@ function knownCard(core, state, grid, map) {
     const count = Math.max(0, Math.min(10, Math.round(10 * hp / max)));
     lines.push(`[${"#".repeat(count)}${"-".repeat(10 - count)}]`);
   }
+  if (!self && look.mon && recall) lines.push(recall);
   if (self && core.TMD && state.actor?.player?.timed) {
     const statuses = Object.entries(core.TMD).filter(([, index]) => (state.actor?.player?.timed?.[index] ?? 0) > 0).map(([name]) => name.toLowerCase().replaceAll("_", " "));
     if (statuses.length) lines.push(`Statuses: ${statuses.join(", ")}`);
@@ -3396,7 +3487,7 @@ function installHoverCards(ctx) {
       return;
     }
     if (!ctx.state) return;
-    const content = knownCard(core, ctx.state, grid, map);
+    const content = knownCard(core, ctx.state, grid, map, map ? null : creatureRecall(ctx, grid));
     if (!content) return;
     body.textContent = content;
     preview.style.display = paintPreview(display.snapshot(), grid, map, preview) ? "block" : "none";
@@ -4138,17 +4229,6 @@ function renderItemComparison(parent, sim, unchanged, toggle) {
   }
 }
 
-// src/input-owner.ts
-var PLAYER = Object.freeze({ kind: "player" });
-function currentDriver(ctx) {
-  const read = ctx?.driver;
-  const driver = typeof read === "function" ? read() : void 0;
-  return driver?.kind === "controller" && typeof driver.owner === "string" ? driver : PLAYER;
-}
-function playerIsDriving(ctx) {
-  return currentDriver(ctx).kind === "player";
-}
-
 // src/panels/items.ts
 var CSS2 = `:host{color:var(--anyband-text);font:13px/1.4 system-ui,sans-serif}.items{position:absolute;right:12px;top:12px;width:min(440px,44vw);max-height:calc(100vh - 24px);overflow:auto;padding:10px;background:var(--anyband-surface);border:1px solid var(--anyband-accent);border-radius:var(--anyband-rounding);pointer-events:auto}button,input,select{font:inherit;color:var(--anyband-text);background:var(--anyband-background);border:1px solid var(--anyband-accent);border-radius:3px;padding:3px 5px}button{cursor:pointer}button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--anyband-accent)}input[type=search]{width:100%}.tabs,.actions,.quick{display:flex;gap:5px;flex-wrap:wrap;margin:6px 0}table{width:100%;border-collapse:collapse}th{text-align:left;position:sticky;top:0;background:var(--anyband-surface)}td,th{padding:3px;border-bottom:1px solid var(--anyband-accent)}tr.new{background:#437d5541}.row{width:100%;text-align:left;border:0;background:transparent}details{margin:8px 0}summary{color:var(--anyband-accent);cursor:pointer;font-weight:bold}.muted{opacity:.65}.gain{color:#80b891}.loss{color:#ff7559}.error{color:#ff7559}.prompt{border:1px solid var(--anyband-accent);padding:8px;margin:8px 0}`;
 var ACTIONS = ["wield", "takeoff", "drop", "inscribe", "use"];
@@ -4441,6 +4521,16 @@ function walkIntent(player, at) {
   }
   return { kind: "travel", x: at.x, y: at.y };
 }
+function clickIntent(player, at, modifiers = {}) {
+  if (modifiers.shift && modifiers.ctrl) return null;
+  if (modifiers.ctrl) return { kind: "travel", x: at.x, y: at.y, modifiers: { ctrl: true } };
+  if (modifiers.shift) {
+    const adjacent = Math.max(Math.abs(at.x - player.x), Math.abs(at.y - player.y)) === 1;
+    return adjacent ? { kind: "travel", x: at.x, y: at.y, modifiers: { shift: true } } : null;
+  }
+  return walkIntent(player, at);
+}
+var PRE_MODIFIER_REFUSAL = "malformed travel destination";
 var TILE_ACTION_LABELS = {
   tunnel: "Tunnel",
   open: "Open",
@@ -4457,7 +4547,7 @@ function tileMenuActions(ctx, snap, at) {
   const actions = [];
   const walk = walkIntent(snap.core.player.grid, at);
   if (walk) actions.push({ label: "Walk here", intent: walk });
-  actions.push({ label: "Look", intent: { kind: "command", command: { code: "look" } } });
+  actions.push({ label: "Look", intent: { kind: "command", command: { code: "look", args: { x: at.x, y: at.y } } } });
   actions.push({ label: "Target", intent: { kind: "target", ...at } });
   const known = ctx.knownLevel?.();
   if (known && sameToken(known.token, snap.token) && known.cells.some((cell) => cell.x === at.x && cell.y === at.y && cell.remembered.objects.length > 0)) {
@@ -4477,13 +4567,19 @@ function tileMenuActions(ctx, snap, at) {
   }
   return actions;
 }
-function clickTile(ctx, at) {
+function clickTile(ctx, at, modifiers = {}) {
   if (!playerIsDriving(ctx)) return false;
   const snap = ctx.snapshot?.() ?? null;
   if (snap?.prompt?.kind === "target") return !!ctx.prompt?.reply(snap.prompt.promptId, { action: "move", ...at }).accepted;
   if (!ready(snap) || !snap || !ctx.intent) return false;
-  const intent = walkIntent(snap.core.player.grid, at);
-  return !!intent && ctx.intent.submit(snap.token, intent).accepted;
+  const player = snap.core.player.grid;
+  const intent = clickIntent(player, at, modifiers);
+  if (!intent) return false;
+  const result = ctx.intent.submit(snap.token, intent);
+  if (result.accepted) return true;
+  if (intent.kind !== "travel" || !intent.modifiers || result.reason !== PRE_MODIFIER_REFUSAL) return false;
+  const plain = walkIntent(player, at);
+  return !!plain && ctx.intent.submit(snap.token, plain).accepted;
 }
 function runMenuAction(ctx, at, label2) {
   if (!playerIsDriving(ctx)) return false;
@@ -4569,7 +4665,7 @@ function installMapMouse(ctx) {
     if (!flags["anybandui.clickToWalk"]) return;
     const at = locate(event);
     const prompt = ctx.snapshot?.()?.prompt;
-    if (at && clickTile(ctx, at)) {
+    if (at && clickTile(ctx, at, { shift: event.shiftKey, ctrl: event.ctrlKey })) {
       if (prompt?.kind === "target") {
         targetAt = at;
         targetPromptId = prompt.promptId;
@@ -6103,6 +6199,7 @@ var plugin_default = {
         flags: { ...flags, "anybandui.mapHoverCards": false },
         display,
         ...ctx.snapshot ? { snapshot: ctx.snapshot } : {},
+        ...ctx.inspect ? { inspect: ctx.inspect } : {},
         ...ctx.core ? { core: ctx.core } : {},
         ...ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {},
         ...ctx.state ? { state: ctx.state } : {},
@@ -6228,10 +6325,11 @@ var plugin_default = {
       };
     }
     if (enabled.messages) {
-      const host = createPanelHost(doc, [{ key: "messages", render: renderMessageLog, select: (m) => [m.messages, m.message_pending] }], theme);
+      const acknowledge = source.acknowledge;
+      const host = createPanelHost(doc, [{ key: "messages", render: (mount, model) => renderMessageLog(mount, model, acknowledge ? { acknowledge } : {}), select: (m) => [m.messages, m.message_pending] }], theme);
       output.messages = { present(section2, frame) {
         source.hud.messages.present(section2, frame);
-        const model = source.snapshot();
+        const model = source.snapshot({ messages: true });
         if (model) host.present(section2, frame, model);
         if (model) pane?.paint(model);
       } };

@@ -30,6 +30,30 @@ export function walkIntent(player: Grid, at: Grid): PlayerIntent | null {
   return { kind: "travel", x: at.x, y: at.y };
 }
 
+export interface ClickModifiers { readonly shift?: boolean; readonly ctrl?: boolean }
+
+/* Shift runs one way and Ctrl targets, through the travel intent's own
+ * modifiers, so the engine applies the same rules as its keys. Both held at
+ * once has no single meaning, so it is declined rather than guessed. Shift
+ * toward a grid that is not adjacent is declined here too, because the
+ * engine refuses it and the click should fall through untouched. */
+export function clickIntent(player: Grid, at: Grid, modifiers: ClickModifiers = {}): PlayerIntent | null {
+  if (modifiers.shift && modifiers.ctrl) return null;
+  if (modifiers.ctrl) return { kind: "travel", x: at.x, y: at.y, modifiers: { ctrl: true } };
+  if (modifiers.shift) {
+    const adjacent = Math.max(Math.abs(at.x - player.x), Math.abs(at.y - player.y)) === 1;
+    return adjacent ? { kind: "travel", x: at.x, y: at.y, modifiers: { shift: true } } : null;
+  }
+  return walkIntent(player, at);
+}
+
+/* An engine older than travel modifiers refuses any extra key on a travel
+ * intent with exactly this reason. Only then does a modified click fall back
+ * to the plain click it was before modifiers existed. A newer engine's own
+ * refusals ("malformed modifiers", "run needs an adjacent grid") and a
+ * controller holding input are left as refusals. */
+const PRE_MODIFIER_REFUSAL = "malformed travel destination";
+
 const TILE_ACTION_LABELS: Readonly<Record<string, string>> = {
   tunnel: "Tunnel", open: "Open", close: "Close", disarm: "Disarm",
   ascend: "Go up the stairs", descend: "Go down the stairs", pickup: "Pick up",
@@ -43,7 +67,10 @@ export function tileMenuActions(ctx: MouseSeams, snap: InputSnapshot, at: Grid):
   const actions: TileMenuAction[] = [];
   const walk = walkIntent(snap.core.player!.grid, at);
   if (walk) actions.push({ label: "Walk here", intent: walk });
-  actions.push({ label: "Look", intent: { kind: "command", command: { code: "look" } } });
+  /* Look opens the game's look loop at the clicked grid. An engine without
+   * look arguments accepts and ignores them, and opens the loop where it
+   * always did, so no fallback is needed. */
+  actions.push({ label: "Look", intent: { kind: "command", command: { code: "look", args: { x: at.x, y: at.y } } } });
   actions.push({ label: "Target", intent: { kind: "target", ...at } });
   const known = ctx.knownLevel?.();
   if (known && sameToken(known.token, snap.token) && known.cells.some((cell) => cell.x === at.x && cell.y === at.y && cell.remembered.objects.length > 0)) {
@@ -67,13 +94,21 @@ export function tileMenuActions(ctx: MouseSeams, snap: InputSnapshot, at: Grid):
   return actions;
 }
 
-export function clickTile(ctx: MouseSeams, at: Grid): boolean {
+export function clickTile(ctx: MouseSeams, at: Grid, modifiers: ClickModifiers = {}): boolean {
   if (!playerIsDriving(ctx)) return false;
   const snap = ctx.snapshot?.() ?? null;
+  // An open target prompt owns the click whatever modifiers are held: the
+  // click moves its cursor, as a plain click always has.
   if (snap?.prompt?.kind === "target") return !!ctx.prompt?.reply(snap.prompt.promptId, { action: "move", ...at }).accepted;
   if (!ready(snap) || !snap || !ctx.intent) return false;
-  const intent = walkIntent(snap.core.player!.grid, at);
-  return !!intent && ctx.intent.submit(snap.token, intent).accepted;
+  const player = snap.core.player!.grid;
+  const intent = clickIntent(player, at, modifiers);
+  if (!intent) return false;
+  const result = ctx.intent.submit(snap.token, intent);
+  if (result.accepted) return true;
+  if (intent.kind !== "travel" || !intent.modifiers || result.reason !== PRE_MODIFIER_REFUSAL) return false;
+  const plain = walkIntent(player, at);
+  return !!plain && ctx.intent.submit(snap.token, plain).accepted;
 }
 
 export function runMenuAction(ctx: MouseSeams, at: Grid, label: string): boolean {
@@ -155,7 +190,9 @@ export function installMapMouse(ctx: MapMouseContext): () => void {
     if (!flags["anybandui.clickToWalk"]) return;
     const at = locate(event);
     const prompt = ctx.snapshot?.()?.prompt;
-    if (at && clickTile(ctx, at)) {
+    // On macOS a Ctrl-click arrives as a context menu event instead, which
+    // opens the tile action menu; its Target entry does the same job.
+    if (at && clickTile(ctx, at, { shift: event.shiftKey, ctrl: event.ctrlKey })) {
       if (prompt?.kind === "target") { targetAt = at; targetPromptId = prompt.promptId; }
       event.preventDefault(); event.stopImmediatePropagation();
     }

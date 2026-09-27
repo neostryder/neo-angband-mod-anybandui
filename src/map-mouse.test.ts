@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { aimingPath, clickTile, finishPickup, runMenuAction, tileMenuActions, walkIntent, walkingPath } from "./map-mouse.js";
+import { aimingPath, clickIntent, clickTile, finishPickup, runMenuAction, tileMenuActions, walkIntent, walkingPath } from "./map-mouse.js";
 import type { InputSnapshot, KnownLevel, MouseSeams, PlayerIntent } from "./seams.js";
 
 const token = (revision: number) => ({ epoch: 1, revision });
@@ -86,8 +86,14 @@ describe("map mouse intents", () => {
     expect(runMenuAction(ctx, { x: 8, y: 8 }, "Target")).toBe(true);
     expect(runMenuAction(ctx, { x: 8, y: 8 }, "Look")).toBe(true);
     expect(submitted.map((s) => s.intent)).toEqual([
-      { kind: "target", x: 8, y: 8 }, { kind: "command", command: { code: "look" } },
+      { kind: "target", x: 8, y: 8 }, { kind: "command", command: { code: "look", args: { x: 8, y: 8 } } },
     ]);
+  });
+
+  it("opens Look at the clicked grid, including the player's own grid", () => {
+    const { ctx, submitted } = fixture();
+    expect(runMenuAction(ctx, { x: 5, y: 5 }, "Look")).toBe(true);
+    expect(submitted[0]?.intent).toEqual({ kind: "command", command: { code: "look", args: { x: 5, y: 5 } } });
   });
 
   it("travels for pickup, then checks a fresh wait, position and remembered object", () => {
@@ -118,5 +124,53 @@ describe("map mouse intents", () => {
     expect(walkingPath({ inspect: { travelPath: route } }, snap(), at)).toEqual([at]);
     expect(route).toHaveBeenCalledWith(at);
     expect(walkingPath({ inspect: { travelPath: route } }, snap(2), at)).toEqual([]);
+  });
+
+  it("builds Shift, Ctrl and plain click intents and declines what the engine refuses", () => {
+    const player = { x: 5, y: 5 };
+    expect(clickIntent(player, { x: 6, y: 4 }, { shift: true })).toEqual({ kind: "travel", x: 6, y: 4, modifiers: { shift: true } });
+    expect(clickIntent(player, { x: 8, y: 8 }, { shift: true })).toBeNull();
+    expect(clickIntent(player, { x: 8, y: 8 }, { ctrl: true })).toEqual({ kind: "travel", x: 8, y: 8, modifiers: { ctrl: true } });
+    expect(clickIntent(player, { x: 6, y: 5 }, { shift: true, ctrl: true })).toBeNull();
+    expect(clickIntent(player, { x: 6, y: 5 }, { shift: false, ctrl: false })).toEqual({ kind: "command", command: { code: "walk", dir: 6 } });
+    expect(clickIntent(player, { x: 8, y: 8 })).toEqual({ kind: "travel", x: 8, y: 8 });
+  });
+
+  it("runs on Shift-click and targets on Ctrl-click through the travel intent", () => {
+    const { ctx, submitted } = fixture();
+    expect(clickTile(ctx, { x: 4, y: 5 }, { shift: true })).toBe(true);
+    expect(clickTile(ctx, { x: 9, y: 9 }, { ctrl: true })).toBe(true);
+    expect(submitted.map((s) => s.intent)).toEqual([
+      { kind: "travel", x: 4, y: 5, modifiers: { shift: true } },
+      { kind: "travel", x: 9, y: 9, modifiers: { ctrl: true } },
+    ]);
+    expect(clickTile(ctx, { x: 9, y: 9 }, { shift: true })).toBe(false);
+    expect(submitted).toHaveLength(2);
+  });
+
+  it("falls back to a plain click only on an engine without travel modifiers", () => {
+    const seen: PlayerIntent[] = [];
+    const engine = (reason: string, code?: string): MouseSeams => ({
+      snapshot: () => snap(),
+      intent: { submit(_wait, intent) { seen.push(intent); return intent.kind === "travel" && intent.modifiers ? { accepted: false, reason, ...(code ? { code } : {}) } : { accepted: true }; } },
+    });
+    expect(clickTile(engine("malformed travel destination"), { x: 6, y: 5 }, { shift: true })).toBe(true);
+    expect(seen.at(-1)).toEqual({ kind: "command", command: { code: "walk", dir: 6 } });
+    expect(clickTile(engine("malformed travel destination"), { x: 9, y: 9 }, { ctrl: true })).toBe(true);
+    expect(seen.at(-1)).toEqual({ kind: "travel", x: 9, y: 9 });
+    seen.length = 0;
+    expect(clickTile(engine("run needs an adjacent grid"), { x: 6, y: 5 }, { shift: true })).toBe(false);
+    expect(clickTile(engine("malformed modifiers"), { x: 9, y: 9 }, { ctrl: true })).toBe(false);
+    expect(clickTile(engine("another controller holds input", "controller-owned"), { x: 9, y: 9 }, { ctrl: true })).toBe(false);
+    expect(seen).toHaveLength(3);
+  });
+
+  it("lets an open target prompt own a modified click", () => {
+    const reply = vi.fn(() => ({ accepted: true }));
+    const submit = vi.fn(() => ({ accepted: true }));
+    const ctx: MouseSeams = { snapshot: () => ({ ...snap(), prompt: { kind: "target", promptId: 4 } }), prompt: { reply }, intent: { submit } };
+    expect(clickTile(ctx, { x: 6, y: 5 }, { shift: true })).toBe(true);
+    expect(reply).toHaveBeenCalledWith(4, { action: "move", x: 6, y: 5 });
+    expect(submit).not.toHaveBeenCalled();
   });
 });

@@ -14,6 +14,7 @@ class ElementStub {
   value = "";
   type = "";
   placeholder = "";
+  disabled = false;
   private ownText = "";
   private listeners: Record<string, () => void> = {};
   constructor(readonly ownerDocument: Document, readonly tag: string) {}
@@ -106,5 +107,23 @@ describe("Phase 1 panels", () => {
     expect(root.textContent).not.toContain("Orc hits.");
     model.message_pending = false; renderMessageLog(asHtml(root), model);
     expect(root.textContent).not.toContain("Messages waiting");
+  });
+  it("answers the -more- pause from the ribbon only when it can", () => {
+    const root = mount(); const model = fixture();
+    renderMessageLog(asHtml(root), model);
+    expect(root.walk().find((e) => e.className === "ribbon")?.tag).toBe("div");
+    let accepted = true, calls = 0;
+    const acknowledge = (): boolean => { calls++; return accepted; };
+    renderMessageLog(asHtml(root), model, { acknowledge });
+    const ribbon = root.walk().find((e) => e.className === "ribbon")!;
+    expect(ribbon.tag).toBe("button");
+    expect(ribbon.style.pointerEvents).toBe("auto");
+    ribbon.fire("click");
+    expect(calls).toBe(1);
+    expect(ribbon.disabled).toBe(false);
+    accepted = false; ribbon.fire("click");
+    expect(ribbon.disabled).toBe(true);
+    model.message_pending = false; renderMessageLog(asHtml(root), model, { acknowledge });
+    expect(root.walk().some((e) => e.className === "ribbon")).toBe(false);
   });
 });
