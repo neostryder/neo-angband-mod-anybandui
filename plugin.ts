@@ -34,6 +34,8 @@ import { installMapOverview } from "./src/map-overview.js";
 import { installItems } from "./src/panels/items.js";
 import type { ItemsContext, MouseSeams } from "./src/seams.js";
 import { installMapMouse } from "./src/map-mouse.js";
+import { installPhase4 } from "./src/phase4.js";
+import type { Phase4Context } from "./src/seams.js";
 
 /**
  * What this plugin needs from the host's context, structurally.
@@ -132,6 +134,7 @@ export default {
       ...(ctx.prompt ? { prompt: ctx.prompt } : {}),
       ...(ctx.inspect ? { inspect: ctx.inspect } : {}),
       ...(ctx.prefs ? { prefs: ctx.prefs } : {}), log: ctx.log }));
+    displayCleanups.push(installPhase4(ctx as unknown as Phase4Context));
     /* The live state is available at register time. See first-encounter.ts
      * for why sightings are polled and stored in prefs by character. */
     if (flags["anybandui.firstEncounter"]) {

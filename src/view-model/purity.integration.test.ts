@@ -52,10 +52,15 @@ describe.skipIf(!checkout)("adapter over a real game", () => {
     mapView.capture?.();
     mapView.knownLevel?.();
     mapView.projectionPath?.({ x: game.state.actor.grid.x, y: game.state.actor.grid.y });
+    mapView.blastArea?.({ x: game.state.actor.grid.x, y: game.state.actor.grid.y }, 2);
+    for (const book of mapView.spellbooks?.() ?? []) for (const spell of book.spells) mapView.spellInfo?.(spell.sidx);
     for (let i = 0; i < 100; i++) {
       adapt(agentModule.createAgentView(game.state));
       adapterSource.snapshot();
       const view = agentModule.createAgentView(game.state);
+      const spellbooks = view.spellbooks?.() ?? [];
+      for (const book of spellbooks) for (const spell of book.spells) view.spellInfo?.(spell.sidx);
+      view.blastArea?.({ x: game.state.actor.grid.x, y: game.state.actor.grid.y }, 2);
       const captured = view.capture?.();
       if (captured) {
         adaptItems({ token: captured.token, phase: "play", prompt: null,

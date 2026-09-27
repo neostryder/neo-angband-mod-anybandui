@@ -29,6 +29,10 @@ A mouse-first desktop interface for Neo Angband, ported from Wurli Monkhaven's A
 | Full-level map overview | `anybandui.mapOverview` | off | The (M)ap screen shows every square of the level you know, shrunk to fit, with markers for you, the stairs and the shops, and an outline of what the main view shows. The mouse wheel zooms at the pointer, dragging pans, and Fit floor and Centre on player buttons sit beside the map. |
 | Schematic map | `anybandui.mapSchematic` | off | Draws the map overview as flat blocks of colour for walls, doors and floor instead of glyphs or tiles, which is easier to read when the whole level is shrunk. |
 | Item panel | `anybandui.itemsLists` | off | Opens a panel with your pack and equipment on separate tabs, a search box, and each item in its game colour. Click an item to select it. |
+| TODO-PROSE: Spell panel | `anybandui.spells` | off | Browse carried books and cast or study spells. |
+| TODO-PROSE: Quickbar | `anybandui.quickbar` | off | Assign spells and items to number keys with Shift and Ctrl rows. |
+| TODO-PROSE: Blast preview | `anybandui.blastPreview` | off | Show the area affected while aiming a blast. |
+| TODO-PROSE: Rest dialog | `anybandui.restDialog` | off | Choose a recovery condition or number of turns. |
 | Item inspection | `anybandui.itemsInspection` | off | Shows the game's full description of the item you select in the item panel, the same text the Inspect command gives. |
 | Equipment comparison | `anybandui.itemsComparison` | off | When you select something you could wear, a table compares your current equipment with the change: speed, armour, to-hit, damage, blows, stats and resistances. Only properties your character knows are counted, and a checkbox also shows the stats that stay the same. |
 | Quantity picker | `anybandui.itemsQuantity` | off | When the game asks how many, the item panel offers One, Half and All buttons and a box for any other number. |

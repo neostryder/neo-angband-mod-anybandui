@@ -21,6 +21,7 @@
     "state:interaction.read",
     "state:inventory.read",
     "state:player.read",
+    "state:spells.read",
     "input:intent",
     "input:prompt.reply"
   ],
@@ -189,7 +190,11 @@
       "description": "Draws the map overview as flat blocks of colour for walls, doors and floor instead of glyphs or tiles, which is easier to read when the whole level is shrunk.",
       "default": false,
       "requiresReload": true
-    }
+    },
+    { "flag": "anybandui.spells", "title": "TODO-PROSE: Spell panel", "description": "TODO-PROSE: Browse carried books and cast or study spells.", "default": false, "requiresReload": true },
+    { "flag": "anybandui.quickbar", "title": "TODO-PROSE: Quickbar", "description": "TODO-PROSE: Assign spells and items to number keys with Shift and Ctrl rows.", "default": false, "requiresReload": true },
+    { "flag": "anybandui.blastPreview", "title": "TODO-PROSE: Blast preview", "description": "TODO-PROSE: Show the area affected while aiming a blast.", "default": false, "requiresReload": true },
+    { "flag": "anybandui.restDialog", "title": "TODO-PROSE: Rest dialog", "description": "TODO-PROSE: Choose a recovery condition or number of turns.", "default": false, "requiresReload": true }
   ],
   "repository": "https://github.com/neostryder/neo-angband-mod-anybandui"
 }
