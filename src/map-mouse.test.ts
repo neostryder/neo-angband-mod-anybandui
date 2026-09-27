@@ -165,6 +165,22 @@ describe("map mouse intents", () => {
     expect(seen).toHaveLength(3);
   });
 
+  it("treats the engine's 'not in play phase' refusal as quiet and never falls back to a plain click", () => {
+    /* Engine #294 returns "input is not in play phase" for a ctrl travel
+     * intent submitted outside the play phase. It is a new refusal, distinct
+     * from the older "malformed travel destination" the pre-modifier engine
+     * used, and the click handler must not fall back to a plain walk: doing
+     * so would carry a non-play-phase intent through. */
+    const seen: PlayerIntent[] = [];
+    const engine: MouseSeams = {
+      snapshot: () => snap(),
+      intent: { submit(_wait, intent) { seen.push(intent); return { accepted: false, reason: "input is not in play phase" }; } },
+    };
+    expect(clickTile(engine, { x: 9, y: 9 }, { ctrl: true })).toBe(false);
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toEqual({ kind: "travel", x: 9, y: 9, modifiers: { ctrl: true } });
+  });
+
   it("lets an open target prompt own a modified click", () => {
     const reply = vi.fn(() => ({ accepted: true }));
     const submit = vi.fn(() => ({ accepted: true }));

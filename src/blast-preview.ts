@@ -26,7 +26,7 @@ export function blastGrids(ctx: Phase4Context, snap: Phase4Snapshot | null | und
   const at = (prompt.kind === "target" ? (prompt as { cursor?: Grid }).cursor : null) ?? hovered;
   if (!at) return null;
   let area: ReturnType<NonNullable<NonNullable<Phase4Context["inspect"]>["blastArea"]>> = null;
-  try { area = ctx.inspect?.blastArea?.(at, blast.radius) ?? null; } catch { area = null; }
+  try { area = ctx.inspect?.blastArea?.(at, blast.radius, blast.arc) ?? null; } catch { area = null; }
   if (!area || !sameToken(area.token, snap.token) || !area.grids.length) return null;
   return { grids: area.grids, element: area.element ?? blast.element ?? null };
 }

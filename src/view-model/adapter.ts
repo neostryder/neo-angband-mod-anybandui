@@ -4,7 +4,7 @@ import type { DungeonSummaryPayload, FeelingIndicesPayload, MessagePayload, Play
 
 export interface AdapterInput {
   readonly name?: string;
-  readonly history?: readonly { readonly text: string; readonly count: number | undefined; readonly category: number | undefined }[];
+  readonly history?: readonly { readonly text: string; readonly count: number | undefined; readonly category: number | undefined; readonly color: string | undefined }[];
   readonly foodMax?: number;
   readonly levelStartExperience?: number;
   readonly study?: number;
@@ -29,6 +29,7 @@ export const GAPS: readonly { field: string; reason: string }[] = [
   { field: "player.statuses[].description", reason: "Tmd runs and AgentView provide no explanation." },
   { field: "messages[].system", reason: "The core log stores text, count, and type, but no system flag." },
   { field: "messages[].group", reason: "The core log stores no message group." },
+  { field: "messages[].color", reason: "Engines before #294 do not publish a per-entry colour in InputSnapshot.messages.log; the panel falls back to system/group in that case." },
 ] as const;
 
 function entry(frame: HudFrame | undefined, key: string): HudEntry | undefined {
@@ -148,7 +149,7 @@ function playerPayload(view: AgentView, frame: HudFrame | undefined, input: Adap
 function messagePayload(input: AdapterInput): MessagePayload[] {
   // The HUD has one current line; the state log preserves history and repeats.
   return (input.history ?? []).map((item) => ({ text: item.text, count: item.count,
-    system: undefined, category: item.category, group: undefined }));
+    system: undefined, category: item.category, group: undefined, color: item.color }));
 }
 
 function dungeonPayload(player: PlayerPayload): DungeonSummaryPayload {

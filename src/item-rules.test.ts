@@ -51,9 +51,27 @@ describe("item rule editing", () => {
   });
 
   it("offers rings and amulets only the two quality levels the game's menu does", () => {
-    expect(qualityChoices(1)).toHaveLength(5);
-    expect(qualityChoices(24)).toEqual(["no ignore", "bad"]);
-    expect(qualityChoices(25)).toEqual(["no ignore", "bad"]);
+    expect(qualityChoices({ itype: 1 })).toHaveLength(5);
+    expect(qualityChoices({ itype: 24 })).toEqual(["no ignore", "bad"]);
+    expect(qualityChoices({ itype: 25 })).toEqual(["no ignore", "bad"]);
+  });
+
+  it("uses the engine's quality menu levels when the row publishes them", () => {
+    // Engine publishes levels: rings gain "average" because this build lets rings ignore by average too.
+    expect(qualityChoices({ itype: 24, levels: ["no ignore", "bad", "average"] })).toEqual(["no ignore", "bad", "average"]);
+    // Engine truncates the list to its own menu: non-artifact is missing here.
+    expect(qualityChoices({ itype: 1, levels: ["no ignore", "bad", "average", "good"] })).toEqual(["no ignore", "bad", "average", "good"]);
+  });
+
+  it("uses the engine's quality levels in rule intents, not the mod's fallback", () => {
+    const custom: ItemRulesResult = { ...rules, quality: [
+      { itype: 24, name: "Rings", threshold: 0, thresholdName: "no ignore", levels: ["no ignore", "bad", "average"] },
+      { itype: 1, name: "Swords", threshold: 2, thresholdName: "average", levels: ["no ignore", "bad", "average", "good"] },
+    ] };
+    // Mod fallback would reject 2 for rings; the engine's list allows it.
+    expect(ruleIntent(custom, "quality", 24, 2)).toEqual({ intent: { kind: "item-rule", rule: "quality", index: 24, value: 2 } });
+    // The engine's list stops at 2 for rings, so 3 is rejected.
+    expect(ruleIntent(custom, "quality", 24, 3)).toHaveProperty("reason");
   });
 
   it("builds only rule intents the host will accept", () => {

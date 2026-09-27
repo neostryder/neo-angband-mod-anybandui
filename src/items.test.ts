@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { InputSnapshot, InputToken, InspectSeam, IntentSeam, ItemInspectResult, ItemIntentResult, ItemPanelContext, ItemPanelSnapshot, ItemPrompt, ItemView, LoadoutSimulation, PanelItemView, PromptSeam, QuantityPrompt } from "./seams.js";
 import { adaptItems, AcquisitionChanges, compareItem, compareSlots, defaultSlot, itemColour, panelRows } from "./view-model/items.js";
-import { answerItem, answerQuantity, buildItemCommand, floorChoiceIndex, quantityShortcut, submitIgnore, submitItem } from "./item-interactions.js";
+import { answerItem, answerQuantity, buildFloorCommand, buildItemCommand, floorChoiceIndex, quantityShortcut, submitFloorItem, submitIgnore, submitItem } from "./item-interactions.js";
 import { inspectionBlocks } from "./item-inspection.js";
 import { slotOptionLabel } from "./panels/item-comparison.js";
 
@@ -149,5 +149,71 @@ describe("item panel seam adoption", () => {
       { heading: "Provides resistance to fire.", body: "It cannot be harmed by acid.", open: true, lead: true },
     ]);
     expect(inspectionBlocks({ token, title: "Old", text: "Old text" })).toEqual([{ heading: "Old", body: "Old text", open: true }]);
+  });
+});
+
+describe("item panel new-engine reads", () => {
+  const panelSnap = (core: Partial<ItemPanelSnapshot["core"]>): ItemPanelSnapshot => ({ token, phase: "play", prompt: null, core: { inventory: [], equipment: [], ...core } });
+
+  it("prefers ItemView.name over the kind label in rows", () => {
+    const model = adaptItems(panelSnap({
+      inventory: [{ ...item(7), name: "a Long Sword (+1, +2)" }, { handle: 8, label: "Dagger", number: 1, inscription: null, kindId: "dagger", tval: 1, sval: 4, artifact: false, ego: false }],
+      equipment: [], player: { grid: { x: 0, y: 0 } },
+    }))!;
+    expect(model.rows.map((row) => row.label)).toEqual(["a Long Sword (+1, +2)", "Dagger"]);
+  });
+
+  it("passes the engine's ItemView.ignored through to the row", () => {
+    const model = adaptItems(panelSnap({
+      inventory: [{ ...item(7), ignored: true }, { ...item(8), ignored: false }],
+      equipment: [], player: { grid: { x: 0, y: 0 } },
+    }))!;
+    expect(model.rows.map((row) => row.ignored)).toEqual([true, false]);
+  });
+
+  it("uses the engine's itemKey for floor rows when one is published", () => {
+    const model = adaptItems(panelSnap({
+      inventory: [], equipment: [], player: { grid: { x: 3, y: 5 } },
+      floorHere: [{ ...item(0), kindKey: "kind:40", itemKey: "floor:3,5:0" }, { ...item(0), kindKey: "kind:41", itemKey: "floor:3,5:1" }],
+    }))!;
+    expect(model.floor?.map((row) => row.key)).toEqual(["floor:3,5:0", "floor:3,5:1"]);
+  });
+
+  it("keeps the older derived floor key when the engine does not publish itemKey", () => {
+    const model = adaptItems(panelSnap({
+      inventory: [], equipment: [], player: { grid: { x: 3, y: 5 } },
+      floorHere: [{ ...item(0), kindKey: "kind:40" }],
+    }))!;
+    expect(model.floor?.[0]?.key).toBe("floor:0:kind:40");
+  });
+
+  it("omits the row's ignored field on older engines so the panel falls back to memory", () => {
+    const model = adaptItems(panelSnap({
+      inventory: [item(7)], equipment: [], player: { grid: { x: 0, y: 0 } },
+    }))!;
+    expect(model.rows[0]!.ignored).toBeUndefined();
+  });
+});
+
+describe("item panel floor actions", () => {
+  it("builds a floor command whose args name the pile index", () => {
+    expect(buildFloorCommand(undefined, "pickup", 2)).toEqual({ code: "pickup", args: { floor: 2 } });
+    expect(buildFloorCommand(undefined, "inscribe", 0, "@q1")).toEqual({ code: "inscribe", args: { floor: 0, inscription: "@q1" } });
+    // A builders context defers to the engine's raw builder; the floor argument still travels.
+    expect(buildFloorCommand({ wear: (handle) => ({ code: "wield", args: { handle } }), takeoff: () => ({ code: "takeoff", args: {} }), drop: () => ({ code: "drop", args: {} }), raw: (code, args) => (args === undefined ? { code } : { code, args }) }, "wield", 1)).toEqual({ code: "wield", args: { floor: 1 } });
+  });
+
+  it("submits only floor actions whose pile entry the tester allows", () => {
+    const submit = vi.fn(() => ({ accepted: true }));
+    const intent: IntentSeam = { submit };
+    const tester = vi.fn(() => ({ token, items: [{ floor: { x: 4, y: 5, index: 0 } }] }));
+    const inspect = { itemTester: tester } as unknown as InspectSeam;
+    const command = buildFloorCommand(undefined, "wield", 0);
+    expect(submitFloorItem(intent, inspect, token, "wield", { x: 4, y: 5, index: 0 }, command).accepted).toBe(true);
+    expect(submit).toHaveBeenLastCalledWith(token, { kind: "command", command });
+    // A different pile position is refused, as is a stale token.
+    expect(submitFloorItem(intent, inspect, token, "wield", { x: 4, y: 5, index: 1 }, command).accepted).toBe(false);
+    expect(submitFloorItem(intent, inspect, { epoch: 9, revision: 0 }, "wield", { x: 4, y: 5, index: 0 }, command).accepted).toBe(false);
+    expect(submit).toHaveBeenCalledTimes(1);
   });
 });

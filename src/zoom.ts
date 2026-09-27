@@ -683,9 +683,10 @@ function applyGridAndSidebar(rt: ZoomRuntime): void {
     minRows: 12,
     snapViewportToEven: true,
   });
-  /* null is the display API's way to release this mod's override. Zero is not
-   * a valid extent - core clamps an explicit extent to at least six columns and
-   * one row - so use null when the HUD frame has no sidebar at all. */
+  /* null is the display API's way to release this mod's override, and it is
+   * still the right call when the HUD frame has no sidebar at all: a zero-
+   * column or zero-row extent reserves the layout for this mod, even if it
+   * reserves nothing of it. */
   rt.display.setSidebarExtent(sidebarVisible ? {
     columns: sidebarColumns,
     topRows: Math.max(1, Math.ceil(scale)),

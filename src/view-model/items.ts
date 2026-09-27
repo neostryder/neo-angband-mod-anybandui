@@ -4,11 +4,14 @@ export type ItemLocation = "pack" | "equipment" | "quiver" | "floor";
 export interface ItemRow {
   readonly handle: number;
   /** A stable identity for selection and change marks: the gear key, which survives
-   * a letter change, or the floor index and kind for an object on the floor. */
+   * a letter change, or the engine's itemKey for a floor object, or the floor
+   * index and kind for an object on the floor on an older engine without it. */
   readonly key: string;
   readonly label: string; readonly quantity: number; readonly location: ItemLocation;
   readonly slot?: number; readonly slotName?: string; readonly floorIndex?: number;
   readonly colour: string; readonly inscription: string | null; readonly family: string;
+  /** The engine-reported ignore mark, present when ItemView.ignored is published. */
+  readonly ignored?: boolean;
 }
 export interface ItemsModel {
   readonly token: InputToken; readonly phase: InputSnapshot["phase"]; readonly prompt: InputSnapshot["prompt"];
@@ -64,13 +67,20 @@ export function adaptItems(snap: InputSnapshot | ItemPanelSnapshot): ItemsModel 
   const row = (item: PanelItemView, location: ItemLocation, extra: { slot?: number; floorIndex?: number } = {}): ItemRow => {
     const family = item.kindKey ?? item.kindId ?? `${item.tval}:${item.sval}`;
     const slotName = extra.slot === undefined ? undefined : slotLabel(core.equipmentSlots, extra.slot);
+    // Floor items: an engine publishing itemKey uses it ("floor:x,y:i"), so the row
+    // tracks the pile through moves; without it the older derived key still works.
+    const key = location === "floor"
+      ? (item.itemKey ?? `floor:${extra.floorIndex}:${family}`)
+      : item.itemKey ?? `gear:${item.handle}`;
+    // ItemView.name, when published, is the inventory name with article and known
+    // details; otherwise fall back to the kind's raw label.
+    const label = item.name ?? item.label;
     return {
-      handle: item.handle,
-      key: location === "floor" ? `floor:${extra.floorIndex}:${family}` : item.itemKey ?? `gear:${item.handle}`,
-      label: item.label, quantity: item.number, location,
+      handle: item.handle, key, label, quantity: item.number, location,
       ...(extra.slot === undefined ? {} : { slot: extra.slot }), ...(slotName === undefined ? {} : { slotName }),
       ...(extra.floorIndex === undefined ? {} : { floorIndex: extra.floorIndex }),
       colour: itemColour(item), inscription: item.inscription, family,
+      ...(item.ignored === undefined ? {} : { ignored: item.ignored }),
     };
   };
   return { token: snap.token, phase: snap.phase, prompt: snap.prompt,

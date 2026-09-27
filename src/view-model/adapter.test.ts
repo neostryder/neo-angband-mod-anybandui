@@ -65,8 +65,8 @@ const frame: HudFrame = freeze({ layout: "left", targeting: false,
 
 const input = freeze({
   name: "Elbereth",
-  history: [{ text: "An orc appears.", count: 3, category: 2 },
-    { text: "You hear a noise.", count: 1, category: 0 }],
+  history: [{ text: "An orc appears.", count: 3, category: 2, color: undefined },
+    { text: "You hear a noise.", count: 1, category: 0, color: undefined }],
   repeat: 0, resting: true, running: false, unignoring: 1,
   recall: 5, descent: 2, extraMoves: 2, study: 3, messagePending: true,
 });
@@ -105,9 +105,18 @@ describe("full-v1 phase 1 adapter", () => {
     expect(actual.message_pending).toBe(true);
     expect(adapt(view, frame, { ...input, messagePending: false }).message_pending).toBe(false);
     expect(actual.messages).toEqual([
-      { text: "An orc appears.", count: 3, system: undefined, category: 2, group: undefined },
-      { text: "You hear a noise.", count: 1, system: undefined, category: 0, group: undefined },
+      { text: "An orc appears.", count: 3, system: undefined, category: 2, group: undefined, color: undefined },
+      { text: "You hear a noise.", count: 1, system: undefined, category: 0, group: undefined, color: undefined },
     ]);
+  });
+
+  it("passes a per-entry color through to the message payload", () => {
+    const withColor = freeze({
+      ...input,
+      history: [{ text: "You hit it.", count: 3, category: undefined, color: "#c88f5fb4" }],
+    });
+    const actual = adapt(view, frame, withColor);
+    expect(actual.messages[0]).toMatchObject({ text: "You hit it.", count: 3, color: "#c88f5fb4" });
   });
 
   it("leaves deep-frozen inputs untouched and produces equal independent snapshots", () => {

@@ -23,9 +23,25 @@ export function buildItemCommand(builders: ActionBuilders | undefined, code: str
   return builders?.raw(code, args) ?? { code, args };
 }
 
+/** A floor command: the engine accepts `args.floor` in place of `args.handle` for
+ * the codes in its catalogue's FLOOR_ITEM_CODES, and pickup takes `args.floor`
+ * with no handle. The actions arm passes these as the command's argument. */
+export function buildFloorCommand(builders: ActionBuilders | undefined, code: string, floorIndex: number, inscription?: string): AgentCommand {
+  const args = inscription === undefined ? { floor: floorIndex } : { floor: floorIndex, inscription };
+  return builders?.raw(code, args) ?? { code, args };
+}
+
 export function submitItem(intent: IntentSeam | undefined, inspect: InspectSeam | undefined, token: InputToken, code: string, handle: number, command: AgentCommand): { readonly accepted: boolean; readonly reason?: string } {
   const tester = inspect?.itemTester(code);
   if (!tester || tester.token.epoch !== token.epoch || tester.token.revision !== token.revision || !tester.items.some((item) => "handle" in item && item.handle === handle)) return { accepted: false, reason: "Item is unavailable for this action." };
+  return intent?.submit(token, { kind: "command", command }) ?? { accepted: false, reason: "Intent seam unavailable." };
+}
+
+/** Submit a floor action: the tester gates it as for a carried item, but matches the
+ * floor pile's {x, y, index} entry the engine publishes for floor actions. */
+export function submitFloorItem(intent: IntentSeam | undefined, inspect: InspectSeam | undefined, token: InputToken, code: string, floor: { x: number; y: number; index: number }, command: AgentCommand): { readonly accepted: boolean; readonly reason?: string } {
+  const tester = inspect?.itemTester(code);
+  if (!tester || tester.token.epoch !== token.epoch || tester.token.revision !== token.revision || !tester.items.some((item) => "floor" in item && item.floor.x === floor.x && item.floor.y === floor.y && item.floor.index === floor.index)) return { accepted: false, reason: "Item is unavailable for this action." };
   return intent?.submit(token, { kind: "command", command }) ?? { accepted: false, reason: "Intent seam unavailable." };
 }
 
