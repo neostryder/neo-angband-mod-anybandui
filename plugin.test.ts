@@ -6,7 +6,7 @@
  * test the host rather than the mod.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import plugin from "./plugin.js";
 
@@ -21,13 +21,40 @@ describe("the AnybandUI plugin", () => {
     expect(logged).toEqual(["AnybandUI loaded on engine 1.18.0"]);
   });
 
-  it("declares a capability and a disabled rule for each HUD region", () => {
+  it("declares only the needed capabilities and disabled rules", () => {
     const manifest = JSON.parse(readFileSync(new URL("./manifest.json", import.meta.url), "utf8")) as {
       capabilities: string[]; rules: { flag: string; default: boolean; requiresReload: boolean }[];
     };
-    expect(manifest.capabilities).toEqual(["ui:sidebar.replace", "ui:status.replace", "ui:messages.replace"]);
-    expect(manifest.rules.map((rule) => rule.flag)).toEqual(["anybandui.sidebar", "anybandui.status", "anybandui.messages"]);
+    expect(manifest.capabilities).toEqual(["ui:sidebar.replace", "ui:status.replace", "ui:messages.replace", "display:filter", "ui:panel.mount"]);
+    expect(manifest.rules.map((rule) => rule.flag)).toEqual(["anybandui.sidebar", "anybandui.status", "anybandui.messages", "anybandui.highContrast", "anybandui.colourblind", "anybandui.firstEncounter", "anybandui.quiverItemization", "anybandui.crispTiles"]);
     expect(manifest.rules.every((rule) => !rule.default && rule.requiresReload)).toBe(true);
+  });
+
+  it("installs quiver and crisp sampling independently and restores both on unload", () => {
+    const setQuiverItemization = vi.fn();
+    const setTileScaling = vi.fn();
+    const setFullMapOverview = vi.fn();
+    const display = { setVisualFilter: () => {}, setQuiverItemization, setTileScaling, setFullMapOverview };
+    plugin.register(undefined, { id: "anybandui", engine: "1.18.0", log: () => {},
+      flags: { "anybandui.quiverItemization": true, "anybandui.crispTiles": true },
+      display });
+    expect(setQuiverItemization).toHaveBeenCalledWith(true);
+    expect(setTileScaling).toHaveBeenCalledWith("crisp");
+    expect(setFullMapOverview).not.toHaveBeenCalled();
+    plugin.uninstall();
+    expect(setQuiverItemization).toHaveBeenLastCalledWith(false);
+    expect(setTileScaling).toHaveBeenLastCalledWith("auto");
+  });
+
+  it("leaves unselected display conveniences untouched", () => {
+    const setQuiverItemization = vi.fn();
+    const setTileScaling = vi.fn();
+    plugin.register(undefined, { id: "anybandui", engine: "1.18.0", log: () => {},
+      flags: { "anybandui.quiverItemization": true },
+      display: { setVisualFilter: () => {}, setQuiverItemization, setTileScaling } });
+    plugin.uninstall();
+    expect(setQuiverItemization.mock.calls).toEqual([[true], [false]]);
+    expect(setTileScaling).not.toHaveBeenCalled();
   });
 
   it("declines without a DOM", () => {

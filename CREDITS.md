@@ -11,3 +11,5 @@
 - [Angband](https://github.com/angband/angband) by Ben Harrison, James E. Wilson, Robert A. Koeneke, and the Angband contributors, through Neo Angband.
 
 Fonts, sounds and shaders are credited here, with their own licences, as each one is brought over from AnybandUI.
+
+The first-encounter card uses the 16x24 terminal bitmap font from Neo Angband's Angband font data (`src/bitmap-font.ts`), credited to Leon Marrick, Sheldon Simms III and/or Nick McConnell under GPL-2.0-only. Its bitmap text renderer was adapted from the Quality of Life mod, also GPL-2.0-only.

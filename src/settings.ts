@@ -42,7 +42,11 @@ export function createSettingsStore(ctx: PrefsCtx): {
     set(patch): void {
       const next = validateSettings({ ...current, ...patch });
       if (JSON.stringify(next) === JSON.stringify(current)) return;
-      ctx.prefs.set(next);
+      // Keep the per-character encounter notebook when the player changes a theme.
+      const stored = ctx.prefs.get();
+      const preserved = stored !== null && typeof stored === "object" && !Array.isArray(stored)
+        ? stored as Record<string, unknown> : {};
+      ctx.prefs.set({ ...preserved, ...next });
       current = next;
       for (const listener of listeners) listener({ ...current });
     },

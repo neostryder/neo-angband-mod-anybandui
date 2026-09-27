@@ -18,6 +18,15 @@ const CSS = `
 input{width:100%;background:var(--anyband-background);color:var(--anyband-text);border:1px solid var(--anyband-accent)}
 `;
 
+const panelHosts = new Set<HTMLElement>();
+let panelVisualFilter: string | null = null;
+
+/** The older display seam filters the terminal canvas only, so cover our HTML hosts here. */
+export function setPanelHostVisualFilter(filter: string | null): void {
+  panelVisualFilter = filter;
+  for (const host of panelHosts) host.style.filter = filter ?? "";
+}
+
 export function node(parent: HTMLElement, tag: string, className = "", value?: string): HTMLElement {
   const child = parent.ownerDocument.createElement(tag);
   child.className = className;
@@ -51,6 +60,8 @@ export function createPanelHost(doc: Document, panels: readonly { key: string; r
 } {
   const element = doc.createElement("div");
   element.className = "anyband-panel";
+  panelHosts.add(element);
+  element.style.filter = panelVisualFilter ?? "";
   const shadow = element.attachShadow({ mode: "open" });
   if (theme) applyTheme(shadow, theme);
   else applyTheme(shadow);

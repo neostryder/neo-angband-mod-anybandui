@@ -25,6 +25,8 @@ import { renderTrackedCreature } from "./src/panels/tracked-creature.js";
 import { renderMessageLog } from "./src/panels/message-log.js";
 import { validateSettings } from "./src/settings.js";
 import { THEMES } from "./src/theme.js";
+import { installAccessibilityAccommodations, uninstallAccessibilityAccommodations } from "./src/accessibility.js";
+import { installFirstEncounter, uninstallFirstEncounter, type FirstEncounterContext } from "./src/first-encounter.js";
 
 /**
  * What this plugin needs from the host's context, structurally.
@@ -36,7 +38,21 @@ interface RegisterCtx {
   readonly id: string;
   readonly engine: string;
   readonly log: (msg: string) => void;
+  readonly flags?: Readonly<Record<string, boolean>>;
+  readonly display?: {
+    setVisualFilter(filter: string | null, options?: { scope: "game" }): void;
+    setQuiverItemization?(enabled: boolean): void;
+    setTileScaling?(mode: "auto" | "crisp"): void;
+  };
+  readonly core?: FirstEncounterContext["core"];
+  readonly state?: FirstEncounterContext["state"];
+  readonly ui?: FirstEncounterContext["ui"];
+  readonly tiles?: FirstEncounterContext["tiles"];
+  readonly prefs?: FirstEncounterContext["prefs"];
 }
+
+let quiverDisplay: RegisterCtx["display"];
+let tileDisplay: RegisterCtx["display"];
 
 type HudCtx = Parameters<typeof createSource>[0] & { readonly flags: Readonly<Record<string, boolean>>; readonly prefs?: { get(): unknown } };
 
@@ -44,7 +60,45 @@ export default {
   api: 1,
 
   register(_host: unknown, ctx: RegisterCtx): void {
+    this.uninstall();
     ctx.log(`AnybandUI loaded on engine ${ctx.engine}`);
+    const flags = ctx.flags ?? {};
+    if (flags["anybandui.highContrast"] || flags["anybandui.colourblind"]) {
+      installAccessibilityAccommodations({ flags, ...(ctx.display ? { display: ctx.display } : {}), log: ctx.log });
+    }
+    if (flags["anybandui.quiverItemization"] || flags["anybandui.crispTiles"]) {
+      if (!ctx.display) ctx.log("this game is too old for display conveniences");
+      else {
+        if (flags["anybandui.quiverItemization"] && ctx.display.setQuiverItemization) {
+          quiverDisplay = ctx.display;
+          ctx.display.setQuiverItemization(true);
+        }
+        // Crisp sampling applies to every active tileset; the map overview has a separate port.
+        if (flags["anybandui.crispTiles"] && ctx.display.setTileScaling) {
+          tileDisplay = ctx.display;
+          ctx.display.setTileScaling("crisp");
+        }
+      }
+    }
+    /* The live state is available at register time. See first-encounter.ts
+     * for why sightings are polled and stored in prefs by character. */
+    if (flags["anybandui.firstEncounter"]) {
+      if (ctx.core && ctx.state) {
+        const theme = THEMES[validateSettings(ctx.prefs?.get()).theme]!;
+        installFirstEncounter({ core: ctx.core, state: ctx.state, theme,
+          ...(ctx.ui ? { ui: ctx.ui } : {}), ...(ctx.prefs ? { prefs: ctx.prefs } : {}),
+          ...(ctx.tiles ? { tiles: ctx.tiles } : {}), log: ctx.log });
+      } else ctx.log("first-encounter alerts: no live game at register time");
+    }
+  },
+
+  uninstall(): void {
+    uninstallFirstEncounter();
+    uninstallAccessibilityAccommodations();
+    quiverDisplay?.setQuiverItemization?.(false);
+    tileDisplay?.setTileScaling?.("auto");
+    quiverDisplay = undefined;
+    tileDisplay = undefined;
   },
 
   hud(ctx: HudCtx): HudOwnership | undefined {

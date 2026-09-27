@@ -14,7 +14,9 @@
   "capabilities": [
     "ui:sidebar.replace",
     "ui:status.replace",
-    "ui:messages.replace"
+    "ui:messages.replace",
+    "display:filter",
+    "ui:panel.mount"
   ],
   "author": "WurliMonkhaven, neostryder",
   "license": "GPL-2.0-only",
@@ -38,6 +40,41 @@
       "flag": "anybandui.messages",
       "title": "Message log",
       "description": "Replaces the message line with a scrolling log. Repeated messages fold into one line with a count, and a search box finds an older message.",
+      "default": false,
+      "requiresReload": true
+    },
+    {
+      "flag": "anybandui.highContrast",
+      "title": "Accessibility: high-contrast display",
+      "description": "Boosts contrast and colour separation over each finished frame, in text mode and with tiles, across the dungeon, maps, menus and this mod's panels.",
+      "default": false,
+      "requiresReload": true
+    },
+    {
+      "flag": "anybandui.colourblind",
+      "title": "Accessibility: colourblind correction",
+      "description": "Applies a red-green colour correction over each finished frame, in text mode and with tiles, across the dungeon, maps, menus and this mod's panels.",
+      "default": false,
+      "requiresReload": true
+    },
+    {
+      "flag": "anybandui.firstEncounter",
+      "title": "First-encounter alerts",
+      "description": "The first time this character meets a kind of monster, or picks up an artifact, a small card appears in the corner with its name and native depth. A monster's card carries a threat badge: Unique, Deadly (well out of depth), Out of depth, or First sighting. The card never takes the keyboard or blocks a click, and clears itself after a few seconds. Each character keeps its own record.",
+      "default": false,
+      "requiresReload": true
+    },
+    {
+      "flag": "anybandui.quiverItemization",
+      "title": "Itemize the quiver in the Inventory subwindow",
+      "description": "The Inventory subwindow lists each stack of ammunition or thrown weapons in your quiver by name, under a --Quiver-- heading, instead of a count such as \"in Quiver: 7 missiles\".",
+      "default": false,
+      "requiresReload": true
+    },
+    {
+      "flag": "anybandui.crispTiles",
+      "title": "Sharpen shrunken tiles",
+      "description": "Draws graphics tiles with crisp pixel edges when they are shrunk, instead of the smoothed default. Pixel-art tilesets often look sharper this way at small zoom levels.",
       "default": false,
       "requiresReload": true
     }

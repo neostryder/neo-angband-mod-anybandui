@@ -24,4 +24,11 @@ describe("settings store", () => {
     store.set({ theme: "midnight-ice" });
     expect(seen).toHaveLength(1);
   });
+
+  it("keeps encounter memory when changing a theme", () => {
+    let saved: unknown = { v: 2, firstEncounter: { characterKey: "hobbit|rogue", monsters: [1], artifacts: [] } };
+    const store = createSettingsStore({ prefs: { get: () => saved, set: (value) => { saved = value; } } });
+    store.set({ theme: "light-paper" });
+    expect(saved).toMatchObject({ firstEncounter: { monsters: [1] }, theme: "light-paper" });
+  });
 });
