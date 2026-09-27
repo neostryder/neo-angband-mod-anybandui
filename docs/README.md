@@ -54,6 +54,21 @@ A mouse-first desktop interface for Neo Angband, ported from Wurli Monkhaven's A
 | Unique presence haze | `anybandui.presenceHaze` | off | Surrounds each unique creature you can see with a violet haze, heaviest around the one guarding the final quest, which is Morgoth unless a mod changes the quests. |
 | Combat rings and flashes | `anybandui.spellEffects` | off | Draws a brief ring where a spell is cast, where a blow or shot lands or misses, where a creature dies, where someone heals, and at both ends of a teleport. The squares a ball or breath hits flash in the colour of its element. Only things your character sees are drawn. |
 
+
+## Effect strength
+
+On a version of the game with numeric mod settings, each effect has a strength setting on the Mods screen, shown while that effect is on. It runs from 0% to 100% in steps of 10%.
+
+| Setting | Identifier | Default | Description |
+| --- | --- | --- | --- |
+| CRT strength | `anybandui.crtStrength` | 100% | How dark the scanlines are, from none at 0% to full at 100%. |
+| Low health tint strength | `anybandui.lowHealthStrength` | 100% | How deep the red tint gets when your hit points run low. |
+| Death burst strength | `anybandui.deathStrength` | 100% | How bright the burst is when your character dies. |
+| Floor item glow strength | `anybandui.itemGlowStrength` | 100% | How bright the glow is around artifacts, cursed items and unlearned runes on the floor. |
+| Sleep mark strength | `anybandui.sleepMarksStrength` | 100% | How clearly the marks show over sleeping creatures. |
+| Presence haze strength | `anybandui.presenceHazeStrength` | 100% | How thick the violet haze is around unique creatures. |
+| Combat ring strength | `anybandui.spellEffectsStrength` | 100% | How bright the combat rings and the blast flashes are. |
+
 ## What it needs
 
 `ui:sidebar.replace`, `ui:status.replace`, `ui:messages.replace`, `display:filter` (used by the CRT colour treatment), `ui:panel.mount`, `state:map.read`, `state:interaction.read`, `state:inventory.read`, `state:floor.read`, `state:player.read`, `state:spells.read`, `state:stores.read`, `input:intent`, `input:prompt.reply`, `event:combat-outcome`, `event:heal`, `event:motion`, `event:explosion`, and `event:driver-changed`, `state:messages.read`, `state:monsters.read`.

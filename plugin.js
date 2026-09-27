@@ -6530,6 +6530,32 @@ function blastCues(e, limit = 200) {
   });
   return out;
 }
+var STRENGTH_SETTINGS = {
+  crt: "anybandui.crtStrength",
+  lowHealth: "anybandui.lowHealthStrength",
+  death: "anybandui.deathStrength",
+  itemGlow: "anybandui.itemGlowStrength",
+  sleepMarks: "anybandui.sleepMarksStrength",
+  presenceHaze: "anybandui.presenceHazeStrength",
+  cast: "anybandui.spellEffectsStrength",
+  hit: "anybandui.spellEffectsStrength",
+  miss: "anybandui.spellEffectsStrength",
+  heal: "anybandui.spellEffectsStrength",
+  departure: "anybandui.spellEffectsStrength",
+  arrival: "anybandui.spellEffectsStrength",
+  blast: "anybandui.spellEffectsStrength"
+};
+function effectStrength(settings, stored, key) {
+  const id = STRENGTH_SETTINGS[key];
+  let value2;
+  try {
+    value2 = id ? settings?.get(id) : void 0;
+  } catch {
+    value2 = void 0;
+  }
+  const raw = typeof value2 === "number" && Number.isFinite(value2) ? value2 : stored[key] ?? 100;
+  return Math.max(0, Math.min(100, raw));
+}
 function installEffects(ctx) {
   const flags = ctx.flags ?? {};
   const enabled = ["anybandui.crt", "anybandui.lowHealthEffect", "anybandui.deathEffect", "anybandui.itemGlow", "anybandui.sleepMarks", "anybandui.presenceHaze", "anybandui.spellEffects"].some((x) => flags[x]);
@@ -6554,7 +6580,7 @@ function installEffects(ctx) {
   const push = (list) => {
     const effects = validateSettings(ctx.prefs?.get()).effects;
     for (const cue of list) {
-      const strength = Math.max(0, Math.min(100, effects[cue.kind] ?? 100));
+      const strength = effectStrength(ctx.settings, effects, cue.kind);
       if (strength > 0) cues.push({ ...cue, started: performance.now(), strength });
     }
     request();
@@ -6597,7 +6623,7 @@ function installEffects(ctx) {
     const cellW = rect.width / view.viewport.size.width, cellH = rect.height / view.viewport.size.height;
     const cell = (p) => ({ x: (p.x - view.viewport.origin.x + 0.5) * cellW, y: (p.y - view.viewport.origin.y + 0.5) * cellH });
     const effectSettings = validateSettings(ctx.prefs?.get()).effects;
-    const intensity = (key) => Math.max(0, Math.min(100, effectSettings[key] ?? 100)) / 100;
+    const intensity = (key) => effectStrength(ctx.settings, effectSettings, key) / 100;
     const staticMode = chooseEffectMotion(reduced()) === "static";
     if (flags["anybandui.crt"] && intensity("crt") > 0) {
       g.fillStyle = `rgba(0,0,0,${0.1 * intensity("crt")})`;
@@ -6744,7 +6770,7 @@ var plugin_default = {
       } catch {
       }
     }
-    displayCleanups.push(installEffects({ flags, ...ctx.snapshot ? { snapshot: ctx.snapshot } : {}, ...ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {}, ...ctx.events ? { events: ctx.events } : {}, ...ctx.display?.snapshot ? { display: ctx.display } : {}, ...ctx.prefs ? { prefs: ctx.prefs } : {} }));
+    displayCleanups.push(installEffects({ flags, ...ctx.snapshot ? { snapshot: ctx.snapshot } : {}, ...ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {}, ...ctx.events ? { events: ctx.events } : {}, ...ctx.display?.snapshot ? { display: ctx.display } : {}, ...ctx.prefs ? { prefs: ctx.prefs } : {}, ...ctx.settings ? { settings: ctx.settings } : {} }));
     displayCleanups.push(installItems(ctx));
     displayCleanups.push(installStores(ctx));
     if (flags["anybandui.highContrast"] || flags["anybandui.colourblind"] || flags["anybandui.crt"]) {

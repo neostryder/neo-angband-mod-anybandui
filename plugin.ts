@@ -99,7 +99,7 @@ export default {
         displayCleanups.push(() => events.off("driver-changed", repaint));
       } catch { /* no driver-changed event or grant on this engine */ }
     }
-    displayCleanups.push(installEffects({ flags, ...(ctx.snapshot ? { snapshot: ctx.snapshot as NonNullable<EffectContext["snapshot"]> } : {}), ...(ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {}), ...(ctx.events ? { events: ctx.events } : {}), ...(ctx.display?.snapshot ? { display: ctx.display as NonNullable<EffectContext["display"]> } : {}), ...(ctx.prefs ? { prefs: ctx.prefs } : {}) }));
+    displayCleanups.push(installEffects({ flags, ...(ctx.snapshot ? { snapshot: ctx.snapshot as NonNullable<EffectContext["snapshot"]> } : {}), ...(ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {}), ...(ctx.events ? { events: ctx.events } : {}), ...(ctx.display?.snapshot ? { display: ctx.display as NonNullable<EffectContext["display"]> } : {}), ...(ctx.prefs ? { prefs: ctx.prefs } : {}), ...((ctx as unknown as { settings?: EffectContext["settings"] }).settings ? { settings: (ctx as unknown as { settings: NonNullable<EffectContext["settings"]> }).settings } : {}) }));
     displayCleanups.push(installItems(ctx as unknown as ItemsContext));
     displayCleanups.push(installStores(ctx as unknown as StoreContext));
     if (flags["anybandui.highContrast"] || flags["anybandui.colourblind"] || flags["anybandui.crt"]) {

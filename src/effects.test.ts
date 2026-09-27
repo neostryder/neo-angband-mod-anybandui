@@ -75,3 +75,21 @@ describe("effect event subscription", () => {
     } finally { Object.assign(globalThis, { document: saved.document, requestAnimationFrame: saved.raf, cancelAnimationFrame: saved.caf }); }
   });
 });
+
+describe("effect strength", () => {
+  it("reads the Mods screen setting where the engine has one, and the stored strength otherwise", async () => {
+    const { effectStrength, STRENGTH_SETTINGS } = await import("./effects.js");
+    const values: Record<string, number> = { "anybandui.crtStrength": 40, "anybandui.spellEffectsStrength": 0 };
+    const settings = { get: (id: string) => values[id] };
+    expect(effectStrength(settings, { crt: 90 }, "crt")).toBe(40);
+    // The rings and the blast flashes share one setting.
+    expect(effectStrength(settings, {}, "hit")).toBe(0);
+    expect(effectStrength(settings, {}, "blast")).toBe(0);
+    expect(STRENGTH_SETTINGS["death"]).toBe("anybandui.deathStrength");
+    // An engine without numeric settings, or one that has not stored a value: the mod's own prefs, then full strength.
+    expect(effectStrength(undefined, { crt: 90 }, "crt")).toBe(90);
+    expect(effectStrength(settings, {}, "sleepMarks")).toBe(100);
+    expect(effectStrength({ get: () => { throw new Error("gone"); } }, { itemGlow: 30 }, "itemGlow")).toBe(30);
+    expect(effectStrength({ get: () => 250 }, {}, "crt")).toBe(100);
+  });
+});

@@ -66,6 +66,26 @@ export function blastCues(e: EffectEventMap["explosion"], limit = 200): Omit<Cue
   e.blastGrid.forEach((grid, i) => { if (out.length < limit && e.playerSeesGrid[i]) out.push({ grid: { x: grid.x, y: grid.y }, kind: "blast", colour }); });
   return out;
 }
+/** The Mods screen setting that sets each effect's strength (MOD_SEAMS 4y). The
+ * spell rings and blast flashes share one; the death burst's cue follows the
+ * death burst's own setting. */
+export const STRENGTH_SETTINGS: Readonly<Record<string, string>> = {
+  crt: "anybandui.crtStrength", lowHealth: "anybandui.lowHealthStrength", death: "anybandui.deathStrength",
+  itemGlow: "anybandui.itemGlowStrength", sleepMarks: "anybandui.sleepMarksStrength", presenceHaze: "anybandui.presenceHazeStrength",
+  cast: "anybandui.spellEffectsStrength", hit: "anybandui.spellEffectsStrength", miss: "anybandui.spellEffectsStrength",
+  heal: "anybandui.spellEffectsStrength", departure: "anybandui.spellEffectsStrength", arrival: "anybandui.spellEffectsStrength",
+  blast: "anybandui.spellEffectsStrength",
+};
+/** An effect's strength from 0 to 100. The engine's numeric settings decide
+ * where it has them; an older engine has no control for them, so the strengths
+ * this mod stored in its own preferences stand, at full strength by default. */
+export function effectStrength(settings: EffectContext["settings"], stored: Readonly<Record<string, number>>, key: string): number {
+  const id = STRENGTH_SETTINGS[key];
+  let value: number | undefined;
+  try { value = id ? settings?.get(id) : undefined; } catch { value = undefined; }
+  const raw = typeof value === "number" && Number.isFinite(value) ? value : stored[key] ?? 100;
+  return Math.max(0, Math.min(100, raw));
+}
 export function installEffects(ctx: EffectContext): () => void {
   const flags = ctx.flags ?? {};
   const enabled = ["anybandui.crt", "anybandui.lowHealthEffect", "anybandui.deathEffect", "anybandui.itemGlow", "anybandui.sleepMarks", "anybandui.presenceHaze", "anybandui.spellEffects"].some((x) => flags[x]);
@@ -78,7 +98,7 @@ export function installEffects(ctx: EffectContext): () => void {
   const g: CanvasRenderingContext2D = maybeContext;
   const cues: Cue[] = []; let raf = 0, wasDead = false, deadBurstAt = 0;
   const reduced = () => globalThis.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
-  const push = (list: Omit<Cue, "started" | "strength">[]) => { const effects = validateSettings(ctx.prefs?.get()).effects; for (const cue of list) { const strength = Math.max(0, Math.min(100, effects[cue.kind] ?? 100)); if (strength > 0) cues.push({ ...cue, started: performance.now(), strength }); } request(); };
+  const push = (list: Omit<Cue, "started" | "strength">[]) => { const effects = validateSettings(ctx.prefs?.get()).effects; for (const cue of list) { const strength = effectStrength(ctx.settings, effects, cue.kind); if (strength > 0) cues.push({ ...cue, started: performance.now(), strength }); } request(); };
   const add = (e: SourceEvent) => push(eventCue(e, (who) => actorGrid(ctx.snapshot?.() ?? null, who)));
   // Core calls each handler with the event name first and the payload second.
   const combat = (_type: "combat-outcome", e: EffectEventMap["combat-outcome"]) => add({ event: "combat-outcome", ...e });
@@ -99,7 +119,7 @@ export function installEffects(ctx: EffectContext): () => void {
     const cell = (p: Grid) => ({ x: (p.x - view.viewport.origin.x + .5) * cellW, y: (p.y - view.viewport.origin.y + .5) * cellH });
     // ctx.prefs parses its stored value on every read, so read the settings once per frame.
     const effectSettings = validateSettings(ctx.prefs?.get()).effects;
-    const intensity = (key: string) => Math.max(0, Math.min(100, effectSettings[key] ?? 100)) / 100;
+    const intensity = (key: string) => effectStrength(ctx.settings, effectSettings, key) / 100;
     const staticMode = chooseEffectMotion(reduced()) === "static";
     if (flags["anybandui.crt"] && intensity("crt") > 0) {
       g.fillStyle = `rgba(0,0,0,${.10 * intensity("crt")})`; for (let y=0; y<rect.height; y+=3) g.fillRect(0,y,rect.width,1);

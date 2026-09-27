@@ -37,6 +37,15 @@
   "author": "WurliMonkhaven, neostryder",
   "license": "GPL-2.0-only",
   "description": "Wurli Monkhaven's AnybandUI, rebuilt for Neo Angband. You can play with the mouse: click the map to move and act, keep your character, status and messages in panels, and compare gear in an item window before you wear it. Each feature has its own switch and starts off, and none of them change the game's rules.",
+  "settings": [
+    { "id": "anybandui.crtStrength", "title": "CRT strength", "description": "How dark the scanlines are, from none at 0% to full at 100%.", "min": 0, "max": 100, "step": 10, "default": 100, "unit": "%", "parent": "anybandui.crt" },
+    { "id": "anybandui.lowHealthStrength", "title": "Low health tint strength", "description": "How deep the red tint gets when your hit points run low.", "min": 0, "max": 100, "step": 10, "default": 100, "unit": "%", "parent": "anybandui.lowHealthEffect" },
+    { "id": "anybandui.deathStrength", "title": "Death burst strength", "description": "How bright the burst is when your character dies.", "min": 0, "max": 100, "step": 10, "default": 100, "unit": "%", "parent": "anybandui.deathEffect" },
+    { "id": "anybandui.itemGlowStrength", "title": "Floor item glow strength", "description": "How bright the glow is around artifacts, cursed items and unlearned runes on the floor.", "min": 0, "max": 100, "step": 10, "default": 100, "unit": "%", "parent": "anybandui.itemGlow" },
+    { "id": "anybandui.sleepMarksStrength", "title": "Sleep mark strength", "description": "How clearly the marks show over sleeping creatures.", "min": 0, "max": 100, "step": 10, "default": 100, "unit": "%", "parent": "anybandui.sleepMarks" },
+    { "id": "anybandui.presenceHazeStrength", "title": "Presence haze strength", "description": "How thick the violet haze is around unique creatures.", "min": 0, "max": 100, "step": 10, "default": 100, "unit": "%", "parent": "anybandui.presenceHaze" },
+    { "id": "anybandui.spellEffectsStrength", "title": "Combat ring strength", "description": "How bright the combat rings and the blast flashes are.", "min": 0, "max": 100, "step": 10, "default": 100, "unit": "%", "parent": "anybandui.spellEffects" }
+  ],
   "rules": [
     { "flag": "anybandui.itemsLists", "title": "Item panel", "description": "Opens a panel with your pack, equipment and quiver on separate tabs, a search box, and each item in its game colour. Anything on the floor where you stand is listed above the tabs. Click an item to select it.", "default": false, "requiresReload": true },
     { "flag": "anybandui.itemsInspection", "title": "Item inspection", "description": "Shows the game's full description of the item you select in the item panel, the same text the Inspect command gives.", "default": false, "requiresReload": true },
