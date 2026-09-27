@@ -1,13 +1,13 @@
 {
   "id": "anybandui",
   "name": "AnybandUI",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "shape": "plugin",
   "facets": [
     "plugin"
   ],
   "modApi": 1,
-  "engine": ">=1.18.0",
+  "engine": ">=1.19.0",
   "dependencies": {
     "core": "*"
   },

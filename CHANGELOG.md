@@ -8,6 +8,8 @@ An entry opens with one or more bracketed tags. `[Visible]` marks a change a pla
 
 ## [Unreleased]
 
+## 1.0.0 - 2026-09-27
+
 ### Added
 
 - [Visible] [UI] **Optional visual effects for the dungeon view.** They include a CRT look with scanlines, a red tint below the game's hit point warning, a burst at death, glows on floor items that are artifacts, cursed or carry an unknown rune, marks over sleeping creatures, a haze around uniques, rings for hits, misses, spells, healing and teleports, and flashes where a ball or breath lands. Each has its own switch and starts off. They sit over text and tiles alike and follow the zoom and camera, and animated ones hold still when your system asks for reduced motion. On a version of the game with numeric mod settings, each effect also has a strength setting on the Mods screen, from 0% to 100%.
