@@ -68,7 +68,7 @@ const input = freeze({
   history: [{ text: "An orc appears.", count: 3, category: 2 },
     { text: "You hear a noise.", count: 1, category: 0 }],
   repeat: 0, resting: true, running: false, unignoring: 1,
-  recall: 5, descent: 2, extraMoves: 2, study: 3,
+  recall: 5, descent: 2, extraMoves: 2, study: 3, messagePending: true,
 });
 
 describe("full-v1 phase 1 adapter", () => {
@@ -102,6 +102,8 @@ describe("full-v1 phase 1 adapter", () => {
     expect(actual.dungeon).toEqual({ depth: 4, depth_feet: 200, light: 4,
       feeling: "LF:3-5", feeling_indices: { monster: 7, object: 6, squares: 12, need: 10 },
       feeling_description: undefined, floor: "Granite wall" });
+    expect(actual.message_pending).toBe(true);
+    expect(adapt(view, frame, { ...input, messagePending: false }).message_pending).toBe(false);
     expect(actual.messages).toEqual([
       { text: "An orc appears.", count: 3, system: undefined, category: 2, group: undefined },
       { text: "You hear a noise.", count: 1, system: undefined, category: 0, group: undefined },

@@ -93,6 +93,7 @@ export interface DungeonSummaryPayload {
 export interface ViewModel {
   player: PlayerPayload;
   messages: MessagePayload[];
+  /** True while a -more- pause holds input (client.cpp's message_pending). */
   message_pending: boolean | undefined;
   dungeon: DungeonSummaryPayload;
 }

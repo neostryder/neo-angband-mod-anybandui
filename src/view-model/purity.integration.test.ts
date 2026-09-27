@@ -6,7 +6,8 @@ import { adapt } from "./adapter.js";
 import { createSource } from "./source.js";
 import { adaptItems } from "./items.js";
 import { adaptStore } from "./stores.js";
-import type { InputSnapshot } from "../seams.js";
+import { creatureRecall, recallLine } from "../hover-cards.js";
+import type { InputSnapshot, MessageSnapshot, RecallSnapshot } from "../seams.js";
 
 const checkout = process.env["NEO_ANGBAND_REPO"];
 
@@ -43,6 +44,36 @@ describe.skipIf(!checkout)("adapter over a real game", () => {
     expect(adapterSource.snapshot()?.messages[0]).toMatchObject({
       text: "A repeated message.", count: 2, category: 2,
     });
+    const loreModule = await import(/* @vite-ignore */ source("mon/lore.ts"));
+    const races = game.booted.registries.monsters.races;
+    // A race the character has seen, so monsterRecall has lore to describe.
+    const seen = races.find((race: { ridx: number } | undefined) => race && race.ridx > 0);
+    loreModule.getLore(game.state.lore, seen).sights = 1;
+    const recallDeps = {
+      inspect: { races, projections: [], objectInfo: undefined,
+        loreDeps: () => ({ playerLevel: game.state.actor.player.lev, playerMaxDepth: game.state.actor.player.maxDepth,
+          playerSpeed: 110, effectiveSpeed: false, purpleUniques: false, spells: game.booted.registries.monsters.spells }) },
+    };
+    /* The host's snapshot copies msglog.all() texts newest last; this mirrors
+     * that from the core log, and puts a -more- ack prompt in the snapshot. */
+    const messageSnapshot = (): MessageSnapshot => {
+      const view = agentModule.createAgentView(game.state);
+      const captured = view.capture?.();
+      const log = game.state.messages;
+      const entries = log ? Array.from({ length: log.num() }, (_, age) => log.str(log.num() - 1 - age)) : [];
+      return { token: captured?.token ?? { epoch: 0, revision: 0 }, phase: "more", messagePending: true,
+        prompt: { kind: "ack", promptId: 1, label: "-more-", tag: "more" }, core: {}, messages: { token: captured?.token ?? { epoch: 0, revision: 0 }, entries } };
+    };
+    const messageSource = createSource({ state: game.state, core: { createAgentView: agentModule.createAgentView }, snapshot: messageSnapshot });
+    expect(messageSource.snapshot({ messages: true })?.messages[0]).toMatchObject({ text: "A repeated message.", count: 2, category: 2 });
+    expect(messageSource.snapshot({ messages: true })?.message_pending).toBe(true);
+    const recallView = agentModule.createAgentView(game.state, undefined, recallDeps);
+    const recalled = recallView.monsterRecall?.(seen.ridx) ?? null;
+    expect(recalled?.text).toBeTruthy();
+    // The game's real recall text yields one short line for the card.
+    const line = recallLine(recalled);
+    expect(line).toBeTruthy();
+    expect(line!.length).toBeLessThanOrEqual(90);
     const fingerprint = (): string => JSON.stringify({
       save: gameModule.saveGame(game), rng: game.state.rng.getState(),
       turn: game.state.turn, cmdQueue: game.state.cmdQueue ?? [],
@@ -58,6 +89,16 @@ describe.skipIf(!checkout)("adapter over a real game", () => {
     for (let i = 0; i < 100; i++) {
       adapt(agentModule.createAgentView(game.state));
       adapterSource.snapshot();
+      messageSource.snapshot({ messages: true });
+      // The hover card's recall line: a visible monster, then the lore read.
+      const recallRead = agentModule.createAgentView(game.state, undefined, recallDeps);
+      const monsters = recallRead.monsters?.() ?? [];
+      const first = monsters[0];
+      if (first) {
+        creatureRecall({ snapshot: () => ({ token: { epoch: 0, revision: 0 }, phase: "play", messagePending: false, prompt: null,
+          core: { monsters: monsters.map((m: { visible: boolean }) => ({ ...m, visible: true })) } } as unknown as RecallSnapshot), inspect: recallRead }, first.grid);
+      }
+      recallRead.monsterRecall?.(seen.ridx);
       const view = agentModule.createAgentView(game.state);
       const spellbooks = view.spellbooks?.() ?? [];
       for (const book of spellbooks) for (const spell of book.spells) view.spellInfo?.(spell.sidx);

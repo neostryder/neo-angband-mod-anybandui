@@ -4,7 +4,7 @@ import type { DungeonSummaryPayload, FeelingIndicesPayload, MessagePayload, Play
 
 export interface AdapterInput {
   readonly name?: string;
-  readonly history?: readonly { readonly text: string; readonly count: number; readonly category: number }[];
+  readonly history?: readonly { readonly text: string; readonly count: number | undefined; readonly category: number | undefined }[];
   readonly foodMax?: number;
   readonly levelStartExperience?: number;
   readonly study?: number;
@@ -15,6 +15,8 @@ export interface AdapterInput {
   readonly recall?: number;
   readonly descent?: number;
   readonly extraMoves?: number;
+  /** Whether a -more- pause holds input; source.ts reads it from the ack prompt. */
+  readonly messagePending?: boolean;
 }
 
 export const GAPS: readonly { field: string; reason: string }[] = [
@@ -27,7 +29,6 @@ export const GAPS: readonly { field: string; reason: string }[] = [
   { field: "player.statuses[].description", reason: "Tmd runs and AgentView provide no explanation." },
   { field: "messages[].system", reason: "The core log stores text, count, and type, but no system flag." },
   { field: "messages[].group", reason: "The core log stores no message group." },
-  { field: "message_pending", reason: "The web host keeps its -more- cursor in a private module variable." },
 ] as const;
 
 function entry(frame: HudFrame | undefined, key: string): HudEntry | undefined {
@@ -161,5 +162,5 @@ function dungeonPayload(player: PlayerPayload): DungeonSummaryPayload {
 export function adapt(view: AgentView, frame?: HudFrame, input: AdapterInput = {}): ViewModel {
   const player = playerPayload(view, frame, input);
   return { player, dungeon: dungeonPayload(player), messages: messagePayload(input),
-    message_pending: undefined };
+    message_pending: input.messagePending };
 }

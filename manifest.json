@@ -23,6 +23,8 @@
     "state:player.read",
     "state:spells.read",
     "state:stores.read",
+    "state:messages.read",
+    "state:monsters.read",
     "input:intent",
     "input:prompt.reply",
     "event:combat-outcome",
@@ -43,8 +45,8 @@
     { "flag": "anybandui.itemsRules", "title": "Item rules list", "description": "Lists your ignore settings and auto-inscriptions in the item panel, so you can see why an item is hidden or inscribed. Change them through the game's knowledge menus as usual.", "default": false, "requiresReload": true },
     {
       "flag": "anybandui.clickToWalk",
-      "title": "Click to walk",
-      "description": "Left-click a tile in the dungeon view to step there, or to travel there if it is further away. Clicking a creature next to you attacks it, and while you aim, a click picks the target.",
+      "title": "TODO-PROSE",
+      "description": "TODO-PROSE",
       "default": false,
       "requiresReload": true
     },
@@ -85,8 +87,8 @@
     },
     {
       "flag": "anybandui.messages",
-      "title": "Message log",
-      "description": "Replaces the message line with a scrolling log. Repeated messages fold into one line with a count, and a search box finds an older message.",
+      "title": "TODO-PROSE",
+      "description": "TODO-PROSE",
       "default": false,
       "requiresReload": true
     },
@@ -176,8 +178,8 @@
     },
     {
       "flag": "anybandui.dungeonHoverCards",
-      "title": "Hover cards on the dungeon view",
-      "description": "Resting the pointer on a tile of the dungeon view opens a card with what you know about it: the creature or character there with a small health bar, the terrain, and up to five items on the floor. The delay before a card opens is one setting shared with the map overview's cards, 550 ms to start with.",
+      "title": "TODO-PROSE",
+      "description": "TODO-PROSE",
       "default": false,
       "requiresReload": true
     },

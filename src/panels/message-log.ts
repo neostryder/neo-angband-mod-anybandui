@@ -3,14 +3,34 @@ import { node } from "./panel-host.js";
 
 const ink = { system: "#64a0b5b4", combat: "#c88f5fb4", loot: "#b1a962b4", other: "#5b8a71a0" } as const;
 
-export function renderMessageLog(mount: HTMLElement, model: ViewModel): void {
+export interface MessageLogOptions {
+  /** Answers the -more- pause; returns false when the game did not take it. */
+  readonly acknowledge?: () => boolean;
+}
+
+export function renderMessageLog(mount: HTMLElement, model: ViewModel, options: MessageLogOptions = {}): void {
   // The input belongs to the panel, so preserve its value across new snapshots.
   const previous = mount.querySelector<HTMLInputElement>("input")?.value ?? "";
   mount.replaceChildren();
   const heading = node(mount, "div", "heading", "Messages");
   if (model.message_pending === true) {
     heading.style.color = "#ffba4d";
-    node(mount, "div", "ribbon", "Messages waiting");
+    const acknowledge = options.acknowledge;
+    if (acknowledge) {
+      /* The ribbon doubles as the key that dismisses the pause. The shared
+       * ribbon style ignores the pointer, so this one opts back in. A refused
+       * reply (the pause already ended, or another controller drives) leaves
+       * the button disabled until the next snapshot redraws the log. */
+      const ribbon = node(mount, "button", "ribbon", "Messages waiting") as HTMLButtonElement;
+      ribbon.type = "button";
+      ribbon.style.pointerEvents = "auto";
+      ribbon.style.cursor = "pointer";
+      ribbon.style.background = "transparent";
+      ribbon.style.font = "inherit";
+      ribbon.style.width = "100%";
+      ribbon.style.textAlign = "left";
+      ribbon.addEventListener("click", () => { if (!acknowledge()) ribbon.disabled = true; });
+    } else node(mount, "div", "ribbon", "Messages waiting");
   }
   const search = node(mount, "input") as HTMLInputElement;
   search.type = "search";
