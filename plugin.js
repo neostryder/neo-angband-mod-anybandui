@@ -1200,8 +1200,8 @@ function wrapBitmapParagraphs(text, maxChars) {
     (paragraph) => paragraph.trim() === "" ? [""] : wrapBitmapText(paragraph, maxChars)
   );
 }
-function styleAsScreenReaderOnly(el) {
-  Object.assign(el.style, {
+function styleAsScreenReaderOnly(el2) {
+  Object.assign(el2.style, {
     position: "absolute",
     width: "1px",
     height: "1px",
@@ -1225,14 +1225,14 @@ function bitmapTextBlock(lines, cellWidth, cellHeight, dpr) {
   wrap.appendChild(label2);
   return wrap;
 }
-function paintBitmapButtonLabel(button, text, css, cellWidth, cellHeight, dpr) {
-  button.replaceChildren();
-  if (!button.hasAttribute("aria-label")) button.setAttribute("aria-label", text);
+function paintBitmapButtonLabel(button2, text, css, cellWidth, cellHeight, dpr) {
+  button2.replaceChildren();
+  if (!button2.hasAttribute("aria-label")) button2.setAttribute("aria-label", text);
   const canvas = document.createElement("canvas");
   canvas.setAttribute("aria-hidden", "true");
   canvas.style.display = "block";
   paintBitmapLine(canvas, [{ text, css }], cellWidth, cellHeight, dpr);
-  button.appendChild(canvas);
+  button2.appendChild(canvas);
 }
 
 // src/encounter-preference.ts
@@ -2514,11 +2514,11 @@ function paintSidebar(rt, section, frame) {
     sidebar.body.appendChild(row);
   }
   if (plan.pages > 1) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.setAttribute("data-anybandui-sidebar-page", "");
-    button.setAttribute("aria-label", `Show status page ${String((plan.page + 1) % plan.pages + 1)} of ${String(plan.pages)}`);
-    Object.assign(button.style, {
+    const button2 = document.createElement("button");
+    button2.type = "button";
+    button2.setAttribute("data-anybandui-sidebar-page", "");
+    button2.setAttribute("aria-label", `Show status page ${String((plan.page + 1) % plan.pages + 1)} of ${String(plan.pages)}`);
+    Object.assign(button2.style, {
       appearance: "none",
       background: "transparent",
       border: "1px solid #686878",
@@ -2529,15 +2529,15 @@ function paintSidebar(rt, section, frame) {
       padding: "0 0.35em"
     });
     paintBitmapButtonLabel(
-      button,
+      button2,
       `${String(plan.page + 1)}/${String(plan.pages)} >`,
       "#d8d87c",
       cellWidth,
       cellHeight,
       dpr
     );
-    button.addEventListener("click", () => turnSidebarPage(rt, 1));
-    sidebar.body.appendChild(button);
+    button2.addEventListener("click", () => turnSidebarPage(rt, 1));
+    sidebar.body.appendChild(button2);
   }
 }
 function cameraOrigin(snapshot, point) {
@@ -3364,18 +3364,18 @@ function hoverCardContent(core, state, grid) {
   return { kind, text, title: KIND_TITLE[kind] };
 }
 var hoverCardsWired = false;
-function positionHoverCard(el, clientX, clientY) {
+function positionHoverCard(el2, clientX, clientY) {
   const GAP = 14;
   const vw = window.innerWidth;
   const vh = window.innerHeight;
-  const w = el.offsetWidth;
-  const h = el.offsetHeight;
+  const w = el2.offsetWidth;
+  const h = el2.offsetHeight;
   let left = clientX + GAP;
   let top = clientY + GAP;
   if (left + w > vw) left = clientX - GAP - w;
   if (top + h > vh) top = clientY - GAP - h;
-  el.style.left = `${String(Math.max(0, left))}px`;
-  el.style.top = `${String(Math.max(0, top))}px`;
+  el2.style.left = `${String(Math.max(0, left))}px`;
+  el2.style.top = `${String(Math.max(0, top))}px`;
 }
 var HOVER_CARD_CELL_HEIGHT = 14;
 var HOVER_CARD_CELL_WIDTH = HOVER_CARD_CELL_HEIGHT * (16 / 24);
@@ -3642,8 +3642,8 @@ function installMapHoverCards(ctx) {
       if (ctx.display?.snapshot().mode !== "map" && !mapOpenGuess) return;
       const resolved = resolveCaveGrid(ev.clientX, ev.clientY);
       if (touchPinned) {
-        const same = resolved !== null && shownGridKey !== null && gridKey(resolved.grid) === shownGridKey;
-        if (same) {
+        const same2 = resolved !== null && shownGridKey !== null && gridKey(resolved.grid) === shownGridKey;
+        if (same2) {
           ev.preventDefault();
           ev.stopImmediatePropagation();
           return;
@@ -3741,6 +3741,422 @@ function installMapHoverCards(ctx) {
   };
 }
 
+// src/view-model/items.ts
+function adaptItems(snap) {
+  if (!snap.core.inventory || !snap.core.equipment) return null;
+  const row = (item, location2, slot) => ({
+    handle: item.handle,
+    label: item.label,
+    quantity: item.number,
+    location: location2,
+    ...slot === void 0 ? {} : { slot },
+    colour: item.artifact ? "#e89e42" : item.ego ? "#80b891" : "inherit",
+    inscription: item.inscription,
+    family: item.kindId ?? `${item.tval}:${item.sval}`
+  });
+  return {
+    token: snap.token,
+    phase: snap.phase,
+    prompt: snap.prompt,
+    rows: [
+      ...snap.core.inventory.map((item) => row(item, "pack")),
+      ...snap.core.equipment.flatMap((item, slot) => item ? [row(item, "equipment", slot)] : [])
+    ]
+  };
+}
+function compareItem(ctx, token, handle) {
+  if (!ctx.core?.createAgentView || !ctx.state) return null;
+  const before = ctx.snapshot?.();
+  if (!before || before.token.epoch !== token.epoch || before.token.revision !== token.revision) return null;
+  return ctx.core.createAgentView(ctx.state).simulateLoadout?.({ wield: [{ from: "gear", handle }] }) ?? null;
+}
+var AcquisitionChanges = class {
+  previous = /* @__PURE__ */ new Map();
+  pending = /* @__PURE__ */ new Map();
+  epoch;
+  update(model) {
+    if (model.phase !== "play" && model.phase !== "store") {
+      this.previous.clear();
+      this.pending.clear();
+      this.epoch = void 0;
+      return;
+    }
+    if (this.epoch !== model.token.epoch) {
+      this.previous.clear();
+      this.pending.clear();
+      this.epoch = model.token.epoch;
+    }
+    const current = /* @__PURE__ */ new Map();
+    const family = /* @__PURE__ */ new Map();
+    for (const item of model.rows) {
+      if (!item.handle) continue;
+      const key = `${item.family}:${item.handle}`;
+      current.set(key, (current.get(key) ?? 0) + Math.max(0, item.quantity));
+      family.set(item.family, (family.get(item.family) ?? 0) + Math.max(0, item.quantity));
+    }
+    const previousFamily = /* @__PURE__ */ new Map();
+    for (const [key, count] of this.previous) {
+      const name = key.slice(0, key.lastIndexOf(":"));
+      previousFamily.set(name, (previousFamily.get(name) ?? 0) + count);
+    }
+    for (const [key, count] of current) {
+      const name = key.slice(0, key.lastIndexOf(":"));
+      const added = Math.min(Math.max(0, count - (this.previous.get(key) ?? 0)), Math.max(0, (family.get(name) ?? 0) - (previousFamily.get(name) ?? 0)));
+      if (added) this.pending.set(key, { amount: Math.min(count, (this.pending.get(key)?.amount ?? 0) + added), fresh: (this.previous.get(key) ?? 0) === 0 });
+    }
+    for (const [key, value2] of this.pending) {
+      const count = current.get(key) ?? 0;
+      if (!count) this.pending.delete(key);
+      else if (value2.amount > count) this.pending.set(key, { ...value2, amount: count });
+    }
+    this.previous = current;
+  }
+  badge(item) {
+    const entry2 = this.pending.get(`${item.family}:${item.handle}`);
+    return entry2 ? entry2.fresh ? "NEW" : `+${entry2.amount}` : null;
+  }
+  acknowledge(item) {
+    this.pending.delete(`${item.family}:${item.handle}`);
+  }
+};
+
+// src/item-interactions.ts
+function quantityShortcut(prompt, shortcut) {
+  return shortcut === "One" ? 1 : shortcut === "Half" ? Math.max(1, Math.floor(prompt.max / 2)) : prompt.max;
+}
+function answerQuantity(seam, prompt, amount) {
+  if (!Number.isSafeInteger(amount) || amount < prompt.min || amount > prompt.max) return { accepted: false, reason: `Choose an amount from ${prompt.min} to ${prompt.max}.` };
+  return seam?.reply(prompt.promptId, amount) ?? { accepted: false, reason: "Prompt reply unavailable." };
+}
+function answerItem(seam, prompt, handle) {
+  if (!prompt.choices.some((choice) => choice.handle === handle)) return { accepted: false, reason: "Item is unavailable for this action." };
+  return seam?.reply(prompt.promptId, handle) ?? { accepted: false, reason: "Prompt reply unavailable." };
+}
+function buildItemCommand(builders, code, handle, inscription) {
+  if (code === "wield") return builders?.wear(handle) ?? { code, args: { handle } };
+  if (code === "takeoff") return builders?.takeoff(handle) ?? { code, args: { handle } };
+  if (code === "drop") return builders?.drop(handle) ?? { code, args: { handle } };
+  const args = inscription === void 0 ? { handle } : { handle, inscription };
+  return builders?.raw(code, args) ?? { code, args };
+}
+function submitItem(intent, inspect, token, code, handle, command) {
+  const tester = inspect?.itemTester(code);
+  if (!tester || tester.token.epoch !== token.epoch || tester.token.revision !== token.revision || !tester.items.some((item) => "handle" in item && item.handle === handle)) return { accepted: false, reason: "Item is unavailable for this action." };
+  return intent?.submit(token, { kind: "command", command }) ?? { accepted: false, reason: "Intent seam unavailable." };
+}
+
+// src/panels/items.ts
+var CSS2 = `:host{color:var(--anyband-text);font:13px/1.4 system-ui,sans-serif}.items{position:absolute;right:12px;top:12px;width:min(440px,44vw);max-height:calc(100vh - 24px);overflow:auto;padding:10px;background:var(--anyband-surface);border:1px solid var(--anyband-accent);border-radius:var(--anyband-rounding);pointer-events:auto}button,input,select{font:inherit;color:var(--anyband-text);background:var(--anyband-background);border:1px solid var(--anyband-accent);border-radius:3px;padding:3px 5px}button{cursor:pointer}button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--anyband-accent)}input[type=search]{width:100%}.tabs,.actions,.quick{display:flex;gap:5px;flex-wrap:wrap;margin:6px 0}table{width:100%;border-collapse:collapse}th{text-align:left;position:sticky;top:0;background:var(--anyband-surface)}td,th{padding:3px;border-bottom:1px solid var(--anyband-accent)}tr.new{background:#437d5541}.row{width:100%;text-align:left;border:0;background:transparent}details{margin:8px 0}summary{color:var(--anyband-accent);cursor:pointer;font-weight:bold}.muted{opacity:.65}.gain{color:#80b891}.loss{color:#ff7559}.error{color:#ff7559}.prompt{border:1px solid var(--anyband-accent);padding:8px;margin:8px 0}`;
+var ACTIONS = ["wield", "takeoff", "drop", "inscribe", "use"];
+var USE_CODES = ["activate", "use-staff", "aim-wand", "zap-rod", "eat", "quaff", "read"];
+var METRICS = [["speed", "Speed", 1], ["ac", "Armour", 1], ["toH", "To hit", 1], ["toD", "To damage", 1], ["blows", "Blows", 100], ["shots", "Shots", 10], ["maxHp", "Max HP", 1], ["maxSp", "Max SP", 1], ["totalWeight", "Weight", 10]];
+function el(parent, tag, text) {
+  const child = parent.ownerDocument.createElement(tag);
+  if (text !== void 0) child.textContent = text;
+  parent.appendChild(child);
+  return child;
+}
+function button(parent, label2, action) {
+  const b = el(parent, "button", label2);
+  b.type = "button";
+  b.addEventListener("click", action);
+  return b;
+}
+function same(a, b) {
+  return a.epoch === b.epoch && a.revision === b.revision;
+}
+function installItems(ctx) {
+  const flags = ctx.flags ?? {};
+  if (!Object.entries(flags).some(([key, on]) => key.startsWith("anybandui.items") && on && (key !== "anybandui.itemsRules" || !!ctx.inspect?.itemRules))) return () => {
+  };
+  if (!ctx.ui?.openPanel || !ctx.snapshot) {
+    ctx.log("items: panel or snapshot seam unavailable");
+    return () => {
+    };
+  }
+  const panel = ctx.ui.openPanel({ id: "items", modal: false, label: "Items" });
+  applyTheme(panel.root, THEMES[validateSettings(ctx.prefs?.get()).theme]);
+  el(panel.root, "style", CSS2);
+  const mount = el(panel.root, "section");
+  mount.className = "items";
+  const changes = new AcquisitionChanges();
+  let tab = "pack";
+  let search = "";
+  let selected = null;
+  let unchanged = false;
+  let quantity = 1;
+  let promptId = -1;
+  let error = "";
+  let signature = "";
+  let closed = false;
+  const enabled = (name) => flags[`anybandui.items${name}`] === true;
+  const read = () => {
+    const snap = ctx.snapshot?.();
+    return snap?.core ? adaptItems(snap) : null;
+  };
+  const usable = (model, item, code) => {
+    const tester = ctx.inspect?.itemTester(code);
+    return !!tester && same(tester.token, model.token) && tester.items.some((ref) => "handle" in ref && ref.handle === item.handle);
+  };
+  const act = (model, item, code) => {
+    const latest = read();
+    if (!latest || !same(latest.token, model.token) || latest.phase !== "play" || latest.prompt || !ctx.intent?.submit) {
+      error = "Action unavailable at this input wait.";
+      paint(true);
+      return;
+    }
+    const actualCode = code === "use" ? USE_CODES.find((candidate) => usable(model, item, candidate)) : code;
+    if (!actualCode) {
+      error = "No usable command is available for this item.";
+      paint(true);
+      return;
+    }
+    const builders = ctx.core?.createAgentActions?.(ctx.state);
+    let inscription;
+    if (code === "inscribe") {
+      const input = globalThis.prompt?.("Inscription", item.inscription ?? "");
+      if (input === null || input === void 0) return;
+      inscription = input;
+    }
+    const command = buildItemCommand(builders, actualCode, item.handle, inscription);
+    const result = submitItem(ctx.intent, ctx.inspect, model.token, actualCode, item.handle, command);
+    error = result.accepted ? "" : result.reason ?? "Action rejected.";
+    paint(true);
+  };
+  const showPrompt = (model) => {
+    const prompt = model.prompt;
+    if (!prompt || !ctx.prompt?.reply) return;
+    if (prompt.kind === "quantity" && enabled("Quantity")) {
+      const q = prompt;
+      if (promptId !== q.promptId) {
+        promptId = q.promptId;
+        quantity = q.defaultValue;
+      }
+      const box = el(mount, "section");
+      box.className = "prompt";
+      el(box, "h3", "Choose quantity");
+      el(box, "p", q.label);
+      el(box, "p", `Available for this action: ${q.max}`);
+      const input = el(box, "input");
+      input.type = "number";
+      input.min = String(q.min);
+      input.max = String(q.max);
+      input.value = String(quantity);
+      input.addEventListener("input", () => {
+        quantity = Number(input.value);
+      });
+      const quick = el(box, "div");
+      quick.className = "quick";
+      for (const label2 of ["One", "Half", "All"]) button(quick, label2, () => {
+        quantity = quantityShortcut(q, label2);
+        input.value = String(quantity);
+      });
+      button(box, "Confirm", () => {
+        const result = answerQuantity(ctx.prompt, q, quantity);
+        error = result.accepted ? "" : result.reason ?? "Prompt rejected.";
+        paint(true);
+      });
+    } else if (prompt.kind === "item" && enabled("Choice")) {
+      const p = prompt;
+      if (promptId !== p.promptId) {
+        promptId = p.promptId;
+        selected = p.choices[0]?.handle ?? null;
+      }
+      const box = el(mount, "section");
+      box.className = "prompt";
+      el(box, "h3", "Angband asks");
+      el(box, "p", p.label);
+      const table = el(box, "table");
+      const head = el(table, "tr");
+      for (const name of ["Key", "Item", "Location", "Qty"]) el(head, "th", name);
+      for (const choice of p.choices) {
+        const item = model.rows.find((row2) => row2.handle === choice.handle);
+        const row = el(table, "tr");
+        el(row, "td", choice.letter);
+        const cell = el(row, "td");
+        button(cell, choice.label, () => {
+          selected = choice.handle;
+          paint(true);
+        });
+        el(row, "td", item?.location ?? "Floor");
+        el(row, "td", item ? String(item.quantity) : "");
+      }
+      const current = p.choices.find((choice) => choice.handle === selected);
+      if (current && selected !== null) {
+        const inspection = ctx.inspect?.inspectItem(selected);
+        if (inspection && same(inspection.token, model.token)) el(box, "p", inspection.text);
+      }
+      const choose = button(box, "Choose", () => {
+        if (current) {
+          const result = answerItem(ctx.prompt, p, current.handle);
+          error = result.accepted ? "" : result.reason ?? "Prompt rejected.";
+          paint(true);
+        }
+      });
+      choose.disabled = !current;
+    }
+  };
+  const showComparison = (model, item) => {
+    if (!enabled("Comparison") || item.location !== "pack") return;
+    const sim = compareItem(ctx, model.token, item.handle);
+    if (!sim || sim.unresolved.length) return;
+    const details = el(mount, "details");
+    details.open = true;
+    el(details, "summary", "Equipment comparison");
+    if (!sim.placements.length) {
+      el(details, "p", "No compatible equipment slot.");
+      return;
+    }
+    const placement = sim.placements[0];
+    el(details, "p", `Replacing: ${placement.displaced?.label ?? "empty slot"}`);
+    el(details, "p", "Known properties only; unidentified effects may differ.");
+    const toggle = el(details, "input");
+    toggle.type = "checkbox";
+    toggle.checked = unchanged;
+    toggle.addEventListener("change", () => {
+      unchanged = toggle.checked;
+      paint(true);
+    });
+    el(details, "span", " Show unchanged stats");
+    const table = el(details, "table");
+    const head = el(table, "tr");
+    for (const label2 of ["Stat", "Current", "Selected", "Change"]) el(head, "th", label2);
+    for (const [key, label2, scale] of METRICS) {
+      const before = sim.before.stats[key];
+      const after = sim.after.stats[key];
+      const delta = after - before;
+      if (!unchanged && !delta && !["speed", "ac", "blows"].includes(key)) continue;
+      const row = el(table, "tr");
+      el(row, "td", label2);
+      el(row, "td", String(before / scale));
+      el(row, "td", String(after / scale));
+      const change = el(row, "td", delta ? `${delta > 0 ? "+" : ""}${delta / scale}` : "-");
+      change.className = delta === 0 ? "muted" : key === "totalWeight" ? delta < 0 ? "gain" : "loss" : delta > 0 ? "gain" : "loss";
+    }
+    for (const [index, name] of ["STR", "INT", "WIS", "DEX", "CON"].entries()) {
+      const before = sim.before.stats.statUse[index], after = sim.after.stats.statUse[index];
+      if (before === void 0 || after === void 0 || !unchanged && before === after) continue;
+      const row = el(table, "tr");
+      for (const value2 of [name, String(before), String(after), after === before ? "-" : `${after > before ? "+" : ""}${after - before}`]) el(row, "td", value2);
+    }
+    el(details, "h4", "Resistances & abilities");
+    sim.after.stats.resists.forEach((after, index) => {
+      const before = sim.before.stats.resists[index] ?? 0;
+      if (unchanged || after !== before) el(details, "div", `${sim.after.stats.resistElements[index] ?? index}: ${before} -> ${after}`);
+    });
+    for (const flag of /* @__PURE__ */ new Set([...sim.before.stats.objectFlags, ...sim.after.stats.objectFlags])) {
+      const before = sim.before.stats.objectFlags.includes(flag), after = sim.after.stats.objectFlags.includes(flag);
+      if (unchanged || before !== after) el(details, "div", `${flag}: ${before ? "Yes" : "No"} -> ${after ? "Yes" : "No"}`);
+    }
+  };
+  const paint = (force = false) => {
+    if (closed || !panel.root.isConnected) return;
+    const model = read();
+    const next = JSON.stringify([model, tab, search, selected, unchanged, quantity, error]);
+    if (!force && next === signature) return;
+    signature = next;
+    mount.replaceChildren();
+    el(mount, "h2", "Items");
+    if (!model) {
+      el(mount, "p", "Inventory read unavailable.");
+      return;
+    }
+    if (enabled("Highlights")) changes.update(model);
+    showPrompt(model);
+    if (enabled("Rules") && ctx.inspect?.itemRules) {
+      const rules = ctx.inspect.itemRules;
+      const section = el(mount, "details");
+      el(section, "summary", "Item rules");
+      for (const rule of rules.list()) {
+        const line = el(section, "div");
+        el(line, "span", `${rule.kind}: ${rule.label} `);
+        button(line, "Remove", () => {
+          const result = rules.remove(rule.id);
+          error = result.accepted ? "" : result.reason ?? "Rule removal rejected.";
+          paint(true);
+        });
+      }
+    }
+    if (!enabled("Lists")) return;
+    const tabs = el(mount, "div");
+    tabs.className = "tabs";
+    for (const name of ["pack", "equipment", "quiver"]) {
+      const b = button(tabs, name[0].toUpperCase() + name.slice(1), () => {
+        tab = name;
+        paint(true);
+      });
+      b.setAttribute("aria-pressed", String(tab === name));
+    }
+    const searchBox = el(mount, "input");
+    searchBox.type = "search";
+    searchBox.placeholder = "Search items";
+    searchBox.value = search;
+    searchBox.addEventListener("input", () => {
+      search = searchBox.value;
+      paint(true);
+      mount.querySelector("input[type=search]")?.focus();
+    });
+    const rows = model.rows.filter((item2) => item2.location === tab && item2.label.toLowerCase().includes(search.toLowerCase()));
+    if (!rows.length) el(mount, "p", tab === "pack" ? "Your pack is empty." : tab === "equipment" ? "Nothing equipped." : "No quiver items available.");
+    const table = el(mount, "table");
+    const head = el(table, "tr");
+    for (const name of tab === "equipment" ? ["Item", "Slot", "Qty"] : ["Item", "Qty"]) el(head, "th", name);
+    for (const item2 of rows) {
+      const row = el(table, "tr");
+      const badge = enabled("Highlights") ? changes.badge(item2) : null;
+      if (badge) row.className = "new";
+      const cell = el(row, "td");
+      const b = button(cell, `${item2.label}${badge ? ` ${badge}` : ""}`, () => {
+        selected = item2.handle;
+        changes.acknowledge(item2);
+        paint(true);
+      });
+      b.className = "row";
+      b.style.color = item2.colour;
+      b.title = [badge === "NEW" ? "Newly acquired" : badge ? `${badge.slice(1)} acquired` : "", item2.inscription ? `Inscription: ${item2.inscription}` : ""].filter(Boolean).join("\n");
+      if (tab === "equipment") el(row, "td", String(item2.slot ?? ""));
+      el(row, "td", String(item2.quantity));
+    }
+    const item = model.rows.find((row) => row.handle === selected);
+    if (item) {
+      el(mount, "h3", "Inspection");
+      el(mount, "strong", item.label);
+      if (enabled("Actions") && model.phase === "play" && !model.prompt && ctx.intent?.submit) {
+        const actions = el(mount, "div");
+        actions.className = "actions";
+        for (const code of ACTIONS) {
+          if (code === "use" ? USE_CODES.some((candidate) => usable(model, item, candidate)) : usable(model, item, code)) button(actions, code, () => act(model, item, code));
+        }
+      }
+      showComparison(model, item);
+      if (enabled("Inspection")) {
+        const inspection = ctx.inspect?.inspectItem(item.handle);
+        if (inspection && same(inspection.token, model.token)) {
+          const details = el(mount, "details");
+          details.open = true;
+          el(details, "summary", inspection.title);
+          el(details, "p", inspection.text);
+        }
+      }
+    }
+    if (error) {
+      const message = el(mount, "p", error);
+      message.className = "error";
+    }
+  };
+  paint(true);
+  const timer2 = globalThis.setInterval(() => paint(), 200);
+  void panel.closed.then(() => {
+    closed = true;
+    globalThis.clearInterval(timer2);
+  });
+  return () => {
+    closed = true;
+    globalThis.clearInterval(timer2);
+    panel.close();
+  };
+}
+
 // plugin.ts
 var quiverDisplay;
 var tileDisplay;
@@ -3752,6 +4168,7 @@ var plugin_default = {
     this.uninstall();
     ctx.log(`AnybandUI loaded on engine ${ctx.engine}`);
     const flags = ctx.flags ?? {};
+    displayCleanups.push(installItems(ctx));
     if (flags["anybandui.highContrast"] || flags["anybandui.colourblind"]) {
       installAccessibilityAccommodations({ flags, ...ctx.display ? { display: ctx.display } : {}, log: ctx.log });
     }

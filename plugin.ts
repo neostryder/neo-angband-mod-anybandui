@@ -31,6 +31,8 @@ import { installZoomPan, uninstallZoomPan, zoomPanHud, type ZoomPanContext } fro
 import { installHoverCards } from "./src/hover-cards.js";
 import { installMapHoverCards } from "./src/qol-map-hover.js";
 import { installMapOverview } from "./src/map-overview.js";
+import { installItems } from "./src/panels/items.js";
+import type { ItemsContext } from "./src/seams.js";
 
 /**
  * What this plugin needs from the host's context, structurally.
@@ -58,6 +60,9 @@ interface RegisterCtx {
   readonly knownLevel?: () => unknown;
   readonly snapshot?: () => unknown;
   readonly subwindows?: ZoomPanContext["subwindows"];
+  readonly inspect?: ItemsContext["inspect"];
+  readonly intent?: ItemsContext["intent"];
+  readonly prompt?: ItemsContext["prompt"];
 }
 
 let quiverDisplay: RegisterCtx["display"];
@@ -74,6 +79,7 @@ export default {
     this.uninstall();
     ctx.log(`AnybandUI loaded on engine ${ctx.engine}`);
     const flags = ctx.flags ?? {};
+    displayCleanups.push(installItems(ctx as unknown as ItemsContext));
     if (flags["anybandui.highContrast"] || flags["anybandui.colourblind"]) {
       installAccessibilityAccommodations({ flags, ...(ctx.display ? { display: ctx.display } : {}), log: ctx.log });
     }

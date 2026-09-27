@@ -24,7 +24,15 @@ A mouse-first desktop interface for Neo Angband, ported from Wurli Monkhaven's A
 | Hover cards on the dungeon view | `anybandui.dungeonHoverCards` | off | Resting the pointer on a tile of the dungeon view opens a card with what you know about it: the creature or character there with a small health bar, the terrain, and up to five items on the floor. The delay before a card opens is one setting shared with the map overview's cards, 550 ms to start with. |
 | Full-level map overview | `anybandui.mapOverview` | off | The (M)ap screen shows every square of the level you know, shrunk to fit, with markers for you, the stairs and the shops, and an outline of what the main view shows. The mouse wheel zooms at the pointer, dragging pans, and Fit floor and Centre on player buttons sit beside the map. |
 | Schematic map | `anybandui.mapSchematic` | off | Draws the map overview as flat blocks of colour for walls, doors and floor instead of glyphs or tiles, which is easier to read when the whole level is shrunk. |
+| TODO-PROSE: Item lists | `anybandui.itemsLists` | off | Search pack and equipment items. |
+| TODO-PROSE: Item inspection | `anybandui.itemsInspection` | off | Read an item's inspection text. |
+| TODO-PROSE: Equipment comparison | `anybandui.itemsComparison` | off | Compare the current and selected loadouts. |
+| TODO-PROSE: Quantity picker | `anybandui.itemsQuantity` | off | Answer quantity prompts with shortcuts. |
+| TODO-PROSE: Item choice prompts | `anybandui.itemsChoice` | off | Answer native item prompts. |
+| TODO-PROSE: Acquisition highlights | `anybandui.itemsHighlights` | off | Mark acquired items. |
+| TODO-PROSE: Item actions | `anybandui.itemsActions` | off | Submit validated item commands. |
+| TODO-PROSE: Item rules | `anybandui.itemsRules` | off | Requires a future item-rules seam. |
 
 ## What it needs
 
-`ui:sidebar.replace`, `ui:status.replace`, `ui:messages.replace`, `display:filter`, `ui:panel.mount`, `state:map.read`, and `state:interaction.read`.
+`ui:sidebar.replace`, `ui:status.replace`, `ui:messages.replace`, `display:filter`, `ui:panel.mount`, `state:map.read`, `state:interaction.read`, `state:inventory.read`, `state:player.read`, `input:intent`, and `input:prompt.reply`.

@@ -4,6 +4,8 @@ import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 import { adapt } from "./adapter.js";
 import { createSource } from "./source.js";
+import { adaptItems } from "./items.js";
+import type { InputSnapshot } from "../seams.js";
 
 const checkout = process.env["NEO_ANGBAND_REPO"];
 
@@ -48,6 +50,12 @@ describe.skipIf(!checkout)("adapter over a real game", () => {
     for (let i = 0; i < 100; i++) {
       adapt(agentModule.createAgentView(game.state));
       adapterSource.snapshot();
+      const view = agentModule.createAgentView(game.state);
+      const captured = view.capture?.();
+      if (captured) {
+        adaptItems({ token: captured.token, phase: "play", prompt: null,
+          core: { inventory: captured.inventory, equipment: captured.equipment } } as InputSnapshot);
+      }
     }
     expect(fingerprint()).toBe(before);
   });

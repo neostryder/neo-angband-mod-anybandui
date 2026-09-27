@@ -18,12 +18,24 @@
     "display:filter",
     "ui:panel.mount",
     "state:map.read",
-    "state:interaction.read"
+    "state:interaction.read",
+    "state:inventory.read",
+    "state:player.read",
+    "input:intent",
+    "input:prompt.reply"
   ],
   "author": "WurliMonkhaven, neostryder",
   "license": "GPL-2.0-only",
   "description": "A mouse-first interface for Neo Angband, ported from Wurli Monkhaven's AnybandUI. This version offers character, status and message panels, whole-cell zoom and camera controls, knowledge-gated hover cards, and a full-detail level overview with schematic drawing. Every feature starts off. The game's rules are untouched, and turning the mod off brings back the standard screen.",
   "rules": [
+    { "flag": "anybandui.itemsLists", "title": "TODO-PROSE: Item lists", "description": "TODO-PROSE: Search pack, equipment and quiver items.", "default": false, "requiresReload": true },
+    { "flag": "anybandui.itemsInspection", "title": "TODO-PROSE: Item inspection", "description": "TODO-PROSE: Inspect the selected item.", "default": false, "requiresReload": true },
+    { "flag": "anybandui.itemsComparison", "title": "TODO-PROSE: Equipment comparison", "description": "TODO-PROSE: Compare the current and selected loadouts.", "default": false, "requiresReload": true },
+    { "flag": "anybandui.itemsQuantity", "title": "TODO-PROSE: Quantity picker", "description": "TODO-PROSE: Choose a quantity with Half and All shortcuts.", "default": false, "requiresReload": true },
+    { "flag": "anybandui.itemsChoice", "title": "TODO-PROSE: Item choice prompts", "description": "TODO-PROSE: Answer item prompts from a native list.", "default": false, "requiresReload": true },
+    { "flag": "anybandui.itemsHighlights", "title": "TODO-PROSE: Acquisition highlights", "description": "TODO-PROSE: Mark newly acquired items in the lists.", "default": false, "requiresReload": true },
+    { "flag": "anybandui.itemsActions", "title": "TODO-PROSE: Item actions", "description": "TODO-PROSE: Act on the selected item through validated commands.", "default": false, "requiresReload": true },
+    { "flag": "anybandui.itemsRules", "title": "TODO-PROSE: Item rules", "description": "TODO-PROSE: Review and remove item rules when available.", "default": false, "requiresReload": true },
     {
       "flag": "anybandui.sidebar",
       "title": "Character card",
