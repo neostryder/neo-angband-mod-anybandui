@@ -70,11 +70,37 @@ describe.skipIf(!checkout)("adapter over a real game", () => {
         adaptStore({ token: captured.token, phase: "store", prompt: null,
           core: { player: captured.player, inventory: captured.inventory,
             equipment: captured.equipment, stores: captured.stores } } as InputSnapshot,
-          view.knownLevel?.() ?? null, null);
+          view.knownLevel?.() ?? null);
         const stocked = captured.stores?.findIndex((store: { stock: readonly unknown[] }) => store.stock.length > 0) ?? -1;
-        if (stocked >= 0) view.simulateLoadout?.({ wield: [{ from: "store", store: stocked, index: 0 }] });
+        if (stocked >= 0) {
+          view.simulateLoadout?.({ wield: [{ from: "store", store: stocked, index: 0 }] });
+          // The store window's stock inspection and per-slot comparison reads.
+          view.inspectItem?.({ store: stocked, index: 0 });
+          view.compareLoadoutSlots?.({ from: "store", store: stocked, index: 0 });
+        }
+        const carried = captured.inventory?.[0]?.handle;
+        if (carried !== undefined) { view.inspectItem?.(carried); view.compareLoadoutSlots?.({ from: "gear", handle: carried }); }
       }
     }
     expect(fingerprint()).toBe(before);
+
+    // The store window inspects and compares any shelf entry, including rings
+    // that fit two slots and books on a shelf. Town stores are stocked.
+    const town = gameModule.startGame(pack, { seed: 4242, depth: 0 });
+    const townPrint = (): string => JSON.stringify({ save: gameModule.saveGame(town), rng: town.state.rng.getState(),
+      turn: town.state.turn, cmdQueue: town.state.cmdQueue ?? [] });
+    const townBefore = townPrint();
+    let compared = 0;
+    for (let pass = 0; pass < 3; pass++) {
+      const view = agentModule.createAgentView(town.state);
+      for (const [store, shelf] of (view.stores?.() ?? []).entries()) {
+        for (const ware of (shelf as { stock: readonly { index: number }[] }).stock) {
+          view.inspectItem?.({ store, index: ware.index });
+          compared += view.compareLoadoutSlots?.({ from: "store", store, index: ware.index })?.slots.length ?? 0;
+        }
+      }
+    }
+    expect(compared).toBeGreaterThan(0);
+    expect(townPrint()).toBe(townBefore);
   }, 20000);
 });

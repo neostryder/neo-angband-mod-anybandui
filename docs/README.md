@@ -43,8 +43,8 @@ A mouse-first desktop interface for Neo Angband, ported from Wurli Monkhaven's A
 
 | Store window | `anybandui.storeWindow` | off | While you are in a store or your home, shows its stock and your pack side by side. Click an item to select it. |
 | Store prices | `anybandui.storePrices` | off | Shows the price of each item in the store window. |
-| Store comparison | `anybandui.storeComparison` | off | When you select something you could wear, compares it with your current equipment, the same way the item panel does. |
-| Store buttons | `anybandui.storeTransactions` | off | Adds Buy, Sell, Stash, Retrieve and Leave buttons to the store window. Only Leave works on this version of the game. The others wait for a version that asks its usual quantity and price questions before a sale. |
+| TODO-PROSE | `anybandui.storeComparison` | off | TODO-PROSE |
+| TODO-PROSE | `anybandui.storeTransactions` | off | TODO-PROSE |
 | Store questions | `anybandui.storePrompts` | off | When the store asks how many or whether to accept a price, answers it with buttons in the store window instead of the keyboard. |
 | CRT display | `anybandui.crt` | off | Gives the dungeon view the look of an old monitor: slightly richer colours, faint scanlines, and a slow band of light that sweeps down the screen. The sweep stops when your system asks for reduced motion. |
 | Low health warning | `anybandui.lowHealthEffect` | off | Tints the dungeon view red when your hit points fall to 30 percent or lower, deepening as they drop, with a pulse unless your system asks for reduced motion. |
