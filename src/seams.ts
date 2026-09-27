@@ -120,3 +120,40 @@ export interface PanelKindSpec {
   mount(host: PanelMount): void | (() => void);
 }
 export interface PanelKindSeam { registerPanelKind?(spec: PanelKindSpec): () => void }
+
+// Item panel part. ItemIdentity mirrors the kindKey, itemKey and nameColor fields of
+// packages/core/src/agent/types.ts ItemView. ItemPanelSnapshot mirrors the quiver,
+// equipmentSlots and floorHere parts of agent/boundary.ts CoreSnapshot. ItemRef,
+// ItemInspectResult and LoadoutSlotsResult mirror agent/inspect.ts and
+// packages/web/src/input-snapshot.ts ModInspect. ItemIntent and ItemIntentResult
+// mirror the ignore, unignore and item-rule arms and IntentResult.code of
+// packages/web/src/intent-gate.ts. Every field is optional so an older engine's
+// snapshot still satisfies these shapes.
+export interface ItemIdentity { readonly kindKey?: string; readonly itemKey?: string; readonly nameColor?: string }
+export type PanelItemView = ItemView & ItemIdentity;
+export interface EquipmentSlotView { readonly type: string; readonly name: string }
+export interface ItemPanelSnapshot extends Omit<InputSnapshot, "core"> {
+  readonly core: Omit<CoreSnapshot, "inventory" | "equipment"> & {
+    readonly inventory?: readonly PanelItemView[] | null;
+    readonly equipment?: readonly (PanelItemView | null)[] | null;
+    readonly quiver?: readonly PanelItemView[] | null;
+    readonly equipmentSlots?: readonly EquipmentSlotView[] | null;
+    readonly floorHere?: readonly PanelItemView[] | null;
+  };
+}
+export type ItemRef = number | { readonly floor: { readonly x: number; readonly y: number; readonly index: number } } | { readonly store: number; readonly index: number };
+export interface InspectSection { readonly kind: "title" | "description" | "info"; readonly text: string }
+export interface ItemInspectResult extends InspectResult { readonly sections?: readonly InspectSection[] }
+export type LoadoutRef = { readonly from: "gear"; readonly handle: number } | { readonly from: "store"; readonly store: number; readonly index: number };
+export interface LoadoutSlotsResult { readonly token: InputToken; readonly slots: readonly { readonly slot: number; readonly name: string; readonly comparison: LoadoutSimulation }[] }
+export type ItemRuleName = "kind-aware" | "kind-unaware" | "ego" | "quality" | "note-aware" | "note-unaware";
+export type ItemIntent =
+  | { readonly kind: "ignore" | "unignore"; readonly handle: number }
+  | { readonly kind: "item-rule"; readonly rule: ItemRuleName; readonly index: number; readonly itype?: number; readonly value: boolean | number | string };
+export interface ItemIntentResult extends IntentResult { readonly code?: "controller-owned" }
+export interface IntentCatalogue { readonly token: InputToken; readonly intents: readonly { readonly kind: string; readonly args: string }[] }
+export interface ItemPanelContext extends Omit<ItemsContext, "snapshot" | "inspect" | "intent"> {
+  readonly snapshot?: () => ItemPanelSnapshot | null;
+  readonly inspect?: Omit<InspectSeam, "inspectItem"> & { inspectItem(ref: ItemRef): ItemInspectResult | null; compareLoadoutSlots?(ref: LoadoutRef): LoadoutSlotsResult | null };
+  readonly intent?: { submit(token: InputToken, intent: PlayerIntent | ItemIntent): ItemIntentResult; catalogue?(): IntentCatalogue | null };
+}

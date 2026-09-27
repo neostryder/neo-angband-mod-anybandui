@@ -1,4 +1,5 @@
-import type { AgentCommand, InputToken, InspectSeam, IntentSeam, ItemPrompt, PromptSeam, QuantityPrompt, ActionBuilders } from "./seams.js";
+import type { AgentCommand, InputToken, InspectSeam, IntentSeam, ItemPrompt, PromptSeam, QuantityPrompt, ActionBuilders, ItemIntentResult, ItemPanelContext } from "./seams.js";
+import { submitItemIntent } from "./item-rules.js";
 
 export function quantityShortcut(prompt: QuantityPrompt, shortcut: "One" | "Half" | "All"): number {
   return shortcut === "One" ? 1 : shortcut === "Half" ? Math.max(1, Math.floor(prompt.max / 2)) : prompt.max;
@@ -26,4 +27,17 @@ export function submitItem(intent: IntentSeam | undefined, inspect: InspectSeam 
   const tester = inspect?.itemTester(code);
   if (!tester || tester.token.epoch !== token.epoch || tester.token.revision !== token.revision || !tester.items.some((item) => "handle" in item && item.handle === handle)) return { accepted: false, reason: "Item is unavailable for this action." };
   return intent?.submit(token, { kind: "command", command }) ?? { accepted: false, reason: "Intent seam unavailable." };
+}
+
+/** Ignore or unignore one carried or worn item through the ignore and unignore
+ * intents. The ignore item tester gates it, as the other item actions are gated. */
+export function submitIgnore(ctx: Pick<ItemPanelContext, "intent" | "inspect">, token: InputToken, kind: "ignore" | "unignore", handle: number): ItemIntentResult & { readonly quiet?: boolean } {
+  const tester = ctx.inspect?.itemTester("ignore");
+  if (!tester || tester.token.epoch !== token.epoch || tester.token.revision !== token.revision || !tester.items.some((item) => "handle" in item && item.handle === handle)) return { accepted: false, reason: "Item is unavailable for this action." };
+  return submitItemIntent(ctx, token, { kind, handle });
+}
+
+/** A floor pile index from an item prompt's choice handle, which is -(index + 1). */
+export function floorChoiceIndex(handle: number): number | null {
+  return handle < 0 ? -handle - 1 : null;
 }

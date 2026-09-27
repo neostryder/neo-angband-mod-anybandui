@@ -14,14 +14,38 @@ function el(parent: Element, tag: string, value?: string): HTMLElement {
   return node;
 }
 
+/** The body slots a comparison can switch between, from compareLoadoutSlots. */
+export interface SlotChoice {
+  readonly options: readonly { readonly slot: number; readonly label: string }[];
+  readonly chosen: number;
+  choose(slot: number): void;
+}
+
+/** "Right hand: Ring of Protection", the same wording as upstream's slot picker. */
+export function slotOptionLabel(name: string, displaced: string | null): string {
+  const slot = name ? name.charAt(0).toUpperCase() + name.slice(1) : "Slot";
+  return `${slot}: ${displaced ?? "empty"}`;
+}
+
 // Shared by the item and store panels so their known-property preview stays identical.
-export function renderItemComparison(parent: Element, sim: LoadoutSimulation, unchanged: boolean, toggle: (value: boolean) => void): void {
+// A slot choice with more than one option adds a picker, as for a ring and its two hands.
+export function renderItemComparison(parent: Element, sim: LoadoutSimulation, unchanged: boolean, toggle: (value: boolean) => void, choice?: SlotChoice): void {
   if (sim.unresolved.length) return;
   const details = el(parent, "details") as HTMLDetailsElement;
   details.open = true;
   el(details, "summary", "Equipment comparison");
   if (!sim.placements.length) { el(details, "p", "No compatible equipment slot."); return; }
-  const placement = sim.placements[0]!;
+  if (choice && choice.options.length > 1) {
+    const label = el(details, "label", "Replace slot ");
+    const select = el(label, "select") as HTMLSelectElement;
+    for (const option of choice.options) {
+      const entry = el(select, "option", option.label) as HTMLOptionElement;
+      entry.value = String(option.slot);
+      entry.selected = option.slot === choice.chosen;
+    }
+    select.addEventListener("change", () => choice.choose(Number(select.value)));
+  }
+  const placement = (choice ? sim.placements.find((entry) => entry.slot === choice.chosen) : undefined) ?? sim.placements[0]!;
   el(details, "p", `Replacing: ${placement.displaced?.label ?? "empty slot"}`);
   el(details, "p", "Known properties only; unidentified effects may differ.");
   const checkbox = el(details, "input") as HTMLInputElement;

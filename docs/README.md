@@ -28,7 +28,7 @@ A mouse-first desktop interface for Neo Angband, ported from Wurli Monkhaven's A
 | Walking route preview | `anybandui.walkRoutePreview` | off | Draws a gold line along the route you would walk to reach the tile under the pointer, worked out the same way the travel command plans it. |
 | Full-level map overview | `anybandui.mapOverview` | off | The (M)ap screen shows every square of the level you know, shrunk to fit, with markers for you, the stairs and the shops, and an outline of what the main view shows. The mouse wheel zooms at the pointer, dragging pans, and Fit floor and Centre on player buttons sit beside the map. |
 | Schematic map | `anybandui.mapSchematic` | off | Draws the map overview as flat blocks of colour for walls, doors and floor instead of glyphs or tiles, which is easier to read when the whole level is shrunk. |
-| Item panel | `anybandui.itemsLists` | off | Opens a panel with your pack and equipment on separate tabs, a search box, and each item in its game colour. Click an item to select it. |
+| TODO-PROSE | `anybandui.itemsLists` | off | TODO-PROSE |
 | Spell panel | `anybandui.spells` | off | Lists the spells in each book you carry, with mana, fail rate and whether you can cast or learn each one, plus its description. Click Cast or Study, or double-click a spell to cast it. |
 | Quickbar | `anybandui.quickbar` | off | Thirty slots on the number keys, with a second row on Shift and a third on Ctrl, for spells, potions, scrolls, wands and activations. Each slot shows its mana cost, charges or count and greys out when you cannot use it. Right-click a spell or drag it onto a slot to assign it. The number keys go back to the game inside menus and prompts, and each character keeps its own slots. |
 | Blast preview | `anybandui.blastPreview` | off | While you aim a ball or breath, shades every tile the blast would reach, worked out by the game itself. This needs a newer version of the game, and does nothing until then. |
@@ -38,8 +38,8 @@ A mouse-first desktop interface for Neo Angband, ported from Wurli Monkhaven's A
 | Quantity picker | `anybandui.itemsQuantity` | off | When the game asks how many, the item panel offers One, Half and All buttons and a box for any other number. |
 | Item choice list | `anybandui.itemsChoice` | off | When the game asks you to pick an item, the item panel lists the choices so you can click one instead of typing its letter. |
 | Mark new items | `anybandui.itemsHighlights` | off | Items you have just picked up are marked NEW in the item panel, and a stack that grew shows how many were added, until you click it. |
-| Item action buttons | `anybandui.itemsActions` | off | Adds buttons under the selected item for wielding, taking it off, dropping, inscribing and using it. Only the actions the game would accept right now appear. |
-| Item rules list | `anybandui.itemsRules` | off | Lists your ignore settings and auto-inscriptions in the item panel, so you can see why an item is hidden or inscribed. Change them through the game's knowledge menus as usual. |
+| TODO-PROSE | `anybandui.itemsActions` | off | TODO-PROSE |
+| TODO-PROSE | `anybandui.itemsRules` | off | TODO-PROSE |
 
 | Store window | `anybandui.storeWindow` | off | While you are in a store or your home, shows its stock and your pack side by side. Click an item to select it. |
 | Store prices | `anybandui.storePrices` | off | Shows the price of each item in the store window. |
@@ -56,4 +56,4 @@ A mouse-first desktop interface for Neo Angband, ported from Wurli Monkhaven's A
 
 ## What it needs
 
-`ui:sidebar.replace`, `ui:status.replace`, `ui:messages.replace`, `display:filter` (used by the CRT colour treatment), `ui:panel.mount`, `state:map.read`, `state:interaction.read`, `state:inventory.read`, `state:player.read`, `state:spells.read`, `state:stores.read`, `input:intent`, `input:prompt.reply`, `event:combat-outcome`, `event:heal`, and `event:motion`.
+`ui:sidebar.replace`, `ui:status.replace`, `ui:messages.replace`, `display:filter` (used by the CRT colour treatment), `ui:panel.mount`, `state:map.read`, `state:interaction.read`, `state:inventory.read`, `state:floor.read`, `state:player.read`, `state:spells.read`, `state:stores.read`, `input:intent`, `input:prompt.reply`, `event:combat-outcome`, `event:heal`, and `event:motion`.
