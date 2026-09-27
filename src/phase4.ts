@@ -3,8 +3,8 @@ import { characterKey } from "./first-encounter.js";
 import { playerIsDriving } from "./input-owner.js";
 import type { Phase4Context, Phase4Snapshot, SpellPrompt } from "./seams.js";
 import { adaptSpells, type BookRow, type SpellRow } from "./view-model/spells.js";
-import { actionReady, answerSpell, castSpell, rest, studySpell } from "./spell-actions.js";
-import { activate, itemBindings, quickbarOwnsKey, readSlots, resolve, slotIndex, writeSlots, type Appearance, type Binding, type Slots } from "./quickbar.js";
+import { actionReady, answerRest, answerSpell, castSpell, rest, restPrompt, stopResting, studySpell } from "./spell-actions.js";
+import { activate, catalogueCommands, itemBindings, migrateSlots, quickbarOwnsKey, readSlots, resolve, slotIndex, writeSlots, type Appearance, type Binding, type Slots } from "./quickbar.js";
 import { installBlastPreview } from "./blast-preview.js";
 
 const CSS = `:host{color:var(--anyband-text);font:13px/1.4 system-ui,sans-serif}.phase4{position:fixed;left:12px;bottom:12px;width:min(680px,calc(100vw - 24px));max-height:55vh;overflow:auto;padding:10px;background:var(--anyband-surface);border:1px solid var(--anyband-accent);border-radius:var(--anyband-rounding);pointer-events:auto}button,select,input{font:inherit;color:var(--anyband-text);background:var(--anyband-background);border:1px solid var(--anyband-accent);border-radius:3px;padding:4px}button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--anyband-accent)}button:disabled{opacity:.45}table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:3px;border-bottom:1px solid var(--anyband-accent)}.slots{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:3px}.slot{min-height:42px;overflow:hidden;word-break:break-word}.muted{opacity:.55}.row{width:100%;text-align:left;border:0;background:transparent}.menu{margin:6px 0;padding:6px;border:1px solid var(--anyband-accent)}.menu button{margin:2px}.hint{font-size:12px}`;
@@ -18,16 +18,43 @@ function drawIcon(parent: HTMLElement, style: string): void {
   path.setAttribute("fill", "none"); path.setAttribute("stroke", "currentColor"); path.setAttribute("stroke-width", "1.5"); svg.append(path); parent.prepend(svg);
 }
 
-/** The engine's own character identity when it offers one; otherwise the same
- * birth fingerprint first-encounter alerts use, which never changes during a
- * character's life, so bindings follow the character across saves and reloads. */
-export function characterFor(ctx: Phase4Context): string | null {
-  const own = ctx.character?.key?.();
-  if (own) return own;
+/** The host roster lineage, which survives saves and renames, or null on an
+ * engine without it or while no character is attached. */
+export function lineageFor(ctx: Phase4Context): string | null {
+  try { return ctx.character?.key?.() || null; } catch { return null; }
+}
+/** The birth fingerprint first-encounter alerts use. It never changes during a
+ * character's life, so it stands in for the lineage on older engines. */
+export function fingerprintFor(ctx: Phase4Context): string | null {
   const player = (ctx.state as { actor?: { player?: { race?: { name?: unknown }; cls?: { name?: unknown }; auBirth?: unknown; htBirth?: unknown; wtBirth?: unknown } } } | undefined)?.actor?.player;
   if (!player || typeof player.race?.name !== "string" || typeof player.cls?.name !== "string" ||
       typeof player.auBirth !== "number" || typeof player.htBirth !== "number" || typeof player.wtBirth !== "number") return null;
   return characterKey({ raceName: player.race.name, clsName: player.cls.name, auBirth: player.auBirth, htBirth: player.htBirth, wtBirth: player.wtBirth });
+}
+/** The key a character's quickbar slots are stored under: the lineage when the
+ * engine reports one, the birth fingerprint otherwise. */
+export function characterFor(ctx: Phase4Context): string | null {
+  return lineageFor(ctx) ?? fingerprintFor(ctx);
+}
+/** Older builds stored slots under the birth fingerprint. Once the lineage and
+ * the fingerprint are both known, the slots move to the lineage, one time only.
+ * The fingerprint comes from the state the mod registered with, so the move
+ * also waits for the snapshot's race and class to match it. */
+export function adoptLineage(ctx: Phase4Context, snap: Phase4Snapshot | null | undefined): boolean {
+  const lineage = lineageFor(ctx), fingerprint = fingerprintFor(ctx), player = snap?.core.player;
+  if (!lineage || !fingerprint || !ctx.prefs?.set || !player?.race || !player.cls || !fingerprint.startsWith(`${player.race}|${player.cls}|`)) return false;
+  const moved = migrateSlots(ctx.prefs.get(), fingerprint, lineage);
+  if (moved) ctx.prefs.set(moved);
+  return !!moved;
+}
+/** The quickbar's readable name for a command binding in the Assign menu. */
+const assignLabel = (binding: Binding): string => binding.type === "command" ? binding.name : binding.type === "spell" ? `Cast: ${binding.name}` :
+  `${binding.code === "quaff" ? "Drink" : binding.code === "read" ? "Read" : binding.code === "aim-wand" ? "Aim" : "Activate"}: ${binding.name}`;
+/** What the resting indicator says for the game's rest count or special mode. */
+export function restingText(resting: NonNullable<Phase4Snapshot["resting"]>): string {
+  if (resting.turnsRemaining !== null && resting.turnsRemaining > 0) return `Resting: ${resting.turnsRemaining} ${resting.turnsRemaining === 1 ? "turn" : "turns"} left.`;
+  return resting.mode === -2 ? "Resting until fully recovered." : resting.mode === -1 ? "Resting until hit points and mana are full." :
+    resting.mode === -3 ? "Resting until hit points or mana are full." : "Resting.";
 }
 
 export function installPhase4(ctx: Phase4Context): () => void {
@@ -49,9 +76,21 @@ export function installPhase4(ctx: Phase4Context): () => void {
   if (!surfaces) { ctx.log("phase 4: panel seam unavailable"); return blastCleanup; }
   let bookKey = "", spellIndex = -1, menu = -1, customize = -1, restOpen = false, restMode = -2, turns = 10, promptChoice = -1, error = "", signature = "", closed = false;
   let appearance: Appearance = { style: "automatic", text: "", color: "#7abaf4" };
-  let character = characterFor(ctx);
+  // The pair of keys a migration was last tried for, so prefs are read once per change.
+  let adopted = "";
+  const identify = (snap: Phase4Snapshot | null | undefined): string | null => {
+    const pair = `${lineageFor(ctx) ?? ""}
+${fingerprintFor(ctx) ?? ""}
+${snap?.core.player?.race ?? ""}`;
+    if (pair !== adopted) { adopted = pair; adoptLineage(ctx, snap); }
+    return characterFor(ctx);
+  };
+  let character = identify(ctx.snapshot?.());
   let slots: Slots = character ? readSlots(ctx.prefs?.get(), character) : Array(30).fill(null);
   const save = (): void => { if (character) writeSlots(ctx, character, slots); };
+  // Core answers "controller-owned" while an autoplayer holds input. That
+  // refusal is expected, so the error text appears only while the player drives.
+  const fail = (message: string): void => { if (playerIsDriving(ctx)) error = message; };
   const assign = (index: number, binding: Binding | null): void => { const next = [...slots]; next[index] = binding; slots = next; save(); menu = -1; paint(true); };
   const paint = (force = false): void => {
     if (closed) return;
@@ -59,7 +98,7 @@ export function installPhase4(ctx: Phase4Context): () => void {
     const spellMount = spellOn ? mounts.get("spells") : undefined, quickMount = quickOn ? mounts.get("quickbar") : undefined, restMount = restOn ? mounts.get("rest") : undefined;
     if (!mounts.size) return;
     const snap = ctx.snapshot?.();
-    const key = characterFor(ctx);
+    const key = identify(snap);
     if (key !== character) { character = key; slots = key ? readSlots(ctx.prefs?.get(), key) : Array(30).fill(null); }
     const model = snap ? adaptSpells(snap, ctx.inspect) : null;
     const sig = JSON.stringify([[...mounts.keys()], snap, slots, bookKey, spellIndex, menu, customize, appearance, restOpen, restMode, turns, promptChoice, error]);
@@ -68,6 +107,7 @@ export function installPhase4(ctx: Phase4Context): () => void {
     if (!snap) { for (const target of mounts.values()) el(target, "p", "Game state unavailable."); return; }
     if (spellOn && spellMount) {
       el(spellMount, "h2", "Spells");
+      if (model?.learnable) el(spellMount, "p", model.learnable === 1 ? "You can learn 1 new spell." : `You can learn ${model.learnable} new spells.`);
       if (!model) el(spellMount, "p", "Spell list unavailable.");
       else if (!model.books.length) el(spellMount, "p", "No readable spellbooks carried.");
       else {
@@ -88,12 +128,14 @@ export function installPhase4(ctx: Phase4Context): () => void {
         }
         const selected = book.spells.find((entry) => entry.index === spellIndex) ?? book.spells[0];
         if (selected) {
-          const cast = button(spellMount, "Cast", () => { if (!castSpell(ctx, snap, selected)) error = "Cast unavailable."; paint(true); }); cast.disabled = !selected.canCast || !ctx.intent?.submit;
-          const study = button(spellMount, book.chooseSpells ? "Study" : "Study book", () => { if (!studySpell(ctx, snap, book, selected)) error = "Study unavailable."; paint(true); }); study.disabled = !(book.chooseSpells ? selected.canStudy : book.spells.some((entry) => entry.canStudy)) || !ctx.intent?.submit;
+          const cast = button(spellMount, "Cast", () => { if (!castSpell(ctx, snap, selected)) fail("Cast unavailable."); paint(true); }); cast.disabled = !selected.canCast || !ctx.intent?.submit;
+          const study = button(spellMount, book.chooseSpells ? "Study" : "Study book", () => { if (!studySpell(ctx, snap, book, selected)) fail("Study unavailable."); paint(true); }); study.disabled = !(book.chooseSpells ? selected.canStudy : book.spells.some((entry) => entry.canStudy)) || !ctx.intent?.submit;
           if (!book.chooseSpells) study.title = "Your class learns a random eligible spell from this book.";
           el(spellMount, "h3", selected.name); el(spellMount, "p", `Level ${selected.level}. Mana ${selected.mana}. Failure ${selected.fail}%. ${selected.state}.`);
           if (selected.canCast && (snap.core.player?.sp ?? 0) < selected.mana) el(spellMount, "p", "Not enough mana. Confirmation may be required.");
           el(spellMount, "p", selected.description);
+          // The game's own menu suffix, such as damage or duration, once the spell has been cast.
+          if (selected.infoLine) el(spellMount, "p", `Info: ${selected.infoLine}`);
           if (quickOn && menu === -2) { const box = el(spellMount, "div"); box.className = "menu"; el(box, "strong", "Assign spell to quickbar");
             for (let i = 0; i < 30; i++) button(box, `${i < 10 ? "" : i < 20 ? "Shift+" : "Ctrl+"}${keys[i % 10]}`, () => assign(i, { type: "spell", key: book.key, index: selected.index, name: selected.name })); }
         }
@@ -102,8 +144,9 @@ export function installPhase4(ctx: Phase4Context): () => void {
         // Spell prompts own their choices; the item panel only handles item and quantity prompts.
         const prompt = snap.prompt as SpellPrompt; const box = el(spellMount, "div"); box.className = "menu"; el(box, "h3", "Choose spell"); el(box, "p", prompt.label);
         for (const choice of prompt.choices) button(box, choice.name, () => { promptChoice = choice.index; paint(true); });
-        button(box, "Choose", () => { if (!answerSpell(ctx, snap, promptChoice)) error = "Choice unavailable."; paint(true); });
-        button(box, "Cancel", () => { ctx.prompt?.reply(prompt.promptId, null); paint(true); });
+        button(box, "Choose", () => { if (!answerSpell(ctx, snap, promptChoice)) fail("Choice unavailable."); paint(true); });
+        // The spell prompt accepts only a spell index, so the player cancels it with Escape.
+        el(box, "p", "Press Escape to cancel.").className = "hint";
       }
     }
     if (quickOn && quickMount && snap.phase === "play") {
@@ -115,7 +158,7 @@ export function installPhase4(ctx: Phase4Context): () => void {
           const index = row * 10 + col; const binding = slots[index] ?? null; const result = resolve(snap, binding, model, ctx);
           const custom = binding?.appearance;
           const shown = custom?.style === "text" && custom.text ? custom.text : result.label;
-          const slot = button(line, `${keys[col]} ${shown}${result.amount ? ` - ${result.amount}` : ""}`, () => { if (!activate(ctx, snap, binding)) error = result.detail; paint(true); });
+          const slot = button(line, `${keys[col]} ${shown}${result.amount ? ` - ${result.amount}` : ""}`, () => { if (!activate(ctx, snap, binding)) fail(result.detail); paint(true); });
           slot.className = "slot" + (result.usable ? "" : " muted"); slot.title = `Quickbar ${row === 0 ? "" : row === 1 ? "Shift+" : "Ctrl+"}${keys[col]}. ${result.detail}`;
           if (custom?.color && /^#[0-9a-f]{6}$/i.test(custom.color)) slot.style.borderColor = custom.color;
           if (custom && ["potion", "scroll", "wand"].includes(custom.style)) drawIcon(slot, custom.style);
@@ -132,7 +175,8 @@ export function installPhase4(ctx: Phase4Context): () => void {
       if (menu >= 0) { const box = el(quickMount, "div"); box.className = "menu"; el(box, "strong", `Assign ${keys[menu % 10]}`);
         if (slots[menu]) button(box, "Customize", () => { customize = menu; appearance = slots[menu]?.appearance ?? { style: "automatic", text: "", color: "#7abaf4" }; menu = -1; paint(true); });
         button(box, "Rest until recovered", () => assign(menu, { type: "command", code: "rest", name: "Rest" }));
-        for (const binding of itemBindings(snap, ctx)) { const choice = button(box, `${binding.code === "quaff" ? "Drink" : binding.code === "read" ? "Read" : binding.code === "aim-wand" ? "Aim" : "Activate"}: ${binding.name}`, () => assign(menu, binding));
+        for (const binding of catalogueCommands(ctx)) button(box, assignLabel(binding), () => assign(menu, binding));
+        for (const binding of itemBindings(snap, ctx)) { const choice = button(box, assignLabel(binding), () => assign(menu, binding));
           choice.draggable = true; choice.addEventListener("dragstart", (event) => event.dataTransfer?.setData("application/x-anybandui-binding", JSON.stringify(binding))); }
         for (const book of model?.books ?? []) for (const spell of book.spells) button(box, `Cast: ${spell.name}`, () => assign(menu, { type: "spell", key: book.key, index: spell.index, name: spell.name }));
         button(box, "Clear", () => assign(menu, null)); button(box, "Close", () => { menu = -1; paint(true); }); }
@@ -146,15 +190,26 @@ export function installPhase4(ctx: Phase4Context): () => void {
         button(box, "Save and close", () => { const binding = slots[customize]; if (binding) assign(customize, { ...binding, appearance }); customize = -1; paint(true); });
         button(box, "Cancel", () => { customize = -1; paint(true); }); }
     }
-    if (restOn && restMount && snap.phase === "play") { button(restMount, "Rest", () => { restOpen = !restOpen; paint(true); });
-      if (restOpen) { const box = el(restMount, "div"); box.className = "menu"; el(box, "h3", "Rest");
+    // Only the rest panel answers the rest duration prompt. The item panel
+    // answers item and quantity prompts, the store window answers store prompts,
+    // and map clicks answer target and direction prompts.
+    const asking = restPrompt(snap) && ctx.prompt?.reply && playerIsDriving(ctx) ? restPrompt(snap) : null;
+    const resting = snap.resting?.active ? snap.resting : null;
+    if (restOn && restMount && (snap.phase === "play" || asking || resting)) {
+      if (resting) { const status = el(restMount, "p", restingText(resting)); status.setAttribute("role", "status");
+        // The host takes stop-resting during the rest modal itself.
+        const stop = button(restMount, "Stop resting", () => { if (!stopResting(ctx)) fail("Stop unavailable."); paint(true); }); stop.disabled = !ctx.intent?.submit || !playerIsDriving(ctx); }
+      else if (!asking) button(restMount, "Rest", () => { restOpen = !restOpen; paint(true); });
+      if ((restOpen && !resting) || asking) { const box = el(restMount, "div"); box.className = "menu"; el(box, "h3", "Rest");
         for (const [count, label, description] of [[-2, "Fully recovered", "Recover HP and mana and wait out harmful conditions."], [-1, "HP and mana", "Stop when both are full."], [-3, "HP or mana", "Stop as soon as either is full."], [1, "Number of turns", "Rest for a set number of turns."]] as const) {
           const choice = button(box, label, () => { restMode = count; paint(true); }); choice.setAttribute("aria-pressed", String(restMode === count)); el(box, "p", description); }
         if (restMode === 1) { const input = el(box, "input") as HTMLInputElement; input.type = "number"; input.min = "1"; input.max = "9999"; input.value = String(turns); input.setAttribute("aria-label", "Turns"); input.addEventListener("input", () => { turns = Number(input.value); }); }
         if (restMode === 1 && (!Number.isInteger(turns) || turns < 1 || turns > 9999)) el(box, "p", "Enter between 1 and 9999 turns.");
-        el(box, "p", "Danger interrupts rest normally."); const confirm = button(box, "Rest", () => { if (!rest(ctx, snap, restMode === 1 ? turns : restMode)) error = "Rest unavailable."; else restOpen = false; paint(true); });
+        el(box, "p", "Danger interrupts rest normally.");
+        // With the game's own question open the choice answers it; otherwise it starts a rest.
+        const confirm = button(box, "Rest", () => { const count = restMode === 1 ? turns : restMode; if (!(asking ? answerRest(ctx, snap, count) : rest(ctx, snap, count))) fail("Rest unavailable."); else restOpen = false; paint(true); });
         confirm.disabled = restMode === 1 && (!Number.isInteger(turns) || turns < 1 || turns > 9999);
-        button(box, "Cancel", () => { restOpen = false; paint(true); }); }
+        button(box, "Cancel", () => { if (asking) answerRest(ctx, snap, null); restOpen = false; paint(true); }); }
     }
     const first = spellMount ?? quickMount ?? restMount;
     if (error && first) { const p = el(first, "p", error); p.setAttribute("role", "status"); }

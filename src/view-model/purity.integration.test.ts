@@ -6,6 +6,7 @@ import { adapt } from "./adapter.js";
 import { createSource } from "./source.js";
 import { adaptItems } from "./items.js";
 import { adaptStore } from "./stores.js";
+import { adaptSpells } from "./spells.js";
 import type { InputSnapshot } from "../seams.js";
 
 const checkout = process.env["NEO_ANGBAND_REPO"];
@@ -76,5 +77,23 @@ describe.skipIf(!checkout)("adapter over a real game", () => {
       }
     }
     expect(fingerprint()).toBe(before);
+    // A caster's books go through bookForItem, spellInfo and the spellbook rows'
+    // study and info fields; one hundred adaptations leave that game unchanged too.
+    const caster = gameModule.startGame(pack, { seed: 4243, depth: 1, className: "Mage" });
+    const casterPrint = (): string => JSON.stringify({ save: gameModule.saveGame(caster), rng: caster.state.rng.getState(),
+      turn: caster.state.turn, cmdQueue: caster.state.cmdQueue ?? [] });
+    const casterBefore = casterPrint();
+    let mapped = 0;
+    for (let i = 0; i < 100; i++) {
+      const view = agentModule.createAgentView(caster.state);
+      const captured = view.capture?.();
+      if (!captured) continue;
+      const model = adaptSpells({ token: captured.token, phase: "play", prompt: null,
+        core: { player: captured.player, inventory: captured.inventory, spellbooks: captured.spellbooks } } as never,
+        { spellInfo: (index: number) => view.spellInfo?.(index) ?? null, bookForItem: (handle: number) => view.bookForItem?.(handle) ?? null });
+      mapped = model?.books.length ?? 0;
+    }
+    expect(mapped).toBeGreaterThan(0);
+    expect(casterPrint()).toBe(casterBefore);
   }, 20000);
 });

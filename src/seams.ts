@@ -78,12 +78,12 @@ export interface MouseSeams {
 }
 
 // Phase 4 mirrors packages/core/src/agent/types.ts and inspect.ts, packages/web/src/input-snapshot.ts, prompt-view.ts and mod-plugin.ts.
-export interface SpellView { readonly name: string; readonly sidx: number; readonly bidx: number; readonly level: number; readonly mana: number; readonly fail: number; readonly chance?: number; readonly learned: boolean; readonly worked: boolean; readonly forgotten: boolean }
+export interface SpellView { readonly name: string; readonly sidx: number; readonly bidx: number; readonly level: number; readonly mana: number; readonly fail: number; readonly chance?: number; readonly learned: boolean; readonly worked: boolean; readonly forgotten: boolean; readonly studyEligible?: boolean; readonly infoLine?: string }
 export interface SpellbookView { readonly tval: number; readonly name: string; readonly realm: string; readonly spells: readonly SpellView[] }
 export interface SpellInspectResult { readonly token: InputToken; readonly name: string; readonly description: string; readonly level: number; readonly mana: number; readonly failChance: number; readonly canCastNow: boolean }
 export interface SpellPrompt { readonly kind: "spell"; readonly promptId: number; readonly label: string; readonly choices: readonly { readonly index: number; readonly name: string; readonly level: number; readonly mana: number; readonly fail: number; readonly castable: boolean }[] }
-export interface Phase4Snapshot extends Omit<InputSnapshot, "core" | "prompt"> { readonly core: CoreSnapshot & { readonly spellbooks?: readonly SpellbookView[] | null; readonly player?: (NonNullable<CoreSnapshot["player"]> & { readonly level?: number; readonly sp?: number; readonly hp?: number; readonly maxHp?: number; readonly maxSp?: number; readonly classFlags?: readonly string[] }) | null }; readonly prompt: InputSnapshot["prompt"] | SpellPrompt }
-export interface Phase4Context { readonly flags?: Readonly<Record<string, boolean>>; readonly snapshot?: () => Phase4Snapshot | null; readonly intent?: IntentSeam; readonly prompt?: { reply(promptId: number, answer: number | string | null): IntentResult }; readonly inspect?: { spellInfo?(index: number): SpellInspectResult | null; bookForItem?(handle: number): number | null; itemTester?(code: string): ItemTesterResult | null; inspectItem?(handle: number): InspectResult | null; blastArea?(to: Grid, radius: number): { readonly token: InputToken; readonly grids: readonly Grid[] } | null; projectionPath?(to: Grid): { readonly token: InputToken; readonly grids: readonly Grid[] } | null }; readonly ui?: ItemsContext["ui"]; readonly prefs?: { get(): unknown; set(value: unknown): void }; readonly display?: { snapshot(): import("./zoom.js").DisplaySnapshot }; readonly controller?: { driver(): { readonly kind: "player" | "autoplayer"; readonly owner?: string; readonly label?: string } | null }; readonly character?: { key(): string | null }; readonly state?: unknown; readonly targeting?: { blastRadius(): number | null }; readonly log: (message: string) => void }
+export interface Phase4Snapshot extends Omit<InputSnapshot, "core" | "prompt"> { readonly core: CoreSnapshot & { readonly spellbooks?: readonly SpellbookView[] | null; readonly player?: (NonNullable<CoreSnapshot["player"]> & { readonly level?: number; readonly sp?: number; readonly hp?: number; readonly maxHp?: number; readonly maxSp?: number; readonly classFlags?: readonly string[]; readonly learnableSpells?: number; readonly race?: string; readonly cls?: string }) | null }; readonly prompt: InputSnapshot["prompt"] | SpellPrompt | TextPrompt; readonly resting?: RestingView | null; readonly activeBlast?: ActiveBlastView | null }
+export interface Phase4Context { readonly flags?: Readonly<Record<string, boolean>>; readonly snapshot?: () => Phase4Snapshot | null; readonly intent?: { submit(token: InputToken, intent: PlayerIntent | StopRestingIntent): IntentResult; catalogue?(): CommandCatalogue | null }; readonly prompt?: { reply(promptId: number, answer: number | string): IntentResult }; readonly inspect?: { spellInfo?(index: number): SpellInspectResult | null; bookForItem?(handle: number): BookItemResult | null; itemTester?(code: string): ItemTesterResult | null; inspectItem?(handle: number): InspectResult | null; blastArea?(to: Grid, radius: number): BlastAreaResult | null; tileActions?(at: Grid): { readonly token: InputToken; readonly codes: readonly string[] } | null }; readonly ui?: ItemsContext["ui"]; readonly prefs?: { get(): unknown; set(value: unknown): void }; readonly display?: { snapshot(): import("./zoom.js").DisplaySnapshot }; readonly controller?: { driver(): { readonly kind: "player" | "autoplayer"; readonly owner?: string; readonly label?: string } | null }; readonly character?: { key(): string | null }; readonly state?: unknown; readonly log: (message: string) => void }
 // Phase 5: StoreView mirrors packages/core/src/agent/types.ts; CoreSnapshot.stores
 // and player.gold mirror agent/boundary.ts and entity-views.ts. StoreContext
 // combines packages/web/src/mod-plugin.ts with an optional proposed store
@@ -120,3 +120,18 @@ export interface PanelKindSpec {
   mount(host: PanelMount): void | (() => void);
 }
 export interface PanelKindSeam { registerPanelKind?(spec: PanelKindSpec): () => void }
+
+// Spells, quickbar, rest and blast preview adoption. BookItemResult and
+// BlastAreaResult mirror packages/core/src/agent/inspect.ts; SpellView's
+// studyEligible and infoLine and PlayerView.learnableSpells mirror
+// core/src/agent/types.ts; RestingView and ActiveBlastView mirror
+// packages/web/src/input-snapshot.ts InputSnapshot.resting and activeBlast;
+// TextPrompt mirrors the text descriptor in packages/web/src/prompt-view.ts;
+// StopRestingIntent and CommandCatalogue mirror packages/web/src/intent-gate.ts.
+export interface BookItemResult { readonly token: InputToken; readonly bookIndex: number; readonly spells: readonly number[] }
+export interface BlastAreaResult { readonly token: InputToken; readonly grids: readonly Grid[]; readonly radius?: number; readonly element?: string | null; readonly wallsStop?: boolean }
+export interface RestingView { readonly active: boolean; readonly mode: number | null; readonly turnsRemaining: number | null }
+export interface ActiveBlastView { readonly token: InputToken; readonly radius: number; readonly element: string; readonly wallsStop: boolean }
+export interface TextPrompt { readonly kind: "text"; readonly promptId: number; readonly label: string; readonly maxLength: number; readonly defaultValue: string; readonly tag?: "rest" }
+export interface StopRestingIntent { readonly kind: "stop-resting" }
+export interface CommandCatalogue { readonly token: InputToken; readonly commands: readonly { readonly code: string; readonly args: string; readonly phase: "play" | "store" }[]; readonly intents: readonly { readonly kind: string; readonly args: string }[] }
