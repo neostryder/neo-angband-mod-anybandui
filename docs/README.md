@@ -22,6 +22,10 @@ A mouse-first desktop interface for Neo Angband, ported from Wurli Monkhaven's A
 | Centre on a new level | `anybandui.recentreOnFloor` | off | Arriving on a new level centres the view on your character. |
 | Hover cards on the map overview | `anybandui.mapHoverCards` | off | Resting the pointer on a cell of the map overview, or holding a finger on it, opens a card with a magnified tile and what you know about that cell: terrain, creature, item, trap or shop. It shows nothing your character has not seen. |
 | Hover cards on the dungeon view | `anybandui.dungeonHoverCards` | off | Resting the pointer on a tile of the dungeon view opens a card with what you know about it: the creature or character there with a small health bar, the terrain, and up to five items on the floor. The delay before a card opens is one setting shared with the map overview's cards, 550 ms to start with. |
+| TODO-PROSE Click to walk or attack | `anybandui.clickToWalk` | off | Left-click a dungeon tile to take one step or travel there. |
+| TODO-PROSE Dungeon actions | `anybandui.dungeonActions` | off | Right-click a tile for available actions. |
+| TODO-PROSE Gold aiming path | `anybandui.aimPath` | off | Draw the engine's projection path while targeting. |
+| TODO-PROSE Walking route preview | `anybandui.walkRoutePreview` | off | Draw the engine's walking route when the optional read is available. |
 | Full-level map overview | `anybandui.mapOverview` | off | The (M)ap screen shows every square of the level you know, shrunk to fit, with markers for you, the stairs and the shops, and an outline of what the main view shows. The mouse wheel zooms at the pointer, dragging pans, and Fit floor and Centre on player buttons sit beside the map. |
 | Schematic map | `anybandui.mapSchematic` | off | Draws the map overview as flat blocks of colour for walls, doors and floor instead of glyphs or tiles, which is easier to read when the whole level is shrunk. |
 | TODO-PROSE: Item lists | `anybandui.itemsLists` | off | Search pack and equipment items. |

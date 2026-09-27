@@ -37,6 +37,34 @@
     { "flag": "anybandui.itemsActions", "title": "TODO-PROSE: Item actions", "description": "TODO-PROSE: Act on the selected item through validated commands.", "default": false, "requiresReload": true },
     { "flag": "anybandui.itemsRules", "title": "TODO-PROSE: Item rules", "description": "TODO-PROSE: Review and remove item rules when available.", "default": false, "requiresReload": true },
     {
+      "flag": "anybandui.clickToWalk",
+      "title": "TODO-PROSE Click to walk or attack",
+      "description": "TODO-PROSE Left-click a dungeon tile to take one step or travel there. Clicking an adjacent creature uses the game's walk command.",
+      "default": false,
+      "requiresReload": true
+    },
+    {
+      "flag": "anybandui.dungeonActions",
+      "title": "TODO-PROSE Dungeon actions",
+      "description": "TODO-PROSE Right-click a tile for actions supported by the current game state.",
+      "default": false,
+      "requiresReload": true
+    },
+    {
+      "flag": "anybandui.aimPath",
+      "title": "TODO-PROSE Gold aiming path",
+      "description": "TODO-PROSE Draw the engine's projection path over the dungeon while choosing a target.",
+      "default": false,
+      "requiresReload": true
+    },
+    {
+      "flag": "anybandui.walkRoutePreview",
+      "title": "TODO-PROSE Walking route preview",
+      "description": "TODO-PROSE Draw the engine's optional walking route under the pointer when that read seam is available.",
+      "default": false,
+      "requiresReload": true
+    },
+    {
       "flag": "anybandui.sidebar",
       "title": "Character card",
       "description": "Replaces the character column with a card: your name, race and class, bars for hit points, spell points, food and experience, your stats, gold, armour and speed, and a health bar for the creature you are tracking. Hover a bar or stat to see its numbers.",

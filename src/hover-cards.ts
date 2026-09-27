@@ -3,6 +3,7 @@ import { THEMES } from "./theme.js";
 import type { DisplaySnapshot, Point, ZoomDisplay } from "./zoom.js";
 import { pointInRect } from "./zoom.js";
 import { featureCode, landmarkKind, mapProjection } from "./map-overview.js";
+import type { InputSnapshot } from "./seams.js";
 
 interface LookCore {
   describeLookGrid(state: unknown, grid: Point, mode: number): { text: string; mon?: { hp?: number; maxhp?: number } | null };
@@ -20,6 +21,7 @@ interface HoverContext {
   prefs?: { get(): unknown };
   log?: (message: string) => void;
   knownLevel?: () => { cells: readonly { x: number; y: number; remembered: { feat: number; featCode?: string } }[] } | null;
+  snapshot?: () => InputSnapshot | null;
 }
 
 export function hoverGrid(snapshot: DisplaySnapshot, point: Point): Point | null {
@@ -107,6 +109,8 @@ export function installHoverCards(ctx: HoverContext): () => void {
   const cancel = (): void => { if (timer) clearTimeout(timer); timer = null; };
   const hide = (): void => { cancel(); card.style.display = "none"; key = ""; pinned = false; };
   const resolve = (point: Point): { grid: Point; map: boolean } | null => {
+    const input = ctx.snapshot?.();
+    if (ctx.snapshot && (!input || input.phase !== "play" || input.messagePending || input.prompt)) return null;
     const snap = display.snapshot();
     const map = snap.mode === "map";
     if (!pointInRect(point, mapProjection(snap))) return null;
@@ -118,6 +122,8 @@ export function installHoverCards(ctx: HoverContext): () => void {
     return { grid, map };
   };
   const show = (point: Point, grid: Point, map: boolean): void => {
+    const current = resolve(point);
+    if (!current || current.grid.x !== grid.x || current.grid.y !== grid.y || current.map !== map) { hide(); return; }
     if (!ctx.state) return;
     const content = knownCard(core, ctx.state, grid, map);
     if (!content) return;
