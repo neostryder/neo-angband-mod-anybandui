@@ -1,7 +1,7 @@
 import { THEMES } from "./theme.js";
 import { validateSettings } from "./settings.js";
 import type { DisplaySnapshot, Point, ZoomDisplay } from "./zoom.js";
-import { clampOrigin, pointInRect } from "./zoom.js";
+import { clampOrigin, keepsDisplayRequestsPerMod, pointInRect } from "./zoom.js";
 
 export function mapProjection(snapshot: DisplaySnapshot): { x: number; y: number; width: number; height: number } | undefined {
   if (snapshot.mode === "map" && typeof document !== "undefined") {
@@ -17,8 +17,8 @@ export function mapProjection(snapshot: DisplaySnapshot): { x: number; y: number
 
 interface MapDisplay extends ZoomDisplay {
   setMapView(view: { origin: Point; size: { width: number; height: number } } | null): void;
-  setFullMapOverview(enabled: boolean): void;
-  setTileScaling(mode: "auto" | "crisp"): void;
+  setFullMapOverview(enabled: boolean | null): void;
+  setTileScaling(mode: "auto" | "crisp" | null): void;
 }
 interface Context {
   flags: Readonly<Record<string, boolean>>;
@@ -97,8 +97,11 @@ export function installMapOverview(ctx: Context): () => void {
   if (appliedTileScaling) display.setTileScaling("crisp");
   const restoreDisplay = (): void => {
     if (appliedMapView) display.setMapView(null);
-    display.setFullMapOverview(false);
-    if (appliedTileScaling) display.setTileScaling("auto");
+    // An engine that keeps one request per mod takes null as "this mod no longer
+    // asks", so another mod's overview or crisp tiles survive this uninstall.
+    const perMod = keepsDisplayRequestsPerMod(display);
+    display.setFullMapOverview(perMod ? null : false);
+    if (appliedTileScaling) display.setTileScaling(perMod ? null : "auto");
   };
   if ((!ctx.flags["anybandui.mapOverview"] && !ctx.flags["anybandui.mapSchematic"]) || typeof document === "undefined" || typeof window === "undefined") {
     return restoreDisplay;

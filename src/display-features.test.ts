@@ -25,6 +25,18 @@ describe("display geometry", () => {
     expect(setFullMapOverview.mock.calls).toEqual([[true], [false]]);
     expect(setTileScaling).not.toHaveBeenCalled();
   });
+  it("withdraws its overview and crisp tiles with null where the engine keeps a request per mod", () => {
+    const setFullMapOverview = vi.fn();
+    const setTileScaling = vi.fn();
+    const cleanup = installMapOverview({ flags: { "anybandui.mapOverview": true, "anybandui.crispTiles": true },
+      display: { snapshot: () => snapshot, onKey: () => () => {}, setMapView: vi.fn(),
+        setFullMapOverview, setTileScaling, setGrid: vi.fn(), setCamera: vi.fn(),
+        setSidebarExtent: vi.fn(), setVisualFilter: vi.fn(), repaint: vi.fn(),
+        getGrid: () => null, getTileScaling: () => null } as never });
+    cleanup();
+    expect(setFullMapOverview.mock.calls).toEqual([[true], [null]]);
+    expect(setTileScaling.mock.calls).toEqual([["crisp"], [null]]);
+  });
   it("fits whole cells and clamps camera positions", () => {
     expect(Number.isInteger(fitCellHeight({ width: 1200, height: 700 }, 12))).toBe(true);
     expect(clampOrigin(snapshot, { x: -5.4, y: 1000 })).toEqual({ x: 0, y: 60 });

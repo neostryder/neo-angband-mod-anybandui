@@ -3126,8 +3126,9 @@ function installMapOverview(ctx) {
   if (appliedTileScaling) display.setTileScaling("crisp");
   const restoreDisplay = () => {
     if (appliedMapView) display.setMapView(null);
-    display.setFullMapOverview(false);
-    if (appliedTileScaling) display.setTileScaling("auto");
+    const perMod = keepsDisplayRequestsPerMod(display);
+    display.setFullMapOverview(perMod ? null : false);
+    if (appliedTileScaling) display.setTileScaling(perMod ? null : "auto");
   };
   if (!ctx.flags["anybandui.mapOverview"] && !ctx.flags["anybandui.mapSchematic"] || typeof document === "undefined" || typeof window === "undefined") {
     return restoreDisplay;
