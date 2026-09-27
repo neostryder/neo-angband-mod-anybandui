@@ -15,14 +15,18 @@ export interface CoreSnapshot {
   readonly stores?: readonly StoreView[] | null;
 }
 // Phase 7 mirrors packages/core/src/agent/boundary.ts and packages/web/src/mod-plugin.ts.
-export interface EffectMonsterView { readonly id: number; readonly race: string; readonly raceIndex: number; readonly grid: Grid; readonly visible: boolean; readonly hp: number; readonly maxHp: number; readonly asleep: boolean; readonly level: number; readonly raceFlags: readonly string[] }
-export interface EffectSnapshot extends Omit<InputSnapshot, "core"> { readonly phase: InputSnapshot["phase"] | "dead"; readonly core: CoreSnapshot & { readonly player?: (NonNullable<CoreSnapshot["player"]> & { readonly hp?: number; readonly maxHp?: number }) | null; readonly monsters?: readonly EffectMonsterView[] | null } }
+export interface EffectMonsterView { readonly id: number; readonly race: string; readonly raceIndex: number; readonly grid: Grid; readonly visible: boolean; readonly hp: number; readonly maxHp: number; readonly asleep: boolean; readonly level: number; readonly raceFlags: readonly string[];
+  // MOD_SEAMS 4t (packages/core/src/agent/types.ts MonsterView); absent on older engines.
+  readonly unique?: boolean; readonly questGuardian?: boolean; readonly finalGuardian?: boolean }
+export interface EffectSnapshot extends Omit<InputSnapshot, "core"> { readonly phase: InputSnapshot["phase"] | "dead"; readonly core: CoreSnapshot & { readonly player?: (NonNullable<CoreSnapshot["player"]> & { readonly hp?: number; readonly maxHp?: number; readonly hpWarning?: number; readonly dead?: boolean }) | null; readonly monsters?: readonly EffectMonsterView[] | null } }
 // Mirrors packages/core/src/agent/events.ts: a creature is "player" or a monster index.
 export type EventActor = "player" | number;
 export interface EffectEventMap {
   "combat-outcome": { readonly attacker: EventActor | null; readonly target: EventActor; readonly kind: "melee" | "ranged" | "spell" | "effect" | "trap"; readonly hit: boolean; readonly damage: number; readonly died: boolean; readonly grid: Grid; readonly seen: boolean };
   heal: { readonly who: EventActor; readonly amount: number; readonly grid: Grid; readonly seen: boolean };
   motion: { readonly who: EventActor; readonly from: Grid; readonly to: Grid; readonly kind: "walk" | "teleport"; readonly seen: boolean };
+  // Mirrors ExplosionEventData in packages/core/src/events.ts (MOD_SEAMS 4t).
+  explosion: { readonly element?: string; readonly arc?: boolean; readonly radius?: number; readonly blastGrid: readonly Grid[]; readonly playerSeesGrid: readonly boolean[] };
 }
 export interface EffectContext { readonly flags?: Readonly<Record<string, boolean>>; readonly snapshot?: () => EffectSnapshot | null; readonly knownLevel?: () => KnownLevel | null; readonly events?: { on<K extends keyof EffectEventMap>(name: K, handler: (type: K, event: EffectEventMap[K]) => void): void; off<K extends keyof EffectEventMap>(name: K, handler: (type: K, event: EffectEventMap[K]) => void): void }; readonly display?: { snapshot(): import("./zoom.js").DisplaySnapshot }; readonly prefs?: { get(): unknown } }
 interface PromptBase { readonly promptId: number; readonly label?: string; readonly cursor?: Grid; readonly path?: readonly Grid[] }

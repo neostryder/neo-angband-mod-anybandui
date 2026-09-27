@@ -31,6 +31,7 @@
     "event:combat-outcome",
     "event:heal",
     "event:motion",
+    "event:explosion",
     "event:driver-changed"
   ],
   "author": "WurliMonkhaven, neostryder",
@@ -209,12 +210,12 @@
     { "flag": "anybandui.storeTransactions", "title": "Store buttons", "description": "Adds Buy, Sell, Stash, Retrieve and Leave buttons to the store window. The store then asks how many you want and shows the price before you confirm. Older versions of the game allow only Leave.", "default": false, "requiresReload": true },
     { "flag": "anybandui.storePrompts", "title": "Store questions", "description": "When the store asks how many or whether to accept a price, answers it with buttons in the store window instead of the keyboard.", "default": false, "requiresReload": true },
     { "flag": "anybandui.crt", "title": "CRT display", "description": "Gives the dungeon view the look of an old monitor: slightly richer colours, faint scanlines, and a slow band of light that sweeps down the screen. The sweep stops when your system asks for reduced motion.", "default": false, "requiresReload": true },
-    { "flag": "anybandui.lowHealthEffect", "title": "Low health warning", "description": "Tints the dungeon view red when your hit points fall to 30 percent or lower, deepening as they drop, with a pulse unless your system asks for reduced motion.", "default": false, "requiresReload": true },
+    { "flag": "anybandui.lowHealthEffect", "title": "Low health warning", "description": "Tints the dungeon view red once your hit points drop below the game's own hit point warning, deepening as they fall, with a pulse unless your system asks for reduced motion. With that warning turned off, it starts below 30 percent.", "default": false, "requiresReload": true },
     { "flag": "anybandui.deathEffect", "title": "Death burst", "description": "Draws a burst on your character's square at the moment of death.", "default": false, "requiresReload": true },
-    { "flag": "anybandui.itemGlow", "title": "Artifact glow", "description": "Makes a soft gold glow around each artifact you know is lying on the floor.", "default": false, "requiresReload": true },
+    { "flag": "anybandui.itemGlow", "title": "Floor item glow", "description": "Makes a soft glow around items you know about on the floor: gold for an artifact, red for a known curse, and blue for a rune you have not learned yet.", "default": false, "requiresReload": true },
     { "flag": "anybandui.sleepMarks", "title": "Sleeping creature marks", "description": "Puts a small mark above each sleeping creature you can see.", "default": false, "requiresReload": true },
-    { "flag": "anybandui.presenceHaze", "title": "Unique presence haze", "description": "Surrounds each unique creature you can see with a violet haze, heavier around Morgoth.", "default": false, "requiresReload": true },
-    { "flag": "anybandui.spellEffects", "title": "Combat rings", "description": "Draws a brief ring where a spell is cast, where a blow or shot lands or misses, where a creature dies, where someone heals, and at both ends of a teleport. Only things your character sees get a ring.", "default": false, "requiresReload": true }
+    { "flag": "anybandui.presenceHaze", "title": "Unique presence haze", "description": "Surrounds each unique creature you can see with a violet haze, heaviest around the one guarding the final quest, which is Morgoth unless a mod changes the quests.", "default": false, "requiresReload": true },
+    { "flag": "anybandui.spellEffects", "title": "Combat rings and flashes", "description": "Draws a brief ring where a spell is cast, where a blow or shot lands or misses, where a creature dies, where someone heals, and at both ends of a teleport. The squares a ball or breath hits flash in the colour of its element. Only things your character sees are drawn.", "default": false, "requiresReload": true }
   ],
   "repository": "https://github.com/neostryder/neo-angband-mod-anybandui"
 }

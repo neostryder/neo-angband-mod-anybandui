@@ -47,13 +47,13 @@ A mouse-first desktop interface for Neo Angband, ported from Wurli Monkhaven's A
 | Store buttons | `anybandui.storeTransactions` | off | Adds Buy, Sell, Stash, Retrieve and Leave buttons to the store window. The store then asks how many you want and shows the price before you confirm. Older versions of the game allow only Leave. |
 | Store questions | `anybandui.storePrompts` | off | When the store asks how many or whether to accept a price, answers it with buttons in the store window instead of the keyboard. |
 | CRT display | `anybandui.crt` | off | Gives the dungeon view the look of an old monitor: slightly richer colours, faint scanlines, and a slow band of light that sweeps down the screen. The sweep stops when your system asks for reduced motion. |
-| Low health warning | `anybandui.lowHealthEffect` | off | Tints the dungeon view red when your hit points fall to 30 percent or lower, deepening as they drop, with a pulse unless your system asks for reduced motion. |
+| Low health warning | `anybandui.lowHealthEffect` | off | Tints the dungeon view red once your hit points drop below the game's own hit point warning, deepening as they fall, with a pulse unless your system asks for reduced motion. With that warning turned off, it starts below 30 percent. |
 | Death burst | `anybandui.deathEffect` | off | Draws a burst on your character's square at the moment of death. |
-| Artifact glow | `anybandui.itemGlow` | off | Makes a soft gold glow around each artifact you know is lying on the floor. |
+| Floor item glow | `anybandui.itemGlow` | off | Makes a soft glow around items you know about on the floor: gold for an artifact, red for a known curse, and blue for a rune you have not learned yet. |
 | Sleeping creature marks | `anybandui.sleepMarks` | off | Puts a small mark above each sleeping creature you can see. |
-| Unique presence haze | `anybandui.presenceHaze` | off | Surrounds each unique creature you can see with a violet haze, heavier around Morgoth. |
-| Combat rings | `anybandui.spellEffects` | off | Draws a brief ring where a spell is cast, where a blow or shot lands or misses, where a creature dies, where someone heals, and at both ends of a teleport. Only things your character sees get a ring. |
+| Unique presence haze | `anybandui.presenceHaze` | off | Surrounds each unique creature you can see with a violet haze, heaviest around the one guarding the final quest, which is Morgoth unless a mod changes the quests. |
+| Combat rings and flashes | `anybandui.spellEffects` | off | Draws a brief ring where a spell is cast, where a blow or shot lands or misses, where a creature dies, where someone heals, and at both ends of a teleport. The squares a ball or breath hits flash in the colour of its element. Only things your character sees are drawn. |
 
 ## What it needs
 
-`ui:sidebar.replace`, `ui:status.replace`, `ui:messages.replace`, `display:filter` (used by the CRT colour treatment), `ui:panel.mount`, `state:map.read`, `state:interaction.read`, `state:inventory.read`, `state:floor.read`, `state:player.read`, `state:spells.read`, `state:stores.read`, `input:intent`, `input:prompt.reply`, `event:combat-outcome`, `event:heal`, `event:motion`, and `event:driver-changed`, `state:messages.read`, `state:monsters.read`.
+`ui:sidebar.replace`, `ui:status.replace`, `ui:messages.replace`, `display:filter` (used by the CRT colour treatment), `ui:panel.mount`, `state:map.read`, `state:interaction.read`, `state:inventory.read`, `state:floor.read`, `state:player.read`, `state:spells.read`, `state:stores.read`, `input:intent`, `input:prompt.reply`, `event:combat-outcome`, `event:heal`, `event:motion`, `event:explosion`, and `event:driver-changed`, `state:messages.read`, `state:monsters.read`.

@@ -1,15 +1,39 @@
 import { describe, expect, it } from "vitest";
-import { actorGrid, chooseEffectMotion, eventCue, effectGrids, healthIntensity } from "./effects.js";
+import { actorGrid, blastCues, chooseEffectMotion, eventCue, effectGrids, healthIntensity } from "./effects.js";
 import type { EffectSnapshot } from "./seams.js";
 const flags = ["anybandui.crt", "anybandui.lowHealthEffect", "anybandui.deathEffect", "anybandui.itemGlow", "anybandui.sleepMarks", "anybandui.presenceHaze", "anybandui.spellEffects"];
 describe("phase 7 effects", () => {
   it("selects visible sleeping, unique and known artifact grids", () => {
     const s = { core: { monsters: [{ id: 1, race: "Morgoth, Lord of Darkness", raceIndex: 1, grid: {x:2,y:3}, visible: true, hp: 4, maxHp: 4, asleep: true, level: 100, raceFlags: ["UNIQUE"] }] } } as unknown as EffectSnapshot;
-    expect(effectGrids(s, { token: {epoch:1,revision:1}, cells: [{x:4,y:5,remembered:{feat:1,objects:[{artifact:true}]}}] })).toEqual({ asleep:[{x:2,y:3}], uniques:[{x:2,y:3}], artifacts:[{x:4,y:5}] });
+    // An older engine: no unique or finalGuardian flags and no aura, so the race flag, the name and the artifact field decide.
+    expect(effectGrids(s, { token: {epoch:1,revision:1}, cells: [{x:4,y:5,remembered:{feat:1,objects:[{artifact:true}]}}] })).toEqual({ asleep:[{x:2,y:3}], uniques:[{ grid:{x:2,y:3}, final:true }], glows:[{ grid:{x:4,y:5}, aura:"artifact" }] });
   });
-  it("uses warning tenths and the 30 percent fallback", () => {
-    expect(healthIntensity(30,100,3)).toBeCloseTo(.12); expect(healthIntensity(30,100,undefined)).toBeCloseTo(.12);
-    expect(healthIntensity(80,100,3)).toBe(0); expect(healthIntensity(10,100,3)).toBeGreaterThan(healthIntensity(20,100,3));
+  it("reads unique, finalGuardian and aura where the engine has them", () => {
+    const monster = (id: number, x: number, extra: object) => ({ id, race: "Grip, Farmer Maggot's Dog", raceIndex: id, grid: {x,y:1}, visible: true, hp: 5, maxHp: 5, asleep: false, level: 2, raceFlags: [], ...extra });
+    const s = { core: { monsters: [monster(1, 1, { unique: true, finalGuardian: false }), monster(2, 2, { unique: true, finalGuardian: true }), monster(3, 3, { unique: false, raceFlags: ["UNIQUE"] })] } } as unknown as EffectSnapshot;
+    const cells = [
+      { x: 7, y: 7, remembered: { feat: 1, objects: [{ sensed: false, aware: true, kindIndex: 1, aura: "rune" }, { sensed: false, aware: true, kindIndex: 2, aura: "cursed" }] } },
+      { x: 8, y: 7, remembered: { feat: 1, objects: [{ sensed: false, aware: true, kindIndex: 3, aura: "rune" }, { sensed: true, money: false }] } },
+      { x: 9, y: 7, remembered: { feat: 1, objects: [{ sensed: false, aware: true, kindIndex: 4 }] } },
+    ];
+    const grids = effectGrids(s, { token: {epoch:1,revision:1}, cells });
+    // The engine's flag wins over the race flag list, in both directions.
+    expect(grids.uniques).toEqual([{ grid:{x:1,y:1}, final:false }, { grid:{x:2,y:1}, final:true }]);
+    // One glow per cell, cursed before artifact before rune, and no glow without an aura.
+    expect(grids.glows).toEqual([{ grid:{x:7,y:7}, aura:"cursed" }, { grid:{x:8,y:7}, aura:"rune" }]);
+  });
+  it("starts the low-health effect below the game's hit point warning, or 30 percent without one", () => {
+    expect(healthIntensity(30,100,30)).toBe(0); expect(healthIntensity(29,100,30)).toBeGreaterThan(0);
+    expect(healthIntensity(40,100,50)).toBeGreaterThan(0);
+    expect(healthIntensity(29,100,undefined)).toBeGreaterThan(0); expect(healthIntensity(29,100,0)).toBeGreaterThan(0); expect(healthIntensity(31,100,0)).toBe(0);
+    expect(healthIntensity(10,100,30)).toBeGreaterThan(healthIntensity(20,100,30)); expect(healthIntensity(1,100,30)).toBeLessThanOrEqual(1);
+  });
+  it("flashes only the blast grids the player can see, in the element's colour", () => {
+    const cues = blastCues({ element: "FIRE", blastGrid: [{x:1,y:1},{x:2,y:1},{x:3,y:1}], playerSeesGrid: [true,false,true] });
+    expect(cues.map((c) => c.grid)).toEqual([{x:1,y:1},{x:3,y:1}]);
+    expect(new Set(cues.map((c) => c.colour)).size).toBe(1);
+    expect(cues[0]!.colour).not.toBe(blastCues({ element: "COLD", blastGrid: [{x:1,y:1}], playerSeesGrid: [true] })[0]!.colour);
+    expect(blastCues({ blastGrid: Array.from({ length: 500 }, (_, x) => ({ x, y: 0 })), playerSeesGrid: Array(500).fill(true) })).toHaveLength(200);
   });
   it("maps seen combat, heal and teleport events, and ignores unseen events", () => {
     const here = () => ({ x: 0, y: 2 });
@@ -43,7 +67,7 @@ describe("effect event subscription", () => {
     try {
       const stop = installEffects({ flags: { "anybandui.spellEffects": true }, display: { snapshot: () => ({}) as never },
         events: { on: (name, fn) => { handlers.set(name, fn as (...args: unknown[]) => void); }, off: (name) => { handlers.delete(name); } } });
-      expect([...handlers.keys()].sort()).toEqual(["combat-outcome", "heal", "motion"]);
+      expect([...handlers.keys()].sort()).toEqual(["combat-outcome", "explosion", "heal", "motion"]);
       for (const fn of handlers.values()) expect(fn.length).toBe(2);
       expect(() => handlers.get("heal")!("heal", { who: "player", amount: 3 })).not.toThrow();
       stop();

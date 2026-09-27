@@ -12,6 +12,8 @@ const ELEMENT_COLORS: Readonly<Record<string, readonly [string, string]>> = Obje
   ELEC: ["rgba(140,150,250,.12)", "rgba(160,170,255,.85)"], DARK: ["rgba(150,110,200,.12)", "rgba(170,130,220,.8)"],
 });
 const DEFAULT_COLORS = ["rgba(245,185,70,.095)", "rgba(245,190,80,.745)"] as const;
+/** The edge colour for a projection element, shared with the impact flashes in effects.ts. */
+export const elementEdgeColour = (element: string | null | undefined): string => (element ? ELEMENT_COLORS[element]?.[1] : undefined) ?? DEFAULT_COLORS[1];
 
 /** The grids a pending ball or breath would reach, or null. Core reports
  * activeBlast only while a ball or breath waits for a direction or a target, so

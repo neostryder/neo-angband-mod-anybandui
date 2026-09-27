@@ -5429,6 +5429,7 @@ var ELEMENT_COLORS = Object.freeze({
   DARK: ["rgba(150,110,200,.12)", "rgba(170,130,220,.8)"]
 });
 var DEFAULT_COLORS = ["rgba(245,185,70,.095)", "rgba(245,190,80,.745)"];
+var elementEdgeColour = (element) => (element ? ELEMENT_COLORS[element]?.[1] : void 0) ?? DEFAULT_COLORS[1];
 function blastGrids(ctx, snap, hovered) {
   const blast = snap?.activeBlast, prompt = snap?.prompt;
   if (!snap || !blast || !sameToken2(blast.token, snap.token) || blast.radius < 1) return null;
@@ -6344,21 +6345,32 @@ function installStores(ctx) {
 // src/effects.ts
 function healthIntensity(hp, maxHp, warning) {
   if (!(hp !== void 0 && maxHp && maxHp > 0 && hp > 0)) return 0;
-  const threshold = warning !== void 0 && warning > 0 ? warning * 10 : 30;
-  const ratio = hp / maxHp * 100;
-  return ratio > threshold ? 0 : Math.max(0, Math.min(1, (threshold - ratio) / Math.max(1, threshold) + 0.12));
+  const threshold = warning !== void 0 && warning > 0 ? warning : maxHp * 0.3;
+  return hp >= threshold ? 0 : Math.min(1, (threshold - hp) / threshold + 0.12);
 }
 function chooseEffectMotion(reduced) {
   return reduced ? "static" : "motion";
 }
+var AURA_ORDER = ["cursed", "artifact", "rune"];
+var AURA_COLOURS = { cursed: "#ff4f6d", artifact: "#ffd36a", rune: "#7fd8ff" };
 function effectGrids(s, known) {
-  const asleep = [], uniques = [], artifacts = [];
+  const asleep = [], uniques = [], glows = [];
   for (const m of s?.core.monsters ?? []) if (m.visible) {
     if (m.asleep) asleep.push(m.grid);
-    if (m.raceFlags.includes("UNIQUE")) uniques.push(m.grid);
+    if (m.unique ?? m.raceFlags.includes("UNIQUE")) uniques.push({ grid: m.grid, final: m.finalGuardian ?? m.race === "Morgoth, Lord of Darkness" });
   }
-  for (const c of known?.cells ?? []) if (c.remembered.objects.some((o) => !!o && typeof o === "object" && o.artifact === true)) artifacts.push({ x: c.x, y: c.y });
-  return { asleep, uniques, artifacts };
+  for (const c of known?.cells ?? []) {
+    const auras = /* @__PURE__ */ new Set();
+    for (const o of c.remembered.objects) {
+      if (!o || typeof o !== "object") continue;
+      const read = o;
+      const aura2 = read.aura ?? (read.artifact === true ? "artifact" : void 0);
+      if (aura2 === "cursed" || aura2 === "artifact" || aura2 === "rune") auras.add(aura2);
+    }
+    const aura = AURA_ORDER.find((a) => auras.has(a));
+    if (aura) glows.push({ grid: { x: c.x, y: c.y }, aura });
+  }
+  return { asleep, uniques, glows };
 }
 function actorGrid(s, who) {
   if (who === null) return null;
@@ -6373,6 +6385,14 @@ function eventCue(e, locate = () => null) {
   }
   if (e.event === "heal") return [{ grid: e.grid, kind: "heal" }];
   return e.kind === "teleport" ? [{ grid: e.from, kind: "departure" }, { grid: e.to, kind: "arrival" }] : [];
+}
+function blastCues(e, limit = 200) {
+  const colour = elementEdgeColour(e.element);
+  const out = [];
+  e.blastGrid.forEach((grid, i) => {
+    if (out.length < limit && e.playerSeesGrid[i]) out.push({ grid: { x: grid.x, y: grid.y }, kind: "blast", colour });
+  });
+  return out;
 }
 function installEffects(ctx) {
   const flags = ctx.flags ?? {};
@@ -6393,23 +6413,29 @@ function installEffects(ctx) {
   }
   const g = maybeContext;
   const cues = [];
-  let raf = 0, previousPhase = null, deadBurstAt = 0;
+  let raf = 0, wasDead = false, deadBurstAt = 0;
   const reduced = () => globalThis.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
-  const add = (e) => {
-    for (const cue of eventCue(e, (who) => actorGrid(ctx.snapshot?.() ?? null, who))) {
-      const strength = Math.max(0, Math.min(100, validateSettings(ctx.prefs?.get()).effects[cue.kind] ?? 100));
+  const push = (list) => {
+    const effects = validateSettings(ctx.prefs?.get()).effects;
+    for (const cue of list) {
+      const strength = Math.max(0, Math.min(100, effects[cue.kind] ?? 100));
       if (strength > 0) cues.push({ ...cue, started: performance.now(), strength });
     }
     request();
   };
+  const add = (e) => push(eventCue(e, (who) => actorGrid(ctx.snapshot?.() ?? null, who)));
   const combat = (_type, e) => add({ event: "combat-outcome", ...e });
   const heal = (_type, e) => add({ event: "heal", ...e });
   const motion = (_type, e) => add({ event: "motion", ...e });
+  const explosion = (_type, e) => {
+    if (Array.isArray(e?.blastGrid) && Array.isArray(e.playerSeesGrid)) push(blastCues(e));
+  };
   const listen = flags["anybandui.spellEffects"] === true;
   if (listen) {
     ctx.events?.on("combat-outcome", combat);
     ctx.events?.on("heal", heal);
     ctx.events?.on("motion", motion);
+    ctx.events?.on("explosion", explosion);
   }
   function request() {
     if (!raf) raf = requestAnimationFrame(draw);
@@ -6448,20 +6474,21 @@ function installEffects(ctx) {
     }
     if (flags["anybandui.lowHealthEffect"] && intensity("lowHealth") > 0) {
       const p = snap?.core.player;
-      const v = healthIntensity(p?.hp, p?.maxHp, void 0) * intensity("lowHealth");
+      const v = healthIntensity(p?.hp, p?.maxHp, p?.hpWarning) * intensity("lowHealth");
       if (v) {
         g.fillStyle = `rgba(255,20,25,${v * (staticMode ? 0.1 : 0.08 + 0.08 * Math.sin(now / 45))})`;
         g.fillRect(0, 0, rect.width, rect.height);
       }
     }
-    if (snap?.phase === "dead" && previousPhase !== "dead" && flags["anybandui.deathEffect"] && intensity("death") > 0) {
+    const dead = snap?.phase === "dead" || snap?.core.player?.dead === true;
+    if (dead && !wasDead && flags["anybandui.deathEffect"] && intensity("death") > 0) {
       deadBurstAt = now;
-      const at = snap.core.player?.grid;
+      const at = snap?.core.player?.grid;
       if (at) cues.push({ grid: at, kind: "death", started: now, strength: 100 });
     }
-    previousPhase = snap?.phase ?? null;
+    wasDead = dead;
     const known = ctx.knownLevel?.() ?? null, grids = effectGrids(snap, known);
-    if (flags["anybandui.itemGlow"]) for (const p of grids.artifacts) paint(p, "#ffd36a", intensity("itemGlow"));
+    if (flags["anybandui.itemGlow"]) for (const glow of grids.glows) paint(glow.grid, AURA_COLOURS[glow.aura], intensity("itemGlow"));
     if (flags["anybandui.sleepMarks"]) for (const p of grids.asleep) {
       const q = cell(p);
       g.strokeStyle = `rgba(190,220,255,${intensity("sleepMarks")})`;
@@ -6472,13 +6499,20 @@ function installEffects(ctx) {
       g.lineTo(q.x + 3, q.y - cellH * 0.38);
       g.stroke();
     }
-    if (flags["anybandui.presenceHaze"]) for (const p of grids.uniques) paint(p, "#b45cff", intensity("presenceHaze") * ((snap?.core.monsters ?? []).some((m) => m.visible && m.grid.x === p.x && m.grid.y === p.y && m.race === "Morgoth, Lord of Darkness") ? 1 : 0.65));
+    if (flags["anybandui.presenceHaze"]) for (const u of grids.uniques) paint(u.grid, "#b45cff", intensity("presenceHaze") * (u.final ? 1 : 0.65));
     let active = false;
     for (const c of cues) {
       const age = (now - c.started) / 650;
       if (age >= (staticMode ? 0.08 : 1)) continue;
       active = true;
       const q = cell(c.grid), a = staticMode ? 0.45 : (1 - age) * c.strength / 100;
+      if (c.kind === "blast") {
+        g.fillStyle = c.colour ?? "#ffbe5a";
+        g.globalAlpha = a * 0.55;
+        g.fillRect(q.x - cellW / 2, q.y - cellH / 2, cellW, cellH);
+        g.globalAlpha = 1;
+        continue;
+      }
       g.strokeStyle = `rgba(${c.kind === "heal" ? "100,255,160" : c.kind === "cast" ? "100,190,255" : "255,190,90"},${a})`;
       g.lineWidth = 2;
       g.beginPath();
@@ -6487,7 +6521,7 @@ function installEffects(ctx) {
     }
     cues.splice(0, cues.length, ...cues.filter((c) => now - c.started < 650));
     if (flags["anybandui.deathEffect"] && deadBurstAt && now - deadBurstAt < 900) active = true;
-    if (active || !staticMode && (flags["anybandui.crt"] && intensity("crt") > 0 || flags["anybandui.lowHealthEffect"] && healthIntensity(snap?.core.player?.hp, snap?.core.player?.maxHp, void 0) > 0 || flags["anybandui.sleepMarks"] && grids.asleep.length > 0 || flags["anybandui.itemGlow"] && grids.artifacts.length > 0 || flags["anybandui.presenceHaze"] && grids.uniques.length > 0)) request();
+    if (active || !staticMode && (flags["anybandui.crt"] && intensity("crt") > 0 || flags["anybandui.lowHealthEffect"] && healthIntensity(snap?.core.player?.hp, snap?.core.player?.maxHp, snap?.core.player?.hpWarning) > 0 || flags["anybandui.sleepMarks"] && grids.asleep.length > 0 || flags["anybandui.itemGlow"] && grids.glows.length > 0 || flags["anybandui.presenceHaze"] && grids.uniques.length > 0)) request();
     function paint(p, color, a) {
       if (!a) return;
       const q = cell(p);
@@ -6508,6 +6542,7 @@ function installEffects(ctx) {
       ctx.events?.off("combat-outcome", combat);
       ctx.events?.off("heal", heal);
       ctx.events?.off("motion", motion);
+      ctx.events?.off("explosion", explosion);
     }
     canvas.remove();
     cues.length = 0;
