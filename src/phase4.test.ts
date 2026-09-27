@@ -11,7 +11,7 @@ const snap = (): Phase4Snapshot => ({ token, phase: "play", messagePending: fals
   player: { grid: { x: 2, y: 3 }, level: 10, sp: 15, classFlags: ["CHOOSE_SPELLS"] }, inventory: [bookItem, potion], equipment: [],
   spellbooks: [{ name: "Magic", tval: 90, realm: "arcane", spells: [{ name: "Magic Missile", sidx: 3, bidx: 0, level: 1, mana: 2, fail: 20, learned: true, worked: true, forgotten: false }, { name: "Light", sidx: 4, bidx: 0, level: 2, mana: 3, fail: 25, learned: false, worked: false, forgotten: false }] }],
 } });
-const context = (snapshot = snap): Phase4Context & { intent: NonNullable<Phase4Context["intent"]> } => ({ snapshot, controller: { driver: () => ({ kind: "player" }) }, intent: { submit: vi.fn(() => ({ accepted: true })) },
+const context = (snapshot = snap): Phase4Context & { intent: NonNullable<Phase4Context["intent"]> } => ({ snapshot, driver: () => ({ kind: "player" }), intent: { submit: vi.fn(() => ({ accepted: true })) },
   inspect: { spellInfo: (index) => ({ token, name: index === 3 ? "Magic Missile" : "Light", description: "A simple spell.", level: 1, mana: 2, failChance: 12, canCastNow: index === 3 }),
     itemTester: (code) => ({ token, items: code === "quaff" ? [{ handle: 11 }] : [] }) }, log: vi.fn() });
 
@@ -32,7 +32,7 @@ describe("phase 4 spells and quickbar", () => {
     expect(answerSpell(ctx, current, 3)).toBe(true); expect(reply).toHaveBeenCalledWith(14, 3); expect(answerSpell(ctx, current, 4)).toBe(false); expect(reply).toHaveBeenCalledTimes(1); });
   it("submits rest counts and declines while an autoplayer drives", () => { const ctx = context(); expect(rest(ctx, snap(), -2)).toBe(true);
     expect(ctx.intent.submit).toHaveBeenCalledWith(token, { kind: "command", command: { code: "rest", args: { count: -2 } } });
-    expect(rest(ctx, snap(), 10000)).toBe(false); const driven = { ...ctx, controller: { driver: () => ({ kind: "autoplayer" as const }) } }; expect(actionReady(driven, snap())).toBe(false); expect(rest(driven, snap(), 5)).toBe(false); const { controller: _driver, ...withoutDriver } = ctx; expect(rest(withoutDriver, snap(), 5)).toBe(true); });
+    expect(rest(ctx, snap(), 10000)).toBe(false); const driven = { ...ctx, driver: () => ({ kind: "controller" as const, owner: "borg" }) }; expect(actionReady(driven, snap())).toBe(false); expect(rest(driven, snap(), 5)).toBe(false); const { driver: _driver, ...withoutDriver } = ctx; expect(rest(withoutDriver, snap(), 5)).toBe(true); });
   it("maps top row and modifier rows without taking numpad keys", () => { expect([slotIndex("Digit1", false, false), slotIndex("Digit0", false, false), slotIndex("Digit1", true, false), slotIndex("Digit0", false, true), slotIndex("Numpad1", false, false)]).toEqual([0, 9, 10, 29, -1]); });
   it("owns each number key only during ordinary play across other enabled flags", () => { const flags = { "anybandui.quickbar": true, "anybandui.clickToWalk": true, "anybandui.dungeonActions": true, "anybandui.aimPath": true, "anybandui.itemsChoice": true, "anybandui.zoom": true };
     expect(quickbarOwnsKey(flags["anybandui.quickbar"], snap(), "Digit1", false, false, false)).toBe(true);

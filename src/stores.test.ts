@@ -44,7 +44,7 @@ describe("phase 5 input", () => {
   function context(snapshot: InputSnapshot = snap()) {
     const submit = vi.fn((_token: InputToken, _intent: PlayerIntent) => ({ accepted: true })); const reply = vi.fn((_id: number, _value: number | boolean) => ({ accepted: true }));
     const ctx: StoreContext = { flags: allFlags, snapshot: () => snapshot, knownLevel: () => known,
-      intent: { submit }, prompt: { reply }, controller: { driver: () => ({ kind: "player" }) }, log: vi.fn() };
+      intent: { submit }, prompt: { reply }, driver: () => ({ kind: "player" }), log: vi.fn() };
     return { ctx, submit, reply };
   }
   it("submits each shop command once with its current token", () => {
@@ -73,7 +73,7 @@ describe("phase 5 input", () => {
     expect(storePromptReply(ctx, adaptStore(q, known, status)!, 2)).toBe(true);
     expect(storePromptReply(ctx, adaptStore(q, known, status)!, 4)).toBe(false);
     expect(reply).toHaveBeenCalledExactlyOnceWith(10, 2);
-    expect(storePromptReply({ ...ctx, controller: { driver: () => ({ kind: "autoplayer" }) } }, adaptStore(q, known, status)!, 1)).toBe(false);
+    expect(storePromptReply({ ...ctx, driver: () => ({ kind: "controller" as const, owner: "borg" }) }, adaptStore(q, known, status)!, 1)).toBe(false);
     expect(reply).toHaveBeenCalledTimes(1);
     const confirm = { kind: "confirm", promptId: 11, label: "Pay 40 gold?" } as const;
     const c = snap("store", confirm); const second = context(c);
@@ -83,7 +83,7 @@ describe("phase 5 input", () => {
   });
   it("stands down for an autoplayer, a prompt, and another phase", () => {
     const { ctx, submit } = context(); const model = adaptStore(snap(), known, status)!;
-    const auto = { ...ctx, controller: { driver: () => ({ kind: "autoplayer" as const }) } };
+    const auto = { ...ctx, driver: () => ({ kind: "controller" as const, owner: "borg" }) };
     expect(storeAction(auto, model, "stock", 0)).toBe(false);
     expect(storeAction({ ...ctx, snapshot: () => snap("play") }, model, "stock", 0)).toBe(false);
     expect(storeAction({ ...ctx, snapshot: () => snap("store", { kind: "confirm", promptId: 1 }) }, model, "stock", 0)).toBe(false);

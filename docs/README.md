@@ -7,7 +7,7 @@ A mouse-first desktop interface for Neo Angband, ported from Wurli Monkhaven's A
 | Setting | Identifier | Default | Description |
 | --- | --- | --- | --- |
 | TODO-PROSE | `anybandui.sidebar` | off | TODO-PROSE |
-| Status badges and dungeon card | `anybandui.status` | off | Replaces the status line with a badge for each timed effect, coloured by whether it helps or harms you, and a card showing depth, light, the level feeling and the terrain underfoot. Hover a badge to see how many turns it has left. |
+| TODO-PROSE | `anybandui.status` | off | TODO-PROSE |
 | Message log | `anybandui.messages` | off | Replaces the message line with a scrolling log. Repeated messages fold into one line with a count, and a search box finds an older message. |
 | Accessibility: high-contrast display | `anybandui.highContrast` | off | Boosts contrast and colour separation over each finished frame, in text mode and with tiles, across the dungeon, maps, menus and this mod's panels. |
 | Accessibility: colourblind correction | `anybandui.colourblind` | off | Applies a red-green colour correction over each finished frame, in text mode and with tiles, across the dungeon, maps, menus and this mod's panels. |
@@ -56,4 +56,4 @@ A mouse-first desktop interface for Neo Angband, ported from Wurli Monkhaven's A
 
 ## What it needs
 
-`ui:sidebar.replace`, `ui:status.replace`, `ui:messages.replace`, `display:filter` (used by the CRT colour treatment), `ui:panel.mount`, `state:map.read`, `state:interaction.read`, `state:inventory.read`, `state:player.read`, `state:spells.read`, `state:stores.read`, `input:intent`, `input:prompt.reply`, `event:combat-outcome`, `event:heal`, and `event:motion`.
+`ui:sidebar.replace`, `ui:status.replace`, `ui:messages.replace`, `display:filter` (used by the CRT colour treatment), `ui:panel.mount`, `state:map.read`, `state:interaction.read`, `state:inventory.read`, `state:player.read`, `state:spells.read`, `state:stores.read`, `input:intent`, `input:prompt.reply`, `event:combat-outcome`, `event:heal`, `event:motion`, and `event:driver-changed`.
