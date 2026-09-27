@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import type { Phase4Context, Phase4Snapshot, SpellPrompt } from "./seams.js";
+import type { CommandCatalogue, Phase4Context, Phase4Snapshot, SpellPrompt, TextPrompt } from "./seams.js";
 import { adaptSpells } from "./view-model/spells.js";
-import { actionReady, answerSpell, castSpell, rest, studySpell } from "./spell-actions.js";
-import { activate, itemBindings, quickbarOwnsKey, readSlots, resolve, slotIndex, writeSlots } from "./quickbar.js";
+import { actionReady, answerRest, answerSpell, castSpell, rest, restAnswer, restPrompt, stopResting, studySpell } from "./spell-actions.js";
+import { activate, catalogueCommands, itemBindings, migrateSlots, quickbarOwnsKey, readSlots, resolve, slotIndex, writeSlots } from "./quickbar.js";
+import { blastGrids } from "./blast-preview.js";
+import { adoptLineage, characterFor, restingText } from "./phase4.js";
 
 const token = { epoch: 2, revision: 4 };
 const bookItem = { handle: 7, label: "Book of Magic", number: 1, inscription: null, kindId: "book:magic", tval: 90, sval: 0, artifact: false, ego: false };
@@ -21,7 +23,7 @@ describe("phase 4 spells and quickbar", () => {
   it("declines ambiguous books without an item-to-book seam", () => { const source = snap(); const extra = { ...source.core.spellbooks![0]!, name: "Advanced Magic", spells: [{ ...source.core.spellbooks![0]!.spells[0]!, bidx: 1, sidx: 8 }] };
     const ambiguous: Phase4Snapshot = { ...source, core: { ...source.core, spellbooks: [...source.core.spellbooks!, extra] } };
     expect(adaptSpells(ambiguous, context().inspect)?.books).toHaveLength(0);
-    expect(adaptSpells(ambiguous, { ...context().inspect, bookForItem: () => 0 })?.books).toHaveLength(1); });
+    expect(adaptSpells(ambiguous, { ...context().inspect, bookForItem: () => ({ token, bookIndex: 0, spells: [3, 4] }) })?.books.map((b) => b.spells.map((s) => s.index))).toEqual([[3, 4]]); });
   it("submits cast and study using current tokens; random study omits the spell", () => { const ctx = context(); const book = adaptSpells(snap(), ctx.inspect)!.books[0]!;
     expect(castSpell(ctx, snap(), book.spells[0]!)).toBe(true); expect(ctx.intent.submit).toHaveBeenCalledWith(token, { kind: "command", command: { code: "cast", args: { spell: 3 } } });
     expect(studySpell(ctx, snap(), book, book.spells[1]!)).toBe(true); expect(ctx.intent.submit).toHaveBeenCalledWith(token, { kind: "command", command: { code: "study", args: { handle: 7, spell: 4 } } });
@@ -63,5 +65,141 @@ describe("quickbar character identity", () => {
     expect(characterFor({ ...base, state: { actor: { player } } })).toBe("Dwarf|Priest|120|48|150");
     expect(characterFor({ ...base, state: { actor: { player: { ...player, auBirth: undefined } } } })).toBeNull();
     expect(characterFor(base)).toBeNull();
+  });
+});
+
+describe("adopted core seams: spells", () => {
+  const twoBooks = (): Phase4Snapshot => { const source = snap(); const advanced = { handle: 8, label: "Conjurings and Tricks", number: 1, inscription: null, kindId: "book:conjurings", tval: 90, sval: 1, artifact: false, ego: false };
+    return { ...source, core: { ...source.core, inventory: [bookItem, advanced, potion],
+      player: { ...source.core.player!, learnableSpells: 2 },
+      spellbooks: [{ ...source.core.spellbooks![0]!, spells: source.core.spellbooks![0]!.spells.map((s) => ({ ...s, studyEligible: !s.learned, infoLine: s.learned ? " dam 3d4" : "" })) },
+        { name: "Conjurings", tval: 90, realm: "arcane", spells: [{ name: "Phase Door", sidx: 8, bidx: 1, level: 3, mana: 2, fail: 22, learned: false, worked: false, forgotten: false, studyEligible: false, infoLine: "" }] }] } }; };
+  const mapping = (handle: number) => handle === 7 ? { token, bookIndex: 0, spells: [3, 4] } : handle === 8 ? { token, bookIndex: 1, spells: [8] } : null;
+  it("maps every carried book through the engine, so two books of one item class both appear", () => {
+    const model = adaptSpells(twoBooks(), { ...context().inspect, bookForItem: mapping })!;
+    expect(model.books.map((b) => [b.handle, b.spells.map((s) => s.index)])).toEqual([[7, [3, 4]], [8, [8]]]);
+    expect(model.learnable).toBe(2);
+  });
+  it("ignores a mapping from another wait and an item the class cannot cast from", () => {
+    const stale = adaptSpells(twoBooks(), { ...context().inspect, bookForItem: () => ({ token: { epoch: 2, revision: 3 }, bookIndex: 0, spells: [3, 4] }) })!;
+    expect(stale.books).toHaveLength(0);
+    const throwing = adaptSpells(twoBooks(), { ...context().inspect, bookForItem: () => { throw new Error("capability"); } })!;
+    expect(throwing.books).toHaveLength(0);
+  });
+  it("uses the game's study check and info line, and allows no study with no new spell slots", () => {
+    const model = adaptSpells(twoBooks(), { ...context().inspect, bookForItem: mapping })!;
+    const [first, second] = model.books;
+    expect(first!.spells.map((s) => [s.canStudy, s.infoLine])).toEqual([[false, "dam 3d4"], [true, ""]]);
+    // Phase Door is level 3 at character level 10, but the game says it is not eligible.
+    expect(second!.spells[0]!.canStudy).toBe(false);
+    const full: Phase4Snapshot = { ...twoBooks(), core: { ...twoBooks().core, player: { ...twoBooks().core.player!, learnableSpells: 0 } } };
+    expect(adaptSpells(full, { ...context().inspect, bookForItem: mapping })!.books[0]!.spells.every((s) => !s.canStudy)).toBe(true);
+    expect(adaptSpells(snap(), context().inspect)!.learnable).toBeNull();
+  });
+});
+
+describe("adopted core seams: rest", () => {
+  const restQuestion: TextPrompt = { kind: "text", promptId: 21, label: "Rest (0-9999): ", maxLength: 4, defaultValue: "&", tag: "rest" };
+  it("maps each rest choice to the letter the game's own question takes", () => {
+    expect([-2, -1, -3, 25, 9999, 0, 10000].map(restAnswer)).toEqual(["&", "*", "!", "25", "9999", null, null]);
+  });
+  it("answers the tagged rest question and never an ordinary text question", () => {
+    const asking: Phase4Snapshot = { ...snap(), phase: "modal", prompt: restQuestion }; const reply = vi.fn(() => ({ accepted: true }));
+    const ctx = { ...context(() => asking), prompt: { reply } };
+    expect(restPrompt(asking)?.promptId).toBe(21);
+    expect(answerRest(ctx, asking, -1)).toBe(true); expect(reply).toHaveBeenLastCalledWith(21, "*");
+    expect(answerRest(ctx, asking, 40)).toBe(true); expect(reply).toHaveBeenLastCalledWith(21, "40");
+    // Cancel sends the empty answer, which the game treats as no rest at all.
+    expect(answerRest(ctx, asking, null)).toBe(true); expect(reply).toHaveBeenLastCalledWith(21, "");
+    const { tag: _tag, ...untagged } = restQuestion;
+    const inscription: Phase4Snapshot = { ...asking, prompt: { ...untagged, promptId: 22 } };
+    expect(restPrompt(inscription)).toBeNull(); expect(answerRest({ ...ctx, snapshot: () => inscription }, inscription, -2)).toBe(false);
+    expect(reply).toHaveBeenCalledTimes(3);
+  });
+  it("leaves number keys to the rest question", () => {
+    expect(quickbarOwnsKey(true, { ...snap(), prompt: restQuestion }, "Digit5", false, false, false)).toBe(false);
+  });
+  it("stops a rest from the rest modal with the token current at the click", () => {
+    const resting: Phase4Snapshot = { ...snap(), phase: "modal", token: { epoch: 2, revision: 9 }, resting: { active: true, mode: 30, turnsRemaining: 12 } };
+    const ctx = context(() => resting);
+    expect(stopResting(ctx)).toBe(true); expect(ctx.intent.submit).toHaveBeenCalledWith({ epoch: 2, revision: 9 }, { kind: "stop-resting" });
+    expect(stopResting(context())).toBe(false);
+    const driven = { ...ctx, driver: () => ({ kind: "controller" as const, owner: "core:borg" }) };
+    expect(stopResting(driven)).toBe(false);
+  });
+  it("describes each rest mode and the turns left", () => {
+    expect([{ active: true, mode: 30, turnsRemaining: 12 }, { active: true, mode: 1, turnsRemaining: 1 }, { active: true, mode: -2, turnsRemaining: null }, { active: true, mode: -1, turnsRemaining: null }, { active: true, mode: -3, turnsRemaining: null }].map(restingText))
+      .toEqual(["Resting: 12 turns left.", "Resting: 1 turn left.", "Resting until fully recovered.", "Resting until hit points and mana are full.", "Resting until hit points or mana are full."]);
+  });
+});
+
+describe("adopted core seams: blast preview", () => {
+  const area = vi.fn((to: { x: number; y: number }, radius: number) => ({ token, grids: [to, { x: to.x + radius, y: to.y }], radius, element: "FIRE", wallsStop: true }));
+  const ball = { token, radius: 2, element: "FIRE", wallsStop: true };
+  it("draws the game's blast area at the target cursor with the pending radius", () => {
+    const aiming: Phase4Snapshot = { ...snap(), phase: "modal", activeBlast: ball, prompt: { kind: "target", promptId: 3, cursor: { x: 9, y: 4 } } };
+    const result = blastGrids({ ...context(), inspect: { blastArea: area } }, aiming, { x: 1, y: 1 });
+    expect(area).toHaveBeenLastCalledWith({ x: 9, y: 4 }, 2); expect(result).toEqual({ grids: [{ x: 9, y: 4 }, { x: 11, y: 4 }], element: "FIRE" });
+  });
+  it("uses the hovered grid for a direction question and draws nothing without a pending blast", () => {
+    const direction: Phase4Snapshot = { ...snap(), phase: "modal", activeBlast: ball, prompt: { kind: "direction", promptId: 4 } };
+    const ctx = { ...context(), inspect: { blastArea: area } };
+    expect(blastGrids(ctx, direction, { x: 5, y: 6 })?.grids[0]).toEqual({ x: 5, y: 6 });
+    expect(blastGrids(ctx, direction, null)).toBeNull();
+    expect(blastGrids(ctx, { ...direction, activeBlast: null }, { x: 5, y: 6 })).toBeNull();
+    expect(blastGrids(ctx, { ...direction, activeBlast: { ...ball, token: { epoch: 2, revision: 1 } } }, { x: 5, y: 6 })).toBeNull();
+    expect(blastGrids(ctx, { ...snap(), activeBlast: ball }, { x: 5, y: 6 })).toBeNull();
+  });
+});
+
+describe("adopted core seams: quickbar commands and identity", () => {
+  const catalogue = (): CommandCatalogue => ({ token, intents: [{ kind: "stop-resting", args: "none" }], commands: [
+    { code: "walk", phase: "play", args: "dir: 1..9" }, { code: "hold", phase: "play", args: "args?: plain object" },
+    { code: "descend", phase: "play", args: "args?: plain object" }, { code: "look", phase: "play", args: "args?: {x: integer, y: integer}" },
+    { code: "rest", phase: "play", args: "args?: {count: integer}" }, { code: "quaff", phase: "play", args: "args: {handle: integer, quantity?: positive integer}" },
+    { code: "shop-exit", phase: "store", args: "args?: plain object" }, { code: "mymod-dance", phase: "play", args: "args?: plain object" }] });
+  it("offers argument-free play commands by a readable name and never a raw code", () => {
+    const ctx = { ...context(), intent: { submit: vi.fn(() => ({ accepted: true })), catalogue } };
+    const offered = catalogueCommands(ctx);
+    expect(offered.map((b) => b.code)).toEqual(["hold", "descend", "look"]);
+    expect(offered.map((b) => b.name)).toEqual(["Stay still", "Go down stairs", "Look around"]);
+    for (const b of offered) expect(b.name).not.toBe(b.code);
+    expect(catalogueCommands(context())).toEqual([]);
+  });
+  it("submits a command slot with no arguments and greys a stair command off the stairs", () => {
+    const submit = vi.fn(() => ({ accepted: true }));
+    const ctx = { ...context(), intent: { submit, catalogue }, inspect: { ...context().inspect, tileActions: () => ({ token, codes: ["pickup"] }) } };
+    expect(activate(ctx, snap(), { type: "command", code: "look", name: "Look around" })).toBe(true);
+    expect(submit).toHaveBeenLastCalledWith(token, { kind: "command", command: { code: "look" } });
+    expect(resolve(snap(), { type: "command", code: "descend", name: "Go down stairs" }, null, ctx).usable).toBe(false);
+    const older = { ...context(), intent: { submit } };
+    expect(resolve(snap(), { type: "command", code: "hold", name: "Stay still" }, null, older)).toMatchObject({ usable: false, label: "Stay still" });
+    expect(activate(ctx, snap(), { type: "command", code: "rest", name: "Rest" })).toBe(true);
+    expect(submit).toHaveBeenLastCalledWith(token, { kind: "command", command: { code: "rest", args: { count: -2 } } });
+  });
+  it("keeps saved command slots and drops unknown codes", () => {
+    const saved = { quickbar: { A: [{ type: "command", code: "hold", name: "Stay still" }, { type: "command", code: "mymod-dance", name: "Dance" }] } };
+    expect(readSlots(saved, "A").slice(0, 2)).toEqual([{ type: "command", code: "hold", name: "Stay still" }, null]);
+  });
+  it("moves a character's slots from the birth fingerprint to the lineage once", () => {
+    const fingerprint = "Dwarf|Priest|120|48|150"; const bar = Array(30).fill(null); bar[0] = { type: "command", code: "rest", name: "Rest" };
+    let stored: unknown = { theme: "dark-graphite", quickbar: { [fingerprint]: bar, other: [] } };
+    const prefs = { get: () => stored, set: vi.fn((value: unknown) => { stored = value; }) };
+    const player = { race: { name: "Dwarf" }, cls: { name: "Priest" }, auBirth: 120, htBirth: 48, wtBirth: 150 };
+    const current: Phase4Snapshot = { ...snap(), core: { ...snap().core, player: { ...snap().core.player!, race: "Dwarf", cls: "Priest" } } };
+    const ctx = { ...context(), prefs, state: { actor: { player } }, character: { key: () => "lineage-7" } };
+    expect(characterFor(ctx)).toBe("lineage-7");
+    expect(adoptLineage(ctx, current)).toBe(true);
+    expect(readSlots(stored, "lineage-7")[0]).toEqual(bar[0]); expect((stored as { theme: string }).theme).toBe("dark-graphite");
+    expect(Object.keys((stored as { quickbar: object }).quickbar).sort()).toEqual(["lineage-7", "other"]);
+    expect(adoptLineage(ctx, current)).toBe(false); expect(prefs.set).toHaveBeenCalledTimes(1);
+  });
+  it("never moves slots onto a lineage whose race and class differ from the fingerprint", () => {
+    const stored = { quickbar: { "Dwarf|Priest|120|48|150": [] } }; const prefs = { get: () => stored, set: vi.fn() };
+    const player = { race: { name: "Dwarf" }, cls: { name: "Priest" }, auBirth: 120, htBirth: 48, wtBirth: 150 };
+    const other: Phase4Snapshot = { ...snap(), core: { ...snap().core, player: { ...snap().core.player!, race: "Elf", cls: "Mage" } } };
+    expect(adoptLineage({ ...context(), prefs, state: { actor: { player } }, character: { key: () => "lineage-9" } }, other)).toBe(false);
+    expect(migrateSlots(stored, "Dwarf|Priest|120|48|150", "Dwarf|Priest|120|48|150")).toBeNull();
+    expect(prefs.set).not.toHaveBeenCalled();
   });
 });
