@@ -1,0 +1,27 @@
+import { describe, expect, it } from "vitest";
+import { createSettingsStore, DEFAULT_SETTINGS, validateSettings } from "./settings.js";
+
+describe("settings store", () => {
+  it("validates stored values independently", () => {
+    expect(validateSettings(null)).toEqual(DEFAULT_SETTINGS);
+    expect(validateSettings({ theme: "unknown", interfaceFont: "not-a-font.ttf", dungeonFont: "missing.ttf",
+      showHeadings: "yes" })).toEqual(DEFAULT_SETTINGS);
+    expect(validateSettings({ theme: "light-paper", showHeadings: false })).toEqual({
+      ...DEFAULT_SETTINGS, theme: "light-paper", showHeadings: false,
+    });
+  });
+
+  it("persists changes and notifies subscribed listeners once", () => {
+    let saved: unknown = null;
+    const store = createSettingsStore({ prefs: { get: () => saved, set: (value) => { saved = value; } } });
+    const seen: unknown[] = [];
+    const unsubscribe = store.subscribe((settings) => seen.push(settings));
+    store.set({ theme: "amber-terminal", showHeadings: false });
+    store.set({ theme: "amber-terminal" });
+    expect(saved).toEqual({ ...DEFAULT_SETTINGS, theme: "amber-terminal", showHeadings: false });
+    expect(seen).toEqual([saved]);
+    unsubscribe();
+    store.set({ theme: "midnight-ice" });
+    expect(seen).toHaveLength(1);
+  });
+});
