@@ -1200,8 +1200,8 @@ function wrapBitmapParagraphs(text, maxChars) {
     (paragraph) => paragraph.trim() === "" ? [""] : wrapBitmapText(paragraph, maxChars)
   );
 }
-function styleAsScreenReaderOnly(el2) {
-  Object.assign(el2.style, {
+function styleAsScreenReaderOnly(el3) {
+  Object.assign(el3.style, {
     position: "absolute",
     width: "1px",
     height: "1px",
@@ -1225,14 +1225,14 @@ function bitmapTextBlock(lines, cellWidth, cellHeight, dpr) {
   wrap.appendChild(label2);
   return wrap;
 }
-function paintBitmapButtonLabel(button2, text, css, cellWidth, cellHeight, dpr) {
-  button2.replaceChildren();
-  if (!button2.hasAttribute("aria-label")) button2.setAttribute("aria-label", text);
+function paintBitmapButtonLabel(button3, text, css, cellWidth, cellHeight, dpr) {
+  button3.replaceChildren();
+  if (!button3.hasAttribute("aria-label")) button3.setAttribute("aria-label", text);
   const canvas = document.createElement("canvas");
   canvas.setAttribute("aria-hidden", "true");
   canvas.style.display = "block";
   paintBitmapLine(canvas, [{ text, css }], cellWidth, cellHeight, dpr);
-  button2.appendChild(canvas);
+  button3.appendChild(canvas);
 }
 
 // src/encounter-preference.ts
@@ -2514,11 +2514,11 @@ function paintSidebar(rt, section, frame) {
     sidebar.body.appendChild(row);
   }
   if (plan.pages > 1) {
-    const button2 = document.createElement("button");
-    button2.type = "button";
-    button2.setAttribute("data-anybandui-sidebar-page", "");
-    button2.setAttribute("aria-label", `Show status page ${String((plan.page + 1) % plan.pages + 1)} of ${String(plan.pages)}`);
-    Object.assign(button2.style, {
+    const button3 = document.createElement("button");
+    button3.type = "button";
+    button3.setAttribute("data-anybandui-sidebar-page", "");
+    button3.setAttribute("aria-label", `Show status page ${String((plan.page + 1) % plan.pages + 1)} of ${String(plan.pages)}`);
+    Object.assign(button3.style, {
       appearance: "none",
       background: "transparent",
       border: "1px solid #686878",
@@ -2529,15 +2529,15 @@ function paintSidebar(rt, section, frame) {
       padding: "0 0.35em"
     });
     paintBitmapButtonLabel(
-      button2,
+      button3,
       `${String(plan.page + 1)}/${String(plan.pages)} >`,
       "#d8d87c",
       cellWidth,
       cellHeight,
       dpr
     );
-    button2.addEventListener("click", () => turnSidebarPage(rt, 1));
-    sidebar.body.appendChild(button2);
+    button3.addEventListener("click", () => turnSidebarPage(rt, 1));
+    sidebar.body.appendChild(button3);
   }
 }
 function cameraOrigin(snapshot, point) {
@@ -3158,7 +3158,7 @@ function installHoverCards(ctx) {
     key = "";
     pinned = false;
   };
-  const resolve = (point) => {
+  const resolve2 = (point) => {
     const input = ctx.snapshot?.();
     if (ctx.snapshot && (!input || input.phase !== "play" || input.messagePending || input.prompt)) return null;
     const snap = display.snapshot();
@@ -3181,7 +3181,7 @@ function installHoverCards(ctx) {
     return { grid, map };
   };
   const show = (point, grid, map) => {
-    const current = resolve(point);
+    const current = resolve2(point);
     if (!current || current.grid.x !== grid.x || current.grid.y !== grid.y || current.map !== map) {
       hide();
       return;
@@ -3206,7 +3206,7 @@ function installHoverCards(ctx) {
       cancel();
     }
     if (event.pointerType === "touch" || pinned) return;
-    const resolved = resolve(point);
+    const resolved = resolve2(point);
     const next = resolved ? `${resolved.map}:${resolved.grid.x},${resolved.grid.y}` : "";
     if (next === key) return;
     hide();
@@ -3220,7 +3220,7 @@ function installHoverCards(ctx) {
     hide();
     if (event.pointerType !== "touch" && event.pointerType !== "pen") return;
     const point = { x: event.clientX, y: event.clientY };
-    const resolved = resolve(point);
+    const resolved = resolve2(point);
     if (!resolved) return;
     if (resolved.map) {
       event.preventDefault();
@@ -3371,18 +3371,18 @@ function hoverCardContent(core, state, grid) {
   return { kind, text, title: KIND_TITLE[kind] };
 }
 var hoverCardsWired = false;
-function positionHoverCard(el2, clientX, clientY) {
+function positionHoverCard(el3, clientX, clientY) {
   const GAP = 14;
   const vw = window.innerWidth;
   const vh = window.innerHeight;
-  const w = el2.offsetWidth;
-  const h = el2.offsetHeight;
+  const w = el3.offsetWidth;
+  const h = el3.offsetHeight;
   let left = clientX + GAP;
   let top = clientY + GAP;
   if (left + w > vw) left = clientX - GAP - w;
   if (top + h > vh) top = clientY - GAP - h;
-  el2.style.left = `${String(Math.max(0, left))}px`;
-  el2.style.top = `${String(Math.max(0, top))}px`;
+  el3.style.left = `${String(Math.max(0, left))}px`;
+  el3.style.top = `${String(Math.max(0, top))}px`;
 }
 var HOVER_CARD_CELL_HEIGHT = 14;
 var HOVER_CARD_CELL_WIDTH = HOVER_CARD_CELL_HEIGHT * (16 / 24);
@@ -4334,12 +4334,12 @@ function installMapMouse(ctx) {
     menuToken = snap.token;
     menuPromptId = snap.prompt?.promptId ?? null;
     for (const action of actions) {
-      const button2 = document.createElement("button");
-      button2.type = "button";
-      button2.setAttribute("role", "menuitem");
-      button2.textContent = action.label;
-      button2.style.cssText = `display:block;width:100%;text-align:left;background:${theme.surface};color:${theme.text};border:0;padding:5px 9px;cursor:pointer`;
-      button2.addEventListener("click", () => {
+      const button3 = document.createElement("button");
+      button3.type = "button";
+      button3.setAttribute("role", "menuitem");
+      button3.textContent = action.label;
+      button3.style.cssText = `display:block;width:100%;text-align:left;background:${theme.surface};color:${theme.text};border:0;padding:5px 9px;cursor:pointer`;
+      button3.addEventListener("click", () => {
         const current = ctx.snapshot?.() ?? null;
         if (!menuAt || !current || !menuToken || !sameToken(menuToken, current.token) || menuPromptId !== (current.prompt?.promptId ?? null)) {
           hide();
@@ -4359,7 +4359,7 @@ function installMapMouse(ctx) {
         } else runMenuAction(ctx, selected, action.label);
         hide();
       });
-      menu.appendChild(button2);
+      menu.appendChild(button3);
     }
     menu.style.display = "block";
     menu.style.left = `${Math.min(event.clientX, window.innerWidth - menu.offsetWidth)}px`;
@@ -4439,6 +4439,571 @@ function installMapMouse(ctx) {
     hide();
     menu.remove();
     canvas.remove();
+  };
+}
+
+// src/view-model/spells.ts
+var sameToken2 = (a, b) => a.epoch === b.epoch && a.revision === b.revision;
+var itemKey = (item) => item.kindId ?? `${item.tval}:${item.sval}`;
+function adaptSpells(snap, inspect) {
+  if (!snap.core.spellbooks || !snap.core.inventory || !snap.core.player) return null;
+  const books = [];
+  for (const book of snap.core.spellbooks) for (const item of snap.core.inventory) {
+    if (item.tval !== book.tval) continue;
+    const siblings = snap.core.spellbooks.filter((entry2) => entry2.tval === book.tval);
+    if (siblings.length !== 1 && inspect?.bookForItem?.(item.handle) !== book.spells[0]?.bidx) continue;
+    const spells = book.spells.map((spell) => {
+      const info = inspect?.spellInfo?.(spell.sidx);
+      const detail = info && sameToken2(info.token, snap.token) ? info : null;
+      const canCast = !!detail?.canCastNow && spell.learned && !spell.forgotten;
+      const canStudy = !spell.learned && !spell.forgotten && spell.level <= (snap.core.player?.level ?? 0);
+      return {
+        index: spell.sidx,
+        name: spell.name,
+        level: spell.level,
+        mana: detail?.mana ?? spell.mana,
+        fail: detail?.failChance ?? spell.chance ?? spell.fail,
+        canCast,
+        canStudy,
+        state: spell.forgotten ? "Forgotten" : spell.learned ? canCast ? "Castable" : "Unavailable" : canStudy ? "Learnable" : "Unknown",
+        description: detail?.description ?? "Description unavailable."
+      };
+    });
+    books.push({ key: itemKey(item), handle: item.handle, name: item.label, chooseSpells: snap.core.player.classFlags?.includes("CHOOSE_SPELLS") ?? true, spells });
+  }
+  return { token: snap.token, books };
+}
+
+// src/spell-actions.ts
+function actionReady(ctx, snap) {
+  const next = ctx.snapshot?.();
+  return !!next && sameToken2(next.token, snap.token) && next.phase === "play" && !next.prompt && !next.messagePending && (ctx.controller?.driver?.()?.kind ?? "player") === "player";
+}
+function castSpell(ctx, snap, spell) {
+  if (!spell.canCast || !actionReady(ctx, snap)) return false;
+  return ctx.intent?.submit(snap.token, { kind: "command", command: { code: "cast", args: { spell: spell.index } } }).accepted ?? false;
+}
+function studySpell(ctx, snap, book, spell) {
+  if (!book.spells.some((entry2) => entry2.canStudy) || book.chooseSpells && !spell.canStudy || !actionReady(ctx, snap)) return false;
+  return ctx.intent?.submit(snap.token, { kind: "command", command: { code: "study", args: book.chooseSpells ? { handle: book.handle, spell: spell.index } : { handle: book.handle } } }).accepted ?? false;
+}
+function answerSpell(ctx, snap, index) {
+  const next = ctx.snapshot?.();
+  if (snap.prompt?.kind !== "spell" || !next || !sameToken2(next.token, snap.token) || next.prompt?.promptId !== snap.prompt.promptId || (ctx.controller?.driver?.()?.kind ?? "player") !== "player") return false;
+  if (!snap.prompt.choices.some((choice) => choice.index === index)) return false;
+  return ctx.prompt?.reply(snap.prompt.promptId, index).accepted ?? false;
+}
+function rest(ctx, snap, count) {
+  if (!actionReady(ctx, snap) || ![-3, -2, -1].includes(count) && (!Number.isInteger(count) || count < 1 || count > 9999)) return false;
+  return ctx.intent?.submit(snap.token, { kind: "command", command: { code: "rest", args: { count } } }).accepted ?? false;
+}
+
+// src/quickbar.ts
+var slotIndex = (code, shift, ctrl) => {
+  if (!/^Digit[0-9]$/.test(code)) return -1;
+  return (ctrl ? 20 : shift ? 10 : 0) + (Number(code.slice(-1)) + 9) % 10;
+};
+function quickbarOwnsKey(enabled, snap, code, shift, ctrl, menuOpen) {
+  return enabled && !menuOpen && !!snap && snap.phase === "play" && !snap.prompt && !snap.messagePending && slotIndex(code, shift, ctrl) >= 0;
+}
+function readSlots(raw, character) {
+  const root = raw && typeof raw === "object" ? raw : {};
+  const profiles = root["phase4Quickbar"] && typeof root["phase4Quickbar"] === "object" ? root["phase4Quickbar"] : {};
+  const slots = profiles[character];
+  return Array.from({ length: 30 }, (_, i) => {
+    const entry2 = Array.isArray(slots) ? slots[i] : null;
+    if (!entry2 || typeof entry2 !== "object") return null;
+    const b = entry2;
+    if (b.type === "spell" && typeof b.key === "string" && Number.isInteger(b.index) && typeof b.name === "string") return b;
+    if (b.type === "item" && typeof b.key === "string" && ["quaff", "read", "aim-wand", "activate"].includes(String(b.code)) && typeof b.name === "string") return b;
+    if (b.type === "command" && b.code === "rest" && typeof b.name === "string") return b;
+    return null;
+  });
+}
+function writeSlots(ctx, character, slots) {
+  if (!ctx.prefs?.set) return;
+  const raw = ctx.prefs.get();
+  const root = raw && typeof raw === "object" ? raw : {};
+  const profiles = root["phase4Quickbar"] && typeof root["phase4Quickbar"] === "object" ? root["phase4Quickbar"] : {};
+  ctx.prefs.set({ ...root, phase4Quickbar: { ...profiles, [character]: slots } });
+}
+function itemBindings(snap, ctx) {
+  const codes = ["quaff", "read", "aim-wand", "activate"];
+  return (snap.core.inventory ?? []).flatMap((item) => codes.filter((code) => {
+    const result = ctx.inspect?.itemTester?.(code);
+    return result?.token.epoch === snap.token.epoch && result.token.revision === snap.token.revision && result.items.some((entry2) => "handle" in entry2 && entry2.handle === item.handle);
+  }).map((code) => ({ type: "item", key: itemKey(item), code, name: item.label })));
+}
+function resolve(snap, binding, spells, ctx) {
+  if (!binding) return { label: "Empty", detail: "Right-click to assign.", usable: false };
+  if (binding.type === "command") return { label: "Rest", detail: "Rest until fully recovered.", usable: true, command: { code: "rest", args: { count: -2 } } };
+  if (binding.type === "spell") {
+    const book = spells?.books.find((b) => b.key === binding.key);
+    const spell = book?.spells.find((s) => s.index === binding.index && s.name === binding.name);
+    if (!spell) return { label: binding.name, detail: "Spellbook no longer carried.", usable: false };
+    return {
+      label: spell.name,
+      amount: `${spell.mana} SP`,
+      detail: `Mana ${spell.mana}, fail ${spell.fail}%. ${spell.state}. ${spell.description}`,
+      usable: spell.canCast,
+      ...spell.canCast ? { command: { code: "cast", args: { spell: spell.index } } } : {}
+    };
+  }
+  const item = snap.core.inventory?.find((entry2) => itemKey(entry2) === binding.key);
+  if (!item) return { label: binding.name, detail: "Item no longer carried.", usable: false };
+  const tester = ctx.inspect?.itemTester?.(binding.code);
+  const usable = !!tester && tester.token.epoch === snap.token.epoch && tester.token.revision === snap.token.revision && tester.items.some((entry2) => "handle" in entry2 && entry2.handle === item.handle);
+  const inspection = ctx.inspect?.inspectItem?.(item.handle);
+  const description = inspection?.token.epoch === snap.token.epoch && inspection.token.revision === snap.token.revision ? ` ${inspection.text.slice(0, 600)}` : "";
+  const charge = binding.code === "aim-wand" ? ` Charges ${item.pval ?? 0}.` : binding.code === "activate" ? ` Recharge ${item.timeout ?? 0}.` : "";
+  return { label: item.label, amount: binding.code === "aim-wand" ? `${item.pval ?? 0} charges` : binding.code === "activate" ? item.timeout ? "Recharging" : "Ready" : `${item.number} carried`, detail: `${item.number} carried.${charge}${description}`, usable, ...usable ? { command: { code: binding.code, args: { handle: item.handle } } } : {} };
+}
+function activate(ctx, snap, binding) {
+  if (!actionReady(ctx, snap)) return false;
+  const resolved = resolve(snap, binding, adaptSpells(snap, ctx.inspect), ctx);
+  return !!resolved.usable && !!resolved.command && !!ctx.intent?.submit(snap.token, { kind: "command", command: resolved.command }).accepted;
+}
+
+// src/blast-preview.ts
+function installBlastPreview(ctx) {
+  if (!ctx.snapshot || !ctx.inspect?.blastArea || !ctx.inspect.projectionPath || !ctx.display?.snapshot || !ctx.targeting?.blastRadius) {
+    ctx.log("blast preview: targeting radius or inspection seam unavailable");
+    return () => {
+    };
+  }
+  const canvas = document.createElement("canvas");
+  canvas.setAttribute("aria-hidden", "true");
+  canvas.style.cssText = "position:fixed;inset:0;z-index:50;pointer-events:none";
+  document.body.append(canvas);
+  const render = () => {
+    const scale = window.devicePixelRatio || 1;
+    canvas.width = Math.ceil(window.innerWidth * scale);
+    canvas.height = Math.ceil(window.innerHeight * scale);
+    const paint = canvas.getContext("2d");
+    if (!paint) return;
+    paint.scale(scale, scale);
+    const snap = ctx.snapshot?.();
+    const prompt = snap?.prompt;
+    if (!snap || prompt?.kind !== "target" || !prompt.cursor) return;
+    const radius = ctx.targeting?.blastRadius();
+    if (!radius || radius <= 0) return;
+    const blast = ctx.inspect?.blastArea?.(prompt.cursor, radius);
+    const path = ctx.inspect?.projectionPath?.(prompt.cursor);
+    if (!blast || !path || !sameToken2(blast.token, snap.token) || !sameToken2(path.token, snap.token)) return;
+    const view = ctx.display.snapshot();
+    const rect = mapProjection(view);
+    if (!rect) return;
+    const width = rect.width / view.viewport.size.width, height = rect.height / view.viewport.size.height;
+    paint.beginPath();
+    paint.rect(rect.x, rect.y, rect.width, rect.height);
+    paint.clip();
+    const cells = new Set(blast.grids.map((grid) => `${grid.x},${grid.y}`));
+    for (const grid of blast.grids) {
+      const x = rect.x + (grid.x - view.viewport.origin.x) * width, y = rect.y + (grid.y - view.viewport.origin.y) * height;
+      paint.fillStyle = "rgba(245,185,70,.095)";
+      paint.fillRect(x, y, width, height);
+      paint.strokeStyle = "rgba(245,190,80,.745)";
+      paint.lineWidth = 1;
+      paint.beginPath();
+      if (!cells.has(`${grid.x - 1},${grid.y}`)) {
+        paint.moveTo(x, y);
+        paint.lineTo(x, y + height);
+      }
+      if (!cells.has(`${grid.x + 1},${grid.y}`)) {
+        paint.moveTo(x + width, y);
+        paint.lineTo(x + width, y + height);
+      }
+      if (!cells.has(`${grid.x},${grid.y - 1}`)) {
+        paint.moveTo(x, y);
+        paint.lineTo(x + width, y);
+      }
+      if (!cells.has(`${grid.x},${grid.y + 1}`)) {
+        paint.moveTo(x, y + height);
+        paint.lineTo(x + width, y + height);
+      }
+      paint.stroke();
+    }
+  };
+  const timer2 = window.setInterval(render, 50);
+  return () => {
+    window.clearInterval(timer2);
+    canvas.remove();
+  };
+}
+
+// src/phase4.ts
+var CSS3 = `:host{color:var(--anyband-text);font:13px/1.4 system-ui,sans-serif}.phase4{position:fixed;left:12px;bottom:12px;width:min(680px,calc(100vw - 24px));max-height:55vh;overflow:auto;padding:10px;background:var(--anyband-surface);border:1px solid var(--anyband-accent);border-radius:var(--anyband-rounding);pointer-events:auto}button,select,input{font:inherit;color:var(--anyband-text);background:var(--anyband-background);border:1px solid var(--anyband-accent);border-radius:3px;padding:4px}button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--anyband-accent)}button:disabled{opacity:.45}table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:3px;border-bottom:1px solid var(--anyband-accent)}.slots{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:3px}.slot{min-height:42px;overflow:hidden;word-break:break-word}.muted{opacity:.55}.row{width:100%;text-align:left;border:0;background:transparent}.menu{margin:6px 0;padding:6px;border:1px solid var(--anyband-accent)}.menu button{margin:2px}.hint{font-size:12px}`;
+function el2(parent, tag, content) {
+  const node2 = parent.ownerDocument.createElement(tag);
+  if (content !== void 0) node2.textContent = content;
+  parent.append(node2);
+  return node2;
+}
+function button2(parent, label2, callback) {
+  const node2 = el2(parent, "button", label2);
+  node2.type = "button";
+  node2.addEventListener("click", callback);
+  return node2;
+}
+var keys = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"];
+function drawIcon(parent, style) {
+  const svg = parent.ownerDocument.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("width", "22");
+  svg.setAttribute("height", "22");
+  svg.setAttribute("aria-hidden", "true");
+  const path = parent.ownerDocument.createElementNS("http://www.w3.org/2000/svg", "path");
+  path.setAttribute("d", style === "potion" ? "M9 2h6v3h-1v5l5 8c1 2 0 4-2 4H7c-2 0-3-2-2-4l5-8V5H9z" : style === "scroll" ? "M5 3h13v14a4 4 0 0 1-4 4H6a3 3 0 0 1-3-3c0-2 1-3 3-3h8M6 15V3" : "M4 20 19 4l2 2L6 22z");
+  path.setAttribute("fill", "none");
+  path.setAttribute("stroke", "currentColor");
+  path.setAttribute("stroke-width", "1.5");
+  svg.append(path);
+  parent.prepend(svg);
+}
+function installPhase4(ctx) {
+  const flags = ctx.flags ?? {};
+  const spellOn = flags["anybandui.spells"] === true;
+  const quickOn = flags["anybandui.quickbar"] === true;
+  const restOn = flags["anybandui.restDialog"] === true;
+  const blastCleanup = flags["anybandui.blastPreview"] ? installBlastPreview(ctx) : () => {
+  };
+  if (!spellOn && !quickOn && !restOn) return blastCleanup;
+  if (!ctx.ui?.openPanel || !ctx.snapshot) {
+    ctx.log("phase 4: panel or snapshot seam unavailable");
+    return blastCleanup;
+  }
+  const panel = ctx.ui.openPanel({ id: "phase4", modal: false, label: "Spells and quickbar" });
+  applyTheme(panel.root, THEMES[validateSettings(ctx.prefs?.get()).theme]);
+  el2(panel.root, "style", CSS3);
+  const mount = el2(panel.root, "section");
+  mount.className = "phase4";
+  let bookKey = "", spellIndex = -1, menu = -1, customize = -1, restOpen = false, restMode = -2, turns = 10, promptChoice = -1, error = "", signature = "", closed = false;
+  let appearance = { style: "automatic", text: "", color: "#7abaf4" };
+  let character = ctx.character?.key?.() ?? null;
+  let slots = character ? readSlots(ctx.prefs?.get(), character) : Array(30).fill(null);
+  const save = () => {
+    if (character) writeSlots(ctx, character, slots);
+  };
+  const assign = (index, binding) => {
+    const next = [...slots];
+    next[index] = binding;
+    slots = next;
+    save();
+    menu = -1;
+    paint(true);
+  };
+  const paint = (force = false) => {
+    if (closed || !panel.root.isConnected) return;
+    const snap = ctx.snapshot?.();
+    const key = ctx.character?.key?.() ?? null;
+    if (key !== character) {
+      character = key;
+      slots = key ? readSlots(ctx.prefs?.get(), key) : Array(30).fill(null);
+    }
+    const model = snap ? adaptSpells(snap, ctx.inspect) : null;
+    const sig = JSON.stringify([snap, slots, bookKey, spellIndex, menu, customize, appearance, restOpen, restMode, turns, promptChoice, error]);
+    if (!force && sig === signature) return;
+    signature = sig;
+    mount.replaceChildren();
+    if (!snap) {
+      el2(mount, "p", "Game state unavailable.");
+      return;
+    }
+    if (spellOn) {
+      el2(mount, "h2", "Spells");
+      if (!model) el2(mount, "p", "Spell list unavailable.");
+      else if (!model.books.length) el2(mount, "p", "No readable spellbooks carried.");
+      else {
+        const picker = el2(mount, "select");
+        picker.setAttribute("aria-label", "Spellbook");
+        for (const book2 of model.books) {
+          const opt = el2(picker, "option", book2.name);
+          opt.value = book2.key;
+        }
+        if (!model.books.some((book2) => book2.key === bookKey)) bookKey = model.books[0].key;
+        picker.value = bookKey;
+        picker.addEventListener("change", () => {
+          bookKey = picker.value;
+          spellIndex = -1;
+          paint(true);
+        });
+        const book = model.books.find((entry2) => entry2.key === bookKey);
+        const table = el2(mount, "table");
+        const head = el2(table, "tr");
+        for (const label2 of ["Spell", "Mana", "Fail", "State"]) el2(head, "th", label2);
+        for (const spell of book.spells) {
+          const row = el2(table, "tr");
+          if (!spell.canCast && !spell.canStudy) row.className = "muted";
+          const cell = el2(row, "td");
+          const pick = button2(cell, spell.name, () => {
+            spellIndex = spell.index;
+            paint(true);
+          });
+          pick.className = "row";
+          pick.title = spell.name;
+          pick.draggable = quickOn;
+          pick.addEventListener("dblclick", () => {
+            if (castSpell(ctx, snap, spell)) error = "";
+            paint(true);
+          });
+          pick.addEventListener("dragstart", (event) => {
+            if (quickOn) event.dataTransfer?.setData("application/x-anybandui-binding", JSON.stringify({ type: "spell", key: book.key, index: spell.index, name: spell.name }));
+          });
+          pick.addEventListener("contextmenu", (event) => {
+            if (!quickOn) return;
+            event.preventDefault();
+            menu = -2;
+            spellIndex = spell.index;
+            paint(true);
+          });
+          el2(row, "td", String(spell.mana));
+          el2(row, "td", `${spell.fail}%`);
+          el2(row, "td", spell.state);
+        }
+        const selected = book.spells.find((entry2) => entry2.index === spellIndex) ?? book.spells[0];
+        if (selected) {
+          const cast = button2(mount, "Cast", () => {
+            if (!castSpell(ctx, snap, selected)) error = "Cast unavailable.";
+            paint(true);
+          });
+          cast.disabled = !selected.canCast || !ctx.intent?.submit;
+          const study = button2(mount, book.chooseSpells ? "Study" : "Study book", () => {
+            if (!studySpell(ctx, snap, book, selected)) error = "Study unavailable.";
+            paint(true);
+          });
+          study.disabled = !(book.chooseSpells ? selected.canStudy : book.spells.some((entry2) => entry2.canStudy)) || !ctx.intent?.submit;
+          if (!book.chooseSpells) study.title = "Your class learns a random eligible spell from this book.";
+          el2(mount, "h3", selected.name);
+          el2(mount, "p", `Level ${selected.level}. Mana ${selected.mana}. Failure ${selected.fail}%. ${selected.state}.`);
+          if (selected.canCast && (snap.core.player?.sp ?? 0) < selected.mana) el2(mount, "p", "Not enough mana. Confirmation may be required.");
+          el2(mount, "p", selected.description);
+          if (quickOn && menu === -2) {
+            const box = el2(mount, "div");
+            box.className = "menu";
+            el2(box, "strong", "Assign spell to quickbar");
+            for (let i = 0; i < 30; i++) button2(box, `${i < 10 ? "" : i < 20 ? "Shift+" : "Ctrl+"}${keys[i % 10]}`, () => assign(i, { type: "spell", key: book.key, index: selected.index, name: selected.name }));
+          }
+        }
+      }
+      if (snap.prompt?.kind === "spell" && ctx.prompt?.reply && (ctx.controller?.driver?.()?.kind ?? "player") === "player") {
+        const prompt = snap.prompt;
+        const box = el2(mount, "div");
+        box.className = "menu";
+        el2(box, "h3", "Choose spell");
+        el2(box, "p", prompt.label);
+        for (const choice of prompt.choices) button2(box, choice.name, () => {
+          promptChoice = choice.index;
+          paint(true);
+        });
+        button2(box, "Choose", () => {
+          if (!answerSpell(ctx, snap, promptChoice)) error = "Choice unavailable.";
+          paint(true);
+        });
+        button2(box, "Cancel", () => {
+          ctx.prompt?.reply(prompt.promptId, null);
+          paint(true);
+        });
+      }
+    }
+    if (quickOn && snap.phase === "play") {
+      el2(mount, "h2", "Quickbar");
+      if (!character) el2(mount, "p", "Assignments last for this game session.");
+      for (let row = 0; row < 3; row++) {
+        el2(mount, "h3", row === 0 ? "Number keys" : row === 1 ? "Shift and number" : "Ctrl and number");
+        const line = el2(mount, "div");
+        line.className = "slots";
+        for (let col = 0; col < 10; col++) {
+          const index = row * 10 + col;
+          const binding = slots[index] ?? null;
+          const result = resolve(snap, binding, model, ctx);
+          const custom = binding?.appearance;
+          const shown = custom?.style === "text" && custom.text ? custom.text : result.label;
+          const slot = button2(line, `${keys[col]} ${shown}${result.amount ? ` - ${result.amount}` : ""}`, () => {
+            if (!activate(ctx, snap, binding)) error = result.detail;
+            paint(true);
+          });
+          slot.className = "slot" + (result.usable ? "" : " muted");
+          slot.title = `Quickbar ${row === 0 ? "" : row === 1 ? "Shift+" : "Ctrl+"}${keys[col]}. ${result.detail}`;
+          if (custom?.color && /^#[0-9a-f]{6}$/i.test(custom.color)) slot.style.borderColor = custom.color;
+          if (custom && ["potion", "scroll", "wand"].includes(custom.style)) drawIcon(slot, custom.style);
+          slot.setAttribute("aria-label", slot.title);
+          slot.addEventListener("contextmenu", (event) => {
+            event.preventDefault();
+            menu = index;
+            paint(true);
+          });
+          slot.addEventListener("dragstart", (event) => {
+            if (binding) event.dataTransfer?.setData("application/x-anybandui-slot", JSON.stringify({ index, binding }));
+          });
+          slot.draggable = !!binding;
+          slot.addEventListener("dragover", (event) => {
+            event.preventDefault();
+          });
+          slot.addEventListener("drop", (event) => {
+            event.preventDefault();
+            const origin = event.dataTransfer?.getData("application/x-anybandui-slot");
+            const external = event.dataTransfer?.getData("application/x-anybandui-binding");
+            if (origin) {
+              try {
+                const parsed = JSON.parse(origin);
+                if (parsed.index >= 0 && parsed.index < 30 && JSON.stringify(slots[parsed.index]) === JSON.stringify(parsed.binding)) {
+                  const next = [...slots];
+                  [next[index], next[parsed.index]] = [next[parsed.index] ?? null, next[index] ?? null];
+                  slots = next;
+                  save();
+                  paint(true);
+                }
+              } catch {
+              }
+            } else if (external) {
+              try {
+                const parsed = JSON.parse(external);
+                if (parsed.type === "spell" && model?.books.some((book) => book.key === parsed.key && book.spells.some((spell) => spell.index === parsed.index))) assign(index, parsed);
+              } catch {
+              }
+            }
+          });
+        }
+      }
+      if (menu >= 0) {
+        const box = el2(mount, "div");
+        box.className = "menu";
+        el2(box, "strong", `Assign ${keys[menu % 10]}`);
+        if (slots[menu]) button2(box, "Customize", () => {
+          customize = menu;
+          appearance = slots[menu]?.appearance ?? { style: "automatic", text: "", color: "#7abaf4" };
+          menu = -1;
+          paint(true);
+        });
+        button2(box, "Rest until recovered", () => assign(menu, { type: "command", code: "rest", name: "Rest" }));
+        for (const binding of itemBindings(snap, ctx)) {
+          const choice = button2(box, `${binding.code === "quaff" ? "Drink" : binding.code === "read" ? "Read" : binding.code === "aim-wand" ? "Aim" : "Activate"}: ${binding.name}`, () => assign(menu, binding));
+          choice.draggable = true;
+          choice.addEventListener("dragstart", (event) => event.dataTransfer?.setData("application/x-anybandui-binding", JSON.stringify(binding)));
+        }
+        for (const book of model?.books ?? []) for (const spell of book.spells) button2(box, `Cast: ${spell.name}`, () => assign(menu, { type: "spell", key: book.key, index: spell.index, name: spell.name }));
+        button2(box, "Clear", () => assign(menu, null));
+        button2(box, "Close", () => {
+          menu = -1;
+          paint(true);
+        });
+      }
+      if (customize >= 0 && slots[customize]) {
+        const box = el2(mount, "div");
+        box.className = "menu";
+        el2(box, "h3", "Customize slot");
+        const style = el2(box, "select");
+        style.setAttribute("aria-label", "Appearance");
+        for (const [value2, label2] of [["automatic", "Automatic"], ["text", "Custom text"], ["potion", "Potion icon"], ["scroll", "Scroll icon"], ["wand", "Wand icon"]]) {
+          const opt = el2(style, "option", label2);
+          opt.value = value2;
+        }
+        style.value = appearance.style;
+        style.addEventListener("change", () => {
+          appearance = { ...appearance, style: style.value };
+          paint(true);
+        });
+        const input = el2(box, "input");
+        input.value = appearance.text;
+        input.placeholder = "Text wraps to fit the slot.";
+        input.setAttribute("aria-label", "Slot text");
+        input.addEventListener("input", () => {
+          appearance = { ...appearance, text: input.value.slice(0, 60) };
+        });
+        const color = el2(box, "input");
+        color.type = "color";
+        color.value = appearance.color;
+        color.setAttribute("aria-label", "Slot color");
+        color.addEventListener("input", () => {
+          appearance = { ...appearance, color: color.value };
+        });
+        button2(box, "Reset appearance", () => {
+          appearance = { style: "automatic", text: "", color: "#7abaf4" };
+          paint(true);
+        });
+        button2(box, "Save and close", () => {
+          const binding = slots[customize];
+          if (binding) assign(customize, { ...binding, appearance });
+          customize = -1;
+          paint(true);
+        });
+        button2(box, "Cancel", () => {
+          customize = -1;
+          paint(true);
+        });
+      }
+    }
+    if (restOn && snap.phase === "play") {
+      button2(mount, "Rest", () => {
+        restOpen = !restOpen;
+        paint(true);
+      });
+      if (restOpen) {
+        const box = el2(mount, "div");
+        box.className = "menu";
+        el2(box, "h3", "Rest");
+        for (const [count, label2, description] of [[-2, "Fully recovered", "Recover HP and mana and wait out harmful conditions."], [-1, "HP and mana", "Stop when both are full."], [-3, "HP or mana", "Stop as soon as either is full."], [1, "Number of turns", "Rest for a set number of turns."]]) {
+          const choice = button2(box, label2, () => {
+            restMode = count;
+            paint(true);
+          });
+          choice.setAttribute("aria-pressed", String(restMode === count));
+          el2(box, "p", description);
+        }
+        if (restMode === 1) {
+          const input = el2(box, "input");
+          input.type = "number";
+          input.min = "1";
+          input.max = "9999";
+          input.value = String(turns);
+          input.setAttribute("aria-label", "Turns");
+          input.addEventListener("input", () => {
+            turns = Number(input.value);
+          });
+        }
+        if (restMode === 1 && (!Number.isInteger(turns) || turns < 1 || turns > 9999)) el2(box, "p", "Enter between 1 and 9999 turns.");
+        el2(box, "p", "Danger interrupts rest normally.");
+        const confirm = button2(box, "Rest", () => {
+          if (!rest(ctx, snap, restMode === 1 ? turns : restMode)) error = "Rest unavailable.";
+          else restOpen = false;
+          paint(true);
+        });
+        confirm.disabled = restMode === 1 && (!Number.isInteger(turns) || turns < 1 || turns > 9999);
+        button2(box, "Cancel", () => {
+          restOpen = false;
+          paint(true);
+        });
+      }
+    }
+    if (error) {
+      const p = el2(mount, "p", error);
+      p.setAttribute("role", "status");
+    }
+  };
+  const keydown = (event) => {
+    if (!quickOn || menu >= 0 || customize >= 0 || restOpen || event.repeat || event.altKey || event.metaKey || event.defaultPrevented || event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement || event.target instanceof HTMLElement && event.target.isContentEditable) return;
+    const index = slotIndex(event.code, event.shiftKey, event.ctrlKey);
+    const snap = ctx.snapshot?.();
+    if (!quickbarOwnsKey(quickOn, snap ?? null, event.code, event.shiftKey, event.ctrlKey, menu >= 0 || restOpen) || !snap || !actionReady(ctx, snap)) return;
+    const binding = slots[index] ?? null;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    if (resolve(snap, binding, adaptSpells(snap, ctx.inspect), ctx).usable) activate(ctx, snap, binding);
+    paint(true);
+  };
+  paint(true);
+  window.addEventListener("keydown", keydown, true);
+  const timer2 = window.setInterval(() => paint(), 200);
+  void panel.closed.then(() => {
+    closed = true;
+    window.clearInterval(timer2);
+  });
+  return () => {
+    closed = true;
+    window.clearInterval(timer2);
+    window.removeEventListener("keydown", keydown, true);
+    panel.close();
+    blastCleanup();
   };
 }
 
@@ -4532,6 +5097,7 @@ var plugin_default = {
       ...ctx.prefs ? { prefs: ctx.prefs } : {},
       log: ctx.log
     }));
+    displayCleanups.push(installPhase4(ctx));
     if (flags["anybandui.firstEncounter"]) {
       if (ctx.core && ctx.state) {
         const theme = THEMES[validateSettings(ctx.prefs?.get()).theme];
