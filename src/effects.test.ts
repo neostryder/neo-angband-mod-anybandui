@@ -29,3 +29,23 @@ describe("phase 7 effects", () => {
     expect(chooseEffectMotion(true)).toBe("static"); expect(chooseEffectMotion(false)).toBe("motion"); expect(flags).toHaveLength(7);
   });
 });
+
+describe("effect event subscription", () => {
+  it("subscribes handlers that take the event name first and the payload second, as core calls them", async () => {
+    const { installEffects } = await import("./effects.js");
+    const handlers = new Map<string, (...args: unknown[]) => void>();
+    const g = new Proxy({}, { get: () => () => {}, set: () => true });
+    const canvas = { style: {}, setAttribute: () => {}, getContext: () => g, remove: () => {} };
+    const saved = { document: globalThis.document, raf: globalThis.requestAnimationFrame, caf: globalThis.cancelAnimationFrame };
+    Object.assign(globalThis, { document: { createElement: () => canvas, body: { append: () => {} } }, requestAnimationFrame: () => 1, cancelAnimationFrame: () => {} });
+    try {
+      const stop = installEffects({ flags: { "anybandui.spellEffects": true }, display: { snapshot: () => ({}) as never },
+        events: { on: (name, fn) => { handlers.set(name, fn as (...args: unknown[]) => void); }, off: (name) => { handlers.delete(name); } } });
+      expect([...handlers.keys()].sort()).toEqual(["combat-outcome", "heal", "motion"]);
+      for (const fn of handlers.values()) expect(fn.length).toBe(2);
+      expect(() => handlers.get("heal")!("heal", { who: "player", amount: 3 })).not.toThrow();
+      stop();
+      expect(handlers.size).toBe(0);
+    } finally { Object.assign(globalThis, { document: saved.document, requestAnimationFrame: saved.raf, cancelAnimationFrame: saved.caf }); }
+  });
+});

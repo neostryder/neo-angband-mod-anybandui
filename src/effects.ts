@@ -45,9 +45,10 @@ export function installEffects(ctx: EffectContext): () => void {
   const cues: Cue[] = []; let raf = 0, previousPhase: string | null = null, deadBurstAt = 0;
   const reduced = () => globalThis.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
   const add = (e: SourceEvent) => { for (const cue of eventCue(e, (who) => actorGrid(ctx.snapshot?.() ?? null, who))) { const strength = Math.max(0, Math.min(100, validateSettings(ctx.prefs?.get()).effects[cue.kind] ?? 100)); if (strength > 0) cues.push({ ...cue, started: performance.now(), strength }); } request(); };
-  const combat = (e: EffectEventMap["combat-outcome"]) => add({ event: "combat-outcome", ...e });
-  const heal = (e: EffectEventMap["heal"]) => add({ event: "heal", ...e });
-  const motion = (e: EffectEventMap["motion"]) => add({ event: "motion", ...e });
+  // Core calls each handler with the event name first and the payload second.
+  const combat = (_type: "combat-outcome", e: EffectEventMap["combat-outcome"]) => add({ event: "combat-outcome", ...e });
+  const heal = (_type: "heal", e: EffectEventMap["heal"]) => add({ event: "heal", ...e });
+  const motion = (_type: "motion", e: EffectEventMap["motion"]) => add({ event: "motion", ...e });
   // Event rings belong to the spell effects switch alone; the other effects read the snapshot.
   const listen = flags["anybandui.spellEffects"] === true;
   if (listen) { ctx.events?.on("combat-outcome", combat); ctx.events?.on("heal", heal); ctx.events?.on("motion", motion); }

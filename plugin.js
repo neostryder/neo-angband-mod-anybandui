@@ -5503,9 +5503,9 @@ function installEffects(ctx) {
     }
     request();
   };
-  const combat = (e) => add({ event: "combat-outcome", ...e });
-  const heal = (e) => add({ event: "heal", ...e });
-  const motion = (e) => add({ event: "motion", ...e });
+  const combat = (_type, e) => add({ event: "combat-outcome", ...e });
+  const heal = (_type, e) => add({ event: "heal", ...e });
+  const motion = (_type, e) => add({ event: "motion", ...e });
   const listen = flags["anybandui.spellEffects"] === true;
   if (listen) {
     ctx.events?.on("combat-outcome", combat);
