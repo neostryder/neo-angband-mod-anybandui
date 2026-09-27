@@ -120,4 +120,79 @@ describe("the AnybandUI plugin", () => {
       Object.assign(globalThis, { document: originalDoc, HTMLElement: originalElement });
     }
   });
+
+  describe("the character card", () => {
+    class Stub {
+      ownerDocument: Document;
+      style = { setProperty(): void {} };
+      children: Stub[] = [];
+      host?: Stub;
+      constructor(doc: Document) { this.ownerDocument = doc; }
+      attachShadow(): ShadowRoot { const root = new Stub(this.ownerDocument); root.host = this; return root as unknown as ShadowRoot; }
+      appendChild(child: Stub): Stub { this.children.push(child); return child; }
+      set className(_value: string) {}
+      set textContent(_value: string) {}
+      addEventListener(): void {}
+    }
+    type Hud = Parameters<typeof plugin.hud>[0];
+    type Sink = { present(section: unknown, frame: unknown): void };
+    const section = { region: { name: "sidebar", pixels: { x: 0, y: 0, width: 90, height: 120 }, cells: { col: 0, row: 1, cols: 13, rows: 22 } }, entries: [] };
+    const frame = { stack: [{ id: "sidebar", cells: section.region.cells }] };
+    function withDom(run: (body: Stub) => void): void {
+      const originalDoc = globalThis.document;
+      const originalElement = globalThis.HTMLElement;
+      const doc = { createElement: () => new Stub(doc as Document), body: undefined as unknown as Stub } as unknown as Document;
+      const body = new Stub(doc);
+      (doc as unknown as { body: Stub }).body = body;
+      Object.assign(globalThis, { document: doc, HTMLElement: Stub });
+      try { run(body); } finally {
+        plugin.uninstall();
+        Object.assign(globalThis, { document: originalDoc, HTMLElement: originalElement });
+      }
+    }
+
+    it("is a pane of its own on hosts with panel kinds, and the map takes back the column", () => {
+      withDom((body) => {
+        const setSidebarExtent = vi.fn();
+        const unregister = vi.fn();
+        const registerPanelKind = vi.fn(() => unregister);
+        const sinks = plugin.hud({ flags: { "anybandui.sidebar": true }, ui: { registerPanelKind }, display: { setSidebarExtent }, log: vi.fn() } as unknown as Hud);
+        // The sidebar sink stays claimed, so core does not draw its own column.
+        expect(Object.keys(sinks ?? {})).toEqual(["sidebar"]);
+        expect(registerPanelKind).toHaveBeenCalledTimes(1);
+        expect(body.children).toHaveLength(0);
+        (sinks!.sidebar as unknown as Sink).present(section, frame);
+        expect(setSidebarExtent.mock.calls).toEqual([[{ columns: 0, topRows: 0 }]]);
+        plugin.uninstall();
+        expect(unregister).toHaveBeenCalledTimes(1);
+        expect(setSidebarExtent.mock.calls.at(-1)).toEqual([null]);
+      });
+    });
+
+    it("leaves the game's column alone when its switch is off", () => {
+      withDom((body) => {
+        const setSidebarExtent = vi.fn();
+        const registerPanelKind = vi.fn(() => () => {});
+        const sinks = plugin.hud({ flags: { "anybandui.sidebar": false, "anybandui.status": true }, ui: { registerPanelKind }, display: { setSidebarExtent }, log: vi.fn() } as unknown as Hud);
+        expect(Object.keys(sinks ?? {})).toEqual(["status"]);
+        (sinks!.status as unknown as Sink).present({ ...section, region: { ...section.region, name: "status" } }, { stack: [{ id: "status", cells: section.region.cells }] });
+        expect(registerPanelKind).not.toHaveBeenCalled();
+        expect(setSidebarExtent).not.toHaveBeenCalled();
+        expect(body.children).toHaveLength(1);
+      });
+    });
+
+    it("still draws over the sidebar region on hosts without panel kinds", () => {
+      withDom((body) => {
+        const setSidebarExtent = vi.fn();
+        const openPanel = vi.fn();
+        const sinks = plugin.hud({ flags: { "anybandui.sidebar": true }, ui: { openPanel }, display: { setSidebarExtent }, log: vi.fn() } as unknown as Hud);
+        expect(Object.keys(sinks ?? {})).toEqual(["sidebar"]);
+        (sinks!.sidebar as unknown as Sink).present(section, frame);
+        expect(body.children).toHaveLength(1);
+        expect(openPanel).not.toHaveBeenCalled();
+        expect(setSidebarExtent).not.toHaveBeenCalled();
+      });
+    });
+  });
 });

@@ -17,7 +17,8 @@
  */
 import type { HudFrame, HudOwnership, HudSection } from "@rpgm-tools/neo-angband-mod-sdk";
 import { createSource } from "./src/view-model/source.js";
-import { createPanelHost } from "./src/panels/panel-host.js";
+import { createPanelHost, type PanelSpec } from "./src/panels/panel-host.js";
+import { gateSidebarExtent, installCharacterPane, type CharacterPane, type CharacterPaneContext, type SidebarExtentDisplay } from "./src/panels/character-pane.js";
 import { renderCharacterCard } from "./src/panels/character-card.js";
 import { renderDungeonCard } from "./src/panels/dungeon-card.js";
 import { renderStatusBadges } from "./src/panels/status-badges.js";
@@ -71,8 +72,10 @@ let quiverDisplay: RegisterCtx["display"];
 let tileDisplay: RegisterCtx["display"];
 let tileFullOverviewApplied = false;
 let displayCleanups: Array<() => void> = [];
+let characterPane: CharacterPane | null = null;
 
-type HudCtx = Parameters<typeof createSource>[0] & { readonly flags: Readonly<Record<string, boolean>>; readonly prefs?: { get(): unknown } };
+type HudCtx = Parameters<typeof createSource>[0] & { readonly flags: Readonly<Record<string, boolean>>; readonly prefs?: { get(): unknown };
+  readonly ui?: CharacterPaneContext["ui"]; readonly display?: SidebarExtentDisplay; readonly log?: (message: string) => void };
 
 export default {
   api: 1,
@@ -98,7 +101,8 @@ export default {
     }
     if (ctx.display?.snapshot && ctx.display.onKey && ctx.display.setGrid && ctx.display.setCamera && ctx.display.setSidebarExtent && ctx.display.repaint) {
       const display = ctx.display as NonNullable<ZoomPanContext["display"]>;
-      installZoomPan({ flags, display, manageTileSettings: false, ...(ctx.prefs ? { prefs: ctx.prefs as NonNullable<ZoomPanContext["prefs"]> } : {}),
+      // The gate keeps zoom's sidebar reservation from reopening the strip the character pane released.
+      installZoomPan({ flags, display: gateSidebarExtent(display), manageTileSettings: false, ...(ctx.prefs ? { prefs: ctx.prefs as NonNullable<ZoomPanContext["prefs"]> } : {}),
         ...(ctx.snapshot ? { snapshot: ctx.snapshot as NonNullable<ZoomPanContext["snapshot"]> } : {}),
         ...(ctx.subwindows ? { subwindows: ctx.subwindows } : {}),
         ...(ctx.state ? { state: ctx.state as unknown as NonNullable<ZoomPanContext["state"]> } : {}), log: ctx.log });
@@ -154,6 +158,8 @@ export default {
   },
 
   uninstall(): void {
+    characterPane?.close();
+    characterPane = null;
     for (const cleanup of displayCleanups.splice(0).reverse()) cleanup();
     uninstallFirstEncounter();
     uninstallAccessibilityAccommodations();
@@ -166,6 +172,8 @@ export default {
   },
 
   hud(ctx: HudCtx): HudOwnership | undefined {
+    characterPane?.close();
+    characterPane = null;
     const doc = globalThis.document;
     if (!doc?.body) return undefined;
     const enabled = { sidebar: ctx.flags["anybandui.sidebar"] === true,
@@ -176,11 +184,29 @@ export default {
     const source = createSource(ctx);
     const theme = THEMES[validateSettings(ctx.prefs?.get()).theme]!;
     const output: { -readonly [K in keyof HudOwnership]: HudOwnership[K] } = {};
-    if (enabled.sidebar) {
-      const host = createPanelHost(doc, [
-        { key: "character", render: renderCharacterCard, select: (m) => { const p = m.player; return [p.name, p.race, p.class, p.title, p.hp, p.max_hp, p.sp, p.max_sp, p.food, p.food_max, p.experience, p.level_start_experience, p.next_level_experience, p.level, p.stats, p.gold, p.armour, p.speed, p.extra_moves]; } },
-        { key: "tracked", render: renderTrackedCreature, select: (m) => m.player.tracked_creature },
-      ], theme);
+    const cardPanels: PanelSpec[] = [
+      { key: "character", render: renderCharacterCard, select: (m) => { const p = m.player; return [p.name, p.race, p.class, p.title, p.hp, p.max_hp, p.sp, p.max_sp, p.food, p.food_max, p.experience, p.level_start_experience, p.next_level_experience, p.level, p.stats, p.gold, p.armour, p.speed, p.extra_moves]; } },
+      { key: "tracked", render: renderTrackedCreature, select: (m) => m.player.tracked_creature },
+    ];
+    /* With panel kinds the card is always a pane of its own. The sidebar sink is
+     * still claimed so core stops drawing its column, and character-pane.ts says
+     * how the column's cells go back to the map. Without panel kinds the card is
+     * drawn over the sidebar region, as on older engines. */
+    const pane = enabled.sidebar
+      ? installCharacterPane({ flags: ctx.flags, ui: ctx.ui, prefs: ctx.prefs, display: ctx.display, log: ctx.log ?? (() => {}) }, cardPanels)
+      : null;
+    characterPane = pane;
+    if (pane) {
+      output.sidebar = { present(section: HudSection, frame: HudFrame) {
+        zoomPanHud({ flags: ctx.flags })?.sidebar?.present(section, frame);
+        source.hud.sidebar!.present(section, frame);
+        pane.claimSidebar();
+        const model = source.snapshot();
+        if (model) pane.paint(model);
+      } };
+    }
+    else if (enabled.sidebar) {
+      const host = createPanelHost(doc, cardPanels, theme);
       output.sidebar = { present(section: HudSection, frame: HudFrame) {
         zoomPanHud({ flags: ctx.flags })?.sidebar?.present(section, frame);
         source.hud.sidebar!.present(section, frame);
@@ -201,6 +227,9 @@ export default {
         source.hud.status!.present(section, frame);
         const model = source.snapshot();
         if (model) host.present(section, frame, model);
+        /* The pane is not tied to the sidebar region, so any frame this mod sees
+         * refreshes it; the card's own signatures skip unchanged data. */
+        if (model) pane?.paint(model);
       } };
     }
     if (enabled.messages) {
@@ -209,6 +238,7 @@ export default {
         source.hud.messages!.present(section, frame);
         const model = source.snapshot();
         if (model) host.present(section, frame, model);
+        if (model) pane?.paint(model);
       } };
     }
     return output;
