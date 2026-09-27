@@ -1665,9 +1665,23 @@ var ACCESSIBILITY_ZOOM_INDEX = 9;
 var DEFAULT_PLAY_MAP_COLS = 66;
 var DEFAULT_PLAY_GRID_ROWS = 24;
 var RESERVED_RIGHT_COLUMN = 1;
+var OWNED_DISPLAY_SETTERS = /* @__PURE__ */ new Set(["setCamera", "setMapView", "setGrid", "setSidebarExtent"]);
+function trackedDisplay(display, applied) {
+  return new Proxy(display, { get(target, property) {
+    const member = Reflect.get(target, property);
+    if (typeof member !== "function") return member;
+    if (!OWNED_DISPLAY_SETTERS.has(String(property))) return member.bind(target);
+    return (...args) => {
+      if (args[0] == null) applied.delete(String(property));
+      else applied.add(String(property));
+      return Reflect.apply(member, target, args);
+    };
+  } });
+}
+var configuredTileDisplay = null;
+var fullOverviewApplied = false;
 var SUBWINDOW_ZOOM_PREF_BLOCK_NAME = "anybandui-zoom";
 var runtime = null;
-var configuredDisplay2 = null;
 function markGridState(value2) {
   if (typeof document !== "undefined" && document.body) {
     document.body.setAttribute("data-anybandui-grid-state", value2);
@@ -2603,19 +2617,24 @@ function installZoomPan(ctx) {
   const display = ctx.display;
   const enabled = ctx.flags["anybandui.zoom"] === true || ctx.flags["anybandui.enlargedDisplay"] === true;
   const cameraEnabled = ctx.flags["anybandui.dragPan"] || ctx.flags["anybandui.followPlayer"] || ctx.flags["anybandui.keepTargetInView"] || ctx.flags["anybandui.recentreOnFloor"];
-  const sharpenZoomedTiles = ctx.flags["anybandui.crispTiles"] === true;
   if (!display) {
-    if (enabled || sharpenZoomedTiles) ctx.log?.("this game is too old for display conveniences");
+    if (enabled || cameraEnabled) ctx.log?.("this game is too old for display conveniences");
     return;
   }
-  display.setTileScaling(sharpenZoomedTiles ? "crisp" : "auto");
-  display.setFullMapOverview?.(sharpenZoomedTiles);
-  configuredDisplay2 = display;
+  if (ctx.flags["anybandui.crispTiles"] === true && ctx.manageTileSettings !== false) {
+    display.setTileScaling("crisp");
+    configuredTileDisplay = display;
+    if (display.setFullMapOverview) {
+      display.setFullMapOverview(true);
+      fullOverviewApplied = true;
+    }
+  }
   if (!enabled && !cameraEnabled) return;
+  const appliedDisplaySettings = /* @__PURE__ */ new Set();
   const storedSubwindowZoom = readSubwindowZoomPreference(ctx.prefs?.get());
   const rt = {
     ctx,
-    display,
+    display: trackedDisplay(display, appliedDisplaySettings),
     preference: {
       ...readDisplayPreference(ctx.prefs?.get()),
       ...ctx.flags["anybandui.enlargedDisplay"] === true ? { zoomIndex: Math.max(readDisplayPreference(ctx.prefs?.get()).zoomIndex, ACCESSIBILITY_ZOOM_INDEX) } : {}
@@ -2646,11 +2665,12 @@ function installZoomPan(ctx) {
     subwindowControlsTimer: null,
     cameraTimer: null,
     cameraDetached: false,
-    lastFloor: null
+    lastFloor: null,
+    appliedDisplaySettings
   };
   runtime = rt;
-  markGridState(rt.bootPhase);
-  if (typeof document !== "undefined" && document.body) {
+  if (enabled) markGridState(rt.bootPhase);
+  if (enabled && typeof document !== "undefined" && document.body) {
     const htmlOverflow = document.documentElement.style.overflow;
     const bodyOverflow = document.body.style.overflow;
     const htmlBackground = document.documentElement.style.backgroundColor;
@@ -2666,11 +2686,13 @@ function installZoomPan(ctx) {
       document.body.style.backgroundColor = bodyBackground;
     });
   }
-  installKeyboard(rt);
+  if (enabled) installKeyboard(rt);
   installFreeCamera(rt);
-  installSubwindowZoomPrefBlock(rt);
-  installSubwindowControls(rt);
-  if (typeof window !== "undefined") {
+  if (enabled) {
+    installSubwindowZoomPrefBlock(rt);
+    installSubwindowControls(rt);
+  }
+  if (enabled && typeof window !== "undefined") {
     installTitleBoundary(rt);
     installWheel(rt);
     installTouch(rt);
@@ -2692,9 +2714,10 @@ function zoomPanHud(ctx) {
   } } };
 }
 function uninstallZoomPan() {
-  const display = configuredDisplay2;
-  configuredDisplay2 = null;
-  display?.setFullMapOverview?.(false);
+  if (fullOverviewApplied) configuredTileDisplay?.setFullMapOverview?.(false);
+  configuredTileDisplay?.setTileScaling("auto");
+  configuredTileDisplay = null;
+  fullOverviewApplied = false;
   const rt = runtime;
   runtime = null;
   if (!rt) return;
@@ -2706,11 +2729,12 @@ function uninstallZoomPan() {
   if (rt.cameraTimer !== null) clearInterval(rt.cameraTimer);
   clearSubwindowControls(rt);
   for (const cleanup of rt.cleanups.splice(0).reverse()) cleanup();
-  rt.display.setMapView(null);
-  rt.display.setCamera(null);
-  rt.display.setSidebarExtent(null);
-  rt.display.setGrid(null);
-  rt.display.setTileScaling("auto");
+  for (const setting of rt.appliedDisplaySettings) {
+    if (setting === "setMapView") rt.display.setMapView(null);
+    else if (setting === "setCamera") rt.display.setCamera(null);
+    else if (setting === "setSidebarExtent") rt.display.setSidebarExtent(null);
+    else if (setting === "setGrid") rt.display.setGrid(null);
+  }
 }
 
 // src/map-overview.ts
@@ -2814,13 +2838,21 @@ function installMapOverview(ctx) {
   const display = ctx.display;
   if (!display || !ctx.flags["anybandui.mapOverview"] && !ctx.flags["anybandui.mapSchematic"] && !ctx.flags["anybandui.crispTiles"]) return () => {
   };
+  let appliedMapView = false;
+  const setMapView = (view) => {
+    display.setMapView(view);
+    appliedMapView = view !== null;
+  };
   display.setFullMapOverview(true);
-  if (ctx.flags["anybandui.crispTiles"]) display.setTileScaling("crisp");
+  const appliedTileScaling = ctx.flags["anybandui.crispTiles"] === true;
+  if (appliedTileScaling) display.setTileScaling("crisp");
+  const restoreDisplay = () => {
+    if (appliedMapView) display.setMapView(null);
+    display.setFullMapOverview(false);
+    if (appliedTileScaling) display.setTileScaling("auto");
+  };
   if (!ctx.flags["anybandui.mapOverview"] && !ctx.flags["anybandui.mapSchematic"] || typeof document === "undefined" || typeof window === "undefined") {
-    return () => {
-      display.setFullMapOverview(false);
-      if (ctx.flags["anybandui.crispTiles"]) display.setTileScaling("auto");
-    };
+    return restoreDisplay;
   }
   const theme = THEMES[validateSettings(ctx.prefs?.get()).theme];
   const strip = document.createElement("div");
@@ -2878,7 +2910,7 @@ function installMapOverview(ctx) {
       return;
     }
     if (lastMode !== "map") {
-      if (!ctx.flags["anybandui.zoom"] && !ctx.flags["anybandui.enlargedDisplay"]) display.setMapView(fitView(snap));
+      if (!ctx.flags["anybandui.zoom"] && !ctx.flags["anybandui.enlargedDisplay"]) setMapView(fitView(snap));
       try {
         known = ctx.knownLevel?.() ?? null;
       } catch {
@@ -2952,12 +2984,12 @@ function installMapOverview(ctx) {
     const zoom = Math.round(100 * snap.level.width / Math.max(1, snap.viewport.size.width));
     readout.textContent = `${zoom}%`;
   };
-  fit.addEventListener("click", () => display.setMapView(fitView(display.snapshot())));
+  fit.addEventListener("click", () => setMapView(fitView(display.snapshot())));
   center.addEventListener("click", () => {
     const player = ctx.state?.actor?.grid;
     if (!player) return;
     const snap = display.snapshot();
-    display.setMapView({ origin: clampOrigin(snap, { x: player.x - snap.viewport.size.width / 2, y: player.y - snap.viewport.size.height / 2 }), size: snap.viewport.size });
+    setMapView({ origin: clampOrigin(snap, { x: player.x - snap.viewport.size.width / 2, y: player.y - snap.viewport.size.height / 2 }), size: snap.viewport.size });
   });
   const wheel = (event) => {
     if (ctx.flags["anybandui.zoom"] || ctx.flags["anybandui.enlargedDisplay"]) return;
@@ -2966,7 +2998,7 @@ function installMapOverview(ctx) {
     if (snap.mode !== "map" || !pointInRect(point, mapProjection(snap))) return;
     event.preventDefault();
     event.stopImmediatePropagation();
-    display.setMapView(zoomMapAt(snap, event.deltaY < 0 ? 1 : -1, point));
+    setMapView(zoomMapAt(snap, event.deltaY < 0 ? 1 : -1, point));
   };
   const down = (event) => {
     if (event.button === 0 && display.snapshot().mode === "map" && pointInRect({ x: event.clientX, y: event.clientY }, mapProjection(display.snapshot()))) drag = { x: event.clientX, y: event.clientY };
@@ -2983,7 +3015,7 @@ function installMapOverview(ctx) {
     const dx = Math.trunc((event.clientX - drag.x) * snap.viewport.size.width / rect.width);
     const dy = Math.trunc((event.clientY - drag.y) * snap.viewport.size.height / rect.height);
     if (!dx && !dy) return;
-    display.setMapView({ origin: clampOrigin(snap, { x: snap.viewport.origin.x - dx, y: snap.viewport.origin.y - dy }), size: snap.viewport.size });
+    setMapView({ origin: clampOrigin(snap, { x: snap.viewport.origin.x - dx, y: snap.viewport.origin.y - dy }), size: snap.viewport.size });
     drag = { x: event.clientX, y: event.clientY };
     event.preventDefault();
   };
@@ -3001,11 +3033,11 @@ function installMapOverview(ctx) {
     const key = event.key;
     const dx = key === "ArrowLeft" ? -2 : key === "ArrowRight" ? 2 : 0;
     const dy = key === "ArrowUp" ? -2 : key === "ArrowDown" ? 2 : 0;
-    if (dx || dy) display.setMapView({ origin: clampOrigin(snap, { x: snap.viewport.origin.x + dx, y: snap.viewport.origin.y + dy }), size: snap.viewport.size });
+    if (dx || dy) setMapView({ origin: clampOrigin(snap, { x: snap.viewport.origin.x + dx, y: snap.viewport.origin.y + dy }), size: snap.viewport.size });
     else if (key === "=" || key === "+" || key === "-" || key === "_") {
       const rect = mapProjection(snap);
       const at = rect ? { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 } : { x: 0, y: 0 };
-      display.setMapView(zoomMapAt(snap, key === "-" || key === "_" ? -1 : 1, at));
+      setMapView(zoomMapAt(snap, key === "-" || key === "_" ? -1 : 1, at));
     } else return;
     event.preventDefault();
     event.stopImmediatePropagation();
@@ -3021,9 +3053,7 @@ function installMapOverview(ctx) {
     strip.remove();
     toggle.remove();
     overlay.remove();
-    display.setMapView(null);
-    display.setFullMapOverview(false);
-    if (ctx.flags["anybandui.crispTiles"]) display.setTileScaling("auto");
+    restoreDisplay();
     window.removeEventListener("wheel", wheel, true);
     window.removeEventListener("pointerdown", down, true);
     window.removeEventListener("pointermove", move, true);
@@ -3714,6 +3744,7 @@ function installMapHoverCards(ctx) {
 // plugin.ts
 var quiverDisplay;
 var tileDisplay;
+var tileFullOverviewApplied = false;
 var displayCleanups = [];
 var plugin_default = {
   api: 1,
@@ -3738,6 +3769,7 @@ var plugin_default = {
       installZoomPan({
         flags,
         display,
+        manageTileSettings: false,
         ...ctx.prefs ? { prefs: ctx.prefs } : {},
         ...ctx.snapshot ? { snapshot: ctx.snapshot } : {},
         ...ctx.subwindows ? { subwindows: ctx.subwindows } : {},
@@ -3773,8 +3805,10 @@ var plugin_default = {
     } else if (flags["anybandui.crispTiles"] && ctx.display?.setTileScaling) {
       tileDisplay = ctx.display;
       ctx.display.setTileScaling("crisp");
-      ctx.display.setFullMapOverview?.(true);
-      displayCleanups.push(() => ctx.display?.setFullMapOverview?.(false));
+      if (ctx.display.setFullMapOverview) {
+        ctx.display.setFullMapOverview(true);
+        tileFullOverviewApplied = true;
+      }
     }
     if (flags["anybandui.mapHoverCards"] && !(ctx.display?.snapshot && ctx.display.onKey && ctx.display.setGrid && ctx.display.setCamera && ctx.display.setSidebarExtent && ctx.display.repaint)) {
       displayCleanups.push(installMapHoverCards({
@@ -3805,8 +3839,10 @@ var plugin_default = {
     uninstallAccessibilityAccommodations();
     quiverDisplay?.setQuiverItemization?.(false);
     tileDisplay?.setTileScaling?.("auto");
+    if (tileFullOverviewApplied) tileDisplay?.setFullMapOverview?.(false);
     quiverDisplay = void 0;
     tileDisplay = void 0;
+    tileFullOverviewApplied = false;
   },
   hud(ctx) {
     const doc = globalThis.document;

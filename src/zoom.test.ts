@@ -37,6 +37,30 @@ import {
 } from "./zoom";
 
 describe("independent free-camera flags", () => {
+  it("does not install subwindow zoom for a camera-only feature", () => {
+    const fake = fakeDisplay();
+    const panels = fakeSubwindows([subwindow()]);
+    installZoomPan({ flags: { "anybandui.followPlayer": true }, display: fake.display,
+      subwindows: panels.subwindows });
+    expect(panels.registerPrefBlock).not.toHaveBeenCalled();
+    expect(panels.addControl).not.toHaveBeenCalled();
+    expect(panels.setGrid).not.toHaveBeenCalled();
+  });
+
+  it("restores only camera settings it applied", () => {
+    const fake = fakeDisplay();
+    installZoomPan({ flags: { "anybandui.followPlayer": true }, display: fake.display,
+      state: { actor: { grid: { x: 45, y: 30 } } } });
+    fake.key(fakeKey("Home"));
+    uninstallZoomPan();
+    expect(fake.setCamera).toHaveBeenLastCalledWith(null);
+    expect(fake.setMapView).not.toHaveBeenCalled();
+    expect(fake.setGrid).not.toHaveBeenCalled();
+    expect(fake.setSidebarExtent).not.toHaveBeenCalled();
+    expect(fake.setTileScaling).not.toHaveBeenCalled();
+    expect(fake.setFullMapOverview).not.toHaveBeenCalled();
+  });
+
   it("dragPan moves the play camera by whole cells", () => {
     const win = new EventTarget();
     vi.stubGlobal("window", win);

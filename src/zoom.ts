@@ -181,6 +181,7 @@ interface PreferenceStoreLike {
 
 export interface ZoomPanContext {
   readonly flags: Readonly<Record<string, boolean>>;
+  readonly manageTileSettings?: boolean;
   readonly prefs?: PreferenceStoreLike | undefined;
   readonly display?: DisplayLike | undefined;
   /** Optional while no tiled subwindow shell is mounted. */
@@ -289,7 +290,26 @@ interface ZoomRuntime {
   cameraTimer: ReturnType<typeof setInterval> | null;
   cameraDetached: boolean;
   lastFloor: string | null;
+  readonly appliedDisplaySettings: Set<string>;
 }
+
+const OWNED_DISPLAY_SETTERS = new Set(["setCamera", "setMapView", "setGrid", "setSidebarExtent"]);
+
+function trackedDisplay(display: DisplayLike, applied: Set<string>): DisplayLike {
+  return new Proxy(display, { get(target, property) {
+    const member: unknown = Reflect.get(target, property);
+    if (typeof member !== "function") return member;
+    if (!OWNED_DISPLAY_SETTERS.has(String(property))) return member.bind(target);
+    return (...args: unknown[]) => {
+      if (args[0] == null) applied.delete(String(property));
+      else applied.add(String(property));
+      return Reflect.apply(member, target, args);
+    };
+  } });
+}
+
+let configuredTileDisplay: DisplayLike | null = null;
+let fullOverviewApplied = false;
 
 interface SubwindowZoomPrefBlockValue {
   readonly panels: Readonly<Record<string, { readonly step: number; readonly manual: boolean }>>;
@@ -298,7 +318,6 @@ interface SubwindowZoomPrefBlockValue {
 const SUBWINDOW_ZOOM_PREF_BLOCK_NAME = "anybandui-zoom";
 
 let runtime: ZoomRuntime | null = null;
-let configuredDisplay: DisplayLike | null = null;
 
 function markGridState(value: string): void {
   if (typeof document !== "undefined" && document.body) {
@@ -1492,19 +1511,24 @@ export function installZoomPan(ctx: ZoomPanContext): void {
   const enabled = ctx.flags["anybandui.zoom"] === true || ctx.flags["anybandui.enlargedDisplay"] === true;
   const cameraEnabled = ctx.flags["anybandui.dragPan"] || ctx.flags["anybandui.followPlayer"] ||
     ctx.flags["anybandui.keepTargetInView"] || ctx.flags["anybandui.recentreOnFloor"];
-  const sharpenZoomedTiles = ctx.flags["anybandui.crispTiles"] === true;
   if (!display) {
-    if (enabled || sharpenZoomedTiles) ctx.log?.("this game is too old for display conveniences");
+    if (enabled || cameraEnabled) ctx.log?.("this game is too old for display conveniences");
     return;
   }
-  display.setTileScaling(sharpenZoomedTiles ? "crisp" : "auto");
-  display.setFullMapOverview?.(sharpenZoomedTiles);
-  configuredDisplay = display;
+  if (ctx.flags["anybandui.crispTiles"] === true && ctx.manageTileSettings !== false) {
+    display.setTileScaling("crisp");
+    configuredTileDisplay = display;
+    if (display.setFullMapOverview) {
+      display.setFullMapOverview(true);
+      fullOverviewApplied = true;
+    }
+  }
   if (!enabled && !cameraEnabled) return;
+  const appliedDisplaySettings = new Set<string>();
   const storedSubwindowZoom = readSubwindowZoomPreference(ctx.prefs?.get());
   const rt: ZoomRuntime = {
     ctx,
-    display,
+    display: trackedDisplay(display, appliedDisplaySettings),
     preference: {
       ...readDisplayPreference(ctx.prefs?.get()),
       ...(ctx.flags["anybandui.enlargedDisplay"] === true
@@ -1543,10 +1567,11 @@ export function installZoomPan(ctx: ZoomPanContext): void {
     cameraTimer: null,
     cameraDetached: false,
     lastFloor: null,
+    appliedDisplaySettings,
   };
   runtime = rt;
-  markGridState(rt.bootPhase);
-  if (typeof document !== "undefined" && document.body) {
+  if (enabled) markGridState(rt.bootPhase);
+  if (enabled && typeof document !== "undefined" && document.body) {
     const htmlOverflow = document.documentElement.style.overflow;
     const bodyOverflow = document.body.style.overflow;
     const htmlBackground = document.documentElement.style.backgroundColor;
@@ -1562,11 +1587,13 @@ export function installZoomPan(ctx: ZoomPanContext): void {
       document.body.style.backgroundColor = bodyBackground;
     });
   }
-  installKeyboard(rt);
+  if (enabled) installKeyboard(rt);
   installFreeCamera(rt);
-  installSubwindowZoomPrefBlock(rt);
-  installSubwindowControls(rt);
-  if (typeof window !== "undefined") {
+  if (enabled) {
+    installSubwindowZoomPrefBlock(rt);
+    installSubwindowControls(rt);
+  }
+  if (enabled && typeof window !== "undefined") {
     installTitleBoundary(rt);
     installWheel(rt);
     installTouch(rt);
@@ -1592,9 +1619,10 @@ export function zoomPanHud(ctx: ZoomPanContext): {
 }
 
 export function uninstallZoomPan(): void {
-  const display = configuredDisplay;
-  configuredDisplay = null;
-  display?.setFullMapOverview?.(false);
+  if (fullOverviewApplied) configuredTileDisplay?.setFullMapOverview?.(false);
+  configuredTileDisplay?.setTileScaling("auto");
+  configuredTileDisplay = null;
+  fullOverviewApplied = false;
   const rt = runtime;
   runtime = null;
   if (!rt) return;
@@ -1606,11 +1634,12 @@ export function uninstallZoomPan(): void {
   if (rt.cameraTimer !== null) clearInterval(rt.cameraTimer);
   clearSubwindowControls(rt);
   for (const cleanup of rt.cleanups.splice(0).reverse()) cleanup();
-  rt.display.setMapView(null);
-  rt.display.setCamera(null);
-  rt.display.setSidebarExtent(null);
-  rt.display.setGrid(null);
-  rt.display.setTileScaling("auto");
+  for (const setting of rt.appliedDisplaySettings) {
+    if (setting === "setMapView") rt.display.setMapView(null);
+    else if (setting === "setCamera") rt.display.setCamera(null);
+    else if (setting === "setSidebarExtent") rt.display.setSidebarExtent(null);
+    else if (setting === "setGrid") rt.display.setGrid(null);
+  }
 }
 
 export function defaultDisplayPreference(): DisplayPreference {

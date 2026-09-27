@@ -87,10 +87,21 @@ export function zoomMapAt(snapshot: DisplaySnapshot, direction: number, pointer:
 export function installMapOverview(ctx: Context): () => void {
   const display = ctx.display;
   if (!display || (!ctx.flags["anybandui.mapOverview"] && !ctx.flags["anybandui.mapSchematic"] && !ctx.flags["anybandui.crispTiles"])) return () => {};
+  let appliedMapView = false;
+  const setMapView: typeof display.setMapView = (view) => {
+    display.setMapView(view);
+    appliedMapView = view !== null;
+  };
   display.setFullMapOverview(true);
-  if (ctx.flags["anybandui.crispTiles"]) display.setTileScaling("crisp");
+  const appliedTileScaling = ctx.flags["anybandui.crispTiles"] === true;
+  if (appliedTileScaling) display.setTileScaling("crisp");
+  const restoreDisplay = (): void => {
+    if (appliedMapView) display.setMapView(null);
+    display.setFullMapOverview(false);
+    if (appliedTileScaling) display.setTileScaling("auto");
+  };
   if ((!ctx.flags["anybandui.mapOverview"] && !ctx.flags["anybandui.mapSchematic"]) || typeof document === "undefined" || typeof window === "undefined") {
-    return () => { display.setFullMapOverview(false); if (ctx.flags["anybandui.crispTiles"]) display.setTileScaling("auto"); };
+    return restoreDisplay;
   }
   const theme = THEMES[validateSettings(ctx.prefs?.get()).theme]!;
   const strip = document.createElement("div");
@@ -131,7 +142,7 @@ export function installMapOverview(ctx: Context): () => void {
     if (snap.mode !== "map") { strip.style.display = "none"; toggle.style.display = "none"; controlsOpen = false; overlay.style.display = "none";
       if (snap.mode === "play") playView = snap.viewport; lastMode = snap.mode; return; }
     if (lastMode !== "map") {
-      if (!ctx.flags["anybandui.zoom"] && !ctx.flags["anybandui.enlargedDisplay"]) display.setMapView(fitView(snap));
+      if (!ctx.flags["anybandui.zoom"] && !ctx.flags["anybandui.enlargedDisplay"]) setMapView(fitView(snap));
       try { known = ctx.knownLevel?.() ?? null; } catch { known = null; }
     }
     lastMode = "map";
@@ -176,12 +187,12 @@ export function installMapOverview(ctx: Context): () => void {
     const zoom = Math.round(100 * snap.level.width / Math.max(1, snap.viewport.size.width));
     readout.textContent = `${zoom}%`;
   };
-  fit.addEventListener("click", () => display.setMapView(fitView(display.snapshot())));
+  fit.addEventListener("click", () => setMapView(fitView(display.snapshot())));
   center.addEventListener("click", () => {
     const player = ctx.state?.actor?.grid;
     if (!player) return;
     const snap = display.snapshot();
-    display.setMapView({ origin: clampOrigin(snap, { x: player.x - snap.viewport.size.width / 2, y: player.y - snap.viewport.size.height / 2 }), size: snap.viewport.size });
+    setMapView({ origin: clampOrigin(snap, { x: player.x - snap.viewport.size.width / 2, y: player.y - snap.viewport.size.height / 2 }), size: snap.viewport.size });
   });
   const wheel = (event: WheelEvent): void => {
     if (ctx.flags["anybandui.zoom"] || ctx.flags["anybandui.enlargedDisplay"]) return;
@@ -189,7 +200,7 @@ export function installMapOverview(ctx: Context): () => void {
     const point = { x: event.clientX, y: event.clientY };
     if (snap.mode !== "map" || !pointInRect(point, mapProjection(snap))) return;
     event.preventDefault(); event.stopImmediatePropagation();
-    display.setMapView(zoomMapAt(snap, event.deltaY < 0 ? 1 : -1, point));
+    setMapView(zoomMapAt(snap, event.deltaY < 0 ? 1 : -1, point));
   };
   const down = (event: PointerEvent): void => {
     if (event.button === 0 && display.snapshot().mode === "map" && pointInRect({ x: event.clientX, y: event.clientY }, mapProjection(display.snapshot()))) drag = { x: event.clientX, y: event.clientY };
@@ -203,7 +214,7 @@ export function installMapOverview(ctx: Context): () => void {
     const dx = Math.trunc((event.clientX - drag.x) * snap.viewport.size.width / rect.width);
     const dy = Math.trunc((event.clientY - drag.y) * snap.viewport.size.height / rect.height);
     if (!dx && !dy) return;
-    display.setMapView({ origin: clampOrigin(snap, { x: snap.viewport.origin.x - dx, y: snap.viewport.origin.y - dy }), size: snap.viewport.size });
+    setMapView({ origin: clampOrigin(snap, { x: snap.viewport.origin.x - dx, y: snap.viewport.origin.y - dy }), size: snap.viewport.size });
     drag = { x: event.clientX, y: event.clientY };
     event.preventDefault();
   };
@@ -219,11 +230,11 @@ export function installMapOverview(ctx: Context): () => void {
     const key = event.key;
     const dx = key === "ArrowLeft" ? -2 : key === "ArrowRight" ? 2 : 0;
     const dy = key === "ArrowUp" ? -2 : key === "ArrowDown" ? 2 : 0;
-    if (dx || dy) display.setMapView({ origin: clampOrigin(snap, { x: snap.viewport.origin.x + dx, y: snap.viewport.origin.y + dy }), size: snap.viewport.size });
+    if (dx || dy) setMapView({ origin: clampOrigin(snap, { x: snap.viewport.origin.x + dx, y: snap.viewport.origin.y + dy }), size: snap.viewport.size });
     else if (key === "=" || key === "+" || key === "-" || key === "_") {
       const rect = mapProjection(snap);
       const at = rect ? { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 } : { x: 0, y: 0 };
-      display.setMapView(zoomMapAt(snap, key === "-" || key === "_" ? -1 : 1, at));
+      setMapView(zoomMapAt(snap, key === "-" || key === "_" ? -1 : 1, at));
     } else return;
     event.preventDefault(); event.stopImmediatePropagation();
   });
@@ -232,8 +243,7 @@ export function installMapOverview(ctx: Context): () => void {
   window.addEventListener("pointermove", move, true);
   window.addEventListener("pointerup", up, true);
   const timer = setInterval(update, 150);
-  return () => { clearInterval(timer); offKey(); strip.remove(); toggle.remove(); overlay.remove(); display.setMapView(null); display.setFullMapOverview(false);
-    if (ctx.flags["anybandui.crispTiles"]) display.setTileScaling("auto");
+  return () => { clearInterval(timer); offKey(); strip.remove(); toggle.remove(); overlay.remove(); restoreDisplay();
     window.removeEventListener("wheel", wheel, true); window.removeEventListener("pointerdown", down, true);
     window.removeEventListener("pointermove", move, true); window.removeEventListener("pointerup", up, true); };
 }

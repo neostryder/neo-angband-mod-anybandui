@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { anchoredOrigin, centerOn, clampOrigin, fitCellHeight, panelAutoFit, type DisplaySnapshot } from "./zoom.js";
-import { drawMarker, fitView, landmarkKind, schematicColour, zoomMapAt } from "./map-overview.js";
+import { drawMarker, fitView, installMapOverview, landmarkKind, schematicColour, zoomMapAt } from "./map-overview.js";
 import { hoverGrid, knownCard, snapLandmark } from "./hover-cards.js";
 
 const snapshot: DisplaySnapshot = {
@@ -12,6 +12,19 @@ const snapshot: DisplaySnapshot = {
 };
 
 describe("display geometry", () => {
+  it("does not release a map viewport it never set", () => {
+    const setMapView = vi.fn();
+    const setFullMapOverview = vi.fn();
+    const setTileScaling = vi.fn();
+    const cleanup = installMapOverview({ flags: { "anybandui.mapOverview": true },
+      display: { snapshot: () => snapshot, onKey: () => () => {}, setMapView,
+        setFullMapOverview, setTileScaling, setGrid: vi.fn(), setCamera: vi.fn(),
+        setSidebarExtent: vi.fn(), setVisualFilter: vi.fn(), repaint: vi.fn() } });
+    cleanup();
+    expect(setMapView).not.toHaveBeenCalled();
+    expect(setFullMapOverview.mock.calls).toEqual([[true], [false]]);
+    expect(setTileScaling).not.toHaveBeenCalled();
+  });
   it("fits whole cells and clamps camera positions", () => {
     expect(Number.isInteger(fitCellHeight({ width: 1200, height: 700 }, 12))).toBe(true);
     expect(clampOrigin(snapshot, { x: -5.4, y: 1000 })).toEqual({ x: 0, y: 60 });

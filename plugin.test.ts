@@ -58,6 +58,32 @@ describe("the AnybandUI plugin", () => {
     expect(setTileScaling).not.toHaveBeenCalled();
   });
 
+  it("does not reset overview settings when only the zoom display seam is available", () => {
+    const setTileScaling = vi.fn();
+    const setFullMapOverview = vi.fn();
+    plugin.register(undefined, { id: "anybandui", engine: "1.18.0", log: () => {},
+      flags: { "anybandui.followPlayer": true },
+      display: { setVisualFilter: () => {}, snapshot: vi.fn(), onKey: vi.fn(() => () => {}),
+        setGrid: vi.fn(), setCamera: vi.fn(), setSidebarExtent: vi.fn(), repaint: vi.fn(),
+        setMapView: vi.fn(), setTileScaling, setFullMapOverview } });
+    plugin.uninstall();
+    expect(setTileScaling).not.toHaveBeenCalled();
+    expect(setFullMapOverview).not.toHaveBeenCalled();
+  });
+
+  it("applies and restores crisp overview settings once on a modern display", () => {
+    const setTileScaling = vi.fn();
+    const setFullMapOverview = vi.fn();
+    plugin.register(undefined, { id: "anybandui", engine: "1.18.0", log: () => {},
+      flags: { "anybandui.crispTiles": true, "anybandui.mapOverview": true },
+      display: { setVisualFilter: () => {}, snapshot: vi.fn(), onKey: vi.fn(() => () => {}),
+        setGrid: vi.fn(), setCamera: vi.fn(), setSidebarExtent: vi.fn(), repaint: vi.fn(),
+        setMapView: vi.fn(), setTileScaling, setFullMapOverview } });
+    plugin.uninstall();
+    expect(setTileScaling.mock.calls).toEqual([["crisp"], ["auto"]]);
+    expect(setFullMapOverview.mock.calls).toEqual([[true], [false]]);
+  });
+
   it("declines without a DOM", () => {
     expect(plugin.hud({ flags: { "anybandui.sidebar": true } } as unknown as Parameters<typeof plugin.hud>[0])).toBeUndefined();
   });

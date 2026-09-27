@@ -62,6 +62,7 @@ interface RegisterCtx {
 
 let quiverDisplay: RegisterCtx["display"];
 let tileDisplay: RegisterCtx["display"];
+let tileFullOverviewApplied = false;
 let displayCleanups: Array<() => void> = [];
 
 type HudCtx = Parameters<typeof createSource>[0] & { readonly flags: Readonly<Record<string, boolean>>; readonly prefs?: { get(): unknown } };
@@ -87,7 +88,7 @@ export default {
     }
     if (ctx.display?.snapshot && ctx.display.onKey && ctx.display.setGrid && ctx.display.setCamera && ctx.display.setSidebarExtent && ctx.display.repaint) {
       const display = ctx.display as NonNullable<ZoomPanContext["display"]>;
-      installZoomPan({ flags, display, ...(ctx.prefs ? { prefs: ctx.prefs as NonNullable<ZoomPanContext["prefs"]> } : {}),
+      installZoomPan({ flags, display, manageTileSettings: false, ...(ctx.prefs ? { prefs: ctx.prefs as NonNullable<ZoomPanContext["prefs"]> } : {}),
         ...(ctx.snapshot ? { snapshot: ctx.snapshot as NonNullable<ZoomPanContext["snapshot"]> } : {}),
         ...(ctx.subwindows ? { subwindows: ctx.subwindows } : {}),
         ...(ctx.state ? { state: ctx.state as unknown as NonNullable<ZoomPanContext["state"]> } : {}), log: ctx.log });
@@ -109,8 +110,10 @@ export default {
     } else if (flags["anybandui.crispTiles"] && ctx.display?.setTileScaling) {
       tileDisplay = ctx.display;
       ctx.display.setTileScaling("crisp");
-      ctx.display.setFullMapOverview?.(true);
-      displayCleanups.push(() => ctx.display?.setFullMapOverview?.(false));
+      if (ctx.display.setFullMapOverview) {
+        ctx.display.setFullMapOverview(true);
+        tileFullOverviewApplied = true;
+      }
     }
     if (flags["anybandui.mapHoverCards"] &&
         !(ctx.display?.snapshot && ctx.display.onKey && ctx.display.setGrid && ctx.display.setCamera && ctx.display.setSidebarExtent && ctx.display.repaint)) {
@@ -136,8 +139,10 @@ export default {
     uninstallAccessibilityAccommodations();
     quiverDisplay?.setQuiverItemization?.(false);
     tileDisplay?.setTileScaling?.("auto");
+    if (tileFullOverviewApplied) tileDisplay?.setFullMapOverview?.(false);
     quiverDisplay = undefined;
     tileDisplay = undefined;
+    tileFullOverviewApplied = false;
   },
 
   hud(ctx: HudCtx): HudOwnership | undefined {
