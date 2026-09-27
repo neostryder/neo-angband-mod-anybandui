@@ -6,9 +6,9 @@ A mouse-first desktop interface for Neo Angband, ported from Wurli Monkhaven's A
 
 | Setting | Identifier | Default | Description |
 | --- | --- | --- | --- |
-| TODO-PROSE | `anybandui.sidebar` | off | TODO-PROSE |
-| TODO-PROSE | `anybandui.status` | off | TODO-PROSE |
-| TODO-PROSE | `anybandui.messages` | off | TODO-PROSE |
+| Character card | `anybandui.sidebar` | off | Replaces the character column with a card: your name, race and class, bars for hit points, spell points, food and experience, your stats, gold, armour and speed, and a health bar for the creature you are tracking. Hover a bar or stat to see its numbers. On a version of the game with movable panels, the card is a panel of its own in the column's place. |
+| Status badges and dungeon card | `anybandui.status` | off | Replaces the status line with a badge for each timed effect, coloured by whether it helps or harms you, and a card showing depth, light, the level feeling and the terrain underfoot. Hover a badge to see how many turns it has left. While the Borg or another mod is playing for you, a badge says which one. |
+| Message log | `anybandui.messages` | off | Replaces the message line with a scrolling log. Repeated messages fold into one line with a count, and a search box finds an older message. When the game stops at -more-, click the log to carry on. |
 | Accessibility: high-contrast display | `anybandui.highContrast` | off | Boosts contrast and colour separation over each finished frame, in text mode and with tiles, across the dungeon, maps, menus and this mod's panels. |
 | Accessibility: colourblind correction | `anybandui.colourblind` | off | Applies a red-green colour correction over each finished frame, in text mode and with tiles, across the dungeon, maps, menus and this mod's panels. |
 | First-encounter alerts | `anybandui.firstEncounter` | off | The first time this character meets a kind of monster, or picks up an artifact, a small card appears in the corner with its name and native depth. A monster's card carries a threat badge: Unique, Deadly (well out of depth), Out of depth, or First sighting. The card never takes the keyboard or blocks a click, and clears itself after a few seconds. Each character keeps its own record. Reported by `Wozar` on r/angband. |
@@ -21,30 +21,30 @@ A mouse-first desktop interface for Neo Angband, ported from Wurli Monkhaven's A
 | Keep the target in view | `anybandui.keepTargetInView` | off | While you aim, the view moves so the targeting cursor stays on screen. |
 | Centre on a new level | `anybandui.recentreOnFloor` | off | Arriving on a new level centres the view on your character. |
 | Hover cards on the map overview | `anybandui.mapHoverCards` | off | Resting the pointer on a cell of the map overview, or holding a finger on it, opens a card with a magnified tile and what you know about that cell: terrain, creature, item, trap or shop. It shows nothing your character has not seen. |
-| TODO-PROSE | `anybandui.dungeonHoverCards` | off | TODO-PROSE |
-| TODO-PROSE | `anybandui.clickToWalk` | off | TODO-PROSE |
+| Hover cards on the dungeon view | `anybandui.dungeonHoverCards` | off | Resting the pointer on a tile of the dungeon view opens a card with what you know about it: the creature or character there with a small health bar and a line of what you remember about its kind, the terrain, and up to five items on the floor. The delay before a card opens is one setting shared with the map overview's cards, 550 ms to start with. |
+| Click to walk | `anybandui.clickToWalk` | off | Left-click a tile in the dungeon view to step there, or to travel there if it is further away. Clicking a creature next to you attacks it, and while you aim, a click picks the target. Shift-click a tile next to you to run that way, and Ctrl-click any tile to make it your target. |
 | Tile action menu | `anybandui.dungeonActions` | off | Right-click a tile in the dungeon view for a menu of what you can do there: walk, look, target, pick up, open or close a door, tunnel, disarm a trap, or take the stairs. The game decides which of these the tile allows. While you aim, the menu offers Select tile and Cancel. |
 | Gold aiming path | `anybandui.aimPath` | off | While you choose a target, a gold line shows the path your spell or missile would take to the tile under the pointer. The game works the path out itself, so the line stops wherever the shot would. |
 | Walking route preview | `anybandui.walkRoutePreview` | off | Draws a gold line along the route you would walk to reach the tile under the pointer, worked out the same way the travel command plans it. |
 | Full-level map overview | `anybandui.mapOverview` | off | The (M)ap screen shows every square of the level you know, shrunk to fit, with markers for you, the stairs and the shops, and an outline of what the main view shows. The mouse wheel zooms at the pointer, dragging pans, and Fit floor and Centre on player buttons sit beside the map. |
 | Schematic map | `anybandui.mapSchematic` | off | Draws the map overview as flat blocks of colour for walls, doors and floor instead of glyphs or tiles, which is easier to read when the whole level is shrunk. |
-| TODO-PROSE | `anybandui.itemsLists` | off | TODO-PROSE |
+| Item panel | `anybandui.itemsLists` | off | Opens a panel with your pack, equipment and quiver on separate tabs, a search box, and each item in its game colour. Anything on the floor where you stand is listed above the tabs. Click an item to select it. |
 | Spell panel | `anybandui.spells` | off | Lists the spells in each book you carry, with mana, fail rate and whether you can cast or learn each one, plus its description. Click Cast or Study, or double-click a spell to cast it. |
-| TODO-PROSE | `anybandui.quickbar` | off | TODO-PROSE |
-| TODO-PROSE | `anybandui.blastPreview` | off | TODO-PROSE |
-| TODO-PROSE | `anybandui.restDialog` | off | TODO-PROSE |
+| Quickbar | `anybandui.quickbar` | off | Thirty slots on the number keys, with a second row on Shift and a third on Ctrl, for spells, potions, scrolls, wands, activations and simple commands such as picking up or taking the stairs. Each slot shows its mana cost, charges or count and greys out when you cannot use it. Right-click a spell or drag it onto a slot to assign it. The number keys go back to the game inside menus and prompts, and each character keeps its own slots. |
+| Blast preview | `anybandui.blastPreview` | off | While you aim a ball or breath, shades every tile the blast would reach, worked out by the game itself, in the colour of its element. A breath is shown as a ball of the same radius. |
+| Rest panel | `anybandui.restDialog` | off | Adds a Rest button, and answers the game's own rest prompt, with a choice of how long to rest: until you are fully recovered, until either hit points or mana are full, or for a set number of turns. While you rest, it shows how long is left and a button to stop. Danger still interrupts rest as usual. |
 | Item inspection | `anybandui.itemsInspection` | off | Shows the game's full description of the item you select in the item panel, the same text the Inspect command gives. |
 | Equipment comparison | `anybandui.itemsComparison` | off | When you select something you could wear, a table compares your current equipment with the change: speed, armour, to-hit, damage, blows, stats and resistances. Only properties your character knows are counted, and a checkbox also shows the stats that stay the same. |
 | Quantity picker | `anybandui.itemsQuantity` | off | When the game asks how many, the item panel offers One, Half and All buttons and a box for any other number. |
 | Item choice list | `anybandui.itemsChoice` | off | When the game asks you to pick an item, the item panel lists the choices so you can click one instead of typing its letter. |
 | Mark new items | `anybandui.itemsHighlights` | off | Items you have just picked up are marked NEW in the item panel, and a stack that grew shows how many were added, until you click it. |
-| TODO-PROSE | `anybandui.itemsActions` | off | TODO-PROSE |
-| TODO-PROSE | `anybandui.itemsRules` | off | TODO-PROSE |
+| Item action buttons | `anybandui.itemsActions` | off | Adds buttons under the selected item for wielding, taking it off, dropping, inscribing, using and ignoring it. Only the actions the game would accept right now appear. |
+| Item rules | `anybandui.itemsRules` | off | Lists your ignore settings and auto-inscriptions in the item panel, and lets you change them there. Search to add a rule for any kind of item or ego you have seen. |
 
 | Store window | `anybandui.storeWindow` | off | While you are in a store or your home, shows its stock and your pack side by side. Click an item to select it. |
 | Store prices | `anybandui.storePrices` | off | Shows the price of each item in the store window. |
-| TODO-PROSE | `anybandui.storeComparison` | off | TODO-PROSE |
-| TODO-PROSE | `anybandui.storeTransactions` | off | TODO-PROSE |
+| Store comparison | `anybandui.storeComparison` | off | When you select something you could wear, compares it with what you have in each slot it could go in, the same way the item panel does. |
+| Store buttons | `anybandui.storeTransactions` | off | Adds Buy, Sell, Stash, Retrieve and Leave buttons to the store window. The store then asks how many you want and shows the price before you confirm. Older versions of the game allow only Leave. |
 | Store questions | `anybandui.storePrompts` | off | When the store asks how many or whether to accept a price, answers it with buttons in the store window instead of the keyboard. |
 | CRT display | `anybandui.crt` | off | Gives the dungeon view the look of an old monitor: slightly richer colours, faint scanlines, and a slow band of light that sweeps down the screen. The sweep stops when your system asks for reduced motion. |
 | Low health warning | `anybandui.lowHealthEffect` | off | Tints the dungeon view red when your hit points fall to 30 percent or lower, deepening as they drop, with a pulse unless your system asks for reduced motion. |
