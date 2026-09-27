@@ -87,13 +87,17 @@ export interface SpellPrompt { readonly kind: "spell"; readonly promptId: number
 export interface Phase4Snapshot extends Omit<InputSnapshot, "core" | "prompt"> { readonly core: CoreSnapshot & { readonly spellbooks?: readonly SpellbookView[] | null; readonly player?: (NonNullable<CoreSnapshot["player"]> & { readonly level?: number; readonly sp?: number; readonly hp?: number; readonly maxHp?: number; readonly maxSp?: number; readonly classFlags?: readonly string[] }) | null }; readonly prompt: InputSnapshot["prompt"] | SpellPrompt }
 export interface Phase4Context { readonly flags?: Readonly<Record<string, boolean>>; readonly snapshot?: () => Phase4Snapshot | null; readonly intent?: IntentSeam; readonly prompt?: { reply(promptId: number, answer: number | string | null): IntentResult }; readonly inspect?: { spellInfo?(index: number): SpellInspectResult | null; bookForItem?(handle: number): number | null; itemTester?(code: string): ItemTesterResult | null; inspectItem?(handle: number): InspectResult | null; blastArea?(to: Grid, radius: number): { readonly token: InputToken; readonly grids: readonly Grid[] } | null; projectionPath?(to: Grid): { readonly token: InputToken; readonly grids: readonly Grid[] } | null }; readonly ui?: ItemsContext["ui"]; readonly prefs?: { get(): unknown; set(value: unknown): void }; readonly display?: { snapshot(): import("./zoom.js").DisplaySnapshot }; readonly driver?: () => InputDriver; readonly character?: { key(): string | null }; readonly state?: unknown; readonly targeting?: { blastRadius(): number | null }; readonly log: (message: string) => void }
 // Phase 5: StoreView mirrors packages/core/src/agent/types.ts; CoreSnapshot.stores
-// and player.gold mirror agent/boundary.ts and entity-views.ts. StoreContext
-// combines packages/web/src/mod-plugin.ts with an optional proposed store
-// status read. The current host does not publish readiness or sell eligibility.
+// and player.gold mirror agent/boundary.ts and entity-views.ts. StoreStatus
+// mirrors InputSnapshot.storeStatus in packages/web/src/input-snapshot.ts, and
+// StoreContext combines packages/web/src/mod-plugin.ts with the store section
+// appended at the end of this file.
 export interface StoreItemView extends ItemView { readonly index: number; readonly price?: number }
 export interface StoreView { readonly feat: number; readonly featName: string; readonly isHome: boolean; readonly owner: { readonly name: string; readonly purse: number }; readonly stock: readonly StoreItemView[] }
-export interface StoreStatus { readonly feat: number; readonly ready: boolean; readonly noSelling: boolean; readonly transactionPrompts?: boolean; readonly inventory?: readonly { readonly handle: number; readonly eligible: boolean; readonly price?: number }[] }
+export interface StoreStatus { readonly token: InputToken; readonly feat: number; readonly ready: boolean; readonly noSelling: boolean; readonly inventory: readonly { readonly handle: number; readonly eligible: boolean; readonly price: number | null }[] }
 export interface StoreContext extends ItemsContext {
+  readonly snapshot?: () => StoreSnapshot | null;
+  readonly prompt?: StorePromptSeam;
+  readonly inspect?: StoreInspectSeam;
   readonly knownLevel?: () => KnownLevel | null;
   readonly driver?: () => InputDriver;
   readonly store?: { current?(): StoreStatus | null };
@@ -141,4 +145,26 @@ export interface DriverSeams {
   readonly driver?: () => InputDriver;
   readonly mods?: () => readonly PublicMod[];
   readonly events?: DriverEvents;
+}
+
+// Store window adoption. StoreSnapshot mirrors InputSnapshot.storeStatus in
+// packages/web/src/input-snapshot.ts. StoreQuantityPrompt, StorePromptAnswer and
+// StoreReplyResult mirror PromptDescriptor, PromptAnswer and PromptReplyResult in
+// packages/web/src/prompt-view.ts. StoreInspectSeam mirrors ModInspect.inspectItem
+// and compareLoadoutSlots in packages/web/src/input-snapshot.ts, with
+// InspectResult.sections and LoadoutSlotsResult from packages/core/src/agent/inspect.ts
+// and LoadoutItemRef from packages/core/src/agent/types.ts.
+export interface StoreSnapshot extends InputSnapshot { readonly storeStatus?: StoreStatus | null }
+export type StoreQuantityPrompt = QuantityPrompt & { readonly unitPrice?: number; readonly totalPrice?: number; readonly gold?: number };
+export type StorePromptAnswer = number | boolean | { readonly action: "cancel" };
+export type StoreReplyResult = IntentResult;
+export interface StorePromptSeam { reply(promptId: number, answer: StorePromptAnswer): StoreReplyResult }
+export type StoreItemRef = number | { readonly store: number; readonly index: number };
+export interface InspectSection { readonly kind: "title" | "description" | "info"; readonly text: string }
+export interface StoreInspectResult extends InspectResult { readonly sections?: readonly InspectSection[] }
+export type LoadoutSlotRef = { readonly from: "gear"; readonly handle: number } | { readonly from: "store"; readonly store: number; readonly index: number };
+export interface LoadoutSlotsResult { readonly token: InputToken; readonly slots: readonly { readonly slot: number; readonly name: string; readonly comparison: LoadoutSimulation }[] }
+export interface StoreInspectSeam extends Omit<InspectSeam, "inspectItem"> {
+  inspectItem(ref: StoreItemRef): StoreInspectResult | null;
+  compareLoadoutSlots?(ref: LoadoutSlotRef): LoadoutSlotsResult | null;
 }

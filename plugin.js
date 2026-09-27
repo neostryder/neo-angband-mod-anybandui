@@ -5281,8 +5281,9 @@ function installPhase4(ctx) {
 
 // src/view-model/stores.ts
 var same2 = (a, b) => a.epoch === b.epoch && a.revision === b.revision;
-function adaptStore(snap, known, status) {
+function adaptStore(snap, known) {
   if (snap.phase !== "store" || !snap.core.stores || !snap.core.player || !snap.core.inventory) return null;
+  const status = snap.storeStatus && same2(snap.storeStatus.token, snap.token) ? snap.storeStatus : null;
   const cell = known && same2(known.token, snap.token) ? known.cells.find((entry2) => entry2.x === snap.core.player.grid.x && entry2.y === snap.core.player.grid.y) : null;
   const feat = status?.feat ?? cell?.remembered.feat;
   if (feat === void 0) return null;
@@ -5290,16 +5291,19 @@ function adaptStore(snap, known, status) {
   if (index < 0) return null;
   const store = snap.core.stores[index];
   const items = adaptItems(snap);
-  const eligibility = new Map(status?.inventory?.map((entry2) => [entry2.handle, entry2]));
-  const pack = (items?.rows ?? []).filter((item) => eligibility.get(item.handle)?.eligible !== false).map((item) => ({
-    key: item.handle,
-    label: item.label,
-    quantity: item.quantity,
-    colour: item.colour,
-    location: item.location === "pack" ? "Pack" : "Equipment",
-    eligible: eligibility.get(item.handle)?.eligible ?? true,
-    ...eligibility.get(item.handle)?.price === void 0 ? {} : { price: eligibility.get(item.handle).price }
-  }));
+  const quotes = new Map(status?.inventory.map((entry2) => [entry2.handle, entry2]));
+  const pack = (items?.rows ?? []).map((item) => {
+    const quote = quotes.get(item.handle);
+    return {
+      key: item.handle,
+      label: item.label,
+      quantity: item.quantity,
+      colour: item.colour,
+      location: item.location === "pack" ? "Pack" : "Equipment",
+      eligible: quote?.eligible ?? true,
+      ...quote && quote.eligible && quote.price !== null ? { price: quote.price } : {}
+    };
+  });
   return {
     token: snap.token,
     index,
@@ -5309,7 +5313,7 @@ function adaptStore(snap, known, status) {
     ...snap.core.player.gold === void 0 ? {} : { gold: snap.core.player.gold },
     ready: status?.ready ?? true,
     noSelling: status?.noSelling ?? false,
-    transactionPrompts: status?.transactionPrompts === true,
+    transactionPrompts: status !== null,
     stock: store.stock.map((item) => ({
       key: item.index,
       label: item.label,
@@ -5324,7 +5328,7 @@ function adaptStore(snap, known, status) {
 }
 
 // src/panels/stores.ts
-var CSS4 = `:host{color:var(--anyband-text);font:13px/1.4 system-ui,sans-serif}.store{position:absolute;inset:12px;overflow:auto;padding:10px;background:var(--anyband-surface);border:1px solid var(--anyband-accent);border-radius:var(--anyband-rounding);pointer-events:auto}.sides{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.side{min-width:0;overflow:auto}h2,h3{color:var(--anyband-accent);border-bottom:1px solid var(--anyband-accent)}table{width:100%;border-collapse:collapse}th{text-align:left}td,th{padding:3px;border-bottom:1px solid var(--anyband-accent)}button,input{font:inherit;color:var(--anyband-text);background:var(--anyband-background);border:1px solid var(--anyband-accent);border-radius:3px;padding:3px 6px}button{cursor:pointer}button:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid var(--anyband-accent)}.row{width:100%;text-align:left;border:0;background:transparent}.row[aria-pressed=true]{background:var(--anyband-accent);color:var(--anyband-background)!important}.actions{display:flex;gap:6px;margin:6px 0}.prompt{border:1px solid var(--anyband-accent);padding:8px;max-width:30em}.prompt input{width:100%}.muted{opacity:.65}.gain{color:#80b891}.loss,.error,.unaffordable{color:#ff7559}details{margin:8px 0}summary{color:var(--anyband-accent);cursor:pointer}@media(max-width:650px){.sides{grid-template-columns:1fr}}`;
+var CSS4 = `:host{color:var(--anyband-text);font:13px/1.4 system-ui,sans-serif}.store{position:absolute;inset:12px;overflow:auto;padding:10px;background:var(--anyband-surface);border:1px solid var(--anyband-accent);border-radius:var(--anyband-rounding);pointer-events:auto}.sides{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.side{min-width:0;overflow:auto}h2,h3{color:var(--anyband-accent);border-bottom:1px solid var(--anyband-accent)}table{width:100%;border-collapse:collapse}th{text-align:left}td,th{padding:3px;border-bottom:1px solid var(--anyband-accent)}button,input{font:inherit;color:var(--anyband-text);background:var(--anyband-background);border:1px solid var(--anyband-accent);border-radius:3px;padding:3px 6px}button{cursor:pointer}button:disabled{cursor:default;opacity:.5}button:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid var(--anyband-accent)}.row{width:100%;text-align:left;border:0;background:transparent}.row[aria-pressed=true]{background:var(--anyband-accent);color:var(--anyband-background)!important}.actions{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}.prompt{border:1px solid var(--anyband-accent);padding:8px;max-width:30em}.prompt input{width:100%}.muted{opacity:.65}.gain{color:#80b891}.loss,.error,.unaffordable{color:#ff7559}details{margin:8px 0}summary{color:var(--anyband-accent);cursor:pointer}@media(max-width:650px){.sides{grid-template-columns:1fr}}`;
 var same3 = (a, b) => a.epoch === b.epoch && a.revision === b.revision;
 function el4(parent, tag, value2) {
   const node2 = parent.ownerDocument.createElement(tag);
@@ -5338,26 +5342,61 @@ function button3(parent, label2, click) {
   node2.addEventListener("click", click);
   return node2;
 }
+var REFUSED = { accepted: false, quiet: false };
+var STANDING_DOWN = { accepted: false, quiet: true };
+function outcome(result) {
+  return { accepted: result.accepted, quiet: !result.accepted && result.code === "controller-owned" };
+}
+function tradeAllowed(model, side, row) {
+  if (!row || !model.transactionPrompts || !model.ready || model.prompt || !row.eligible) return false;
+  return side === "pack" || model.home || row.price === void 0 || model.gold === void 0 || row.price <= model.gold;
+}
 function storeAction(ctx, model, side, key) {
   const snap = ctx.snapshot?.();
-  if (!snap || snap.phase !== "store" || snap.prompt || !same3(snap.token, model.token) || !model.ready || !ctx.intent?.submit) return false;
-  if (!playerIsDriving(ctx)) return false;
-  const rows = side === "stock" ? model.stock : model.pack;
-  if (side !== "leave" && (!model.transactionPrompts || !rows.some((row) => row.key === key && row.eligible && (side === "pack" || model.home || row.price === void 0 || model.gold === void 0 || row.price <= model.gold)))) return false;
+  if (!snap || snap.phase !== "store" || snap.prompt || !same3(snap.token, model.token) || !model.ready || !ctx.intent?.submit) return REFUSED;
+  if (!playerIsDriving(ctx)) return STANDING_DOWN;
+  if (side !== "leave" && !tradeAllowed(model, side, (side === "stock" ? model.stock : model.pack).find((row) => row.key === key))) return REFUSED;
   const command = side === "leave" ? { code: "shop-exit" } : side === "stock" ? { code: "shop-buy", args: { index: key } } : { code: "shop-sell", args: { handle: key } };
-  return ctx.intent.submit(snap.token, { kind: "command", command }).accepted;
+  return outcome(ctx.intent.submit(snap.token, { kind: "command", command }));
 }
-function storePromptReply(ctx, model, value2) {
+function storePromptReply(ctx, model, answer) {
   const snap = ctx.snapshot?.();
-  if (!snap || snap.phase !== "store" || !same3(snap.token, model.token) || !snap.prompt || snap.prompt.promptId !== model.prompt?.promptId || !ctx.prompt?.reply) return false;
-  if (!playerIsDriving(ctx)) return false;
+  if (!snap || snap.phase !== "store" || !same3(snap.token, model.token) || !snap.prompt || snap.prompt.promptId !== model.prompt?.promptId || !ctx.prompt?.reply) return REFUSED;
+  if (!playerIsDriving(ctx)) return STANDING_DOWN;
+  const cancel = typeof answer === "object" && answer.action === "cancel";
   if (snap.prompt.kind === "quantity") {
     const quantity = snap.prompt;
-    if (typeof value2 !== "number" || !Number.isInteger(value2) || value2 < quantity.min || value2 > quantity.max) return false;
+    if (!cancel && (typeof answer !== "number" || !Number.isInteger(answer) || answer < quantity.min || answer > quantity.max)) return REFUSED;
   } else if (snap.prompt.kind === "confirm") {
-    if (typeof value2 !== "boolean") return false;
-  } else return false;
-  return ctx.prompt.reply(snap.prompt.promptId, value2).accepted;
+    if (typeof answer !== "boolean") return REFUSED;
+  } else return REFUSED;
+  return outcome(ctx.prompt.reply(snap.prompt.promptId, answer));
+}
+function storeComparisons(ctx, model, side, key) {
+  if (ctx.inspect?.compareLoadoutSlots) {
+    try {
+      const result = ctx.inspect.compareLoadoutSlots(side === "stock" ? { from: "store", store: model.index, index: key } : { from: "gear", handle: key });
+      if (result) return same3(result.token, model.token) ? result.slots.map((entry2) => ({ name: entry2.name, sim: entry2.comparison })) : [];
+    } catch {
+    }
+  }
+  const sim = compareItem(ctx, model.token, side === "stock" ? { store: model.index, index: key } : key);
+  return sim ? [{ name: "", sim }] : [];
+}
+function storeInspection(ctx, model, side, key) {
+  if (!ctx.inspect?.inspectItem) return null;
+  let result;
+  try {
+    result = ctx.inspect.inspectItem(side === "stock" ? { store: model.index, index: key } : key);
+  } catch {
+    return null;
+  }
+  if (!result || !same3(result.token, model.token)) return null;
+  if (side === "stock" && !result.sections) return null;
+  return result;
+}
+function cleanLabel(label2) {
+  return (label2 ?? "").replace(/\s*\[[^\]]*\]\s*$/u, "").replace(/\s*\(0-\d+, \*=all\)/u, "").replace(/[\s:]+$/u, "").trim();
 }
 function installStores(ctx) {
   const flags = ctx.flags ?? {};
@@ -5371,13 +5410,13 @@ function installStores(ctx) {
   let panel = null;
   let stockSelection = null, packSelection = null, unchanged = false, amount = 1, lastPrompt = -1, split = 50;
   let place = "", signature = "", error = "";
+  let pending = null;
   let mount = null;
   const on = (part) => flags[`anybandui.store${part}`] === true;
   const read = () => {
     const snap = ctx.snapshot?.();
     if (snap?.phase !== "store") return null;
-    const status = ctx.store?.current?.() ?? null;
-    return adaptStore(snap, ctx.knownLevel?.() ?? null, status);
+    return adaptStore(snap, ctx.knownLevel?.() ?? null);
   };
   const paint = (force = false) => {
     const model = read();
@@ -5387,6 +5426,7 @@ function installStores(ctx) {
         panel = null;
         mount = null;
       }
+      pending = null;
       return;
     }
     if (!panel) {
@@ -5402,10 +5442,17 @@ function installStores(ctx) {
       stockSelection = null;
       packSelection = null;
       error = "";
+      pending = null;
     }
     if (!model.stock.some((row) => row.key === stockSelection)) stockSelection = null;
     if (!model.pack.some((row) => row.key === packSelection)) packSelection = null;
-    const next = JSON.stringify([model, stockSelection, packSelection, unchanged, amount, error]);
+    if (pending) {
+      if (model.prompt) pending.seen = true;
+      else if (pending.seen) pending = null;
+    }
+    const asked = model.prompt?.kind === "quantity" ? model.prompt : null;
+    if (pending && asked?.unitPrice !== void 0) pending.unitPrice = asked.unitPrice;
+    const next = JSON.stringify([model, stockSelection, packSelection, unchanged, error, pending]);
     if (!force && next === signature) return;
     signature = next;
     const host = mount;
@@ -5424,23 +5471,34 @@ function installStores(ctx) {
     const sides = el4(host, "div");
     sides.className = "sides";
     sides.style.gridTemplateColumns = `${split}% ${100 - split}%`;
+    const show = (result, failure) => {
+      error = result.accepted || result.quiet ? "" : failure;
+    };
     const action = (side, key) => {
-      error = storeAction(ctx, model, side, key) ? "" : "Action unavailable at this input wait.";
+      const result = storeAction(ctx, model, side, key);
+      if (result.accepted && side !== "leave" && key !== void 0) pending = { side, key, amount: 1, seen: false };
+      show(result, "The store cannot do that right now.");
       paint(true);
     };
     const draw = (side) => {
       const box = el4(sides, "section");
       box.className = "side";
       el4(box, "h2", side === "stock" ? `${model.name}${model.owner ? ` - ${model.owner}` : ""}` : `Your inventory${model.gold === void 0 ? "" : ` (Gold: ${model.gold})`}`);
+      if (side === "pack" && model.noSelling && !model.home) {
+        const note = el4(box, "p", "Stores take items as gifts and pay no gold for them.");
+        note.className = "muted";
+      }
       const rows = side === "stock" ? model.stock : model.pack;
       const selected = side === "stock" ? stockSelection : packSelection;
+      const prices = on("Prices") && !model.home && !(side === "pack" && model.noSelling);
       const table = el4(box, "table");
       const head = el4(table, "tr");
-      for (const label2 of ["Item", "Qty", ...side === "pack" ? ["Location"] : [], ...on("Prices") && !model.home ? ["Gold each"] : []]) el4(head, "th", label2);
+      for (const label2 of ["Item", "Qty", ...side === "pack" ? ["Location"] : [], ...prices ? [side === "stock" ? "Gold each" : "Offer each"] : []]) el4(head, "th", label2);
       if (!rows.length) el4(box, "p", side === "stock" ? "No stock here." : "No items in your pack.");
       for (const row of rows) {
         const tr = el4(table, "tr");
         const cell = el4(tr, "td");
+        if (!row.eligible) tr.className = "muted";
         const pick = button3(cell, row.label, () => {
           if (side === "stock") stockSelection = row.key;
           else packSelection = row.key;
@@ -5448,11 +5506,11 @@ function installStores(ctx) {
         });
         pick.className = "row";
         pick.style.color = row.colour;
-        pick.title = row.label;
+        pick.title = row.eligible ? row.label : `${row.label}. This store will not buy it.`;
         pick.setAttribute("aria-pressed", String(selected === row.key));
         el4(tr, "td", String(row.quantity));
         if (side === "pack") el4(tr, "td", row.location ?? "Pack");
-        if (on("Prices") && !model.home) {
+        if (prices) {
           const price = el4(tr, "td", row.price === void 0 ? "" : String(row.price));
           if (side === "stock" && row.price !== void 0 && model.gold !== void 0 && row.price > model.gold) price.className = "unaffordable";
         }
@@ -5464,12 +5522,17 @@ function installStores(ctx) {
         const active = rows.find((row) => row.key === selected);
         const drive = playerIsDriving(ctx);
         const submit = button3(actions, label2, () => action(side, selected ?? void 0));
-        submit.disabled = !drive || !ctx.intent?.submit || !model.transactionPrompts || !model.ready || !!model.prompt || !active || !active.eligible || side === "stock" && !model.home && active.price !== void 0 && model.gold !== void 0 && active.price > model.gold;
-        if (!model.transactionPrompts) submit.title = "Store confirmations are unavailable in this game.";
-        if (model.noSelling && side === "pack") submit.title = "Shops accept eligible gifts without paying gold.";
+        submit.disabled = !drive || !ctx.intent?.submit || !tradeAllowed(model, side, active);
+        if (!model.transactionPrompts) submit.title = "This version of the game cannot run store trades from here.";
+        else if (active && !active.eligible) submit.title = "This store will not buy that item.";
+        else if (side === "stock" && active && !model.home && active.price !== void 0 && model.gold !== void 0 && active.price > model.gold) submit.title = "You cannot afford this.";
         if (side === "stock") {
           const leave = button3(actions, model.home ? "Leave home" : "Leave store", () => action("leave"));
           leave.disabled = !drive || !ctx.intent?.submit || !model.ready || !!model.prompt;
+        }
+        if (side === "stock" && model.transactionPrompts && !model.ready && !model.prompt) {
+          const wait = el4(box, "p", "Waiting for the store.");
+          wait.className = "muted";
         }
       }
       el4(box, "h3", "Inspection");
@@ -5481,76 +5544,120 @@ function installStores(ctx) {
       }
       el4(box, "strong", chosen.label).style.color = chosen.colour;
       if (on("Comparison")) {
-        const sim = compareItem(ctx, model.token, side === "stock" ? { store: model.index, index: chosen.key } : chosen.key);
-        if (sim) renderItemComparison(box, sim, unchanged, (value2) => {
-          unchanged = value2;
-          paint(true);
-        });
-      }
-      if (side === "pack") {
-        const inspection = ctx.inspect?.inspectItem(chosen.key);
-        if (inspection && same3(inspection.token, model.token)) {
-          const details = el4(box, "details");
-          details.open = true;
-          el4(details, "summary", inspection.title);
-          el4(details, "p", inspection.text);
+        const slots = storeComparisons(ctx, model, side, chosen.key);
+        for (const slot of slots) {
+          if (slots.length > 1 && slot.name) el4(box, "h4", slot.name.charAt(0).toUpperCase() + slot.name.slice(1));
+          renderItemComparison(box, slot.sim, unchanged, (value2) => {
+            unchanged = value2;
+            paint(true);
+          });
         }
+      }
+      const inspection = storeInspection(ctx, model, side, chosen.key);
+      if (inspection) {
+        const details = el4(box, "details");
+        details.open = true;
+        el4(details, "summary", inspection.title);
+        const parts = inspection.sections?.filter((part) => part.kind !== "title");
+        if (parts) for (const part of parts) el4(details, "p", part.text);
+        else el4(details, "p", inspection.text);
       }
     };
     draw("stock");
     draw("pack");
-    if (on("Prompts") && model.prompt && ctx.prompt?.reply) {
-      const prompt = model.prompt;
-      if (prompt.promptId !== lastPrompt) {
-        lastPrompt = prompt.promptId;
-        if (prompt.kind === "quantity") amount = prompt.defaultValue;
-      }
-      if (prompt.kind === "quantity" || prompt.kind === "confirm") {
-        const box = el4(host, "section");
-        box.className = "prompt";
-        el4(box, "h3", prompt.kind === "quantity" ? "Choose quantity" : "Confirm price");
-        el4(box, "p", prompt.label ?? "Confirm transaction?");
-        const reply = (value2) => {
-          error = storePromptReply(ctx, model, value2) ? "" : "Prompt answer unavailable.";
-          paint(true);
-        };
-        if (prompt.kind === "quantity") {
-          const quantity = prompt;
-          el4(box, "p", `Available for this action: ${quantity.max}`);
-          const input = el4(box, "input");
-          input.type = "number";
-          input.min = String(quantity.min);
-          input.max = String(quantity.max);
-          input.value = String(amount);
-          input.addEventListener("input", () => {
-            amount = Number(input.value);
-          });
-          input.addEventListener("keydown", (event) => {
-            if (event.key === "Enter") {
-              event.stopPropagation();
-              reply(amount);
-            }
-          });
-          const actions = el4(box, "div");
-          actions.className = "actions";
-          for (const [label2, value2] of [["One", 1], ["Half", Math.max(1, Math.floor(quantity.max / 2))], ["All", quantity.max]]) button3(actions, label2, () => {
-            amount = value2;
-            input.value = String(value2);
-          });
-          const confirm = button3(actions, "Confirm", () => reply(amount));
-          confirm.disabled = amount < quantity.min || amount > quantity.max;
-        } else {
-          const actions = el4(box, "div");
-          actions.className = "actions";
-          button3(actions, "Yes", () => reply(true));
-          button3(actions, "No", () => reply(false));
-        }
-      }
-    }
+    if (model.prompt) drawPrompt(host, model);
     if (error) {
       const line = el4(host, "p", error);
       line.className = "error";
     }
+  };
+  const drawPrompt = (host, model) => {
+    const prompt = model.prompt;
+    const box = el4(host, "section");
+    box.className = "prompt";
+    const interactive = on("Prompts") && !!ctx.prompt?.reply && (prompt.kind === "quantity" || prompt.kind === "confirm");
+    if (!interactive) {
+      el4(box, "p", cleanLabel(prompt.label) || "The game is asking a question.");
+      const hint = el4(box, "p", "Answer it with the keyboard.");
+      hint.className = "muted";
+      return;
+    }
+    const reply = (answer) => {
+      const result = storePromptReply(ctx, model, answer);
+      if (result.accepted) {
+        if (typeof answer === "number" && pending) pending.amount = answer;
+        if (typeof answer !== "number" && answer !== true) pending = null;
+      }
+      error = result.accepted || result.quiet ? "" : "That answer was not accepted.";
+      paint(true);
+    };
+    const selling = pending?.side === "pack";
+    if (prompt.kind === "quantity") {
+      const quantity = prompt;
+      if (quantity.promptId !== lastPrompt) {
+        lastPrompt = quantity.promptId;
+        amount = Math.max(1, Math.min(quantity.max, quantity.defaultValue));
+      }
+      const low = Math.max(1, quantity.min);
+      el4(box, "h3", "How many?");
+      const text2 = cleanLabel(quantity.label);
+      if (text2) el4(box, "p", text2);
+      el4(box, "p", `Up to ${quantity.max}`);
+      const priced = quantity.unitPrice !== void 0 && !(selling && model.noSelling);
+      if (selling && model.noSelling) el4(box, "p", "The store pays no gold for this.");
+      if (priced) el4(box, "p", `${selling ? "Offer" : "Price"} each: ${quantity.unitPrice} gold`);
+      const total = priced ? el4(box, "p") : null;
+      if (quantity.gold !== void 0) el4(box, "p", `Your gold: ${quantity.gold}`);
+      const input = el4(box, "input");
+      input.type = "number";
+      input.min = String(low);
+      input.max = String(quantity.max);
+      input.value = String(amount);
+      input.setAttribute("aria-label", "Amount");
+      const actions2 = el4(box, "div");
+      actions2.className = "actions";
+      const update = () => {
+        const valid = Number.isInteger(amount) && amount >= low && amount <= quantity.max;
+        confirm.disabled = !valid;
+        if (total) {
+          const sum = amount === 1 && quantity.totalPrice !== void 0 ? quantity.totalPrice : quantity.unitPrice * amount;
+          total.textContent = valid ? `Total: ${amount === 1 ? "" : "about "}${sum} gold` : "";
+          total.className = !selling && quantity.gold !== void 0 && sum > quantity.gold ? "unaffordable" : "";
+        }
+      };
+      input.addEventListener("input", () => {
+        amount = Number(input.value);
+        update();
+      });
+      input.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          event.stopPropagation();
+          if (!confirm.disabled) reply(amount);
+        }
+      });
+      for (const [label2, value2] of [["One", 1], ["Half", Math.max(1, Math.floor(quantity.max / 2))], ["All", quantity.max]]) button3(actions2, label2, () => {
+        amount = value2;
+        input.value = String(value2);
+        update();
+      });
+      const confirm = button3(actions2, "OK", () => reply(amount));
+      button3(actions2, "Cancel", () => reply({ action: "cancel" }));
+      update();
+      return;
+    }
+    el4(box, "h3", pending && !model.home ? selling ? "Accept this offer?" : "Accept this price?" : "Confirm");
+    const text = cleanLabel(prompt.label);
+    if (text) el4(box, "p", text);
+    if (pending && !model.home) {
+      const row = (pending.side === "stock" ? model.stock : model.pack).find((entry2) => entry2.key === pending.key);
+      const unit = pending.unitPrice ?? row?.price;
+      if (selling && model.noSelling) el4(box, "p", "You get no gold for this.");
+      else if (unit !== void 0) el4(box, "p", `${selling ? "You receive" : "Price"}: ${pending.amount === 1 ? "" : "about "}${unit * pending.amount} gold`);
+    }
+    const actions = el4(box, "div");
+    actions.className = "actions";
+    button3(actions, "Accept", () => reply(true));
+    button3(actions, "Decline", () => reply(false));
   };
   paint(true);
   const timer2 = globalThis.setInterval(() => paint(), 200);
