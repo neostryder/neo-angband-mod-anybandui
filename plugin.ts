@@ -27,6 +27,10 @@ import { validateSettings } from "./src/settings.js";
 import { THEMES } from "./src/theme.js";
 import { installAccessibilityAccommodations, uninstallAccessibilityAccommodations } from "./src/accessibility.js";
 import { installFirstEncounter, uninstallFirstEncounter, type FirstEncounterContext } from "./src/first-encounter.js";
+import { installZoomPan, uninstallZoomPan, zoomPanHud, type ZoomPanContext } from "./src/zoom.js";
+import { installHoverCards } from "./src/hover-cards.js";
+import { installMapHoverCards } from "./src/qol-map-hover.js";
+import { installMapOverview } from "./src/map-overview.js";
 
 /**
  * What this plugin needs from the host's context, structurally.
@@ -43,16 +47,22 @@ interface RegisterCtx {
     setVisualFilter(filter: string | null, options?: { scope: "game" }): void;
     setQuiverItemization?(enabled: boolean): void;
     setTileScaling?(mode: "auto" | "crisp"): void;
-  };
+    setMapView?(view: { origin: { x: number; y: number }; size: { width: number; height: number } } | null): void;
+    setFullMapOverview?(enabled: boolean): void;
+  } & Partial<NonNullable<ZoomPanContext["display"]>>;
   readonly core?: FirstEncounterContext["core"];
   readonly state?: FirstEncounterContext["state"];
   readonly ui?: FirstEncounterContext["ui"];
   readonly tiles?: FirstEncounterContext["tiles"];
   readonly prefs?: FirstEncounterContext["prefs"];
+  readonly knownLevel?: () => unknown;
+  readonly snapshot?: () => unknown;
+  readonly subwindows?: ZoomPanContext["subwindows"];
 }
 
 let quiverDisplay: RegisterCtx["display"];
 let tileDisplay: RegisterCtx["display"];
+let displayCleanups: Array<() => void> = [];
 
 type HudCtx = Parameters<typeof createSource>[0] & { readonly flags: Readonly<Record<string, boolean>>; readonly prefs?: { get(): unknown } };
 
@@ -66,19 +76,47 @@ export default {
     if (flags["anybandui.highContrast"] || flags["anybandui.colourblind"]) {
       installAccessibilityAccommodations({ flags, ...(ctx.display ? { display: ctx.display } : {}), log: ctx.log });
     }
-    if (flags["anybandui.quiverItemization"] || flags["anybandui.crispTiles"]) {
+    if (flags["anybandui.quiverItemization"]) {
       if (!ctx.display) ctx.log("this game is too old for display conveniences");
       else {
         if (flags["anybandui.quiverItemization"] && ctx.display.setQuiverItemization) {
           quiverDisplay = ctx.display;
           ctx.display.setQuiverItemization(true);
         }
-        // Crisp sampling applies to every active tileset; the map overview has a separate port.
-        if (flags["anybandui.crispTiles"] && ctx.display.setTileScaling) {
-          tileDisplay = ctx.display;
-          ctx.display.setTileScaling("crisp");
-        }
       }
+    }
+    if (ctx.display?.snapshot && ctx.display.onKey && ctx.display.setGrid && ctx.display.setCamera && ctx.display.setSidebarExtent && ctx.display.repaint) {
+      const display = ctx.display as NonNullable<ZoomPanContext["display"]>;
+      installZoomPan({ flags, display, ...(ctx.prefs ? { prefs: ctx.prefs as NonNullable<ZoomPanContext["prefs"]> } : {}),
+        ...(ctx.snapshot ? { snapshot: ctx.snapshot as NonNullable<ZoomPanContext["snapshot"]> } : {}),
+        ...(ctx.subwindows ? { subwindows: ctx.subwindows } : {}),
+        ...(ctx.state ? { state: ctx.state as unknown as NonNullable<ZoomPanContext["state"]> } : {}), log: ctx.log });
+      displayCleanups.push(uninstallZoomPan);
+      if (ctx.display.setFullMapOverview && ctx.display.setMapView && ctx.display.setTileScaling) {
+        displayCleanups.push(installMapOverview({ flags, display: ctx.display as unknown as NonNullable<Parameters<typeof installMapOverview>[0]["display"]>,
+          ...(ctx.state ? { state: ctx.state as unknown as NonNullable<ZoomPanContext["state"]> } : {}),
+          ...(ctx.knownLevel ? { knownLevel: ctx.knownLevel as NonNullable<Parameters<typeof installMapOverview>[0]["knownLevel"]> } : {}),
+          ...(ctx.prefs ? { prefs: ctx.prefs } : {}), log: ctx.log }));
+      }
+      displayCleanups.push(installMapHoverCards({ flags,
+        ...(ctx.core ? { core: ctx.core } : { core: null }),
+        ...(ctx.state ? { state: ctx.state as unknown as NonNullable<Parameters<typeof installMapHoverCards>[0]["state"]> } : {}),
+        display }));
+      displayCleanups.push(installHoverCards({ flags: { ...flags, "anybandui.mapHoverCards": false }, display,
+        ...(ctx.core ? { core: ctx.core as unknown as NonNullable<Parameters<typeof installHoverCards>[0]["core"]> } : {}),
+        ...(ctx.knownLevel ? { knownLevel: ctx.knownLevel as NonNullable<Parameters<typeof installHoverCards>[0]["knownLevel"]> } : {}),
+        ...(ctx.state ? { state: ctx.state as unknown as NonNullable<ZoomPanContext["state"]> } : {}), ...(ctx.prefs ? { prefs: ctx.prefs } : {}), log: ctx.log }));
+    } else if (flags["anybandui.crispTiles"] && ctx.display?.setTileScaling) {
+      tileDisplay = ctx.display;
+      ctx.display.setTileScaling("crisp");
+      ctx.display.setFullMapOverview?.(true);
+      displayCleanups.push(() => ctx.display?.setFullMapOverview?.(false));
+    }
+    if (flags["anybandui.mapHoverCards"] &&
+        !(ctx.display?.snapshot && ctx.display.onKey && ctx.display.setGrid && ctx.display.setCamera && ctx.display.setSidebarExtent && ctx.display.repaint)) {
+      displayCleanups.push(installMapHoverCards({ flags, core: ctx.core ?? null,
+        ...(ctx.state ? { state: ctx.state as unknown as NonNullable<Parameters<typeof installMapHoverCards>[0]["state"]> } : {}),
+        ...(ctx.display?.snapshot ? { display: ctx.display as NonNullable<ZoomPanContext["display"]> } : {}) }));
     }
     /* The live state is available at register time. See first-encounter.ts
      * for why sightings are polled and stored in prefs by character. */
@@ -93,6 +131,7 @@ export default {
   },
 
   uninstall(): void {
+    for (const cleanup of displayCleanups.splice(0).reverse()) cleanup();
     uninstallFirstEncounter();
     uninstallAccessibilityAccommodations();
     quiverDisplay?.setQuiverItemization?.(false);
@@ -107,7 +146,8 @@ export default {
     const enabled = { sidebar: ctx.flags["anybandui.sidebar"] === true,
       status: ctx.flags["anybandui.status"] === true,
       messages: ctx.flags["anybandui.messages"] === true };
-    if (!enabled.sidebar && !enabled.status && !enabled.messages) return undefined;
+    const zoomSidebar = !enabled.sidebar && (ctx.flags["anybandui.zoom"] || ctx.flags["anybandui.enlargedDisplay"]);
+    if (!enabled.sidebar && !enabled.status && !enabled.messages && !zoomSidebar) return undefined;
     const source = createSource(ctx);
     const theme = THEMES[validateSettings(ctx.prefs?.get()).theme]!;
     const output: { -readonly [K in keyof HudOwnership]: HudOwnership[K] } = {};
@@ -117,10 +157,15 @@ export default {
         { key: "tracked", render: renderTrackedCreature, select: (m) => m.player.tracked_creature },
       ], theme);
       output.sidebar = { present(section: HudSection, frame: HudFrame) {
+        zoomPanHud({ flags: ctx.flags })?.sidebar?.present(section, frame);
         source.hud.sidebar!.present(section, frame);
         const model = source.snapshot();
         if (model) host.present(section, frame, model);
       } };
+    }
+    else if (zoomSidebar) {
+      const sink = zoomPanHud({ flags: ctx.flags })?.sidebar;
+      if (sink) output.sidebar = sink as NonNullable<HudOwnership["sidebar"]>;
     }
     if (enabled.status) {
       const host = createPanelHost(doc, [

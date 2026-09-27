@@ -5,10 +5,14 @@ export interface Settings {
   interfaceFont: string;
   dungeonFont: string;
   showHeadings: boolean;
+  hoverDelayMs: number;
+  zoomIndex: number;
+  panelZoom: Readonly<Record<string, number>>;
 }
 
 export const DEFAULT_SETTINGS: Readonly<Settings> = {
   theme: "terminal-original", interfaceFont: "Nouveau_IBM.ttf", dungeonFont: "", showHeadings: true,
+  hoverDelayMs: 550, zoomIndex: 7, panelZoom: {},
 };
 
 interface PrefsCtx { readonly prefs: { get(): unknown; set(value: unknown): void } }
@@ -27,6 +31,14 @@ export function validateSettings(value: unknown): Settings {
     dungeonFont: typeof record["dungeonFont"] === "string" && (record["dungeonFont"] === "" || fonts.has(record["dungeonFont"]))
       ? record["dungeonFont"] : DEFAULT_SETTINGS.dungeonFont,
     showHeadings: typeof record["showHeadings"] === "boolean" ? record["showHeadings"] : DEFAULT_SETTINGS.showHeadings,
+    hoverDelayMs: typeof record["hoverDelayMs"] === "number" && Number.isInteger(record["hoverDelayMs"])
+      ? Math.max(0, Math.min(5000, record["hoverDelayMs"])) : DEFAULT_SETTINGS.hoverDelayMs,
+    zoomIndex: typeof record["zoomIndex"] === "number" && Number.isInteger(record["zoomIndex"])
+      ? Math.max(0, Math.min(18, record["zoomIndex"])) : DEFAULT_SETTINGS.zoomIndex,
+    panelZoom: record["panelZoom"] && typeof record["panelZoom"] === "object" && !Array.isArray(record["panelZoom"])
+      ? Object.fromEntries(Object.entries(record["panelZoom"] as Record<string, unknown>)
+        .filter(([id, step]) => id.length > 0 && typeof step === "number" && Number.isInteger(step) && step >= 0 && step <= 6)) as Record<string, number>
+      : DEFAULT_SETTINGS.panelZoom,
   };
 }
 

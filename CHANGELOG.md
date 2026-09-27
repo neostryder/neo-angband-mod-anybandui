@@ -10,6 +10,7 @@ An entry opens with one or more bracketed tags. `[Visible]` marks a change a pla
 
 ### Added
 
+- [Visible] [UI] **Zoom and pan, hover cards and a full-level map overview, brought over from Quality of Life.** Zoom keeps whole cells so tiles stay crisp, and it can also follow your character, pan with a mouse drag, keep the aiming cursor on screen and centre on each new level. Hover cards work on the dungeon view and the map overview with one shared delay. The map overview adds an outline of the main view, landmark markers with a legend, mouse zoom and pan, and a flat-colour schematic mode. Each feature has its own switch and starts off.
 - [Visible] [UI] **High-contrast and colourblind displays, first-encounter alerts, an itemized quiver and sharper shrunken tiles, brought over from Quality of Life.** Each has its own switch and starts off. The two display filters also cover this mod's panels.
 - [Visible] [UI] **Panels for the character column, the status line and the message line.** Each has its own switch on the Mods screen and starts off. The character card shows bars for hit points, spell points, food and experience beside your stats, gold, armour and speed. The status panel shows a badge for each timed effect and a card for the current level, and the message log folds repeated messages and can be searched.
 - [Internal] **The mod repository, with a plugin that loads and adds nothing to the screen.** It declares no capabilities and logs one line when the game loads it.

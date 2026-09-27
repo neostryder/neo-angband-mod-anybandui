@@ -31,4 +31,11 @@ describe("settings store", () => {
     store.set({ theme: "light-paper" });
     expect(saved).toMatchObject({ firstEncounter: { monsters: [1] }, theme: "light-paper" });
   });
+
+  it("shares and bounds the delay for both map and dungeon cards", () => {
+    expect(DEFAULT_SETTINGS.hoverDelayMs).toBe(550);
+    expect(validateSettings({ hoverDelayMs: 825 }).hoverDelayMs).toBe(825);
+    expect(validateSettings({ hoverDelayMs: -20 }).hoverDelayMs).toBe(0);
+    expect(validateSettings({ hoverDelayMs: 10000 }).hoverDelayMs).toBe(5000);
+  });
 });

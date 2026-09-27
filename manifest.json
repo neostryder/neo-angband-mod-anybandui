@@ -16,11 +16,13 @@
     "ui:status.replace",
     "ui:messages.replace",
     "display:filter",
-    "ui:panel.mount"
+    "ui:panel.mount",
+    "state:map.read",
+    "state:interaction.read"
   ],
   "author": "WurliMonkhaven, neostryder",
   "license": "GPL-2.0-only",
-  "description": "A mouse-first interface for Neo Angband, ported from Wurli Monkhaven's AnybandUI. This version redraws the character column, the status line and the message line as panels: bars for hit points, spell points, food and experience, a badge for each status effect, a card for the current dungeon level, and a message log you can search. Each panel has its own switch and starts off. The game's rules are untouched, and turning the mod off brings back the standard screen.",
+  "description": "A mouse-first interface for Neo Angband, ported from Wurli Monkhaven's AnybandUI. This version offers character, status and message panels, whole-cell zoom and camera controls, knowledge-gated hover cards, and a full-detail level overview with schematic drawing. Every feature starts off. The game's rules are untouched, and turning the mod off brings back the standard screen.",
   "rules": [
     {
       "flag": "anybandui.sidebar",
@@ -75,6 +77,76 @@
       "flag": "anybandui.crispTiles",
       "title": "Sharpen shrunken tiles",
       "description": "Draws graphics tiles with crisp pixel edges when they are shrunk, instead of the smoothed default. Pixel-art tilesets often look sharper this way at small zoom levels.",
+      "default": false,
+      "requiresReload": true
+    },
+    {
+      "flag": "anybandui.zoom",
+      "title": "Zoom, pan and responsive layout",
+      "description": "Ctrl-= and Ctrl-- make glyphs or tiles bigger or smaller, and the view fits as many whole rows and columns as the window holds. Ctrl-Arrows pan, Ctrl-Wheel zooms the area under the pointer, and a two-finger pinch or swipe zooms or pans on touch. The zoom level is kept for every character.",
+      "default": false,
+      "requiresReload": true
+    },
+    {
+      "flag": "anybandui.enlargedDisplay",
+      "title": "Accessibility: enlarged display",
+      "description": "Starts the display at a larger, easier-to-read cell size. It works even with zoom and pan turned off, and does not change your saved zoom.",
+      "default": false,
+      "requiresReload": true
+    },
+    {
+      "flag": "anybandui.dragPan",
+      "title": "Drag to pan",
+      "description": "Hold the middle mouse button and drag to move the dungeon view.",
+      "default": false,
+      "requiresReload": true
+    },
+    {
+      "flag": "anybandui.followPlayer",
+      "title": "Follow the character",
+      "description": "Keeps the view on your character as you move. Panning away pauses it, and Ctrl+Home brings the view back and starts following again.",
+      "default": false,
+      "requiresReload": true
+    },
+    {
+      "flag": "anybandui.keepTargetInView",
+      "title": "Keep the target in view",
+      "description": "While you aim, the view moves so the targeting cursor stays on screen.",
+      "default": false,
+      "requiresReload": true
+    },
+    {
+      "flag": "anybandui.recentreOnFloor",
+      "title": "Centre on a new level",
+      "description": "Arriving on a new level centres the view on your character.",
+      "default": false,
+      "requiresReload": true
+    },
+    {
+      "flag": "anybandui.mapHoverCards",
+      "title": "Hover cards on the map overview",
+      "description": "Resting the pointer on a cell of the map overview, or holding a finger on it, opens a card with a magnified tile and what you know about that cell: terrain, creature, item, trap or shop. It shows nothing your character has not seen.",
+      "default": false,
+      "requiresReload": true
+    },
+    {
+      "flag": "anybandui.dungeonHoverCards",
+      "title": "Hover cards on the dungeon view",
+      "description": "Resting the pointer on a tile of the dungeon view opens a card with what you know about it: the creature or character there with a small health bar, the terrain, and up to five items on the floor. The delay before a card opens is one setting shared with the map overview's cards, 550 ms to start with.",
+      "default": false,
+      "requiresReload": true
+    },
+    {
+      "flag": "anybandui.mapOverview",
+      "title": "Full-level map overview",
+      "description": "The (M)ap screen shows every square of the level you know, shrunk to fit, with markers for you, the stairs and the shops, and an outline of what the main view shows. The mouse wheel zooms at the pointer, dragging pans, and Fit floor and Centre on player buttons sit beside the map.",
+      "default": false,
+      "requiresReload": true
+    },
+    {
+      "flag": "anybandui.mapSchematic",
+      "title": "Schematic map",
+      "description": "Draws the map overview as flat blocks of colour for walls, doors and floor instead of glyphs or tiles, which is easier to read when the whole level is shrunk.",
       "default": false,
       "requiresReload": true
     }
