@@ -8,11 +8,12 @@ export interface Settings {
   hoverDelayMs: number;
   zoomIndex: number;
   panelZoom: Readonly<Record<string, number>>;
+  effects: Readonly<Record<string, number>>;
 }
 
 export const DEFAULT_SETTINGS: Readonly<Settings> = {
   theme: "terminal-original", interfaceFont: "Nouveau_IBM.ttf", dungeonFont: "", showHeadings: true,
-  hoverDelayMs: 550, zoomIndex: 7, panelZoom: {},
+  hoverDelayMs: 550, zoomIndex: 7, panelZoom: {}, effects: {},
 };
 
 interface PrefsCtx { readonly prefs: { get(): unknown; set(value: unknown): void } }
@@ -39,6 +40,11 @@ export function validateSettings(value: unknown): Settings {
       ? Object.fromEntries(Object.entries(record["panelZoom"] as Record<string, unknown>)
         .filter(([id, step]) => id.length > 0 && typeof step === "number" && Number.isInteger(step) && step >= 0 && step <= 6)) as Record<string, number>
       : DEFAULT_SETTINGS.panelZoom,
+    effects: record["effects"] && typeof record["effects"] === "object" && !Array.isArray(record["effects"])
+      ? Object.fromEntries(Object.entries(record["effects"] as Record<string, unknown>)
+        .filter(([id, value]) => id.length > 0 && typeof value === "number" && Number.isFinite(value))
+        .map(([id, value]) => [id, Math.max(0, Math.min(100, Math.round(value as number)))]))
+      : DEFAULT_SETTINGS.effects,
   };
 }
 
