@@ -51,7 +51,7 @@ export interface PromptSeam { reply(promptId: number, answer: number | boolean):
 export interface LoadoutStats { readonly speed: number; readonly ac: number; readonly toH: number; readonly toD: number; readonly blows: number; readonly shots: number; readonly maxHp: number; readonly maxSp: number; readonly totalWeight: number; readonly statUse: readonly number[]; readonly resists: readonly number[]; readonly resistElements: readonly string[]; readonly objectFlags: readonly string[] }
 export interface LoadoutSimulation { readonly before: { readonly stats: LoadoutStats }; readonly after: { readonly stats: LoadoutStats }; readonly placements: readonly { readonly slot: number; readonly displaced: ItemView | null }[]; readonly unresolved: readonly unknown[] }
 export interface ActionBuilders { wear(handle: number): AgentCommand; takeoff(handle: number): AgentCommand; drop(handle: number, quantity?: number): AgentCommand; raw(code: string, args?: Record<string, unknown>): AgentCommand }
-export interface ItemsContext { readonly flags?: Readonly<Record<string, boolean>>; readonly snapshot?: () => InputSnapshot | null; readonly inspect?: InspectSeam; readonly intent?: IntentSeam; readonly prompt?: PromptSeam; readonly ui?: { openPanel(spec: { id: string; modal: boolean; label: string }): { readonly root: ShadowRoot; readonly closed: Promise<void>; close(): void } }; readonly core?: { createAgentView?(state: unknown): { simulateLoadout?(change: { wield: readonly ({ from: "gear"; handle: number } | { from: "store"; store: number; index: number })[] }): LoadoutSimulation | null }; createAgentActions?(state: unknown): ActionBuilders }; readonly state?: unknown; readonly prefs?: { get(): unknown }; readonly log: (message: string) => void }
+export interface ItemsContext { readonly flags?: Readonly<Record<string, boolean>>; readonly snapshot?: () => InputSnapshot | null; readonly inspect?: InspectSeam; readonly intent?: IntentSeam; readonly prompt?: PromptSeam; readonly ui?: { openPanel(spec: { id: string; modal: boolean; label: string }): { readonly root: ShadowRoot; readonly closed: Promise<void>; close(): void }; registerPanelKind?(spec: PanelKindSpec): () => void }; readonly core?: { createAgentView?(state: unknown): { simulateLoadout?(change: { wield: readonly ({ from: "gear"; handle: number } | { from: "store"; store: number; index: number })[] }): LoadoutSimulation | null }; createAgentActions?(state: unknown): ActionBuilders }; readonly state?: unknown; readonly prefs?: { get(): unknown }; readonly log: (message: string) => void }
 
 // Map mouse: the map-facing slice of the same seams.
 export interface MouseSeams {
@@ -85,3 +85,27 @@ export interface StoreContext extends ItemsContext {
   readonly controller?: { driver?(): { readonly kind: "player" | "autoplayer"; readonly owner?: string; readonly label?: string } | null };
   readonly store?: { current?(): StoreStatus | null };
 }
+
+// Phase 6: panel kinds mirror packages/web/src/mod-plugin.ts PanelKindSpec and PanelMount.
+export interface PanelState { readonly bounds: Readonly<{ width: number; height: number }>; readonly active: boolean; readonly focused: boolean }
+export interface PanelMount {
+  readonly id: string;
+  readonly root: ShadowRoot;
+  readonly bounds: Readonly<{ width: number; height: number }>;
+  readonly active: boolean;
+  readonly focused: boolean;
+  onStateChange(listener: (state: PanelState) => void): () => void;
+  requestFocus(): void;
+  requestClose(): void;
+  setFitHeight(px: number | null): void;
+}
+export interface PanelKindSpec {
+  readonly kind: string;
+  readonly label: string;
+  readonly tab?: string;
+  readonly minSize?: Readonly<{ width: number; height: number }>;
+  readonly preferredPlacement?: Readonly<{ kind: "dock"; target: string; edge: "left" | "right" | "top" | "bottom" }> | Readonly<{ kind: "tab"; target: string }>;
+  readonly fitHeight?: number;
+  mount(host: PanelMount): void | (() => void);
+}
+export interface PanelKindSeam { registerPanelKind?(spec: PanelKindSpec): () => void }

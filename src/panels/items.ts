@@ -1,5 +1,4 @@
-import { applyTheme, THEMES } from "../theme.js";
-import { validateSettings } from "../settings.js";
+import { openSurfaces } from "./surface.js";
 import { itemRuleLines } from "../item-rules.js";
 import type { ItemsContext, ItemPrompt, QuantityPrompt, AgentCommand } from "../seams.js";
 import { AcquisitionChanges, adaptItems, compareItem, type ItemRow, type ItemsModel } from "../view-model/items.js";
@@ -18,11 +17,13 @@ function same(a: { epoch: number; revision: number }, b: { epoch: number; revisi
 export function installItems(ctx: ItemsContext): () => void {
   const flags = ctx.flags ?? {};
   if (!Object.entries(flags).some(([key, on]) => key.startsWith("anybandui.items") && on && (key !== "anybandui.itemsRules" || !!ctx.inspect?.itemRules))) return () => {};
-  if (!ctx.ui?.openPanel || !ctx.snapshot) { ctx.log("items: panel or snapshot seam unavailable"); return () => {}; }
-  const panel = ctx.ui.openPanel({ id: "items", modal: false, label: "Items" });
-  applyTheme(panel.root, THEMES[validateSettings(ctx.prefs?.get()).theme]);
-  el(panel.root, "style", CSS);
-  const mount = el(panel.root, "section"); mount.className = "items";
+  if (!ctx.snapshot) { ctx.log("items: snapshot seam unavailable"); return () => {}; }
+  let repaint = (): void => {};
+  // A pane beside the dungeon view when the host tiles mod panels, else an overlay.
+  const surfaces = openSurfaces(ctx, [{ key: "items", label: "Items", tab: "Items", minSize: { width: 280, height: 220 }, placement: { kind: "dock", target: "main", edge: "right" } }],
+    { id: "items", label: "Items", className: "items" }, CSS, () => repaint());
+  if (!surfaces) { ctx.log("items: panel seam unavailable"); return () => {}; }
+  let mount: HTMLElement = document.createElement("section");
   const changes = new AcquisitionChanges();
   let tab: "pack" | "equipment" | "quiver" = "pack";
   let search = "";
@@ -90,10 +91,13 @@ export function installItems(ctx: ItemsContext): () => void {
     if (sim) renderItemComparison(mount, sim, unchanged, (value) => { unchanged = value; paint(true); });
   };
   const paint = (force = false): void => {
-    if (closed || !panel.root.isConnected) return;
+    if (closed) return;
+    const current = surfaces.mounts().get("items");
+    if (!current) return;
+    if (current !== mount) { mount = current; signature = ""; }
     const model = read();
     // The store window owns these pixels and prompts during a store visit.
-    (panel.root.host as HTMLElement).style.display = model?.phase === "store" ? "none" : "";
+    ((mount.getRootNode() as ShadowRoot).host as HTMLElement).style.display = model?.phase === "store" ? "none" : "";
     if (model?.phase === "store") return;
     const next = JSON.stringify([model, tab, search, selected, unchanged, quantity, error]);
     if (!force && next === signature) return; signature = next;
@@ -138,6 +142,6 @@ export function installItems(ctx: ItemsContext): () => void {
   };
   paint(true);
   const timer = globalThis.setInterval(() => paint(), 200);
-  void panel.closed.then(() => { closed = true; globalThis.clearInterval(timer); });
-  return () => { closed = true; globalThis.clearInterval(timer); panel.close(); };
+  repaint = () => paint(true);
+  return () => { closed = true; globalThis.clearInterval(timer); surfaces.close(); };
 }

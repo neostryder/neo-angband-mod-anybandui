@@ -307,8 +307,8 @@ function createPanelHost(doc, panels, theme) {
   doc.body.appendChild(element);
   return {
     element,
-    present(section, frame, model) {
-      const region = section.region;
+    present(section2, frame, model) {
+      const region = section2.region;
       const box = region?.pixels;
       const at = frame.stack?.findIndex((item) => item.id === region?.name) ?? -1;
       const covered = at >= 0 && frame.stack.slice(at + 1).some((item) => intersects(item.cells, region.cells));
@@ -1659,7 +1659,7 @@ var PLAY_ZOOM_CELL_HEIGHTS = [
 var SUBWINDOW_ZOOM_CELL_HEIGHTS = [10, 12, 14, 16, 18, 20, 24];
 var SUBWINDOW_ZOOM_MIN_COLS = 20;
 var SUBWINDOW_ZOOM_MIN_ROWS = 3;
-var INTERFACE_ZOOM_SCALES = [0.8, 1, 1.25, 1.5];
+var INTERFACE_ZOOM_SCALES = [0.75, 1, 1.25, 1.5];
 var MAP_DETAIL_FACTORS = [0, 4, 2, 1];
 var ACCESSIBILITY_ZOOM_INDEX = 9;
 var DEFAULT_PLAY_MAP_COLS = 66;
@@ -2387,7 +2387,7 @@ function turnSidebarPage(rt, direction) {
   sidebar.page = (plan.page + Math.sign(direction) + plan.pages) % plan.pages;
   paintSidebar(rt, sidebar.section, sidebar.frame);
 }
-function paintSidebar(rt, section, frame) {
+function paintSidebar(rt, section2, frame) {
   const layoutChanged = rt.sidebarLayout !== frame.layout;
   rt.sidebarLayout = frame.layout;
   if (!rt.gridActive) {
@@ -2406,23 +2406,23 @@ function paintSidebar(rt, section, frame) {
   }
   rt.sidebar ??= createSidebar(rt);
   const sidebar = rt.sidebar;
-  const pixels = section.region?.pixels;
+  const pixels = section2.region?.pixels;
   const surface = rt.display.snapshot().surface;
   if (!sidebar || !pixels || !surface || frame.layout === "none" || hidesSidebar(rt.display.snapshot().mode)) {
     if (sidebar) sidebar.host.style.display = "none";
     return;
   }
   const scale = INTERFACE_ZOOM_SCALES[rt.preference.interfaceZoomIndex] ?? 1;
-  if (sidebar.layout !== frame.layout || sidebar.entryCount !== section.entries.length) {
+  if (sidebar.layout !== frame.layout || sidebar.entryCount !== section2.entries.length) {
     sidebar.page = 0;
   }
   sidebar.layout = frame.layout;
-  sidebar.entryCount = section.entries.length;
-  sidebar.section = section;
+  sidebar.entryCount = section2.entries.length;
+  sidebar.section = section2;
   sidebar.frame = frame;
-  const plan = sidebarPagePlan(section.entries.length, frame.layout, pixels, scale, sidebar.page);
+  const plan = sidebarPagePlan(section2.entries.length, frame.layout, pixels, scale, sidebar.page);
   sidebar.page = plan.page;
-  const visible = section.entries.slice(plan.start, plan.end);
+  const visible = section2.entries.slice(plan.start, plan.end);
   let cellHeight = plan.fontSize * 1.25;
   let cellWidth = cellHeight * (FONT_16X24.w / FONT_16X24.h);
   if (frame.layout !== "top") {
@@ -2704,13 +2704,13 @@ function zoomPanHud(ctx) {
     return void 0;
   }
   const rt = runtime;
-  return { sidebar: { present: (section, frame) => {
+  return { sidebar: { present: (section2, frame) => {
     if (ctx.flags["anybandui.sidebar"] === true) {
       rt.sidebarLayout = frame.layout;
       if (!rt.gridActive && rt.bootPhase === "game-pending") activateGameplayGrid(rt);
       return;
     }
-    paintSidebar(rt, section, frame);
+    paintSidebar(rt, section2, frame);
   } } };
 }
 function uninstallZoomPan() {
@@ -3748,6 +3748,98 @@ function installMapHoverCards(ctx) {
   };
 }
 
+// src/panels/surface.ts
+function interfaceScale(ctx) {
+  if (ctx.flags?.["anybandui.zoom"] !== true) return 1;
+  return INTERFACE_ZOOM_SCALES[readDisplayPreference(ctx.prefs?.get()).interfaceZoomIndex] ?? 1;
+}
+function prepare(ctx, root, css) {
+  applyTheme(root, THEMES[validateSettings(ctx.prefs?.get()).theme]);
+  const style = root.ownerDocument.createElement("style");
+  style.textContent = css;
+  root.appendChild(style);
+}
+function section(root, className) {
+  const container = root.ownerDocument.createElement("section");
+  container.className = className;
+  root.appendChild(container);
+  return container;
+}
+function openSurfaces(ctx, specs, overlay, css, onChange) {
+  const entries = /* @__PURE__ */ new Map();
+  const scale = (container) => {
+    container.style.zoom = String(interfaceScale(ctx));
+  };
+  const register = ctx.ui?.registerPanelKind;
+  if (register) {
+    const unregister = specs.map((spec) => register({
+      kind: spec.key,
+      label: spec.label,
+      ...spec.tab ? { tab: spec.tab } : {},
+      ...spec.minSize ? { minSize: spec.minSize } : {},
+      ...spec.placement ? { preferredPlacement: spec.placement } : {},
+      ...spec.fitHeight !== void 0 ? { fitHeight: spec.fitHeight } : {},
+      mount(host) {
+        prepare(ctx, host.root, css);
+        const entry2 = { container: section(host.root, overlay.className), host, active: host.active, fitted: spec.fitHeight ?? null };
+        entries.set(spec.key, entry2);
+        const stop = host.onStateChange((state) => {
+          entry2.active = state.active;
+          onChange();
+        });
+        onChange();
+        return () => {
+          stop();
+          entries.delete(spec.key);
+        };
+      }
+    }));
+    return {
+      mounts: () => new Map([...entries].filter(([, entry2]) => entry2.active).map(([key, entry2]) => {
+        scale(entry2.container);
+        return [key, entry2.container];
+      })),
+      fit: (key, px) => {
+        const entry2 = entries.get(key);
+        const next = Math.ceil(px);
+        if (entry2?.host && entry2.fitted !== next) {
+          entry2.fitted = next;
+          entry2.host.setFitHeight(next);
+        }
+      },
+      focus: (key) => entries.get(key)?.host?.requestFocus(),
+      close: () => {
+        for (const stop of unregister) stop();
+        entries.clear();
+      }
+    };
+  }
+  if (!ctx.ui?.openPanel) return null;
+  const panel = ctx.ui.openPanel({ id: overlay.id, modal: false, label: overlay.label });
+  prepare(ctx, panel.root, css);
+  for (const spec of specs) entries.set(spec.key, { container: section(panel.root, overlay.className), host: null, active: true, fitted: null });
+  let open = true;
+  void panel.closed.then(() => {
+    open = false;
+    entries.clear();
+  });
+  return {
+    mounts: () => open ? new Map([...entries].map(([key, entry2]) => {
+      scale(entry2.container);
+      return [key, entry2.container];
+    })) : /* @__PURE__ */ new Map(),
+    fit: () => {
+    },
+    focus: () => {
+    },
+    close: () => {
+      if (open) panel.close();
+      open = false;
+      entries.clear();
+    }
+  };
+}
+
 // src/item-rules.ts
 function itemRuleLines(rules) {
   return [
@@ -3958,16 +4050,26 @@ function installItems(ctx) {
   const flags = ctx.flags ?? {};
   if (!Object.entries(flags).some(([key, on]) => key.startsWith("anybandui.items") && on && (key !== "anybandui.itemsRules" || !!ctx.inspect?.itemRules))) return () => {
   };
-  if (!ctx.ui?.openPanel || !ctx.snapshot) {
-    ctx.log("items: panel or snapshot seam unavailable");
+  if (!ctx.snapshot) {
+    ctx.log("items: snapshot seam unavailable");
     return () => {
     };
   }
-  const panel = ctx.ui.openPanel({ id: "items", modal: false, label: "Items" });
-  applyTheme(panel.root, THEMES[validateSettings(ctx.prefs?.get()).theme]);
-  el2(panel.root, "style", CSS2);
-  const mount = el2(panel.root, "section");
-  mount.className = "items";
+  let repaint = () => {
+  };
+  const surfaces = openSurfaces(
+    ctx,
+    [{ key: "items", label: "Items", tab: "Items", minSize: { width: 280, height: 220 }, placement: { kind: "dock", target: "main", edge: "right" } }],
+    { id: "items", label: "Items", className: "items" },
+    CSS2,
+    () => repaint()
+  );
+  if (!surfaces) {
+    ctx.log("items: panel seam unavailable");
+    return () => {
+    };
+  }
+  let mount = document.createElement("section");
   const changes = new AcquisitionChanges();
   let tab = "pack";
   let search = "";
@@ -4095,9 +4197,15 @@ function installItems(ctx) {
     });
   };
   const paint = (force = false) => {
-    if (closed || !panel.root.isConnected) return;
+    if (closed) return;
+    const current = surfaces.mounts().get("items");
+    if (!current) return;
+    if (current !== mount) {
+      mount = current;
+      signature = "";
+    }
     const model = read();
-    panel.root.host.style.display = model?.phase === "store" ? "none" : "";
+    mount.getRootNode().host.style.display = model?.phase === "store" ? "none" : "";
     if (model?.phase === "store") return;
     const next = JSON.stringify([model, tab, search, selected, unchanged, quantity, error]);
     if (!force && next === signature) return;
@@ -4112,11 +4220,11 @@ function installItems(ctx) {
     showPrompt(model);
     const rules = enabled("Rules") ? ctx.inspect?.itemRules?.() ?? null : null;
     if (rules && same(rules.token, model.token)) {
-      const section = el2(mount, "details");
-      el2(section, "summary", "Ignore settings and inscriptions");
+      const section2 = el2(mount, "details");
+      el2(section2, "summary", "Ignore settings and inscriptions");
       const lines = itemRuleLines(rules);
-      if (!lines.length) el2(section, "p", "No ignore settings or inscriptions yet.");
-      for (const line of lines) el2(section, "div", line);
+      if (!lines.length) el2(section2, "p", "No ignore settings or inscriptions yet.");
+      for (const line of lines) el2(section2, "div", line);
     }
     if (!enabled("Lists")) return;
     const tabs = el2(mount, "div");
@@ -4187,14 +4295,11 @@ function installItems(ctx) {
   };
   paint(true);
   const timer2 = globalThis.setInterval(() => paint(), 200);
-  void panel.closed.then(() => {
-    closed = true;
-    globalThis.clearInterval(timer2);
-  });
+  repaint = () => paint(true);
   return () => {
     closed = true;
     globalThis.clearInterval(timer2);
-    panel.close();
+    surfaces.close();
   };
 }
 
@@ -4704,15 +4809,21 @@ function installPhase4(ctx) {
   const blastCleanup = flags["anybandui.blastPreview"] ? installBlastPreview(ctx) : () => {
   };
   if (!spellOn && !quickOn && !restOn) return blastCleanup;
-  if (!ctx.ui?.openPanel || !ctx.snapshot) {
-    ctx.log("phase 4: panel or snapshot seam unavailable");
+  if (!ctx.snapshot) {
+    ctx.log("phase 4: snapshot seam unavailable");
     return blastCleanup;
   }
-  const panel = ctx.ui.openPanel({ id: "phase4", modal: false, label: "Spells and quickbar" });
-  applyTheme(panel.root, THEMES[validateSettings(ctx.prefs?.get()).theme]);
-  el3(panel.root, "style", CSS3);
-  const mount = el3(panel.root, "section");
-  mount.className = "phase4";
+  let repaint = () => {
+  };
+  const surfaces = openSurfaces(ctx, [
+    ...spellOn ? [{ key: "spells", label: "Spells", tab: "Spells", minSize: { width: 280, height: 220 }, placement: { kind: "dock", target: "main", edge: "right" } }] : [],
+    ...quickOn ? [{ key: "quickbar", label: "Quickbar", tab: "Bar", minSize: { width: 320, height: 60 }, placement: { kind: "dock", target: "main", edge: "bottom" }, fitHeight: 140 }] : [],
+    ...restOn ? [{ key: "rest", label: "Rest", tab: "Rest", minSize: { width: 220, height: 120 }, placement: { kind: "dock", target: "main", edge: "right" } }] : []
+  ], { id: "phase4", label: "Spells and quickbar", className: "phase4" }, CSS3, () => repaint());
+  if (!surfaces) {
+    ctx.log("phase 4: panel seam unavailable");
+    return blastCleanup;
+  }
   let bookKey = "", spellIndex = -1, menu = -1, customize = -1, restOpen = false, restMode = -2, turns = 10, promptChoice = -1, error = "", signature = "", closed = false;
   let appearance = { style: "automatic", text: "", color: "#7abaf4" };
   let character = characterFor(ctx);
@@ -4729,7 +4840,10 @@ function installPhase4(ctx) {
     paint(true);
   };
   const paint = (force = false) => {
-    if (closed || !panel.root.isConnected) return;
+    if (closed) return;
+    const mounts = surfaces.mounts();
+    const spellMount = spellOn ? mounts.get("spells") : void 0, quickMount = quickOn ? mounts.get("quickbar") : void 0, restMount = restOn ? mounts.get("rest") : void 0;
+    if (!mounts.size) return;
     const snap = ctx.snapshot?.();
     const key = characterFor(ctx);
     if (key !== character) {
@@ -4737,20 +4851,20 @@ function installPhase4(ctx) {
       slots = key ? readSlots(ctx.prefs?.get(), key) : Array(30).fill(null);
     }
     const model = snap ? adaptSpells(snap, ctx.inspect) : null;
-    const sig = JSON.stringify([snap, slots, bookKey, spellIndex, menu, customize, appearance, restOpen, restMode, turns, promptChoice, error]);
+    const sig = JSON.stringify([[...mounts.keys()], snap, slots, bookKey, spellIndex, menu, customize, appearance, restOpen, restMode, turns, promptChoice, error]);
     if (!force && sig === signature) return;
     signature = sig;
-    mount.replaceChildren();
+    for (const target of mounts.values()) target.replaceChildren();
     if (!snap) {
-      el3(mount, "p", "Game state unavailable.");
+      for (const target of mounts.values()) el3(target, "p", "Game state unavailable.");
       return;
     }
-    if (spellOn) {
-      el3(mount, "h2", "Spells");
-      if (!model) el3(mount, "p", "Spell list unavailable.");
-      else if (!model.books.length) el3(mount, "p", "No readable spellbooks carried.");
+    if (spellOn && spellMount) {
+      el3(spellMount, "h2", "Spells");
+      if (!model) el3(spellMount, "p", "Spell list unavailable.");
+      else if (!model.books.length) el3(spellMount, "p", "No readable spellbooks carried.");
       else {
-        const picker = el3(mount, "select");
+        const picker = el3(spellMount, "select");
         picker.setAttribute("aria-label", "Spellbook");
         for (const book2 of model.books) {
           const opt = el3(picker, "option", book2.name);
@@ -4764,7 +4878,7 @@ function installPhase4(ctx) {
           paint(true);
         });
         const book = model.books.find((entry2) => entry2.key === bookKey);
-        const table = el3(mount, "table");
+        const table = el3(spellMount, "table");
         const head = el3(table, "tr");
         for (const label2 of ["Spell", "Mana", "Fail", "State"]) el3(head, "th", label2);
         for (const spell of book.spells) {
@@ -4798,23 +4912,23 @@ function installPhase4(ctx) {
         }
         const selected = book.spells.find((entry2) => entry2.index === spellIndex) ?? book.spells[0];
         if (selected) {
-          const cast = button2(mount, "Cast", () => {
+          const cast = button2(spellMount, "Cast", () => {
             if (!castSpell(ctx, snap, selected)) error = "Cast unavailable.";
             paint(true);
           });
           cast.disabled = !selected.canCast || !ctx.intent?.submit;
-          const study = button2(mount, book.chooseSpells ? "Study" : "Study book", () => {
+          const study = button2(spellMount, book.chooseSpells ? "Study" : "Study book", () => {
             if (!studySpell(ctx, snap, book, selected)) error = "Study unavailable.";
             paint(true);
           });
           study.disabled = !(book.chooseSpells ? selected.canStudy : book.spells.some((entry2) => entry2.canStudy)) || !ctx.intent?.submit;
           if (!book.chooseSpells) study.title = "Your class learns a random eligible spell from this book.";
-          el3(mount, "h3", selected.name);
-          el3(mount, "p", `Level ${selected.level}. Mana ${selected.mana}. Failure ${selected.fail}%. ${selected.state}.`);
-          if (selected.canCast && (snap.core.player?.sp ?? 0) < selected.mana) el3(mount, "p", "Not enough mana. Confirmation may be required.");
-          el3(mount, "p", selected.description);
+          el3(spellMount, "h3", selected.name);
+          el3(spellMount, "p", `Level ${selected.level}. Mana ${selected.mana}. Failure ${selected.fail}%. ${selected.state}.`);
+          if (selected.canCast && (snap.core.player?.sp ?? 0) < selected.mana) el3(spellMount, "p", "Not enough mana. Confirmation may be required.");
+          el3(spellMount, "p", selected.description);
           if (quickOn && menu === -2) {
-            const box = el3(mount, "div");
+            const box = el3(spellMount, "div");
             box.className = "menu";
             el3(box, "strong", "Assign spell to quickbar");
             for (let i = 0; i < 30; i++) button2(box, `${i < 10 ? "" : i < 20 ? "Shift+" : "Ctrl+"}${keys[i % 10]}`, () => assign(i, { type: "spell", key: book.key, index: selected.index, name: selected.name }));
@@ -4823,7 +4937,7 @@ function installPhase4(ctx) {
       }
       if (snap.prompt?.kind === "spell" && ctx.prompt?.reply && playerIsDriving(ctx)) {
         const prompt = snap.prompt;
-        const box = el3(mount, "div");
+        const box = el3(spellMount, "div");
         box.className = "menu";
         el3(box, "h3", "Choose spell");
         el3(box, "p", prompt.label);
@@ -4841,12 +4955,12 @@ function installPhase4(ctx) {
         });
       }
     }
-    if (quickOn && snap.phase === "play") {
-      el3(mount, "h2", "Quickbar");
-      if (!character) el3(mount, "p", "Assignments last for this game session.");
+    if (quickOn && quickMount && snap.phase === "play") {
+      el3(quickMount, "h2", "Quickbar");
+      if (!character) el3(quickMount, "p", "Assignments last for this game session.");
       for (let row = 0; row < 3; row++) {
-        el3(mount, "h3", row === 0 ? "Number keys" : row === 1 ? "Shift and number" : "Ctrl and number");
-        const line = el3(mount, "div");
+        el3(quickMount, "h3", row === 0 ? "Number keys" : row === 1 ? "Shift and number" : "Ctrl and number");
+        const line = el3(quickMount, "div");
         line.className = "slots";
         for (let col = 0; col < 10; col++) {
           const index = row * 10 + col;
@@ -4902,7 +5016,7 @@ function installPhase4(ctx) {
         }
       }
       if (menu >= 0) {
-        const box = el3(mount, "div");
+        const box = el3(quickMount, "div");
         box.className = "menu";
         el3(box, "strong", `Assign ${keys[menu % 10]}`);
         if (slots[menu]) button2(box, "Customize", () => {
@@ -4925,7 +5039,7 @@ function installPhase4(ctx) {
         });
       }
       if (customize >= 0 && slots[customize]) {
-        const box = el3(mount, "div");
+        const box = el3(quickMount, "div");
         box.className = "menu";
         el3(box, "h3", "Customize slot");
         const style = el3(box, "select");
@@ -4969,13 +5083,13 @@ function installPhase4(ctx) {
         });
       }
     }
-    if (restOn && snap.phase === "play") {
-      button2(mount, "Rest", () => {
+    if (restOn && restMount && snap.phase === "play") {
+      button2(restMount, "Rest", () => {
         restOpen = !restOpen;
         paint(true);
       });
       if (restOpen) {
-        const box = el3(mount, "div");
+        const box = el3(restMount, "div");
         box.className = "menu";
         el3(box, "h3", "Rest");
         for (const [count, label2, description] of [[-2, "Fully recovered", "Recover HP and mana and wait out harmful conditions."], [-1, "HP and mana", "Stop when both are full."], [-3, "HP or mana", "Stop as soon as either is full."], [1, "Number of turns", "Rest for a set number of turns."]]) {
@@ -5011,10 +5125,12 @@ function installPhase4(ctx) {
         });
       }
     }
-    if (error) {
-      const p = el3(mount, "p", error);
+    const first = spellMount ?? quickMount ?? restMount;
+    if (error && first) {
+      const p = el3(first, "p", error);
       p.setAttribute("role", "status");
     }
+    if (quickMount) surfaces.fit("quickbar", quickMount.getBoundingClientRect().height + 16);
   };
   const keydown = (event) => {
     if (!quickOn || menu >= 0 || customize >= 0 || restOpen || event.repeat || event.altKey || event.metaKey || event.defaultPrevented || event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement || event.target instanceof HTMLElement && event.target.isContentEditable) return;
@@ -5030,15 +5146,12 @@ function installPhase4(ctx) {
   paint(true);
   window.addEventListener("keydown", keydown, true);
   const timer2 = window.setInterval(() => paint(), 200);
-  void panel.closed.then(() => {
-    closed = true;
-    window.clearInterval(timer2);
-  });
+  repaint = () => paint(true);
   return () => {
     closed = true;
     window.clearInterval(timer2);
     window.removeEventListener("keydown", keydown, true);
-    panel.close();
+    surfaces.close();
     blastCleanup();
   };
 }
@@ -5464,11 +5577,11 @@ var plugin_default = {
         } },
         { key: "tracked", render: renderTrackedCreature, select: (m) => m.player.tracked_creature }
       ], theme);
-      output.sidebar = { present(section, frame) {
-        zoomPanHud({ flags: ctx.flags })?.sidebar?.present(section, frame);
-        source.hud.sidebar.present(section, frame);
+      output.sidebar = { present(section2, frame) {
+        zoomPanHud({ flags: ctx.flags })?.sidebar?.present(section2, frame);
+        source.hud.sidebar.present(section2, frame);
         const model = source.snapshot();
-        if (model) host.present(section, frame, model);
+        if (model) host.present(section2, frame, model);
       } };
     } else if (zoomSidebar) {
       const sink = zoomPanHud({ flags: ctx.flags })?.sidebar;
@@ -5479,18 +5592,18 @@ var plugin_default = {
         { key: "status", render: renderStatusBadges, select: (m) => [m.player.statuses, m.player.study] },
         { key: "dungeon", render: renderDungeonCard, select: (m) => [m.dungeon, m.player.trap_detected, m.player.recall, m.player.descent, m.player.resting, m.player.running, m.player.repeat, m.player.unignoring] }
       ], theme);
-      output.status = { present(section, frame) {
-        source.hud.status.present(section, frame);
+      output.status = { present(section2, frame) {
+        source.hud.status.present(section2, frame);
         const model = source.snapshot();
-        if (model) host.present(section, frame, model);
+        if (model) host.present(section2, frame, model);
       } };
     }
     if (enabled.messages) {
       const host = createPanelHost(doc, [{ key: "messages", render: renderMessageLog, select: (m) => [m.messages, m.message_pending] }], theme);
-      output.messages = { present(section, frame) {
-        source.hud.messages.present(section, frame);
+      output.messages = { present(section2, frame) {
+        source.hud.messages.present(section2, frame);
         const model = source.snapshot();
-        if (model) host.present(section, frame, model);
+        if (model) host.present(section2, frame, model);
       } };
     }
     return output;

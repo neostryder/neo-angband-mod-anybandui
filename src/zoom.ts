@@ -54,7 +54,8 @@ export const SUBWINDOW_ZOOM_CELL_HEIGHTS = [10, 12, 14, 16, 18, 20, 24] as const
  * cell size, never the panel's minimum useful text area. */
 const SUBWINDOW_ZOOM_MIN_COLS = 20;
 const SUBWINDOW_ZOOM_MIN_ROWS = 3;
-export const INTERFACE_ZOOM_SCALES = [0.8, 1, 1.25, 1.5] as const;
+// AnybandUI's interface scale runs from 75 to 150 percent.
+export const INTERFACE_ZOOM_SCALES = [0.75, 1, 1.25, 1.5] as const;
 export const MAP_DETAIL_FACTORS = [0, 4, 2, 1] as const;
 export const ACCESSIBILITY_ZOOM_INDEX = 9;
 
