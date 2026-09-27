@@ -37,6 +37,8 @@ The web host needs its own pieces as well: a panel seam through which this mod's
 
 ## Phases
 
+Version 1.0.0 carries phases 0 to 7: the view model, the HUD panels, map clicks and hover cards, items, spells and the quickbar, stores, panes and effects. The menus, touch and controller play, and the full-v1 bridge in phases 8 to 10 come after it.
+
 ### Phase 0: foundation
 
 The view model over today's agent view, with read-purity tests. Settings storage, theme tokens (palette, spacing, borders) as data, and font loading. No visible change yet.
@@ -63,11 +65,11 @@ Stock and your pack side by side, unit prices, the comparison table for anything
 
 ### Phase 6: layout
 
-This mod's cards become panes in the game's own window manager rather than bringing a second one, so the dungeon view, the subwindows and these panels dock, tab, split, resize and hide together. The extras AnybandUI's native workspace offers (tabs, named saved layouts, undo and redo, and docking guides in an edit mode) join the game's manager, each behind its own setting. A panel can float as a window inside the game's view, and the desktop app and a browser tab behave the same, so no panel opens a separate operating system window. The window frames belong to the game; what a card shows and how you use it (clickable lists, the quickbar, dragging an item to use it) stays in this mod.
+This mod's cards become panes in the game's own window manager rather than bringing a second one, so the dungeon view, the subwindows and these panels dock, tab, split, resize and hide together. The extras AnybandUI's native workspace offers (tabs, named saved layouts, undo and redo, and docking guides in an edit mode) join the game's manager, each behind its own setting. A panel can float as a window inside the game's view, and the desktop app and a browser tab behave the same, so no panel opens a separate operating system window. The window frames belong to the game; what a card shows and how you use it (clickable lists, the quickbar, dragging an item to use it) stays in this mod. The character card already opens as its own pane, but a strip of the old column six cells wide stays empty until the game accepts a sidebar width of zero (neostryder/neo-angband#294).
 
 ### Phase 7: effects
 
-CRT treatment (scanlines, phosphor glow, colour fringing, sweep), low-health glitching and the death burst, glows on artifacts, runes and cursed items on the floor, rising z marks over sleeping monsters, the presence haze around uniques and Morgoth, and spell cast and impact animations. Every effect has an intensity slider and an off switch, and all of them honour the system's reduced-motion setting.
+CRT treatment (scanlines, phosphor glow, colour fringing, sweep), low-health glitching and the death burst, glows on artifacts, runes and cursed items on the floor, rising z marks over sleeping monsters, the presence haze around uniques and Morgoth, and spell cast and impact animations. Every effect has an off switch, and all of them honour the system's reduced-motion setting. Each effect's intensity slider joins the Mods screen once the game offers numeric mod settings (neostryder/neo-angband#295). Until then every effect draws at full strength.
 
 ### Phase 8: menus
 
