@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PanelKindSpec, PanelMount, PanelState } from "../seams.js";
-import { interfaceScale, openSurfaces } from "./surface.js";
+import { interfaceScale, openSurfaces, PANE_FILL_CSS } from "./surface.js";
 
 class Node {
   children: Node[] = [];
@@ -37,10 +37,18 @@ describe("mod card surfaces", () => {
     };
     const spellHost = host(true), quickHost = host(false);
     registered[0]!.mount(spellHost); const cleanup = registered[1]!.mount(quickHost);
+    const spellRoot = spellHost.root as unknown as Node;
+    expect(spellRoot.children.find((child) => child.className.includes("phase4"))?.className).toBe("phase4 pane");
+    expect(spellRoot.children.some((child) => child.textContent.endsWith(PANE_FILL_CSS))).toBe(true);
     expect([...surfaces.mounts().keys()]).toEqual(["spells"]);
     listeners[1]!({ bounds: { width: 300, height: 80 }, active: true, focused: false });
     expect([...surfaces.mounts().keys()]).toEqual(["spells", "quickbar"]);
     expect(onChange).toHaveBeenCalled();
+    onChange.mockClear();
+    listeners[1]!({ bounds: { width: 300, height: 80 }, active: true, focused: true });
+    expect(onChange).not.toHaveBeenCalled();
+    listeners[1]!({ bounds: { width: 300, height: 120 }, active: true, focused: true });
+    expect(onChange).toHaveBeenCalledTimes(1);
     surfaces.fit("quickbar", 96.2); surfaces.fit("quickbar", 96.4);
     expect(quickHost.fits).toEqual([97]);
     if (typeof cleanup === "function") cleanup();

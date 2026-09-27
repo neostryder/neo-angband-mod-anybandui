@@ -103,4 +103,16 @@ describe("the character pane", () => {
     expect(calls).toEqual([{ columns: 12, topRows: 1 }, PANE_SIDEBAR_EXTENT, PANE_SIDEBAR_EXTENT, null, null, { columns: 14, topRows: 2 }]);
     expect(gated.repaint()).toBe("bound");
   });
+
+  it("wraps a frozen display, which is what the host hands a plugin", () => {
+    const calls: unknown[] = [];
+    const display = Object.freeze({ setSidebarExtent(extent: unknown): void { calls.push(extent); }, getGrid: () => null, cols: 80 });
+    const gated = gateSidebarExtent(display);
+    expect(typeof gated.getGrid).toBe("function");
+    expect(gated.getGrid()).toBeNull();
+    expect(gated.cols).toBe(80);
+    expect("getGrid" in gated).toBe(true);
+    gated.setSidebarExtent({ columns: 12, topRows: 1 });
+    expect(calls).toEqual([{ columns: 12, topRows: 1 }]);
+  });
 });

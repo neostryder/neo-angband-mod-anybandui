@@ -35,6 +35,15 @@ export interface Surfaces {
   close(): void;
 }
 
+/**
+ * A card's own CSS places it as a floating overlay, fixed to a corner of the
+ * window. Inside a host pane the card sits in the normal flow at the pane's
+ * width instead, so these rules outrank the card's class. The card keeps its
+ * content height, which is what the quickbar measures for its fit request, and
+ * the pane scrolls when the card is taller.
+ */
+export const PANE_FILL_CSS = ":host{display:block;height:100%;overflow:auto}section.pane{position:relative;inset:auto;width:auto;max-width:none;height:auto;max-height:none;overflow:visible}";
+
 interface Entry { readonly container: HTMLElement; readonly host: PanelMount | null; active: boolean; fitted: number | null }
 
 /** The zoom feature's interface step (Ctrl-Shift with the zoom keys) scales these
@@ -67,10 +76,18 @@ export function openSurfaces(ctx: SurfaceContext, specs: readonly SurfaceSpec[],
       ...(spec.tab ? { tab: spec.tab } : {}), ...(spec.minSize ? { minSize: spec.minSize } : {}),
       ...(spec.placement ? { preferredPlacement: spec.placement } : {}), ...(spec.fitHeight !== undefined ? { fitHeight: spec.fitHeight } : {}),
       mount(host: PanelMount) {
-        prepare(ctx, host.root, css);
-        const entry: Entry = { container: section(host.root, overlay.className), host, active: host.active, fitted: spec.fitHeight ?? null };
+        prepare(ctx, host.root, `${css}${PANE_FILL_CSS}`);
+        const entry: Entry = { container: section(host.root, `${overlay.className} pane`), host, active: host.active, fitted: spec.fitHeight ?? null };
         entries.set(spec.key, entry);
-        const stop = host.onStateChange((state) => { entry.active = state.active; onChange(); });
+        /* Focus alone never redraws. The host focuses a pane on pointerdown,
+         * and rebuilding the card then would replace the button under the
+         * pointer, so the click that focused the pane would be lost. */
+        let size = `${host.bounds.width}x${host.bounds.height}`;
+        const stop = host.onStateChange((state) => {
+          const next = `${state.bounds.width}x${state.bounds.height}`;
+          if (state.active === entry.active && next === size) return;
+          entry.active = state.active; size = next; onChange();
+        });
         onChange();
         return () => { stop(); entries.delete(spec.key); };
       },

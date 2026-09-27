@@ -315,7 +315,12 @@ var PANEL_CSS = `
 .muted{opacity:.55}.messages{overflow:auto}.message{white-space:pre-wrap}.ribbon{color:#f5bc5a;border:1px solid #f5bc5a;padding:2px 5px;pointer-events:none}
 .tip{display:none;position:absolute;z-index:2;max-width:26em;white-space:pre-wrap;pointer-events:none;background:var(--anyband-background);color:var(--anyband-text);border:1px solid var(--anyband-accent);border-radius:3px;padding:6px}
 input{width:100%;background:var(--anyband-background);color:var(--anyband-text);border:1px solid var(--anyband-accent)}
+.compact{display:flex;align-items:center;gap:10px;overflow:hidden;white-space:nowrap;padding:0 5px}.compact .group{display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden}.compact .group:empty{display:none}
+.compact .heading,.compact input{display:none}.compact .badges{flex-wrap:nowrap}.compact .badge{padding:0 4px}.compact .grid,.compact .metric-grid{display:flex;gap:8px}
+.compact .metric{border:0;padding:0;display:flex;gap:3px}.compact .metric b{display:inline}.compact .messages{overflow:hidden;min-width:0}
+.compact .message{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.compact .message~.message{display:none}.compact .ribbon{width:auto!important;flex:none}
 `;
+var COMPACT_ROWS = 3;
 var CSS = `${HOST_CSS}${PANEL_CSS}`;
 var panelHosts = /* @__PURE__ */ new Set();
 var panelVisualFilter = null;
@@ -383,7 +388,8 @@ function createPanelHost(doc, panels, theme) {
   if (theme) applyTheme(shadow, theme);
   else applyTheme(shadow);
   node(shadow, "style", "", CSS);
-  const content = createPanelContent(node(shadow, "div", "surface"), panels);
+  const surface = node(shadow, "div", "surface");
+  const content = createPanelContent(surface, panels);
   doc.body.appendChild(element);
   return {
     element,
@@ -401,6 +407,7 @@ function createPanelHost(doc, panels, theme) {
       element.style.top = `${box.y}px`;
       element.style.width = `${box.width}px`;
       element.style.height = `${box.height}px`;
+      surface.className = region.cells.rows < COMPACT_ROWS ? "surface compact" : "surface";
       content.render(model);
     }
   };
@@ -1256,16 +1263,19 @@ var DEFAULT_PLAY_GRID_ROWS = 24;
 var RESERVED_RIGHT_COLUMN = 1;
 var OWNED_DISPLAY_SETTERS = /* @__PURE__ */ new Set(["setCamera", "setMapView", "setGrid", "setSidebarExtent"]);
 function trackedDisplay(display, applied) {
-  return new Proxy(display, { get(target, property) {
-    const member = Reflect.get(target, property);
-    if (typeof member !== "function") return member;
-    if (!OWNED_DISPLAY_SETTERS.has(String(property))) return member.bind(target);
-    return (...args) => {
-      if (args[0] == null) applied.delete(String(property));
-      else applied.add(String(property));
-      return Reflect.apply(member, target, args);
-    };
-  } });
+  return new Proxy({}, {
+    get(_empty, property) {
+      const member = Reflect.get(display, property);
+      if (typeof member !== "function") return member;
+      if (!OWNED_DISPLAY_SETTERS.has(String(property))) return member.bind(display);
+      return (...args) => {
+        if (args[0] == null) applied.delete(String(property));
+        else applied.add(String(property));
+        return Reflect.apply(member, display, args);
+      };
+    },
+    has: (_empty, property) => Reflect.has(display, property)
+  });
 }
 function keepsDisplayRequestsPerMod(display) {
   const read = display;
@@ -2346,6 +2356,7 @@ function uninstallZoomPan() {
 }
 
 // src/panels/surface.ts
+var PANE_FILL_CSS = ":host{display:block;height:100%;overflow:auto}section.pane{position:relative;inset:auto;width:auto;max-width:none;height:auto;max-height:none;overflow:visible}";
 function interfaceScale(ctx) {
   if (ctx.flags?.["anybandui.zoom"] !== true) return 1;
   return INTERFACE_ZOOM_SCALES[readDisplayPreference(ctx.prefs?.get()).interfaceZoomIndex] ?? 1;
@@ -2377,11 +2388,15 @@ function openSurfaces(ctx, specs, overlay, css, onChange) {
       ...spec.placement ? { preferredPlacement: spec.placement } : {},
       ...spec.fitHeight !== void 0 ? { fitHeight: spec.fitHeight } : {},
       mount(host) {
-        prepare(ctx, host.root, css);
-        const entry2 = { container: section(host.root, overlay.className), host, active: host.active, fitted: spec.fitHeight ?? null };
+        prepare(ctx, host.root, `${css}${PANE_FILL_CSS}`);
+        const entry2 = { container: section(host.root, `${overlay.className} pane`), host, active: host.active, fitted: spec.fitHeight ?? null };
         entries.set(spec.key, entry2);
+        let size = `${host.bounds.width}x${host.bounds.height}`;
         const stop = host.onStateChange((state) => {
+          const next = `${state.bounds.width}x${state.bounds.height}`;
+          if (state.active === entry2.active && next === size) return;
           entry2.active = state.active;
+          size = next;
           onChange();
         });
         onChange();
@@ -2442,12 +2457,15 @@ var PANE_SIDEBAR_EXTENT = { columns: 0, topRows: 0 };
 var PANE_CSS = `:host{display:block;height:100%;color:var(--anyband-text);font:12px/1.35 system-ui,sans-serif}${PANEL_CSS}.surface{position:relative}`;
 var paneOwnsSidebar = false;
 function gateSidebarExtent(display) {
-  return new Proxy(display, { get(target, property) {
-    const member = Reflect.get(target, property);
-    if (typeof member !== "function") return member;
-    if (property !== "setSidebarExtent") return member.bind(target);
-    return (extent) => Reflect.apply(member, target, [extent && paneOwnsSidebar ? PANE_SIDEBAR_EXTENT : extent]);
-  } });
+  return new Proxy({}, {
+    get(_empty, property) {
+      const member = Reflect.get(display, property);
+      if (typeof member !== "function") return member;
+      if (property !== "setSidebarExtent") return member.bind(display);
+      return (extent) => Reflect.apply(member, display, [extent && paneOwnsSidebar ? PANE_SIDEBAR_EXTENT : extent]);
+    },
+    has: (_empty, property) => Reflect.has(display, property)
+  });
 }
 function installCharacterPane(ctx, panels) {
   if (!ctx.ui?.registerPanelKind) return null;
@@ -6071,6 +6089,22 @@ ${snap?.core.player?.race ?? ""}`;
 
 // src/view-model/stores.ts
 var same2 = (a, b) => a.epoch === b.epoch && a.revision === b.revision;
+var STORE_NAMES = {
+  STORE_GENERAL: "General Store",
+  STORE_ARMOR: "Armoury",
+  STORE_WEAPON: "Weapon Smiths",
+  STORE_BOOK: "Bookseller",
+  STORE_ALCHEMY: "Alchemy Shop",
+  STORE_MAGIC: "Magic Shop",
+  STORE_BLACK: "Black Market",
+  HOME: "Home"
+};
+function storeName(featName) {
+  const known = STORE_NAMES[featName];
+  if (known) return known;
+  const words = featName.replace(/^STORE_/, "").toLowerCase().replace(/_/g, " ");
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
 function adaptStore(snap, known) {
   if (snap.phase !== "store" || !snap.core.stores || !snap.core.player || !snap.core.inventory) return null;
   const status = snap.storeStatus && same2(snap.storeStatus.token, snap.token) ? snap.storeStatus : null;
@@ -6112,16 +6146,17 @@ function adaptStore(snap, known) {
   return {
     token: snap.token,
     index,
-    name: store.isHome ? "Home" : store.featName,
+    name: store.isHome ? "Home" : storeName(store.featName),
     owner: store.isHome ? "" : store.owner.name,
     home: store.isHome,
     ...snap.core.player.gold === void 0 ? {} : { gold: snap.core.player.gold },
     ready: status?.ready ?? true,
     noSelling: status?.noSelling ?? false,
     transactionPrompts: status !== null,
+    // ItemView.name, when published, is the game's own object name; label is the kind's raw template.
     stock: store.stock.map((item) => ({
       key: item.index,
-      label: item.label,
+      label: item.name ?? item.label,
       quantity: item.number,
       colour: item.artifact ? "#e89e42" : item.ego ? "#80b891" : "inherit",
       eligible: true,

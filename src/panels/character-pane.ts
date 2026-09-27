@@ -52,13 +52,19 @@ export function characterPaneOwnsSidebar(): boolean { return paneOwnsSidebar; }
  * request instead; null still clears it, and without a pane nothing changes.
  */
 export function gateSidebarExtent<T extends object>(display: T): T {
-  return new Proxy(display, { get(target, property) {
-    const member: unknown = Reflect.get(target, property);
-    if (typeof member !== "function") return member;
-    if (property !== "setSidebarExtent") return (member as (...args: unknown[]) => unknown).bind(target);
-    return (extent: { readonly columns: number; readonly topRows: number } | null) =>
-      Reflect.apply(member, target, [extent && paneOwnsSidebar ? PANE_SIDEBAR_EXTENT : extent]);
-  } });
+  /* The host's display is frozen, and a Proxy over a frozen object has to return
+   * each property as it is. So the Proxy wraps an empty object and reads from
+   * the display, which lets it hand back bound and gated methods. */
+  return new Proxy({} as T, {
+    get(_empty, property) {
+      const member: unknown = Reflect.get(display, property);
+      if (typeof member !== "function") return member;
+      if (property !== "setSidebarExtent") return (member as (...args: unknown[]) => unknown).bind(display);
+      return (extent: { readonly columns: number; readonly topRows: number } | null) =>
+        Reflect.apply(member, display, [extent && paneOwnsSidebar ? PANE_SIDEBAR_EXTENT : extent]);
+    },
+    has: (_empty, property) => Reflect.has(display, property),
+  });
 }
 
 /**

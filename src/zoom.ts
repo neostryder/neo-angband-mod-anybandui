@@ -304,16 +304,21 @@ interface ZoomRuntime {
 const OWNED_DISPLAY_SETTERS = new Set(["setCamera", "setMapView", "setGrid", "setSidebarExtent"]);
 
 function trackedDisplay(display: DisplayLike, applied: Set<string>): DisplayLike {
-  return new Proxy(display, { get(target, property) {
-    const member: unknown = Reflect.get(target, property);
-    if (typeof member !== "function") return member;
-    if (!OWNED_DISPLAY_SETTERS.has(String(property))) return member.bind(target);
-    return (...args: unknown[]) => {
-      if (args[0] == null) applied.delete(String(property));
-      else applied.add(String(property));
-      return Reflect.apply(member, target, args);
-    };
-  } });
+  /* The host's display is frozen, so this wraps an empty object, as
+   * gateSidebarExtent does, rather than the display itself. */
+  return new Proxy({} as DisplayLike, {
+    get(_empty, property) {
+      const member: unknown = Reflect.get(display, property);
+      if (typeof member !== "function") return member;
+      if (!OWNED_DISPLAY_SETTERS.has(String(property))) return member.bind(display);
+      return (...args: unknown[]) => {
+        if (args[0] == null) applied.delete(String(property));
+        else applied.add(String(property));
+        return Reflect.apply(member, display, args);
+      };
+    },
+    has: (_empty, property) => Reflect.has(display, property),
+  });
 }
 
 /**

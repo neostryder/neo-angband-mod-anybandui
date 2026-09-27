@@ -6,6 +6,21 @@ export interface StoreRow { readonly key: number; readonly label: string; readon
 export interface StoreModel { readonly token: InputToken; readonly index: number; readonly name: string; readonly owner: string; readonly home: boolean; readonly gold?: number; readonly ready: boolean; readonly noSelling: boolean; readonly transactionPrompts: boolean; readonly stock: readonly StoreRow[]; readonly pack: readonly StoreRow[]; readonly prompt: StoreSnapshot["prompt"] }
 const same = (a: InputToken, b: InputToken): boolean => a.epoch === b.epoch && a.revision === b.revision;
 
+/** The names the game gives each store's entrance, keyed by the store's feature code. */
+// PROSE
+const STORE_NAMES: Readonly<Record<string, string>> = {
+  STORE_GENERAL: "General Store", STORE_ARMOR: "Armoury", STORE_WEAPON: "Weapon Smiths", STORE_BOOK: "Bookseller",
+  STORE_ALCHEMY: "Alchemy Shop", STORE_MAGIC: "Magic Shop", STORE_BLACK: "Black Market", HOME: "Home",
+};
+
+/** A store's name, or its feature code in words for a store a mod adds. */
+export function storeName(featName: string): string {
+  const known = STORE_NAMES[featName];
+  if (known) return known;
+  const words = featName.replace(/^STORE_/, "").toLowerCase().replace(/_/g, " ");
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
 // The store status read names the open store directly. Without it, the known
 // cell at the player's position selects one of the copied town stores.
 //
@@ -48,11 +63,12 @@ export function adaptStore(snap: StoreSnapshot, known: KnownLevel | null): Store
           location: item.location === "pack" ? "Pack" : "Equipment", eligible: quote?.eligible ?? true,
           ...(quote && quote.eligible && quote.price !== null ? { price: quote.price } : {}) };
       });
-  return { token: snap.token, index, name: store.isHome ? "Home" : store.featName,
+  return { token: snap.token, index, name: store.isHome ? "Home" : storeName(store.featName),
     owner: store.isHome ? "" : store.owner.name, home: store.isHome,
     ...(snap.core.player.gold === undefined ? {} : { gold: snap.core.player.gold }),
     ready: status?.ready ?? true, noSelling: status?.noSelling ?? false, transactionPrompts: status !== null,
-    stock: store.stock.map((item) => ({ key: item.index, label: item.label, quantity: item.number,
+        // ItemView.name, when published, is the game's own object name; label is the kind's raw template.
+    stock: store.stock.map((item) => ({ key: item.index, label: item.name ?? item.label, quantity: item.number,
       colour: item.artifact ? "#e89e42" : item.ego ? "#80b891" : "inherit", eligible: true,
       ...(item.price === undefined ? {} : { price: item.price }) })), pack, prompt: snap.prompt };
 }

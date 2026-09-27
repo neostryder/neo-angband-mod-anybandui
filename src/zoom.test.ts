@@ -61,6 +61,16 @@ describe("independent free-camera flags", () => {
     expect(fake.setFullMapOverview).not.toHaveBeenCalled();
   });
 
+  it("tracks its requests on a frozen display from an older engine", () => {
+    const fake = fakeDisplay();
+    installZoomPan({ flags: { "anybandui.followPlayer": true }, display: Object.freeze({ ...fake.display }),
+      state: { actor: { grid: { x: 45, y: 30 } } } });
+    fake.key(fakeKey("Home"));
+    uninstallZoomPan();
+    expect(fake.setCamera).toHaveBeenLastCalledWith(null);
+    expect(fake.setGrid).not.toHaveBeenCalled();
+  });
+
   it("clears its own requests without tracking them on an engine that keeps them per mod", () => {
     const fake = fakeDisplay();
     const display = { ...fake.display, getGrid: vi.fn(() => null), getTileScaling: vi.fn(() => "auto" as const) };

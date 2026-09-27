@@ -20,7 +20,14 @@ export const PANEL_CSS = `
 .muted{opacity:.55}.messages{overflow:auto}.message{white-space:pre-wrap}.ribbon{color:#f5bc5a;border:1px solid #f5bc5a;padding:2px 5px;pointer-events:none}
 .tip{display:none;position:absolute;z-index:2;max-width:26em;white-space:pre-wrap;pointer-events:none;background:var(--anyband-background);color:var(--anyband-text);border:1px solid var(--anyband-accent);border-radius:3px;padding:6px}
 input{width:100%;background:var(--anyband-background);color:var(--anyband-text);border:1px solid var(--anyband-accent)}
+.compact{display:flex;align-items:center;gap:10px;overflow:hidden;white-space:nowrap;padding:0 5px}.compact .group{display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden}.compact .group:empty{display:none}
+.compact .heading,.compact input{display:none}.compact .badges{flex-wrap:nowrap}.compact .badge{padding:0 4px}.compact .grid,.compact .metric-grid{display:flex;gap:8px}
+.compact .metric{border:0;padding:0;display:flex;gap:3px}.compact .metric b{display:inline}.compact .messages{overflow:hidden;min-width:0}
+.compact .message{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.compact .message~.message{display:none}.compact .ribbon{width:auto!important;flex:none}
 `;
+
+/** A HUD region this short is one line, so its groups sit side by side without headings. */
+const COMPACT_ROWS = 3;
 const CSS = `${HOST_CSS}${PANEL_CSS}`;
 
 const panelHosts = new Set<HTMLElement>();
@@ -99,7 +106,8 @@ export function createPanelHost(doc: Document, panels: readonly PanelSpec[], the
   if (theme) applyTheme(shadow, theme);
   else applyTheme(shadow);
   node(shadow as unknown as HTMLElement, "style", "", CSS);
-  const content = createPanelContent(node(shadow as unknown as HTMLElement, "div", "surface"), panels);
+  const surface = node(shadow as unknown as HTMLElement, "div", "surface");
+  const content = createPanelContent(surface, panels);
   doc.body.appendChild(element);
   return {
     element,
@@ -118,6 +126,7 @@ export function createPanelHost(doc: Document, panels: readonly PanelSpec[], the
       element.style.top = `${box.y}px`;
       element.style.width = `${box.width}px`;
       element.style.height = `${box.height}px`;
+      surface.className = region!.cells.rows < COMPACT_ROWS ? "surface compact" : "surface";
       content.render(model);
     },
   };
