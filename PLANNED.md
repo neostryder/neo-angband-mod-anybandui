@@ -33,7 +33,7 @@ Phases 0 and 1 fit the seams Neo Angband has today. The later phases need the si
 
 Phase 2 needs seams 2, 4 and 5. Phases 3 and 4 need 3, 4 and 5, phase 5 needs 4 and 5, and the precise animations in phase 7 need 6.
 
-The web host needs its own pieces as well: a full-window workspace in which the dungeon view can move between panes, a pop-out window call for the desktop app, a saves facade for the main menu, and post-processing that can cover HTML panels as well as the terminal canvas.
+The web host needs its own pieces as well: a panel seam through which this mod's cards become panes in the game's own window manager, a saves facade for the main menu, and post-processing that can cover HTML panels as well as the terminal canvas. The window manager and panel seam are tracked as [neostryder/neo-angband#287](https://github.com/neostryder/neo-angband/issues/287).
 
 ## Phases
 
@@ -63,7 +63,7 @@ Stock and your pack side by side, unit prices, the comparison table for anything
 
 ### Phase 6: layout
 
-Dock, tab, split, resize, float and hide every panel, with an edit mode showing docking guides, undo and redo, and named saved layouts. On the desktop app, panels can pop out into their own windows and move to a second monitor.
+This mod's cards become panes in the game's own window manager rather than bringing a second one, so the dungeon view, the subwindows and these panels dock, tab, split, resize and hide together. The extras AnybandUI's native workspace offers (tabs, named saved layouts, undo and redo, and docking guides in an edit mode) join the game's manager, each behind its own setting. A panel can float as a window inside the game's view, and the desktop app and a browser tab behave the same, so no panel opens a separate operating system window. The window frames belong to the game; what a card shows and how you use it (clickable lists, the quickbar, dragging an item to use it) stays in this mod.
 
 ### Phase 7: effects
 
@@ -85,10 +85,14 @@ A small launcher that runs Neo Angband headless and serves the view model over f
 
 AnybandUI keeps developing in its own repository, and this mod follows it. `UPSTREAM.md` records the AnybandUI commit each ported feature is based on, and a sync pass walks the `deluxe` commits since the last recorded one. Each commit gets one row: ported (with the commit here that carries it), not applicable (engine-side or specific to the native build), or pending. Changes can arrive from either direction. A feature built first in AnybandUI is ported here, and a pull request here can be offered back to AnybandUI when it fits the native client.
 
+## Quality of Life's display features move here
+
+The Quality of Life mod's display features move into this mod: zoom and pan, zoom for each panel, the hover cards on the map overview, first-encounter alerts, the enlarged, high-contrast and colourblind displays, and its other changes to how the screen is drawn. Each one becomes a separate switch here, styled to match the rest of AnybandUI. Quality of Life keeps its gameplay conveniences: auto-dig, remembered settings, tolerant pref files, the torch and lantern ignore rules, and its key shortcuts. Where the two mods draw the same thing differently, the ported feature follows one of them, and the other is noted beside it here.
+
 ## Works with the other mods
 
 - **Linoleum.** AnybandUI's tileset mode draws Linoleum's packs, including mod-added monsters and items that Linoleum fills from their kin. Item glows and the presence haze sit on top of tiles and ASCII alike.
-- **Quality of Life.** Its zoom and pan becomes the dungeon pane's camera once this mod owns the map, so the two share one zoom setting instead of fighting. Its map hover cards and first-encounter alerts supply the threat badge (Unique, Deadly, Out of depth) that the hover card and tracked-creature meter show. The activation shortcut helper and repeated-action shortcuts offer quickbar slots as well as keys. The high-contrast and colourblind filters apply to the panels, and switching either one on turns the CRT effects down.
+- **Quality of Life.** Its display features move into this mod, as the section above describes, and its gameplay conveniences keep working beside it. The activation shortcut helper and repeated-action shortcuts offer quickbar slots as well as keys.
 - **Squire.** Its three errands get quickbar buttons, and the status card shows which errand is running and why it stopped.
 - **Borg.** While the Borg plays, the panels keep updating as a spectator view, and the quickbar and click actions stand down.
 - **Bug Fixes and Cutting Room Floor.** Both change rules, which this mod never does. The view model reads whatever rules are loaded, so restored features such as door spikes show up in the item lists and stores with no extra work.

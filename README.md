@@ -18,7 +18,7 @@ The effects (CRT scanlines, item glows, sleeping-monster marks, the presence haz
 
 | Area | What you get |
 | --- | --- |
-| Layout | Dock, tab, resize, float and hide panels, with an edit mode, undo, saved layouts, and pop-out windows on the desktop app. |
+| Layout | Cards that dock, tab, resize, float and hide inside the game's own window layout, with an edit mode, undo and saved layouts. |
 | Status | A character card with HP, SP, food and XP bars, stats, gold, armour and speed. A dungeon card shows depth, light, the level feeling and the terrain underfoot, and status badges explain themselves on hover. |
 | Map | Hover a tile for what you know about it, click to walk or attack, right-click for a context menu, and a path line while aiming. |
 | Quickbar | Ten slots on the number keys for spells, potions, scrolls and activations, with mana cost and charges on each slot. |
