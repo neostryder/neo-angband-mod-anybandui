@@ -34,6 +34,8 @@ import { installMapOverview } from "./src/map-overview.js";
 import { installItems } from "./src/panels/items.js";
 import type { ItemsContext, MouseSeams } from "./src/seams.js";
 import { installMapMouse } from "./src/map-mouse.js";
+import { installStores } from "./src/panels/stores.js";
+import type { StoreContext } from "./src/seams.js";
 
 /**
  * What this plugin needs from the host's context, structurally.
@@ -76,6 +78,7 @@ export default {
     ctx.log(`AnybandUI loaded on engine ${ctx.engine}`);
     const flags = ctx.flags ?? {};
     displayCleanups.push(installItems(ctx as unknown as ItemsContext));
+    displayCleanups.push(installStores(ctx as unknown as StoreContext));
     if (flags["anybandui.highContrast"] || flags["anybandui.colourblind"]) {
       installAccessibilityAccommodations({ flags, ...(ctx.display ? { display: ctx.display } : {}), log: ctx.log });
     }

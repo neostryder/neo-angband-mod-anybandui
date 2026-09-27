@@ -37,6 +37,12 @@ A mouse-first desktop interface for Neo Angband, ported from Wurli Monkhaven's A
 | Item action buttons | `anybandui.itemsActions` | off | Adds buttons under the selected item for wielding, taking it off, dropping, inscribing and using it. Only the actions the game would accept right now appear. |
 | Item rules list | `anybandui.itemsRules` | off | Lists your ignore and auto-inscription rules in the item panel, each with a button to remove it. This needs a newer version of the game, and does nothing until then. |
 
+| TODO-PROSE: Store window | `anybandui.storeWindow` | off | TODO-PROSE: Show stock and your pack together while visiting a store or Home. |
+| TODO-PROSE: Store prices | `anybandui.storePrices` | off | TODO-PROSE: Show unit prices when the game supplies them. |
+| TODO-PROSE: Store comparison | `anybandui.storeComparison` | off | TODO-PROSE: Compare selected wearable gear with what you use now. |
+| TODO-PROSE: Store actions | `anybandui.storeTransactions` | off | TODO-PROSE: Buy, sell, stash, retrieve, and leave through the game. |
+| TODO-PROSE: Store prompts | `anybandui.storePrompts` | off | TODO-PROSE: Answer the game's quantity and price questions in the store window. |
+
 ## What it needs
 
-`ui:sidebar.replace`, `ui:status.replace`, `ui:messages.replace`, `display:filter`, `ui:panel.mount`, `state:map.read`, `state:interaction.read`, `state:inventory.read`, `state:player.read`, `input:intent`, and `input:prompt.reply`.
+`ui:sidebar.replace`, `ui:status.replace`, `ui:messages.replace`, `display:filter`, `ui:panel.mount`, `state:map.read`, `state:interaction.read`, `state:inventory.read`, `state:player.read`, `state:stores.read`, `input:intent`, and `input:prompt.reply`.

@@ -4,6 +4,7 @@ import { validateSettings } from "./settings.js";
 import { THEMES } from "./theme.js";
 import type { Grid, InputSnapshot, MouseSeams, PlayerIntent } from "./seams.js";
 import type { ZoomDisplay } from "./zoom.js";
+import { playerIsDriving } from "./input-owner.js";
 
 export interface MapMouseContext extends MouseSeams {
   readonly flags: Readonly<Record<string, boolean>>;
@@ -49,6 +50,7 @@ export function tileMenuActions(ctx: MouseSeams, snap: InputSnapshot, at: Grid):
 }
 
 export function clickTile(ctx: MouseSeams, at: Grid): boolean {
+  if (!playerIsDriving(ctx)) return false;
   const snap = ctx.snapshot?.() ?? null;
   if (snap?.prompt?.kind === "target") return !!ctx.prompt?.reply(snap.prompt.promptId, { action: "move", ...at }).accepted;
   if (!ready(snap) || !snap || !ctx.intent) return false;
@@ -57,6 +59,7 @@ export function clickTile(ctx: MouseSeams, at: Grid): boolean {
 }
 
 export function runMenuAction(ctx: MouseSeams, at: Grid, label: string): boolean {
+  if (!playerIsDriving(ctx)) return false;
   const snap = ctx.snapshot?.() ?? null;
   if (!snap) return false;
   const action = tileMenuActions(ctx, snap, at).find((item) => item.label === label);
@@ -73,6 +76,7 @@ export function runMenuAction(ctx: MouseSeams, at: Grid, label: string): boolean
 }
 
 export function finishPickup(ctx: MouseSeams, at: Grid, previous: InputSnapshot): boolean {
+  if (!playerIsDriving(ctx)) return false;
   const next = ctx.snapshot?.() ?? null;
   if (!ready(next) || !next || sameToken(previous.token, next.token) || !ctx.intent) return false;
   const grid = next.core.player!.grid;
@@ -142,7 +146,7 @@ export function installMapMouse(ctx: MapMouseContext): () => void {
     hide();
     if (!flags["anybandui.dungeonActions"]) return;
     const at = locate(event), snap = ctx.snapshot?.() ?? null;
-    if (!at || !snap || !(ready(snap) || snap.prompt?.kind === "target")) return;
+    if (!at || !snap || !playerIsDriving(ctx) || !(ready(snap) || snap.prompt?.kind === "target")) return;
     const actions = tileMenuActions(ctx, snap, at);
     if (!actions.length) return;
     event.preventDefault(); event.stopImmediatePropagation();
@@ -182,7 +186,7 @@ export function installMapMouse(ctx: MapMouseContext): () => void {
       const next = ctx.snapshot?.()?.prompt;
       if (!next || next.kind !== "target") { targetAt = null; targetPromptId = null; }
       else if (next.promptId !== targetPromptId && next.cursor?.x === targetAt.x && next.cursor.y === targetAt.y) {
-        ctx.prompt?.reply(next.promptId, { action: "select" }); targetAt = null; targetPromptId = null;
+        if (playerIsDriving(ctx)) ctx.prompt?.reply(next.promptId, { action: "select" }); targetAt = null; targetPromptId = null;
       }
     }
     if (!flags["anybandui.aimPath"] && !flags["anybandui.walkRoutePreview"]) return;

@@ -21,6 +21,7 @@
     "state:interaction.read",
     "state:inventory.read",
     "state:player.read",
+    "state:stores.read",
     "input:intent",
     "input:prompt.reply"
   ],
@@ -189,7 +190,12 @@
       "description": "Draws the map overview as flat blocks of colour for walls, doors and floor instead of glyphs or tiles, which is easier to read when the whole level is shrunk.",
       "default": false,
       "requiresReload": true
-    }
+    },
+    { "flag": "anybandui.storeWindow", "title": "TODO-PROSE: Store window", "description": "TODO-PROSE: Show stock and your pack together while visiting a store or Home.", "default": false, "requiresReload": true },
+    { "flag": "anybandui.storePrices", "title": "TODO-PROSE: Store prices", "description": "TODO-PROSE: Show unit prices when the game supplies them.", "default": false, "requiresReload": true },
+    { "flag": "anybandui.storeComparison", "title": "TODO-PROSE: Store comparison", "description": "TODO-PROSE: Compare selected wearable gear with what you use now.", "default": false, "requiresReload": true },
+    { "flag": "anybandui.storeTransactions", "title": "TODO-PROSE: Store actions", "description": "TODO-PROSE: Buy, sell, stash, retrieve, and leave through the game.", "default": false, "requiresReload": true },
+    { "flag": "anybandui.storePrompts", "title": "TODO-PROSE: Store prompts", "description": "TODO-PROSE: Answer the game's quantity and price questions in the store window.", "default": false, "requiresReload": true }
   ],
   "repository": "https://github.com/neostryder/neo-angband-mod-anybandui"
 }

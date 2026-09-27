@@ -265,7 +265,7 @@ function node(parent, tag, className = "", value2) {
 function fraction(current, maximum) {
   return maximum > 0 ? Math.max(0, Math.min(1, current / maximum)) : 0;
 }
-function meter(parent, label2, value2, amount, colour, tip) {
+function meter(parent, label2, value2, amount, colour, tip2) {
   const cell = node(parent, "div", "meter");
   node(cell, "span", "", label2);
   node(cell, "span", "", ` ${value2}`);
@@ -273,7 +273,7 @@ function meter(parent, label2, value2, amount, colour, tip) {
   const fill = node(track, "div", "fill");
   fill.style.width = `${Math.round(amount * 100)}%`;
   fill.style.backgroundColor = colour;
-  if (tip) cell.dataset.tip = tip;
+  if (tip2) cell.dataset.tip = tip2;
 }
 function intersects(a, b) {
   return a.col < b.col + b.cols && b.col < a.col + a.cols && a.row < b.row + b.rows && b.row < a.row + a.rows;
@@ -289,20 +289,20 @@ function createPanelHost(doc, panels, theme) {
   node(shadow, "style", "", CSS);
   const surface = node(shadow, "div", "surface");
   const mounts = panels.map(() => node(surface, "div", "group"));
-  const tip = node(surface, "div", "tip");
+  const tip2 = node(surface, "div", "tip");
   let signatures = [];
   surface.addEventListener("mouseover", (event) => {
     const target = event.target;
     const subject = target instanceof HTMLElement ? target.closest("[data-tip]") : null;
-    tip.textContent = subject?.dataset.tip ?? "";
-    tip.style.display = subject ? "block" : "none";
+    tip2.textContent = subject?.dataset.tip ?? "";
+    tip2.style.display = subject ? "block" : "none";
     if (subject) {
-      tip.style.left = `${Math.min(subject.offsetLeft, Math.max(0, surface.clientWidth - tip.offsetWidth))}px`;
-      tip.style.top = `${Math.min(subject.offsetTop + subject.offsetHeight, Math.max(0, surface.clientHeight - tip.offsetHeight))}px`;
+      tip2.style.left = `${Math.min(subject.offsetLeft, Math.max(0, surface.clientWidth - tip2.offsetWidth))}px`;
+      tip2.style.top = `${Math.min(subject.offsetTop + subject.offsetHeight, Math.max(0, surface.clientHeight - tip2.offsetHeight))}px`;
     }
   });
   surface.addEventListener("mouseleave", () => {
-    tip.style.display = "none";
+    tip2.style.display = "none";
   });
   doc.body.appendChild(element);
   return {
@@ -353,10 +353,10 @@ function renderCharacterCard(mount, model) {
     const base = p.level_start_experience;
     const progress = next > 0 && base !== void 0 ? fraction(p.experience - base, next - base) : 0;
     const value2 = next <= 0 ? "MAX" : base === void 0 ? `${p.experience} - Lv ${p.level}` : `${Math.round(progress * 100)}% - Lv ${p.level}`;
-    const tip = [`Level ${p.level}`, `Experience: ${p.experience}`, next <= 0 ? "Maximum level reached" : `Next level: ${next}
+    const tip2 = [`Level ${p.level}`, `Experience: ${p.experience}`, next <= 0 ? "Maximum level reached" : `Next level: ${next}
 Remaining: ${Math.max(0, next - p.experience)}`].join("\n");
-    if (next <= 0 || base !== void 0) meter(grid, "XP", value2, progress, "#8f5e1f", tip);
-    else node(grid, "div", "metric", `XP ${value2}`).dataset.tip = tip;
+    if (next <= 0 || base !== void 0) meter(grid, "XP", value2, progress, "#8f5e1f", tip2);
+    else node(grid, "div", "metric", `XP ${value2}`).dataset.tip = tip2;
   } else {
     node(grid, "div", "metric", `XP ${p.experience} - Lv ${p.level}`);
   }
@@ -384,10 +384,10 @@ function renderDungeonCard(mount, model) {
   const p = model.player;
   const d = model.dungeon;
   const grid = node(mount, "div", "grid");
-  for (const [label2, value2, tip] of [["Depth", String(d.depth), `Depth: ${d.depth_feet} feet`], ["Light", String(d.light), ""], ["Feel", d.feeling || "?", d.feeling_description ?? ""], ["", d.floor ?? "", ""]]) {
+  for (const [label2, value2, tip2] of [["Depth", String(d.depth), `Depth: ${d.depth_feet} feet`], ["Light", String(d.light), ""], ["Feel", d.feeling || "?", d.feeling_description ?? ""], ["", d.floor ?? "", ""]]) {
     const tile = node(grid, "div", "metric", label2);
     node(tile, "b", "", value2);
-    if (tip) tile.dataset.tip = tip;
+    if (tip2) tile.dataset.tip = tip2;
   }
   for (const [condition, label2] of [[p.trap_detected, "Trap-detected area"], [p.recall, "Recall pending"], [p.descent, "Descent pending"], [p.resting, "Resting"], [p.running, "Running"], [p.repeat, `Repeating: ${p.repeat}`], [p.unignoring, "Showing ignored items"]]) {
     if (condition) node(mount, "div", "", label2);
@@ -1200,8 +1200,8 @@ function wrapBitmapParagraphs(text, maxChars) {
     (paragraph) => paragraph.trim() === "" ? [""] : wrapBitmapText(paragraph, maxChars)
   );
 }
-function styleAsScreenReaderOnly(el2) {
-  Object.assign(el2.style, {
+function styleAsScreenReaderOnly(el4) {
+  Object.assign(el4.style, {
     position: "absolute",
     width: "1px",
     height: "1px",
@@ -1225,14 +1225,14 @@ function bitmapTextBlock(lines, cellWidth, cellHeight, dpr) {
   wrap.appendChild(label2);
   return wrap;
 }
-function paintBitmapButtonLabel(button2, text, css, cellWidth, cellHeight, dpr) {
-  button2.replaceChildren();
-  if (!button2.hasAttribute("aria-label")) button2.setAttribute("aria-label", text);
+function paintBitmapButtonLabel(button3, text, css, cellWidth, cellHeight, dpr) {
+  button3.replaceChildren();
+  if (!button3.hasAttribute("aria-label")) button3.setAttribute("aria-label", text);
   const canvas = document.createElement("canvas");
   canvas.setAttribute("aria-hidden", "true");
   canvas.style.display = "block";
   paintBitmapLine(canvas, [{ text, css }], cellWidth, cellHeight, dpr);
-  button2.appendChild(canvas);
+  button3.appendChild(canvas);
 }
 
 // src/encounter-preference.ts
@@ -2514,11 +2514,11 @@ function paintSidebar(rt, section, frame) {
     sidebar.body.appendChild(row);
   }
   if (plan.pages > 1) {
-    const button2 = document.createElement("button");
-    button2.type = "button";
-    button2.setAttribute("data-anybandui-sidebar-page", "");
-    button2.setAttribute("aria-label", `Show status page ${String((plan.page + 1) % plan.pages + 1)} of ${String(plan.pages)}`);
-    Object.assign(button2.style, {
+    const button3 = document.createElement("button");
+    button3.type = "button";
+    button3.setAttribute("data-anybandui-sidebar-page", "");
+    button3.setAttribute("aria-label", `Show status page ${String((plan.page + 1) % plan.pages + 1)} of ${String(plan.pages)}`);
+    Object.assign(button3.style, {
       appearance: "none",
       background: "transparent",
       border: "1px solid #686878",
@@ -2529,15 +2529,15 @@ function paintSidebar(rt, section, frame) {
       padding: "0 0.35em"
     });
     paintBitmapButtonLabel(
-      button2,
+      button3,
       `${String(plan.page + 1)}/${String(plan.pages)} >`,
       "#d8d87c",
       cellWidth,
       cellHeight,
       dpr
     );
-    button2.addEventListener("click", () => turnSidebarPage(rt, 1));
-    sidebar.body.appendChild(button2);
+    button3.addEventListener("click", () => turnSidebarPage(rt, 1));
+    sidebar.body.appendChild(button3);
   }
 }
 function cameraOrigin(snapshot, point) {
@@ -3371,18 +3371,18 @@ function hoverCardContent(core, state, grid) {
   return { kind, text, title: KIND_TITLE[kind] };
 }
 var hoverCardsWired = false;
-function positionHoverCard(el2, clientX, clientY) {
+function positionHoverCard(el4, clientX, clientY) {
   const GAP = 14;
   const vw = window.innerWidth;
   const vh = window.innerHeight;
-  const w = el2.offsetWidth;
-  const h = el2.offsetHeight;
+  const w = el4.offsetWidth;
+  const h = el4.offsetHeight;
   let left = clientX + GAP;
   let top = clientY + GAP;
   if (left + w > vw) left = clientX - GAP - w;
   if (top + h > vh) top = clientY - GAP - h;
-  el2.style.left = `${String(Math.max(0, left))}px`;
-  el2.style.top = `${String(Math.max(0, top))}px`;
+  el4.style.left = `${String(Math.max(0, left))}px`;
+  el4.style.top = `${String(Math.max(0, top))}px`;
 }
 var HOVER_CARD_CELL_HEIGHT = 14;
 var HOVER_CARD_CELL_WIDTH = HOVER_CARD_CELL_HEIGHT * (16 / 24);
@@ -3649,8 +3649,8 @@ function installMapHoverCards(ctx) {
       if (ctx.display?.snapshot().mode !== "map" && !mapOpenGuess) return;
       const resolved = resolveCaveGrid(ev.clientX, ev.clientY);
       if (touchPinned) {
-        const same2 = resolved !== null && shownGridKey !== null && gridKey(resolved.grid) === shownGridKey;
-        if (same2) {
+        const same4 = resolved !== null && shownGridKey !== null && gridKey(resolved.grid) === shownGridKey;
+        if (same4) {
           ev.preventDefault();
           ev.stopImmediatePropagation();
           return;
@@ -3775,7 +3775,8 @@ function compareItem(ctx, token, handle) {
   if (!ctx.core?.createAgentView || !ctx.state) return null;
   const before = ctx.snapshot?.();
   if (!before || before.token.epoch !== token.epoch || before.token.revision !== token.revision) return null;
-  return ctx.core.createAgentView(ctx.state).simulateLoadout?.({ wield: [{ from: "gear", handle }] }) ?? null;
+  const ref = typeof handle === "number" ? { from: "gear", handle } : { from: "store", ...handle };
+  return ctx.core.createAgentView(ctx.state).simulateLoadout?.({ wield: [ref] }) ?? null;
 }
 var AcquisitionChanges = class {
   previous = /* @__PURE__ */ new Map();
@@ -3852,20 +3853,87 @@ function submitItem(intent, inspect, token, code, handle, command) {
   return intent?.submit(token, { kind: "command", command }) ?? { accepted: false, reason: "Intent seam unavailable." };
 }
 
+// src/panels/item-comparison.ts
+var METRICS = [["speed", "Speed", 1], ["ac", "Armour", 1], ["toH", "To hit", 1], ["toD", "To damage", 1], ["blows", "Blows", 100], ["shots", "Shots", 10], ["maxHp", "Max HP", 1], ["maxSp", "Max SP", 1], ["totalWeight", "Weight", 10]];
+var tip = "Whole-character preview. The replaced item stays in your pack; an item from outside your belongings adds its weight.";
+function readableFlag(flag) {
+  const words = flag.replace(/^(OF|OBJ_MOD|ELEM)_/, "").replaceAll("_", " ").toLowerCase();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+function el(parent, tag, value2) {
+  const node2 = parent.ownerDocument.createElement(tag);
+  if (value2 !== void 0) node2.textContent = value2;
+  parent.appendChild(node2);
+  return node2;
+}
+function renderItemComparison(parent, sim, unchanged, toggle) {
+  if (sim.unresolved.length) return;
+  const details = el(parent, "details");
+  details.open = true;
+  el(details, "summary", "Equipment comparison");
+  if (!sim.placements.length) {
+    el(details, "p", "No compatible equipment slot.");
+    return;
+  }
+  const placement = sim.placements[0];
+  el(details, "p", `Replacing: ${placement.displaced?.label ?? "empty slot"}`);
+  el(details, "p", "Known properties only; unidentified effects may differ.");
+  const checkbox = el(details, "input");
+  checkbox.type = "checkbox";
+  checkbox.checked = unchanged;
+  checkbox.addEventListener("change", () => toggle(checkbox.checked));
+  el(details, "span", " Show unchanged stats");
+  const table = el(details, "table");
+  const head = el(table, "tr");
+  for (const label2 of ["Stat", "Current", "Selected", "Change"]) el(head, "th", label2);
+  for (const [key, label2, scale] of METRICS) {
+    const before = sim.before.stats[key];
+    const after = sim.after.stats[key];
+    const delta = after - before;
+    if (!unchanged && !delta && !["speed", "ac", "blows"].includes(key)) continue;
+    const row = el(table, "tr");
+    const name = el(row, "td", label2);
+    name.title = tip;
+    el(row, "td", String(before / scale));
+    el(row, "td", String(after / scale));
+    const change = el(row, "td", delta ? `${delta > 0 ? "+" : ""}${delta / scale}` : "-");
+    change.className = delta === 0 ? "muted" : key === "totalWeight" ? delta < 0 ? "gain" : "loss" : delta > 0 ? "gain" : "loss";
+  }
+  for (const [index, name] of ["STR", "INT", "WIS", "DEX", "CON"].entries()) {
+    const before = sim.before.stats.statUse[index], after = sim.after.stats.statUse[index];
+    if (before === void 0 || after === void 0 || !unchanged && before === after) continue;
+    const row = el(table, "tr");
+    for (const value2 of [name, String(before), String(after), after === before ? "-" : `${after > before ? "+" : ""}${after - before}`]) el(row, "td", value2);
+  }
+  el(details, "h4", "Resistances and abilities");
+  sim.after.stats.resists.forEach((after, index) => {
+    const before = sim.before.stats.resists[index] ?? 0;
+    if (unchanged || after !== before) el(details, "div", `${sim.after.stats.resistElements[index] ?? `Element ${index + 1}`}: ${before} to ${after}`);
+  });
+  for (const flag of /* @__PURE__ */ new Set([...sim.before.stats.objectFlags, ...sim.after.stats.objectFlags])) {
+    const before = sim.before.stats.objectFlags.includes(flag), after = sim.after.stats.objectFlags.includes(flag);
+    if (unchanged || before !== after) el(details, "div", `${readableFlag(flag)}: ${before ? "Yes" : "No"} to ${after ? "Yes" : "No"}`);
+  }
+}
+
+// src/input-owner.ts
+function playerIsDriving(ctx) {
+  return (ctx?.controller?.driver?.()?.kind ?? "player") === "player";
+}
+
 // src/panels/items.ts
 var CSS2 = `:host{color:var(--anyband-text);font:13px/1.4 system-ui,sans-serif}.items{position:absolute;right:12px;top:12px;width:min(440px,44vw);max-height:calc(100vh - 24px);overflow:auto;padding:10px;background:var(--anyband-surface);border:1px solid var(--anyband-accent);border-radius:var(--anyband-rounding);pointer-events:auto}button,input,select{font:inherit;color:var(--anyband-text);background:var(--anyband-background);border:1px solid var(--anyband-accent);border-radius:3px;padding:3px 5px}button{cursor:pointer}button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--anyband-accent)}input[type=search]{width:100%}.tabs,.actions,.quick{display:flex;gap:5px;flex-wrap:wrap;margin:6px 0}table{width:100%;border-collapse:collapse}th{text-align:left;position:sticky;top:0;background:var(--anyband-surface)}td,th{padding:3px;border-bottom:1px solid var(--anyband-accent)}tr.new{background:#437d5541}.row{width:100%;text-align:left;border:0;background:transparent}details{margin:8px 0}summary{color:var(--anyband-accent);cursor:pointer;font-weight:bold}.muted{opacity:.65}.gain{color:#80b891}.loss{color:#ff7559}.error{color:#ff7559}.prompt{border:1px solid var(--anyband-accent);padding:8px;margin:8px 0}`;
 var ACTIONS = ["wield", "takeoff", "drop", "inscribe", "use"];
 var ACTION_LABELS = { wield: "Wield", takeoff: "Take off", drop: "Drop", inscribe: "Inscribe", use: "Use" };
 var USE_CODES = ["activate", "use-staff", "aim-wand", "zap-rod", "eat", "quaff", "read"];
-var METRICS = [["speed", "Speed", 1], ["ac", "Armour", 1], ["toH", "To hit", 1], ["toD", "To damage", 1], ["blows", "Blows", 100], ["shots", "Shots", 10], ["maxHp", "Max HP", 1], ["maxSp", "Max SP", 1], ["totalWeight", "Weight", 10]];
-function el(parent, tag, text) {
+function el2(parent, tag, text) {
   const child = parent.ownerDocument.createElement(tag);
   if (text !== void 0) child.textContent = text;
   parent.appendChild(child);
   return child;
 }
 function button(parent, label2, action) {
-  const b = el(parent, "button", label2);
+  const b = el2(parent, "button", label2);
   b.type = "button";
   b.addEventListener("click", action);
   return b;
@@ -3884,8 +3952,8 @@ function installItems(ctx) {
   }
   const panel = ctx.ui.openPanel({ id: "items", modal: false, label: "Items" });
   applyTheme(panel.root, THEMES[validateSettings(ctx.prefs?.get()).theme]);
-  el(panel.root, "style", CSS2);
-  const mount = el(panel.root, "section");
+  el2(panel.root, "style", CSS2);
+  const mount = el2(panel.root, "section");
   mount.className = "items";
   const changes = new AcquisitionChanges();
   let tab = "pack";
@@ -3908,7 +3976,7 @@ function installItems(ctx) {
   };
   const act = (model, item, code) => {
     const latest = read();
-    if (!latest || !same(latest.token, model.token) || latest.phase !== "play" || latest.prompt || !ctx.intent?.submit) {
+    if (!latest || !same(latest.token, model.token) || latest.phase !== "play" || latest.prompt || !ctx.intent?.submit || !playerIsDriving(ctx)) {
       error = "Action unavailable at this input wait.";
       paint(true);
       return;
@@ -3932,6 +4000,7 @@ function installItems(ctx) {
     paint(true);
   };
   const showPrompt = (model) => {
+    if (model.phase !== "play" || !playerIsDriving(ctx)) return;
     const prompt = model.prompt;
     if (!prompt || !ctx.prompt?.reply) return;
     if (prompt.kind === "quantity" && enabled("Quantity")) {
@@ -3940,12 +4009,12 @@ function installItems(ctx) {
         promptId = q.promptId;
         quantity = q.defaultValue;
       }
-      const box = el(mount, "section");
+      const box = el2(mount, "section");
       box.className = "prompt";
-      el(box, "h3", "Choose quantity");
-      el(box, "p", q.label);
-      el(box, "p", `Available for this action: ${q.max}`);
-      const input = el(box, "input");
+      el2(box, "h3", "Choose quantity");
+      el2(box, "p", q.label);
+      el2(box, "p", `Available for this action: ${q.max}`);
+      const input = el2(box, "input");
       input.type = "number";
       input.min = String(q.min);
       input.max = String(q.max);
@@ -3953,7 +4022,7 @@ function installItems(ctx) {
       input.addEventListener("input", () => {
         quantity = Number(input.value);
       });
-      const quick = el(box, "div");
+      const quick = el2(box, "div");
       quick.className = "quick";
       for (const label2 of ["One", "Half", "All"]) button(quick, label2, () => {
         quantity = quantityShortcut(q, label2);
@@ -3970,29 +4039,29 @@ function installItems(ctx) {
         promptId = p.promptId;
         selected = p.choices[0]?.handle ?? null;
       }
-      const box = el(mount, "section");
+      const box = el2(mount, "section");
       box.className = "prompt";
-      el(box, "h3", "Angband asks");
-      el(box, "p", p.label);
-      const table = el(box, "table");
-      const head = el(table, "tr");
-      for (const name of ["Key", "Item", "Location", "Qty"]) el(head, "th", name);
+      el2(box, "h3", "Angband asks");
+      el2(box, "p", p.label);
+      const table = el2(box, "table");
+      const head = el2(table, "tr");
+      for (const name of ["Key", "Item", "Location", "Qty"]) el2(head, "th", name);
       for (const choice of p.choices) {
         const item = model.rows.find((row2) => row2.handle === choice.handle);
-        const row = el(table, "tr");
-        el(row, "td", choice.letter);
-        const cell = el(row, "td");
+        const row = el2(table, "tr");
+        el2(row, "td", choice.letter);
+        const cell = el2(row, "td");
         button(cell, choice.label, () => {
           selected = choice.handle;
           paint(true);
         });
-        el(row, "td", item?.location ?? "Floor");
-        el(row, "td", item ? String(item.quantity) : "");
+        el2(row, "td", item?.location ?? "Floor");
+        el2(row, "td", item ? String(item.quantity) : "");
       }
       const current = p.choices.find((choice) => choice.handle === selected);
       if (current && selected !== null) {
         const inspection = ctx.inspect?.inspectItem(selected);
-        if (inspection && same(inspection.token, model.token)) el(box, "p", inspection.text);
+        if (inspection && same(inspection.token, model.token)) el2(box, "p", inspection.text);
       }
       const choose = button(box, "Choose", () => {
         if (current) {
@@ -4007,77 +4076,34 @@ function installItems(ctx) {
   const showComparison = (model, item) => {
     if (!enabled("Comparison") || item.location !== "pack") return;
     const sim = compareItem(ctx, model.token, item.handle);
-    if (!sim || sim.unresolved.length) return;
-    const details = el(mount, "details");
-    details.open = true;
-    el(details, "summary", "Equipment comparison");
-    if (!sim.placements.length) {
-      el(details, "p", "No compatible equipment slot.");
-      return;
-    }
-    const placement = sim.placements[0];
-    el(details, "p", `Replacing: ${placement.displaced?.label ?? "empty slot"}`);
-    el(details, "p", "Known properties only; unidentified effects may differ.");
-    const toggle = el(details, "input");
-    toggle.type = "checkbox";
-    toggle.checked = unchanged;
-    toggle.addEventListener("change", () => {
-      unchanged = toggle.checked;
+    if (sim) renderItemComparison(mount, sim, unchanged, (value2) => {
+      unchanged = value2;
       paint(true);
     });
-    el(details, "span", " Show unchanged stats");
-    const table = el(details, "table");
-    const head = el(table, "tr");
-    for (const label2 of ["Stat", "Current", "Selected", "Change"]) el(head, "th", label2);
-    for (const [key, label2, scale] of METRICS) {
-      const before = sim.before.stats[key];
-      const after = sim.after.stats[key];
-      const delta = after - before;
-      if (!unchanged && !delta && !["speed", "ac", "blows"].includes(key)) continue;
-      const row = el(table, "tr");
-      el(row, "td", label2);
-      el(row, "td", String(before / scale));
-      el(row, "td", String(after / scale));
-      const change = el(row, "td", delta ? `${delta > 0 ? "+" : ""}${delta / scale}` : "-");
-      change.className = delta === 0 ? "muted" : key === "totalWeight" ? delta < 0 ? "gain" : "loss" : delta > 0 ? "gain" : "loss";
-    }
-    for (const [index, name] of ["STR", "INT", "WIS", "DEX", "CON"].entries()) {
-      const before = sim.before.stats.statUse[index], after = sim.after.stats.statUse[index];
-      if (before === void 0 || after === void 0 || !unchanged && before === after) continue;
-      const row = el(table, "tr");
-      for (const value2 of [name, String(before), String(after), after === before ? "-" : `${after > before ? "+" : ""}${after - before}`]) el(row, "td", value2);
-    }
-    el(details, "h4", "Resistances & abilities");
-    sim.after.stats.resists.forEach((after, index) => {
-      const before = sim.before.stats.resists[index] ?? 0;
-      if (unchanged || after !== before) el(details, "div", `${sim.after.stats.resistElements[index] ?? index}: ${before} -> ${after}`);
-    });
-    for (const flag of /* @__PURE__ */ new Set([...sim.before.stats.objectFlags, ...sim.after.stats.objectFlags])) {
-      const before = sim.before.stats.objectFlags.includes(flag), after = sim.after.stats.objectFlags.includes(flag);
-      if (unchanged || before !== after) el(details, "div", `${flag}: ${before ? "Yes" : "No"} -> ${after ? "Yes" : "No"}`);
-    }
   };
   const paint = (force = false) => {
     if (closed || !panel.root.isConnected) return;
     const model = read();
+    panel.root.host.style.display = model?.phase === "store" ? "none" : "";
+    if (model?.phase === "store") return;
     const next = JSON.stringify([model, tab, search, selected, unchanged, quantity, error]);
     if (!force && next === signature) return;
     signature = next;
     mount.replaceChildren();
-    el(mount, "h2", "Items");
+    el2(mount, "h2", "Items");
     if (!model) {
-      el(mount, "p", "Inventory read unavailable.");
+      el2(mount, "p", "Inventory read unavailable.");
       return;
     }
     if (enabled("Highlights")) changes.update(model);
     showPrompt(model);
     if (enabled("Rules") && ctx.inspect?.itemRules) {
       const rules = ctx.inspect.itemRules;
-      const section = el(mount, "details");
-      el(section, "summary", "Item rules");
+      const section = el2(mount, "details");
+      el2(section, "summary", "Item rules");
       for (const rule of rules.list()) {
-        const line = el(section, "div");
-        el(line, "span", `${rule.kind}: ${rule.label} `);
+        const line = el2(section, "div");
+        el2(line, "span", `${rule.kind}: ${rule.label} `);
         button(line, "Remove", () => {
           const result = rules.remove(rule.id);
           error = result.accepted ? "" : result.reason ?? "Rule removal rejected.";
@@ -4086,7 +4112,7 @@ function installItems(ctx) {
       }
     }
     if (!enabled("Lists")) return;
-    const tabs = el(mount, "div");
+    const tabs = el2(mount, "div");
     tabs.className = "tabs";
     for (const name of ["pack", "equipment", "quiver"]) {
       const b = button(tabs, name[0].toUpperCase() + name.slice(1), () => {
@@ -4095,7 +4121,7 @@ function installItems(ctx) {
       });
       b.setAttribute("aria-pressed", String(tab === name));
     }
-    const searchBox = el(mount, "input");
+    const searchBox = el2(mount, "input");
     searchBox.type = "search";
     searchBox.placeholder = "Search items";
     searchBox.value = search;
@@ -4105,15 +4131,15 @@ function installItems(ctx) {
       mount.querySelector("input[type=search]")?.focus();
     });
     const rows = model.rows.filter((item2) => item2.location === tab && item2.label.toLowerCase().includes(search.toLowerCase()));
-    if (!rows.length) el(mount, "p", tab === "pack" ? "Your pack is empty." : tab === "equipment" ? "Nothing equipped." : "No quiver items available.");
-    const table = el(mount, "table");
-    const head = el(table, "tr");
-    for (const name of tab === "equipment" ? ["Item", "Slot", "Qty"] : ["Item", "Qty"]) el(head, "th", name);
+    if (!rows.length) el2(mount, "p", tab === "pack" ? "Your pack is empty." : tab === "equipment" ? "Nothing equipped." : "No quiver items available.");
+    const table = el2(mount, "table");
+    const head = el2(table, "tr");
+    for (const name of tab === "equipment" ? ["Item", "Slot", "Qty"] : ["Item", "Qty"]) el2(head, "th", name);
     for (const item2 of rows) {
-      const row = el(table, "tr");
+      const row = el2(table, "tr");
       const badge = enabled("Highlights") ? changes.badge(item2) : null;
       if (badge) row.className = "new";
-      const cell = el(row, "td");
+      const cell = el2(row, "td");
       const b = button(cell, `${item2.label}${badge ? ` ${badge}` : ""}`, () => {
         selected = item2.handle;
         changes.acknowledge(item2);
@@ -4122,15 +4148,15 @@ function installItems(ctx) {
       b.className = "row";
       b.style.color = item2.colour;
       b.title = [badge === "NEW" ? "Newly acquired" : badge ? `${badge.slice(1)} acquired` : "", item2.inscription ? `Inscription: ${item2.inscription}` : ""].filter(Boolean).join("\n");
-      if (tab === "equipment") el(row, "td", String(item2.slot ?? ""));
-      el(row, "td", String(item2.quantity));
+      if (tab === "equipment") el2(row, "td", String(item2.slot ?? ""));
+      el2(row, "td", String(item2.quantity));
     }
     const item = model.rows.find((row) => row.handle === selected);
     if (item) {
-      el(mount, "h3", "Inspection");
-      el(mount, "strong", item.label);
-      if (enabled("Actions") && model.phase === "play" && !model.prompt && ctx.intent?.submit) {
-        const actions = el(mount, "div");
+      el2(mount, "h3", "Inspection");
+      el2(mount, "strong", item.label);
+      if (enabled("Actions") && model.phase === "play" && !model.prompt && ctx.intent?.submit && playerIsDriving(ctx)) {
+        const actions = el2(mount, "div");
         actions.className = "actions";
         for (const code of ACTIONS) {
           if (code === "use" ? USE_CODES.some((candidate) => usable(model, item, candidate)) : usable(model, item, code)) button(actions, ACTION_LABELS[code], () => act(model, item, code));
@@ -4140,15 +4166,15 @@ function installItems(ctx) {
       if (enabled("Inspection")) {
         const inspection = ctx.inspect?.inspectItem(item.handle);
         if (inspection && same(inspection.token, model.token)) {
-          const details = el(mount, "details");
+          const details = el2(mount, "details");
           details.open = true;
-          el(details, "summary", inspection.title);
-          el(details, "p", inspection.text);
+          el2(details, "summary", inspection.title);
+          el2(details, "p", inspection.text);
         }
       }
     }
     if (error) {
-      const message = el(mount, "p", error);
+      const message = el2(mount, "p", error);
       message.className = "error";
     }
   };
@@ -4198,6 +4224,7 @@ function tileMenuActions(ctx, snap, at) {
   return actions;
 }
 function clickTile(ctx, at) {
+  if (!playerIsDriving(ctx)) return false;
   const snap = ctx.snapshot?.() ?? null;
   if (snap?.prompt?.kind === "target") return !!ctx.prompt?.reply(snap.prompt.promptId, { action: "move", ...at }).accepted;
   if (!ready(snap) || !snap || !ctx.intent) return false;
@@ -4205,6 +4232,7 @@ function clickTile(ctx, at) {
   return !!intent && ctx.intent.submit(snap.token, intent).accepted;
 }
 function runMenuAction(ctx, at, label2) {
+  if (!playerIsDriving(ctx)) return false;
   const snap = ctx.snapshot?.() ?? null;
   if (!snap) return false;
   const action = tileMenuActions(ctx, snap, at).find((item) => item.label === label2);
@@ -4220,6 +4248,7 @@ function runMenuAction(ctx, at, label2) {
   return !!action.intent && ctx.intent.submit(snap.token, action.intent).accepted;
 }
 function finishPickup(ctx, at, previous) {
+  if (!playerIsDriving(ctx)) return false;
   const next = ctx.snapshot?.() ?? null;
   if (!ready(next) || !next || sameToken(previous.token, next.token) || !ctx.intent) return false;
   const grid = next.core.player.grid;
@@ -4299,7 +4328,7 @@ function installMapMouse(ctx) {
     hide();
     if (!flags["anybandui.dungeonActions"]) return;
     const at = locate(event), snap = ctx.snapshot?.() ?? null;
-    if (!at || !snap || !(ready(snap) || snap.prompt?.kind === "target")) return;
+    if (!at || !snap || !playerIsDriving(ctx) || !(ready(snap) || snap.prompt?.kind === "target")) return;
     const actions = tileMenuActions(ctx, snap, at);
     if (!actions.length) return;
     event.preventDefault();
@@ -4308,12 +4337,12 @@ function installMapMouse(ctx) {
     menuToken = snap.token;
     menuPromptId = snap.prompt?.promptId ?? null;
     for (const action of actions) {
-      const button2 = document.createElement("button");
-      button2.type = "button";
-      button2.setAttribute("role", "menuitem");
-      button2.textContent = action.label;
-      button2.style.cssText = `display:block;width:100%;text-align:left;background:${theme.surface};color:${theme.text};border:0;padding:5px 9px;cursor:pointer`;
-      button2.addEventListener("click", () => {
+      const button3 = document.createElement("button");
+      button3.type = "button";
+      button3.setAttribute("role", "menuitem");
+      button3.textContent = action.label;
+      button3.style.cssText = `display:block;width:100%;text-align:left;background:${theme.surface};color:${theme.text};border:0;padding:5px 9px;cursor:pointer`;
+      button3.addEventListener("click", () => {
         const current = ctx.snapshot?.() ?? null;
         if (!menuAt || !current || !menuToken || !sameToken(menuToken, current.token) || menuPromptId !== (current.prompt?.promptId ?? null)) {
           hide();
@@ -4333,7 +4362,7 @@ function installMapMouse(ctx) {
         } else runMenuAction(ctx, selected, action.label);
         hide();
       });
-      menu.appendChild(button2);
+      menu.appendChild(button3);
     }
     menu.style.display = "block";
     menu.style.left = `${Math.min(event.clientX, window.innerWidth - menu.offsetWidth)}px`;
@@ -4361,7 +4390,7 @@ function installMapMouse(ctx) {
         targetAt = null;
         targetPromptId = null;
       } else if (next.promptId !== targetPromptId && next.cursor?.x === targetAt.x && next.cursor.y === targetAt.y) {
-        ctx.prompt?.reply(next.promptId, { action: "select" });
+        if (playerIsDriving(ctx)) ctx.prompt?.reply(next.promptId, { action: "select" });
         targetAt = null;
         targetPromptId = null;
       }
@@ -4416,6 +4445,288 @@ function installMapMouse(ctx) {
   };
 }
 
+// src/view-model/stores.ts
+var same2 = (a, b) => a.epoch === b.epoch && a.revision === b.revision;
+function adaptStore(snap, known, status) {
+  if (snap.phase !== "store" || !snap.core.stores || !snap.core.player || !snap.core.inventory) return null;
+  const cell = known && same2(known.token, snap.token) ? known.cells.find((entry2) => entry2.x === snap.core.player.grid.x && entry2.y === snap.core.player.grid.y) : null;
+  const feat = status?.feat ?? cell?.remembered.feat;
+  if (feat === void 0) return null;
+  const index = snap.core.stores.findIndex((store2) => store2.feat === feat);
+  if (index < 0) return null;
+  const store = snap.core.stores[index];
+  const items = adaptItems(snap);
+  const eligibility = new Map(status?.inventory?.map((entry2) => [entry2.handle, entry2]));
+  const pack = (items?.rows ?? []).filter((item) => eligibility.get(item.handle)?.eligible !== false).map((item) => ({
+    key: item.handle,
+    label: item.label,
+    quantity: item.quantity,
+    colour: item.colour,
+    location: item.location === "pack" ? "Pack" : "Equipment",
+    eligible: eligibility.get(item.handle)?.eligible ?? true,
+    ...eligibility.get(item.handle)?.price === void 0 ? {} : { price: eligibility.get(item.handle).price }
+  }));
+  return {
+    token: snap.token,
+    index,
+    name: store.isHome ? "Home" : store.featName,
+    owner: store.isHome ? "" : store.owner.name,
+    home: store.isHome,
+    ...snap.core.player.gold === void 0 ? {} : { gold: snap.core.player.gold },
+    ready: status?.ready ?? true,
+    noSelling: status?.noSelling ?? false,
+    transactionPrompts: status?.transactionPrompts === true,
+    stock: store.stock.map((item) => ({
+      key: item.index,
+      label: item.label,
+      quantity: item.number,
+      colour: item.artifact ? "#e89e42" : item.ego ? "#80b891" : "inherit",
+      eligible: true,
+      ...item.price === void 0 ? {} : { price: item.price }
+    })),
+    pack,
+    prompt: snap.prompt
+  };
+}
+
+// src/panels/stores.ts
+var CSS3 = `:host{color:var(--anyband-text);font:13px/1.4 system-ui,sans-serif}.store{position:absolute;inset:12px;overflow:auto;padding:10px;background:var(--anyband-surface);border:1px solid var(--anyband-accent);border-radius:var(--anyband-rounding);pointer-events:auto}.sides{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.side{min-width:0;overflow:auto}h2,h3{color:var(--anyband-accent);border-bottom:1px solid var(--anyband-accent)}table{width:100%;border-collapse:collapse}th{text-align:left}td,th{padding:3px;border-bottom:1px solid var(--anyband-accent)}button,input{font:inherit;color:var(--anyband-text);background:var(--anyband-background);border:1px solid var(--anyband-accent);border-radius:3px;padding:3px 6px}button{cursor:pointer}button:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid var(--anyband-accent)}.row{width:100%;text-align:left;border:0;background:transparent}.row[aria-pressed=true]{background:var(--anyband-accent);color:var(--anyband-background)!important}.actions{display:flex;gap:6px;margin:6px 0}.prompt{border:1px solid var(--anyband-accent);padding:8px;max-width:30em}.prompt input{width:100%}.muted{opacity:.65}.gain{color:#80b891}.loss,.error,.unaffordable{color:#ff7559}details{margin:8px 0}summary{color:var(--anyband-accent);cursor:pointer}@media(max-width:650px){.sides{grid-template-columns:1fr}}`;
+var same3 = (a, b) => a.epoch === b.epoch && a.revision === b.revision;
+function el3(parent, tag, value2) {
+  const node2 = parent.ownerDocument.createElement(tag);
+  if (value2 !== void 0) node2.textContent = value2;
+  parent.appendChild(node2);
+  return node2;
+}
+function button2(parent, label2, click) {
+  const node2 = el3(parent, "button", label2);
+  node2.type = "button";
+  node2.addEventListener("click", click);
+  return node2;
+}
+function storeAction(ctx, model, side, key) {
+  const snap = ctx.snapshot?.();
+  if (!snap || snap.phase !== "store" || snap.prompt || !same3(snap.token, model.token) || !model.ready || !ctx.intent?.submit) return false;
+  if (!playerIsDriving(ctx)) return false;
+  const rows = side === "stock" ? model.stock : model.pack;
+  if (side !== "leave" && (!model.transactionPrompts || !rows.some((row) => row.key === key && row.eligible && (side === "pack" || model.home || row.price === void 0 || model.gold === void 0 || row.price <= model.gold)))) return false;
+  const command = side === "leave" ? { code: "shop-exit" } : side === "stock" ? { code: "shop-buy", args: { index: key } } : { code: "shop-sell", args: { handle: key } };
+  return ctx.intent.submit(snap.token, { kind: "command", command }).accepted;
+}
+function storePromptReply(ctx, model, value2) {
+  const snap = ctx.snapshot?.();
+  if (!snap || snap.phase !== "store" || !same3(snap.token, model.token) || !snap.prompt || snap.prompt.promptId !== model.prompt?.promptId || !ctx.prompt?.reply) return false;
+  if (!playerIsDriving(ctx)) return false;
+  if (snap.prompt.kind === "quantity") {
+    const quantity = snap.prompt;
+    if (typeof value2 !== "number" || !Number.isInteger(value2) || value2 < quantity.min || value2 > quantity.max) return false;
+  } else if (snap.prompt.kind === "confirm") {
+    if (typeof value2 !== "boolean") return false;
+  } else return false;
+  return ctx.prompt.reply(snap.prompt.promptId, value2).accepted;
+}
+function installStores(ctx) {
+  const flags = ctx.flags ?? {};
+  if (!Object.entries(flags).some(([flag, on2]) => flag.startsWith("anybandui.store") && on2)) return () => {
+  };
+  if (!ctx.ui?.openPanel || !ctx.snapshot) {
+    ctx.log("stores: panel or snapshot seam unavailable");
+    return () => {
+    };
+  }
+  let panel = null;
+  let stockSelection = null, packSelection = null, unchanged = false, amount = 1, lastPrompt = -1, split = 50;
+  let place = "", signature = "", error = "";
+  let mount = null;
+  const on = (part) => flags[`anybandui.store${part}`] === true;
+  const read = () => {
+    const snap = ctx.snapshot?.();
+    if (snap?.phase !== "store") return null;
+    const status = ctx.store?.current?.() ?? null;
+    return adaptStore(snap, ctx.knownLevel?.() ?? null, status);
+  };
+  const paint = (force = false) => {
+    const model = read();
+    if (!model) {
+      if (panel) {
+        panel.close();
+        panel = null;
+        mount = null;
+      }
+      return;
+    }
+    if (!panel) {
+      panel = ctx.ui.openPanel({ id: "store", modal: false, label: "Store" });
+      applyTheme(panel.root, THEMES[validateSettings(ctx.prefs?.get()).theme]);
+      el3(panel.root, "style", CSS3);
+      mount = el3(panel.root, "section");
+      mount.className = "store";
+    }
+    const name = `${model.index}:${model.name}`;
+    if (name !== place) {
+      place = name;
+      stockSelection = null;
+      packSelection = null;
+      error = "";
+    }
+    if (!model.stock.some((row) => row.key === stockSelection)) stockSelection = null;
+    if (!model.pack.some((row) => row.key === packSelection)) packSelection = null;
+    const next = JSON.stringify([model, stockSelection, packSelection, unchanged, amount, error]);
+    if (!force && next === signature) return;
+    signature = next;
+    const host = mount;
+    host.replaceChildren();
+    const width = el3(host, "input");
+    width.type = "range";
+    width.min = "25";
+    width.max = "75";
+    width.value = String(split);
+    width.setAttribute("aria-label", "Stock column width");
+    width.title = "Resize stock and inventory columns";
+    width.addEventListener("input", () => {
+      split = Number(width.value);
+      sides.style.gridTemplateColumns = `${split}% ${100 - split}%`;
+    });
+    const sides = el3(host, "div");
+    sides.className = "sides";
+    sides.style.gridTemplateColumns = `${split}% ${100 - split}%`;
+    const action = (side, key) => {
+      error = storeAction(ctx, model, side, key) ? "" : "Action unavailable at this input wait.";
+      paint(true);
+    };
+    const draw = (side) => {
+      const box = el3(sides, "section");
+      box.className = "side";
+      el3(box, "h2", side === "stock" ? `${model.name}${model.owner ? ` - ${model.owner}` : ""}` : `Your inventory${model.gold === void 0 ? "" : ` (Gold: ${model.gold})`}`);
+      const rows = side === "stock" ? model.stock : model.pack;
+      const selected = side === "stock" ? stockSelection : packSelection;
+      const table = el3(box, "table");
+      const head = el3(table, "tr");
+      for (const label2 of ["Item", "Qty", ...side === "pack" ? ["Location"] : [], ...on("Prices") && !model.home ? ["Gold each"] : []]) el3(head, "th", label2);
+      if (!rows.length) el3(box, "p", side === "stock" ? "No stock here." : "No items in your pack.");
+      for (const row of rows) {
+        const tr = el3(table, "tr");
+        const cell = el3(tr, "td");
+        const pick = button2(cell, row.label, () => {
+          if (side === "stock") stockSelection = row.key;
+          else packSelection = row.key;
+          paint(true);
+        });
+        pick.className = "row";
+        pick.style.color = row.colour;
+        pick.title = row.label;
+        pick.setAttribute("aria-pressed", String(selected === row.key));
+        el3(tr, "td", String(row.quantity));
+        if (side === "pack") el3(tr, "td", row.location ?? "Pack");
+        if (on("Prices") && !model.home) {
+          const price = el3(tr, "td", row.price === void 0 ? "" : String(row.price));
+          if (side === "stock" && row.price !== void 0 && model.gold !== void 0 && row.price > model.gold) price.className = "unaffordable";
+        }
+      }
+      if (on("Transactions")) {
+        const actions = el3(box, "div");
+        actions.className = "actions";
+        const label2 = side === "stock" ? model.home ? "Retrieve" : "Buy" : model.home ? "Stash" : model.noSelling ? "Give" : "Sell";
+        const active = rows.find((row) => row.key === selected);
+        const drive = playerIsDriving(ctx);
+        const submit = button2(actions, label2, () => action(side, selected ?? void 0));
+        submit.disabled = !drive || !ctx.intent?.submit || !model.transactionPrompts || !model.ready || !!model.prompt || !active || !active.eligible || side === "stock" && !model.home && active.price !== void 0 && model.gold !== void 0 && active.price > model.gold;
+        if (!model.transactionPrompts) submit.title = "Store confirmations are unavailable in this game.";
+        if (model.noSelling && side === "pack") submit.title = "Shops accept eligible gifts without paying gold.";
+        if (side === "stock") {
+          const leave = button2(actions, model.home ? "Leave home" : "Leave store", () => action("leave"));
+          leave.disabled = !drive || !ctx.intent?.submit || !model.ready || !!model.prompt;
+        }
+      }
+      el3(box, "h3", "Inspection");
+      const chosen = rows.find((row) => row.key === selected);
+      if (!chosen) {
+        const empty = el3(box, "p", "Select an item to inspect it.");
+        empty.className = "muted";
+        return;
+      }
+      el3(box, "strong", chosen.label).style.color = chosen.colour;
+      if (on("Comparison")) {
+        const sim = compareItem(ctx, model.token, side === "stock" ? { store: model.index, index: chosen.key } : chosen.key);
+        if (sim) renderItemComparison(box, sim, unchanged, (value2) => {
+          unchanged = value2;
+          paint(true);
+        });
+      }
+      if (side === "pack") {
+        const inspection = ctx.inspect?.inspectItem(chosen.key);
+        if (inspection && same3(inspection.token, model.token)) {
+          const details = el3(box, "details");
+          details.open = true;
+          el3(details, "summary", inspection.title);
+          el3(details, "p", inspection.text);
+        }
+      }
+    };
+    draw("stock");
+    draw("pack");
+    if (on("Prompts") && model.prompt && ctx.prompt?.reply) {
+      const prompt = model.prompt;
+      if (prompt.promptId !== lastPrompt) {
+        lastPrompt = prompt.promptId;
+        if (prompt.kind === "quantity") amount = prompt.defaultValue;
+      }
+      if (prompt.kind === "quantity" || prompt.kind === "confirm") {
+        const box = el3(host, "section");
+        box.className = "prompt";
+        el3(box, "h3", prompt.kind === "quantity" ? "Choose quantity" : "Confirm price");
+        el3(box, "p", prompt.label ?? "Confirm transaction?");
+        const reply = (value2) => {
+          error = storePromptReply(ctx, model, value2) ? "" : "Prompt answer unavailable.";
+          paint(true);
+        };
+        if (prompt.kind === "quantity") {
+          const quantity = prompt;
+          el3(box, "p", `Available for this action: ${quantity.max}`);
+          const input = el3(box, "input");
+          input.type = "number";
+          input.min = String(quantity.min);
+          input.max = String(quantity.max);
+          input.value = String(amount);
+          input.addEventListener("input", () => {
+            amount = Number(input.value);
+          });
+          input.addEventListener("keydown", (event) => {
+            if (event.key === "Enter") {
+              event.stopPropagation();
+              reply(amount);
+            }
+          });
+          const actions = el3(box, "div");
+          actions.className = "actions";
+          for (const [label2, value2] of [["One", 1], ["Half", Math.max(1, Math.floor(quantity.max / 2))], ["All", quantity.max]]) button2(actions, label2, () => {
+            amount = value2;
+            input.value = String(value2);
+          });
+          const confirm = button2(actions, "Confirm", () => reply(amount));
+          confirm.disabled = amount < quantity.min || amount > quantity.max;
+        } else {
+          const actions = el3(box, "div");
+          actions.className = "actions";
+          button2(actions, "Yes", () => reply(true));
+          button2(actions, "No", () => reply(false));
+        }
+      }
+    }
+    if (error) {
+      const line = el3(host, "p", error);
+      line.className = "error";
+    }
+  };
+  paint(true);
+  const timer2 = globalThis.setInterval(() => paint(), 200);
+  return () => {
+    globalThis.clearInterval(timer2);
+    panel?.close();
+    panel = null;
+  };
+}
+
 // plugin.ts
 var quiverDisplay;
 var tileDisplay;
@@ -4428,6 +4739,7 @@ var plugin_default = {
     ctx.log(`AnybandUI loaded on engine ${ctx.engine}`);
     const flags = ctx.flags ?? {};
     displayCleanups.push(installItems(ctx));
+    displayCleanups.push(installStores(ctx));
     if (flags["anybandui.highContrast"] || flags["anybandui.colourblind"]) {
       installAccessibilityAccommodations({ flags, ...ctx.display ? { display: ctx.display } : {}, log: ctx.log });
     }
