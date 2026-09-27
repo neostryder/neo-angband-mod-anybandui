@@ -21,9 +21,11 @@ describe("phase 7 effects", () => {
     expect(eventCue({event:"heal",grid:{x:1,y:1},seen:false})).toEqual([]);
   });
   it("finds an event's creature on the current snapshot", () => {
-    const s = { core: { player: { grid: { x: 1, y: 1 } }, monsters: [{ id: 7, grid: { x: 9, y: 4 } }] } } as unknown as EffectSnapshot;
+    const s = { core: { player: { grid: { x: 1, y: 1 } }, monsters: [{ id: 7, grid: { x: 9, y: 4 }, visible: true }, { id: 9, grid: { x: 3, y: 3 }, visible: false }] } } as unknown as EffectSnapshot;
     expect(actorGrid(s, "player")).toEqual({ x: 1, y: 1 }); expect(actorGrid(s, 7)).toEqual({ x: 9, y: 4 });
     expect(actorGrid(s, 8)).toBeNull(); expect(actorGrid(s, null)).toBeNull();
+    // An unseen monster never places a cue, so no effect gives its position away.
+    expect(actorGrid(s, 9)).toBeNull();
   });
   it("uses static reduced-motion cues and declares every flag in combination coverage", () => {
     expect(chooseEffectMotion(true)).toBe("static"); expect(chooseEffectMotion(false)).toBe("motion"); expect(flags).toHaveLength(7);

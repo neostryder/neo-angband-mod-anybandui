@@ -21,7 +21,7 @@ type SourceEvent = ({ event: "combat-outcome"; attacker: EventActor | null; kind
 export function actorGrid(s: EffectSnapshot | null, who: EventActor | null): Grid | null {
   if (who === null) return null;
   if (who === "player") return s?.core.player?.grid ?? null;
-  return s?.core.monsters?.find((m) => m.id === who)?.grid ?? null;
+  return s?.core.monsters?.find((m) => m.id === who && m.visible)?.grid ?? null;
 }
 export function eventCue(e: SourceEvent, locate: (who: EventActor | null) => Grid | null = () => null): Omit<Cue, "started" | "strength">[] {
   if (!e.seen) return [];

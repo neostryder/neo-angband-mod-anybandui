@@ -5464,7 +5464,7 @@ function effectGrids(s, known) {
 function actorGrid(s, who) {
   if (who === null) return null;
   if (who === "player") return s?.core.player?.grid ?? null;
-  return s?.core.monsters?.find((m) => m.id === who)?.grid ?? null;
+  return s?.core.monsters?.find((m) => m.id === who && m.visible)?.grid ?? null;
 }
 function eventCue(e, locate = () => null) {
   if (!e.seen) return [];
