@@ -87,7 +87,15 @@ AnybandUI keeps developing in its own repository, and this mod follows it. `UPST
 
 ## Quality of Life's display features move here
 
-The Quality of Life mod's display features move into this mod: zoom and pan, zoom for each panel, the hover cards on the map overview, first-encounter alerts, the enlarged, high-contrast and colourblind displays, and its other changes to how the screen is drawn. Each one becomes a separate switch here, styled to match the rest of AnybandUI. Quality of Life keeps its gameplay conveniences: auto-dig, remembered settings, tolerant pref files, the torch and lantern ignore rules, and its key shortcuts. Where the two mods draw the same thing differently, the ported feature follows one of them, and the other is noted beside it here.
+The Quality of Life mod's display features move into this mod: zoom and pan, zoom for each panel, the hover cards on the map overview, first-encounter alerts, the enlarged, high-contrast and colourblind displays, and its other changes to how the screen is drawn. Each one becomes a separate switch here, styled to match the rest of AnybandUI. Quality of Life keeps its gameplay conveniences: auto-dig, remembered settings, tolerant pref files, the torch and lantern ignore rules, and its key shortcuts. Where the two mods draw the same thing differently, the merged feature works as follows.
+
+Zoom follows Quality of Life. A zoom step makes glyphs or tiles bigger or smaller, and the view fits as many whole cells as it holds, so tiles never land between pixels. From AnybandUI's free camera it gains mouse-drag panning, a follow that pauses while you look elsewhere and resumes with a return-to-player key, a view that keeps the aiming cursor on screen, and re-centring on a new floor, each with its own switch. AnybandUI's interface scale, 75 to 150 percent, sizes the panels and their text, and the character card is always a panel of its own.
+
+Hover cards appear on the dungeon view and on the map overview after one delay setting that starts at 550 ms, and holding a finger on a cell opens one on touch. Each of the two places has its own switch.
+
+The map overview is Quality of Life's full-screen view of the whole known level. From AnybandUI's map it gains an outline of the area the main screen shows, bold markers with a legend for you, the stairs and the shops, wheel zoom at the pointer with drag to pan, Fit floor and Centre on player buttons, coordinates in the hover card with snapping to a nearby landmark, and a switch that draws the level as flat blocks of colour. The buttons and legend sit clear of the part of the map being read.
+
+The high-contrast and colourblind filters come across as their own switches, off by default, and cover the panels as well as the map.
 
 ## Works with the other mods
 
