@@ -31,6 +31,8 @@ import { installZoomPan, uninstallZoomPan, zoomPanHud, type ZoomPanContext } fro
 import { installHoverCards } from "./src/hover-cards.js";
 import { installMapHoverCards } from "./src/qol-map-hover.js";
 import { installMapOverview } from "./src/map-overview.js";
+import { installMapMouse } from "./src/map-mouse.js";
+import type { MouseSeams } from "./src/seams.js";
 
 /**
  * What this plugin needs from the host's context, structurally.
@@ -38,7 +40,7 @@ import { installMapOverview } from "./src/map-overview.js";
  * Declared here rather than imported from the host's mod-plugin.ts, because this
  * file compiles in a standalone repository that holds no copy of the host.
  */
-interface RegisterCtx {
+interface RegisterCtx extends MouseSeams {
   readonly id: string;
   readonly engine: string;
   readonly log: (msg: string) => void;
@@ -55,8 +57,6 @@ interface RegisterCtx {
   readonly ui?: FirstEncounterContext["ui"];
   readonly tiles?: FirstEncounterContext["tiles"];
   readonly prefs?: FirstEncounterContext["prefs"];
-  readonly knownLevel?: () => unknown;
-  readonly snapshot?: () => unknown;
   readonly subwindows?: ZoomPanContext["subwindows"];
 }
 
@@ -104,6 +104,7 @@ export default {
         ...(ctx.state ? { state: ctx.state as unknown as NonNullable<Parameters<typeof installMapHoverCards>[0]["state"]> } : {}),
         display }));
       displayCleanups.push(installHoverCards({ flags: { ...flags, "anybandui.mapHoverCards": false }, display,
+        ...(ctx.snapshot ? { snapshot: ctx.snapshot } : {}),
         ...(ctx.core ? { core: ctx.core as unknown as NonNullable<Parameters<typeof installHoverCards>[0]["core"]> } : {}),
         ...(ctx.knownLevel ? { knownLevel: ctx.knownLevel as NonNullable<Parameters<typeof installHoverCards>[0]["knownLevel"]> } : {}),
         ...(ctx.state ? { state: ctx.state as unknown as NonNullable<ZoomPanContext["state"]> } : {}), ...(ctx.prefs ? { prefs: ctx.prefs } : {}), log: ctx.log }));
@@ -121,6 +122,14 @@ export default {
         ...(ctx.state ? { state: ctx.state as unknown as NonNullable<Parameters<typeof installMapHoverCards>[0]["state"]> } : {}),
         ...(ctx.display?.snapshot ? { display: ctx.display as NonNullable<ZoomPanContext["display"]> } : {}) }));
     }
+    displayCleanups.push(installMapMouse({ flags,
+      ...(ctx.display?.snapshot ? { display: ctx.display as NonNullable<ZoomPanContext["display"]> } : {}),
+      ...(ctx.snapshot ? { snapshot: ctx.snapshot } : {}),
+      ...(ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {}),
+      ...(ctx.intent ? { intent: ctx.intent } : {}),
+      ...(ctx.prompt ? { prompt: ctx.prompt } : {}),
+      ...(ctx.inspect ? { inspect: ctx.inspect } : {}),
+      ...(ctx.prefs ? { prefs: ctx.prefs } : {}), log: ctx.log }));
     /* The live state is available at register time. See first-encounter.ts
      * for why sightings are polled and stored in prefs by character. */
     if (flags["anybandui.firstEncounter"]) {

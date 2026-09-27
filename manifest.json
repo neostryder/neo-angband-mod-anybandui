@@ -18,12 +18,42 @@
     "display:filter",
     "ui:panel.mount",
     "state:map.read",
-    "state:interaction.read"
+    "state:interaction.read",
+    "input:intent",
+    "input:prompt.reply"
   ],
   "author": "WurliMonkhaven, neostryder",
   "license": "GPL-2.0-only",
   "description": "A mouse-first interface for Neo Angband, ported from Wurli Monkhaven's AnybandUI. This version offers character, status and message panels, whole-cell zoom and camera controls, knowledge-gated hover cards, and a full-detail level overview with schematic drawing. Every feature starts off. The game's rules are untouched, and turning the mod off brings back the standard screen.",
   "rules": [
+    {
+      "flag": "anybandui.clickToWalk",
+      "title": "TODO-PROSE Click to walk or attack",
+      "description": "TODO-PROSE Left-click a dungeon tile to take one step or travel there. Clicking an adjacent creature uses the game's walk command.",
+      "default": false,
+      "requiresReload": true
+    },
+    {
+      "flag": "anybandui.dungeonActions",
+      "title": "TODO-PROSE Dungeon actions",
+      "description": "TODO-PROSE Right-click a tile for actions supported by the current game state.",
+      "default": false,
+      "requiresReload": true
+    },
+    {
+      "flag": "anybandui.aimPath",
+      "title": "TODO-PROSE Gold aiming path",
+      "description": "TODO-PROSE Draw the engine's projection path over the dungeon while choosing a target.",
+      "default": false,
+      "requiresReload": true
+    },
+    {
+      "flag": "anybandui.walkRoutePreview",
+      "title": "TODO-PROSE Walking route preview",
+      "description": "TODO-PROSE Draw the engine's optional walking route under the pointer when that read seam is available.",
+      "default": false,
+      "requiresReload": true
+    },
     {
       "flag": "anybandui.sidebar",
       "title": "Character card",

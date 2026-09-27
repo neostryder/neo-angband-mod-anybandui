@@ -45,10 +45,15 @@ describe.skipIf(!checkout)("adapter over a real game", () => {
       turn: game.state.turn, cmdQueue: game.state.cmdQueue ?? [],
     });
     const before = fingerprint();
+    const mapView = agentModule.createAgentView(game.state);
+    // Exercise each new read once; the existing adapter still gets 100 reads.
+    mapView.capture?.();
+    mapView.knownLevel?.();
+    mapView.projectionPath?.({ x: game.state.actor.grid.x, y: game.state.actor.grid.y });
     for (let i = 0; i < 100; i++) {
       adapt(agentModule.createAgentView(game.state));
       adapterSource.snapshot();
     }
     expect(fingerprint()).toBe(before);
-  });
+  }, 20000);
 });

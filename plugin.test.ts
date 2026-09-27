@@ -25,8 +25,8 @@ describe("the AnybandUI plugin", () => {
     const manifest = JSON.parse(readFileSync(new URL("./manifest.json", import.meta.url), "utf8")) as {
       capabilities: string[]; rules: { flag: string; default: boolean; requiresReload: boolean }[];
     };
-    expect(manifest.capabilities).toEqual(["ui:sidebar.replace", "ui:status.replace", "ui:messages.replace", "display:filter", "ui:panel.mount", "state:map.read", "state:interaction.read"]);
-    expect(manifest.rules.map((rule) => rule.flag)).toEqual(["anybandui.sidebar", "anybandui.status", "anybandui.messages", "anybandui.highContrast", "anybandui.colourblind", "anybandui.firstEncounter", "anybandui.quiverItemization", "anybandui.crispTiles", "anybandui.zoom", "anybandui.enlargedDisplay", "anybandui.dragPan", "anybandui.followPlayer", "anybandui.keepTargetInView", "anybandui.recentreOnFloor", "anybandui.mapHoverCards", "anybandui.dungeonHoverCards", "anybandui.mapOverview", "anybandui.mapSchematic"]);
+    expect(manifest.capabilities).toEqual(["ui:sidebar.replace", "ui:status.replace", "ui:messages.replace", "display:filter", "ui:panel.mount", "state:map.read", "state:interaction.read", "input:intent", "input:prompt.reply"]);
+    expect(manifest.rules.map((rule) => rule.flag)).toEqual(["anybandui.clickToWalk", "anybandui.dungeonActions", "anybandui.aimPath", "anybandui.walkRoutePreview", "anybandui.sidebar", "anybandui.status", "anybandui.messages", "anybandui.highContrast", "anybandui.colourblind", "anybandui.firstEncounter", "anybandui.quiverItemization", "anybandui.crispTiles", "anybandui.zoom", "anybandui.enlargedDisplay", "anybandui.dragPan", "anybandui.followPlayer", "anybandui.keepTargetInView", "anybandui.recentreOnFloor", "anybandui.mapHoverCards", "anybandui.dungeonHoverCards", "anybandui.mapOverview", "anybandui.mapSchematic"]);
     expect(manifest.rules.every((rule) => !rule.default && rule.requiresReload)).toBe(true);
   });
 
