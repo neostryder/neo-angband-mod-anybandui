@@ -11,10 +11,36 @@
   "dependencies": {
     "core": "*"
   },
-  "capabilities": [],
+  "capabilities": [
+    "ui:sidebar.replace",
+    "ui:status.replace",
+    "ui:messages.replace"
+  ],
   "author": "WurliMonkhaven, neostryder",
   "license": "GPL-2.0-only",
-  "description": "A mouse-first desktop interface for Neo Angband, ported from Wurli Monkhaven's AnybandUI: dockable panels, a number-key quickbar, item comparison, store and spell windows, and optional CRT and dungeon effects.\n\nThis early version sets up the mod and adds nothing to the screen yet. The game's rules are untouched, and turning the mod off restores the standard interface.",
-  "rules": [],
+  "description": "A mouse-first interface for Neo Angband, ported from Wurli Monkhaven's AnybandUI. This version redraws the character column, the status line and the message line as panels: bars for hit points, spell points, food and experience, a badge for each status effect, a card for the current dungeon level, and a message log you can search. Each panel has its own switch and starts off. The game's rules are untouched, and turning the mod off brings back the standard screen.",
+  "rules": [
+    {
+      "flag": "anybandui.sidebar",
+      "title": "Character card",
+      "description": "Replaces the character column with a card: your name, race and class, bars for hit points, spell points, food and experience, your stats, gold, armour and speed, and a health bar for the creature you are tracking. Hover a bar or stat to see its numbers.",
+      "default": false,
+      "requiresReload": true
+    },
+    {
+      "flag": "anybandui.status",
+      "title": "Status badges and dungeon card",
+      "description": "Replaces the status line with a badge for each timed effect, coloured by whether it helps or harms you, and a card showing depth, light, the level feeling and the terrain underfoot. Hover a badge to see how many turns it has left.",
+      "default": false,
+      "requiresReload": true
+    },
+    {
+      "flag": "anybandui.messages",
+      "title": "Message log",
+      "description": "Replaces the message line with a scrolling log. Repeated messages fold into one line with a count, and a search box finds an older message.",
+      "default": false,
+      "requiresReload": true
+    }
+  ],
   "repository": "https://github.com/neostryder/neo-angband-mod-anybandui"
 }
