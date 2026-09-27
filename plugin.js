@@ -416,6 +416,27 @@ function renderStatusBadges(mount, model) {
     badge.dataset.tip = lines.join("\n");
   }
 }
+var DRIVER_NAMES = { borg: "Borg", squire: "Squire", "core:demo-wanderer": "Demo wanderer" };
+var driverColour = "#f5bc5a";
+function driverName(owner) {
+  return DRIVER_NAMES[owner] ?? "Autoplayer";
+}
+function renderDriverBadge(mount, driver) {
+  mount.replaceChildren();
+  if (driver.kind !== "controller") return;
+  const name = driverName(driver.owner);
+  const label2 = driver.label?.trim();
+  const reason = driver.reason?.trim();
+  const wrap = node(mount, "div", "badges");
+  const badge = node(wrap, "span", "badge driver", label2 ? `${name}: ${label2}` : `${name} is playing`);
+  badge.style.color = driverColour;
+  badge.style.backgroundColor = `${driverColour}29`;
+  const lines = [`${name} is playing.`];
+  if (label2) lines.push(label2);
+  if (reason) lines.push(reason);
+  lines.push("Map clicks and panel buttons do nothing until it stops.");
+  badge.dataset.tip = lines.join("\n");
+}
 
 // src/panels/tracked-creature.ts
 function renderTrackedCreature(mount, model) {
@@ -518,6 +539,10 @@ function validateSettings(value2) {
 var COLORBLIND_FILTER_ID = "anybandui-accessibility-colorblind";
 var HIGH_CONTRAST_FILTER = "contrast(1.55) saturate(1.2)";
 var COLORBLIND_MATRIX = "0.812 0.199 -0.011 0 0 0 1 0 0 0 -0.188 0.199 0.989 0 0 0 0 0 1 0";
+function setFilter(display, filter) {
+  if (typeof display.getVisualFilter === "function" || display.setVisualFilter.length >= 2) display.setVisualFilter(filter, { scope: "game" });
+  else display.setVisualFilter(filter);
+}
 function accessibilityFilter(flags) {
   const filters = [];
   if (flags["anybandui.colourblind"] === true) filters.push(`url("#${COLORBLIND_FILTER_ID}")`);
@@ -552,17 +577,13 @@ function installAccessibilityAccommodations(ctx) {
   }
   if (ctx.flags["anybandui.colourblind"] === true) ensureColorblindFilter();
   configuredDisplay = ctx.display;
-  if (ctx.display.setVisualFilter.length >= 2) ctx.display.setVisualFilter(filter, { scope: "game" });
-  else ctx.display.setVisualFilter(filter);
+  setFilter(ctx.display, filter);
   setPanelHostVisualFilter(filter);
 }
 function uninstallAccessibilityAccommodations() {
   const display = configuredDisplay;
   configuredDisplay = null;
-  if (display) {
-    if (display.setVisualFilter.length >= 2) display.setVisualFilter(null, { scope: "game" });
-    else display.setVisualFilter(null);
-  }
+  if (display) setFilter(display, null);
   setPanelHostVisualFilter(null);
 }
 
@@ -1682,6 +1703,19 @@ function trackedDisplay(display, applied) {
     };
   } });
 }
+function keepsDisplayRequestsPerMod(display) {
+  const read = display;
+  return typeof read.getGrid === "function" && typeof read.getTileScaling === "function";
+}
+function releaseTileSettings(display, overviewApplied) {
+  if (keepsDisplayRequestsPerMod(display)) {
+    display.setTileScaling(null);
+    display.setFullMapOverview?.(null);
+    return;
+  }
+  if (overviewApplied) display.setFullMapOverview?.(false);
+  display.setTileScaling("auto");
+}
 var configuredTileDisplay = null;
 var fullOverviewApplied = false;
 var SUBWINDOW_ZOOM_PREF_BLOCK_NAME = "anybandui-zoom";
@@ -2638,7 +2672,7 @@ function installZoomPan(ctx) {
   const storedSubwindowZoom = readSubwindowZoomPreference(ctx.prefs?.get());
   const rt = {
     ctx,
-    display: trackedDisplay(display, appliedDisplaySettings),
+    display: keepsDisplayRequestsPerMod(display) ? display : trackedDisplay(display, appliedDisplaySettings),
     preference: {
       ...readDisplayPreference(ctx.prefs?.get()),
       ...ctx.flags["anybandui.enlargedDisplay"] === true ? { zoomIndex: Math.max(readDisplayPreference(ctx.prefs?.get()).zoomIndex, ACCESSIBILITY_ZOOM_INDEX) } : {}
@@ -2718,8 +2752,7 @@ function zoomPanHud(ctx) {
   } } };
 }
 function uninstallZoomPan() {
-  if (fullOverviewApplied) configuredTileDisplay?.setFullMapOverview?.(false);
-  configuredTileDisplay?.setTileScaling("auto");
+  if (configuredTileDisplay) releaseTileSettings(configuredTileDisplay, fullOverviewApplied);
   configuredTileDisplay = null;
   fullOverviewApplied = false;
   const rt = runtime;
@@ -2733,6 +2766,13 @@ function uninstallZoomPan() {
   if (rt.cameraTimer !== null) clearInterval(rt.cameraTimer);
   clearSubwindowControls(rt);
   for (const cleanup of rt.cleanups.splice(0).reverse()) cleanup();
+  if (keepsDisplayRequestsPerMod(rt.display)) {
+    rt.display.setMapView(null);
+    rt.display.setCamera(null);
+    rt.display.setSidebarExtent(null);
+    rt.display.setGrid(null);
+    return;
+  }
   for (const setting of rt.appliedDisplaySettings) {
     if (setting === "setMapView") rt.display.setMapView(null);
     else if (setting === "setCamera") rt.display.setCamera(null);
@@ -4026,8 +4066,14 @@ function renderItemComparison(parent, sim, unchanged, toggle) {
 }
 
 // src/input-owner.ts
+var PLAYER = Object.freeze({ kind: "player" });
+function currentDriver(ctx) {
+  const read = ctx?.driver;
+  const driver = typeof read === "function" ? read() : void 0;
+  return driver?.kind === "controller" && typeof driver.owner === "string" ? driver : PLAYER;
+}
 function playerIsDriving(ctx) {
-  return (ctx?.controller?.driver?.()?.kind ?? "player") === "player";
+  return currentDriver(ctx).kind === "player";
 }
 
 // src/panels/items.ts
@@ -5615,17 +5661,64 @@ function installEffects(ctx) {
   };
 }
 
+// src/mod-coexistence.ts
+var MOVED_FROM_QOL = [
+  { flag: "anybandui.zoom", qolFlag: "qol.zoomPan", name: "zoom and pan" },
+  { flag: "anybandui.enlargedDisplay", qolFlag: "qol.accessibilityZoom", name: "the enlarged display" },
+  { flag: "anybandui.crispTiles", qolFlag: "qol.sharpenZoomedTiles", name: "sharper tiles" },
+  { flag: "anybandui.mapHoverCards", qolFlag: "qol.mapHoverCards", name: "map overview hover cards" },
+  { flag: "anybandui.firstEncounter", qolFlag: "qol.firstEncounterAlerts", name: "first-encounter alerts" },
+  { flag: "anybandui.quiverItemization", qolFlag: "qol.quiverItemization", name: "the itemized quiver" },
+  { flag: "anybandui.highContrast", qolFlag: "qol.accessibilityHighContrast", name: "high contrast" },
+  { flag: "anybandui.colourblind", qolFlag: "qol.accessibilityColorblind", name: "the colourblind filter" }
+];
+var QOL_MOD_ID = "qol";
+var LAST_QOL_WITH_MOVED_FEATURES = [1, 12, 0];
+function qolKeepsMovedFeatures(version) {
+  const match = /^(\d+)\.(\d+)\.(\d+)/.exec(version);
+  if (!match) return false;
+  const parts = [Number(match[1]), Number(match[2]), Number(match[3])];
+  for (let i = 0; i < 3; i++) {
+    if (parts[i] !== LAST_QOL_WITH_MOVED_FEATURES[i]) return parts[i] < LAST_QOL_WITH_MOVED_FEATURES[i];
+  }
+  return true;
+}
+function coexistingFlags(flags, mods, log) {
+  let list = [];
+  try {
+    list = typeof mods === "function" ? mods() : [];
+  } catch {
+    list = [];
+  }
+  const qol = list.find((mod) => mod.id === QOL_MOD_ID);
+  if (!qol || !qolKeepsMovedFeatures(qol.version)) return flags;
+  const yielded = MOVED_FROM_QOL.filter((feature) => flags[feature.flag] === true && qol.flags?.[feature.qolFlag] !== false);
+  if (!yielded.length) return flags;
+  log?.(`Quality of Life ${qol.version} still draws ${yielded.map((feature) => feature.name).join(", ")}, so AnybandUI leaves them to it`);
+  return Object.freeze({ ...flags, ...Object.fromEntries(yielded.map((feature) => [feature.flag, false])) });
+}
+
 // plugin.ts
 var quiverDisplay;
 var tileDisplay;
 var tileFullOverviewApplied = false;
 var displayCleanups = [];
+var statusRepaint = null;
 var plugin_default = {
   api: 1,
   register(_host, ctx) {
     this.uninstall();
     ctx.log(`AnybandUI loaded on engine ${ctx.engine}`);
-    const flags = ctx.flags ?? {};
+    const flags = coexistingFlags(ctx.flags ?? {}, ctx.mods?.bind(ctx), ctx.log);
+    if (ctx.events) {
+      const events = ctx.events;
+      const repaint = () => statusRepaint?.();
+      try {
+        events.on("driver-changed", repaint);
+        displayCleanups.push(() => events.off("driver-changed", repaint));
+      } catch {
+      }
+    }
     displayCleanups.push(installEffects({ flags, ...ctx.snapshot ? { snapshot: ctx.snapshot } : {}, ...ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {}, ...ctx.events ? { events: ctx.events } : {}, ...ctx.display?.snapshot ? { display: ctx.display } : {}, ...ctx.prefs ? { prefs: ctx.prefs } : {} }));
     displayCleanups.push(installItems(ctx));
     displayCleanups.push(installStores(ctx));
@@ -5728,8 +5821,7 @@ var plugin_default = {
     uninstallFirstEncounter();
     uninstallAccessibilityAccommodations();
     quiverDisplay?.setQuiverItemization?.(false);
-    tileDisplay?.setTileScaling?.("auto");
-    if (tileFullOverviewApplied) tileDisplay?.setFullMapOverview?.(false);
+    if (tileDisplay?.setTileScaling) releaseTileSettings(tileDisplay, tileFullOverviewApplied);
     quiverDisplay = void 0;
     tileDisplay = void 0;
     tileFullOverviewApplied = false;
@@ -5767,14 +5859,20 @@ var plugin_default = {
     }
     if (enabled.status) {
       const host = createPanelHost(doc, [
+        { key: "driver", render: (mount) => renderDriverBadge(mount, currentDriver(ctx)), select: () => currentDriver(ctx) },
         { key: "status", render: renderStatusBadges, select: (m) => [m.player.statuses, m.player.study] },
         { key: "dungeon", render: renderDungeonCard, select: (m) => [m.dungeon, m.player.trap_detected, m.player.recall, m.player.descent, m.player.resting, m.player.running, m.player.repeat, m.player.unignoring] }
       ], theme);
+      let last = null;
       output.status = { present(section2, frame) {
+        last = [section2, frame];
         source.hud.status.present(section2, frame);
         const model = source.snapshot();
         if (model) host.present(section2, frame, model);
       } };
+      statusRepaint = () => {
+        if (last) output.status.present(last[0], last[1]);
+      };
     }
     if (enabled.messages) {
       const host = createPanelHost(doc, [{ key: "messages", render: renderMessageLog, select: (m) => [m.messages, m.message_pending] }], theme);

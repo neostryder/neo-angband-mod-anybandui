@@ -123,8 +123,15 @@ export interface DisplayLike {
     readonly size: { readonly width: number; readonly height: number };
   } | null): void;
   setSidebarExtent(extent: { readonly columns: number; readonly topRows: number } | null): void;
-  setTileScaling(mode: "auto" | "crisp"): void;
-  setFullMapOverview?(enabled: boolean): void;
+  /** Null, like the getters below, exists only where keepsDisplayRequestsPerMod() holds. */
+  setTileScaling(mode: "auto" | "crisp" | null): void;
+  setFullMapOverview?(enabled: boolean | null): void;
+  getGrid?(): unknown;
+  getCamera?(): { readonly x: number; readonly y: number } | null;
+  getMapView?(): unknown;
+  getSidebarExtent?(): { readonly columns: number; readonly topRows: number } | null;
+  getTileScaling?(): "auto" | "crisp";
+  getFullMapOverview?(): boolean;
   setStoreItemNameEllipsis?(enabled: boolean): void;
   setStoreSelectionDescription?(enabled: boolean): void;
   setQuiverItemization?(enabled: boolean): void;
@@ -307,6 +314,30 @@ function trackedDisplay(display: DisplayLike, applied: Set<string>): DisplayLike
       return Reflect.apply(member, target, args);
     };
   } });
+}
+
+/**
+ * Engines from neo-angband #290 keep each mod's display request apart and add
+ * a getter beside each setter. Clearing a request there removes only this
+ * mod's value and brings back whatever another mod asked for, so nothing has
+ * to be tracked. Older engines hold one global value per setter, where a
+ * clear also wipes another mod's request, so they keep the tracked path:
+ * trackedDisplay() above, and an explicit "auto" or false for tile settings.
+ */
+export function keepsDisplayRequestsPerMod(display: object): boolean {
+  const read = display as { getGrid?: unknown; getTileScaling?: unknown };
+  return typeof read.getGrid === "function" && typeof read.getTileScaling === "function";
+}
+
+/** Withdraw this mod's crisp sampling and full overview request. */
+export function releaseTileSettings(display: Pick<DisplayLike, "setTileScaling" | "setFullMapOverview">, overviewApplied: boolean): void {
+  if (keepsDisplayRequestsPerMod(display)) {
+    display.setTileScaling(null);
+    display.setFullMapOverview?.(null);
+    return;
+  }
+  if (overviewApplied) display.setFullMapOverview?.(false);
+  display.setTileScaling("auto");
 }
 
 let configuredTileDisplay: DisplayLike | null = null;
@@ -1529,7 +1560,7 @@ export function installZoomPan(ctx: ZoomPanContext): void {
   const storedSubwindowZoom = readSubwindowZoomPreference(ctx.prefs?.get());
   const rt: ZoomRuntime = {
     ctx,
-    display: trackedDisplay(display, appliedDisplaySettings),
+    display: keepsDisplayRequestsPerMod(display) ? display : trackedDisplay(display, appliedDisplaySettings),
     preference: {
       ...readDisplayPreference(ctx.prefs?.get()),
       ...(ctx.flags["anybandui.enlargedDisplay"] === true
@@ -1620,8 +1651,7 @@ export function zoomPanHud(ctx: ZoomPanContext): {
 }
 
 export function uninstallZoomPan(): void {
-  if (fullOverviewApplied) configuredTileDisplay?.setFullMapOverview?.(false);
-  configuredTileDisplay?.setTileScaling("auto");
+  if (configuredTileDisplay) releaseTileSettings(configuredTileDisplay, fullOverviewApplied);
   configuredTileDisplay = null;
   fullOverviewApplied = false;
   const rt = runtime;
@@ -1635,6 +1665,16 @@ export function uninstallZoomPan(): void {
   if (rt.cameraTimer !== null) clearInterval(rt.cameraTimer);
   clearSubwindowControls(rt);
   for (const cleanup of rt.cleanups.splice(0).reverse()) cleanup();
+  if (keepsDisplayRequestsPerMod(rt.display)) {
+    /* The engine keys requests by mod, not by feature, so these clears also
+     * drop the map overview's requests. That is safe because this runs only
+     * while the whole mod uninstalls, when every feature withdraws its own. */
+    rt.display.setMapView(null);
+    rt.display.setCamera(null);
+    rt.display.setSidebarExtent(null);
+    rt.display.setGrid(null);
+    return;
+  }
   for (const setting of rt.appliedDisplaySettings) {
     if (setting === "setMapView") rt.display.setMapView(null);
     else if (setting === "setCamera") rt.display.setCamera(null);

@@ -61,6 +61,24 @@ describe("independent free-camera flags", () => {
     expect(fake.setFullMapOverview).not.toHaveBeenCalled();
   });
 
+  it("clears its own requests without tracking them on an engine that keeps them per mod", () => {
+    const fake = fakeDisplay();
+    const display = { ...fake.display, getGrid: vi.fn(() => null), getTileScaling: vi.fn(() => "auto" as const) };
+    installZoomPan({ flags: { "anybandui.followPlayer": true, "anybandui.crispTiles": true }, display,
+      state: { actor: { grid: { x: 45, y: 30 } } } });
+    fake.key(fakeKey("Home"));
+    uninstallZoomPan();
+    // Each clear removes only this mod's value, so clearing one it never set is harmless.
+    expect(fake.setCamera).toHaveBeenLastCalledWith(null);
+    expect(fake.setMapView).toHaveBeenLastCalledWith(null);
+    expect(fake.setGrid).toHaveBeenLastCalledWith(null);
+    expect(fake.setSidebarExtent).toHaveBeenLastCalledWith(null);
+    // Null withdraws the request; "auto" or false would be a request of its own.
+    expect(fake.setTileScaling).toHaveBeenLastCalledWith(null);
+    expect(fake.setFullMapOverview).toHaveBeenLastCalledWith(null);
+    expect(fake.setTileScaling).not.toHaveBeenCalledWith("auto");
+  });
+
   it("dragPan moves the play camera by whole cells", () => {
     const win = new EventTarget();
     vi.stubGlobal("window", win);

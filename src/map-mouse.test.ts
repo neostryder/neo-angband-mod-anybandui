@@ -12,11 +12,11 @@ const level = (revision = 1, at = { x: 8, y: 8 }): KnownLevel => ({
 function fixture(snapshot: InputSnapshot = snap(), known: KnownLevel | null = null) {
   const submitted: { token: InputSnapshot["token"]; intent: PlayerIntent }[] = [];
   const ctx = {
-    controller: { driver: () => ({ kind: "player" as const }) },
+    driver: () => ({ kind: "player" as const }),
     snapshot: () => snapshot,
     knownLevel: () => known,
     intent: { submit(wait, intent) { submitted.push({ token: wait, intent }); return { accepted: true }; } },
-  } satisfies MouseSeams & { controller: { driver(): { kind: "player" } } };
+  } satisfies MouseSeams & { driver(): { kind: "player" } };
   return { ctx, submitted };
 }
 
@@ -29,10 +29,10 @@ describe("map mouse intents", () => {
   });
   it("stands down only when the driver read names an autoplayer", () => {
     const { ctx, submitted } = fixture();
-    const autoplay = { ...ctx, controller: { driver: () => ({ kind: "autoplayer" as const }) } };
+    const autoplay = { ...ctx, driver: () => ({ kind: "controller" as const, owner: "borg" }) };
     expect(clickTile(autoplay, { x: 6, y: 5 })).toBe(false);
     expect(submitted).toEqual([]);
-    const { controller: _driver, ...withoutDriver } = ctx;
+    const { driver: _driver, ...withoutDriver } = ctx;
     expect(clickTile(withoutDriver, { x: 6, y: 5 })).toBe(true);
     expect(submitted).toHaveLength(1);
   });
@@ -47,7 +47,7 @@ describe("map mouse intents", () => {
 
   it("moves a target prompt through its typed reply", () => {
     const reply = vi.fn(() => ({ accepted: true }));
-    const ctx = { controller: { driver: () => ({ kind: "player" as const }) }, snapshot: () => ({ ...snap(), prompt: { kind: "target", promptId: 7 } }), prompt: { reply } };
+    const ctx = { driver: () => ({ kind: "player" as const }), snapshot: () => ({ ...snap(), prompt: { kind: "target", promptId: 7 } }), prompt: { reply } };
     expect(clickTile(ctx, { x: 8, y: 8 })).toBe(true);
     expect(reply).toHaveBeenCalledWith(7, { action: "move", x: 8, y: 8 });
   });
@@ -55,7 +55,7 @@ describe("map mouse intents", () => {
   it("offers target prompt selection and cancellation", () => {
     const reply = vi.fn(() => ({ accepted: true }));
     const active = { ...snap(), prompt: { kind: "target", promptId: 7, cursor: { x: 8, y: 8 } } };
-    const ctx = { controller: { driver: () => ({ kind: "player" as const }) }, snapshot: () => active, prompt: { reply } };
+    const ctx = { driver: () => ({ kind: "player" as const }), snapshot: () => active, prompt: { reply } };
     expect(tileMenuActions(ctx, active, { x: 8, y: 8 }).map((a) => a.label)).toEqual(["Select tile", "Cancel"]);
     expect(runMenuAction(ctx, { x: 8, y: 8 }, "Cancel")).toBe(true);
     expect(reply).toHaveBeenCalledWith(7, { action: "cancel" });

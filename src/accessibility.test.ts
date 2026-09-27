@@ -55,4 +55,12 @@ describe("visual accessibility accommodations", () => {
       expect(setVisualFilter).toHaveBeenLastCalledWith(null);
     } finally { Object.assign(globalThis, { HTMLElement: original }); }
   });
+  it("passes the scope to an engine that keeps a filter per mod, whatever the setter's arity", () => {
+    const setVisualFilter = vi.fn((..._args: unknown[]) => {});
+    const getVisualFilter = vi.fn(() => null);
+    installAccessibilityAccommodations({ flags: { "anybandui.colourblind": true }, display: { setVisualFilter: (...args: unknown[]) => setVisualFilter(...args), getVisualFilter } });
+    expect(setVisualFilter).toHaveBeenCalledWith(expect.stringContaining(COLORBLIND_FILTER_ID), { scope: "game" });
+    uninstallAccessibilityAccommodations();
+    expect(setVisualFilter).toHaveBeenLastCalledWith(null, { scope: "game" });
+  });
 });

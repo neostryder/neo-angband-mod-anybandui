@@ -31,6 +31,8 @@ export type QuantityPrompt = PromptBase & { readonly kind: "quantity"; readonly 
 export type OtherPrompt = PromptBase & { readonly kind: string };
 export interface InputSnapshot {
   readonly token: InputToken;
+  /** Absent on engines before neo-angband #290; see input-owner.ts. */
+  readonly driver?: InputDriver;
   readonly phase: "pregame" | "play" | "store" | "more" | "modal" | "dead" | null;
   readonly messagePending?: boolean | null;
   readonly prompt: ItemPrompt | QuantityPrompt | OtherPrompt | null;
@@ -45,7 +47,7 @@ export type PlayerIntent =
   | { readonly kind: "travel"; readonly x: number; readonly y: number }
   | { readonly kind: "target"; readonly x: number; readonly y: number }
   | { readonly kind: "command"; readonly command: AgentCommand };
-export interface IntentResult { readonly accepted: boolean; readonly reason?: string }
+export interface IntentResult { readonly accepted: boolean; readonly reason?: string; readonly code?: string }
 export interface IntentSeam { submit(token: InputToken, intent: PlayerIntent): IntentResult }
 
 // Item panels: the item-facing slice of the same seams.
@@ -83,7 +85,7 @@ export interface SpellbookView { readonly tval: number; readonly name: string; r
 export interface SpellInspectResult { readonly token: InputToken; readonly name: string; readonly description: string; readonly level: number; readonly mana: number; readonly failChance: number; readonly canCastNow: boolean }
 export interface SpellPrompt { readonly kind: "spell"; readonly promptId: number; readonly label: string; readonly choices: readonly { readonly index: number; readonly name: string; readonly level: number; readonly mana: number; readonly fail: number; readonly castable: boolean }[] }
 export interface Phase4Snapshot extends Omit<InputSnapshot, "core" | "prompt"> { readonly core: CoreSnapshot & { readonly spellbooks?: readonly SpellbookView[] | null; readonly player?: (NonNullable<CoreSnapshot["player"]> & { readonly level?: number; readonly sp?: number; readonly hp?: number; readonly maxHp?: number; readonly maxSp?: number; readonly classFlags?: readonly string[] }) | null }; readonly prompt: InputSnapshot["prompt"] | SpellPrompt }
-export interface Phase4Context { readonly flags?: Readonly<Record<string, boolean>>; readonly snapshot?: () => Phase4Snapshot | null; readonly intent?: IntentSeam; readonly prompt?: { reply(promptId: number, answer: number | string | null): IntentResult }; readonly inspect?: { spellInfo?(index: number): SpellInspectResult | null; bookForItem?(handle: number): number | null; itemTester?(code: string): ItemTesterResult | null; inspectItem?(handle: number): InspectResult | null; blastArea?(to: Grid, radius: number): { readonly token: InputToken; readonly grids: readonly Grid[] } | null; projectionPath?(to: Grid): { readonly token: InputToken; readonly grids: readonly Grid[] } | null }; readonly ui?: ItemsContext["ui"]; readonly prefs?: { get(): unknown; set(value: unknown): void }; readonly display?: { snapshot(): import("./zoom.js").DisplaySnapshot }; readonly controller?: { driver(): { readonly kind: "player" | "autoplayer"; readonly owner?: string; readonly label?: string } | null }; readonly character?: { key(): string | null }; readonly state?: unknown; readonly targeting?: { blastRadius(): number | null }; readonly log: (message: string) => void }
+export interface Phase4Context { readonly flags?: Readonly<Record<string, boolean>>; readonly snapshot?: () => Phase4Snapshot | null; readonly intent?: IntentSeam; readonly prompt?: { reply(promptId: number, answer: number | string | null): IntentResult }; readonly inspect?: { spellInfo?(index: number): SpellInspectResult | null; bookForItem?(handle: number): number | null; itemTester?(code: string): ItemTesterResult | null; inspectItem?(handle: number): InspectResult | null; blastArea?(to: Grid, radius: number): { readonly token: InputToken; readonly grids: readonly Grid[] } | null; projectionPath?(to: Grid): { readonly token: InputToken; readonly grids: readonly Grid[] } | null }; readonly ui?: ItemsContext["ui"]; readonly prefs?: { get(): unknown; set(value: unknown): void }; readonly display?: { snapshot(): import("./zoom.js").DisplaySnapshot }; readonly driver?: () => InputDriver; readonly character?: { key(): string | null }; readonly state?: unknown; readonly targeting?: { blastRadius(): number | null }; readonly log: (message: string) => void }
 // Phase 5: StoreView mirrors packages/core/src/agent/types.ts; CoreSnapshot.stores
 // and player.gold mirror agent/boundary.ts and entity-views.ts. StoreContext
 // combines packages/web/src/mod-plugin.ts with an optional proposed store
@@ -93,7 +95,7 @@ export interface StoreView { readonly feat: number; readonly featName: string; r
 export interface StoreStatus { readonly feat: number; readonly ready: boolean; readonly noSelling: boolean; readonly transactionPrompts?: boolean; readonly inventory?: readonly { readonly handle: number; readonly eligible: boolean; readonly price?: number }[] }
 export interface StoreContext extends ItemsContext {
   readonly knownLevel?: () => KnownLevel | null;
-  readonly controller?: { driver?(): { readonly kind: "player" | "autoplayer"; readonly owner?: string; readonly label?: string } | null };
+  readonly driver?: () => InputDriver;
   readonly store?: { current?(): StoreStatus | null };
 }
 
@@ -120,3 +122,23 @@ export interface PanelKindSpec {
   mount(host: PanelMount): void | (() => void);
 }
 export interface PanelKindSeam { registerPanelKind?(spec: PanelKindSpec): () => void }
+
+// Driver part (MOD_SEAMS 4q): who holds input, the public mod list, and the
+// display getters. InputDriver mirrors packages/web/src/input-snapshot.ts and
+// the "driver-changed" payload in packages/core/src/events.ts GameEventMap.
+// PublicMod mirrors ModPluginContext.mods in packages/web/src/mod-plugin.ts.
+// The event handler receives (type, data), as GameEventHandler does in
+// packages/core/src/events.ts.
+export type InputDriver =
+  | { readonly kind: "player" }
+  | { readonly kind: "controller"; readonly owner: string; readonly label?: string; readonly reason?: string };
+export interface PublicMod { readonly id: string; readonly version: string; readonly flags?: Readonly<Record<string, boolean>> }
+export interface DriverEvents {
+  on(name: "driver-changed", handler: (type: "driver-changed", event: InputDriver) => void): void;
+  off(name: "driver-changed", handler: (type: "driver-changed", event: InputDriver) => void): void;
+}
+export interface DriverSeams {
+  readonly driver?: () => InputDriver;
+  readonly mods?: () => readonly PublicMod[];
+  readonly events?: DriverEvents;
+}

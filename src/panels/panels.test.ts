@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ViewModel } from "../view-model/protocol.js";
 import { renderCharacterCard } from "./character-card.js";
 import { renderDungeonCard } from "./dungeon-card.js";
-import { renderStatusBadges } from "./status-badges.js";
+import { driverName, renderDriverBadge, renderStatusBadges } from "./status-badges.js";
 import { renderTrackedCreature } from "./tracked-creature.js";
 import { renderMessageLog } from "./message-log.js";
 
@@ -71,6 +71,21 @@ describe("Phase 1 panels", () => {
     expect(root.textContent).toContain("PoisonedStudy - 2");
     expect(root.textContent).not.toContain("Hidden");
     expect(root.walk().find((e) => e.style.color === "#ff7559")?.dataset.tip).toContain("Losing health");
+  });
+  it("names the controller holding input, with its published status", () => {
+    const root = mount();
+    renderDriverBadge(asHtml(root), { kind: "player" });
+    expect(root.children).toEqual([]);
+    renderDriverBadge(asHtml(root), { kind: "controller", owner: "borg" });
+    expect(root.textContent).toBe("Borg is playing");
+    renderDriverBadge(asHtml(root), { kind: "controller", owner: "squire", label: "Selling loot", reason: "Pack is full" });
+    expect(root.textContent).toBe("Squire: Selling loot");
+    const tip = root.walk().find((e) => e.dataset.tip)?.dataset.tip ?? "";
+    expect(tip).toContain("Selling loot");
+    expect(tip).toContain("Pack is full");
+    renderDriverBadge(asHtml(root), { kind: "controller", owner: "some-mod-id" });
+    expect(root.textContent).toBe("Autoplayer is playing");
+    expect(driverName("core:demo-wanderer")).toBe("Demo wanderer");
   });
   it("draws tracked health or its absent placeholder", () => {
     const root = mount(); const model = fixture(); renderTrackedCreature(asHtml(root), model);

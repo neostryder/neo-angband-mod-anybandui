@@ -8,6 +8,17 @@ const COLORBLIND_MATRIX = "0.812 0.199 -0.011 0 0 0 1 0 0 0 -0.188 0.199 0.989 0
 
 interface VisualFilterDisplay {
   setVisualFilter(filter: string | null, options?: { scope: "game" }): void;
+  /** Present on engines that keep each mod's filter request apart (MOD_SEAMS 4q). */
+  getVisualFilter?(): { readonly filter: string; readonly scope: "canvas" | "game" } | null;
+}
+
+/* Engines with getVisualFilter keep a filter request per mod and always take
+ * the scope option, so a clear removes only this mod's filter. Older engines
+ * hold one global filter and are told apart by the setter's arity, because
+ * the first filter seam took no options. */
+function setFilter(display: VisualFilterDisplay, filter: string | null): void {
+  if (typeof display.getVisualFilter === "function" || display.setVisualFilter.length >= 2) display.setVisualFilter(filter, { scope: "game" });
+  else display.setVisualFilter(filter);
 }
 
 export interface AccessibilityContext {
@@ -63,17 +74,13 @@ export function installAccessibilityAccommodations(ctx: AccessibilityContext): v
   if (ctx.flags["anybandui.colourblind"] === true) ensureColorblindFilter();
   configuredDisplay = ctx.display;
   // The game scope covers host-owned panels; our HUD hosts mount directly in the page.
-  if (ctx.display.setVisualFilter.length >= 2) ctx.display.setVisualFilter(filter, { scope: "game" });
-  else ctx.display.setVisualFilter(filter);
+  setFilter(ctx.display, filter);
   setPanelHostVisualFilter(filter);
 }
 
 export function uninstallAccessibilityAccommodations(): void {
   const display = configuredDisplay;
   configuredDisplay = null;
-  if (display) {
-    if (display.setVisualFilter.length >= 2) display.setVisualFilter(null, { scope: "game" });
-    else display.setVisualFilter(null);
-  }
+  if (display) setFilter(display, null);
   setPanelHostVisualFilter(null);
 }

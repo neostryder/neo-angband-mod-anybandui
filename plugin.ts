@@ -20,14 +20,14 @@ import { createSource } from "./src/view-model/source.js";
 import { createPanelHost } from "./src/panels/panel-host.js";
 import { renderCharacterCard } from "./src/panels/character-card.js";
 import { renderDungeonCard } from "./src/panels/dungeon-card.js";
-import { renderStatusBadges } from "./src/panels/status-badges.js";
+import { renderDriverBadge, renderStatusBadges } from "./src/panels/status-badges.js";
 import { renderTrackedCreature } from "./src/panels/tracked-creature.js";
 import { renderMessageLog } from "./src/panels/message-log.js";
 import { validateSettings } from "./src/settings.js";
 import { THEMES } from "./src/theme.js";
 import { installAccessibilityAccommodations, uninstallAccessibilityAccommodations } from "./src/accessibility.js";
 import { installFirstEncounter, uninstallFirstEncounter, type FirstEncounterContext } from "./src/first-encounter.js";
-import { installZoomPan, uninstallZoomPan, zoomPanHud, type ZoomPanContext } from "./src/zoom.js";
+import { installZoomPan, releaseTileSettings, uninstallZoomPan, zoomPanHud, type ZoomPanContext } from "./src/zoom.js";
 import { installHoverCards } from "./src/hover-cards.js";
 import { installMapHoverCards } from "./src/qol-map-hover.js";
 import { installMapOverview } from "./src/map-overview.js";
@@ -38,7 +38,9 @@ import { installPhase4 } from "./src/phase4.js";
 import type { Phase4Context, StoreContext } from "./src/seams.js";
 import { installStores } from "./src/panels/stores.js";
 import { installEffects } from "./src/effects.js";
-import type { EffectContext } from "./src/seams.js";
+import type { DriverEvents, DriverSeams, EffectContext } from "./src/seams.js";
+import { coexistingFlags } from "./src/mod-coexistence.js";
+import { currentDriver } from "./src/input-owner.js";
 
 /**
  * What this plugin needs from the host's context, structurally.
@@ -46,7 +48,7 @@ import type { EffectContext } from "./src/seams.js";
  * Declared here rather than imported from the host's mod-plugin.ts, because this
  * file compiles in a standalone repository that holds no copy of the host.
  */
-interface RegisterCtx extends MouseSeams {
+interface RegisterCtx extends MouseSeams, Omit<DriverSeams, "events"> {
   readonly id: string;
   readonly engine: string;
   readonly log: (msg: string) => void;
@@ -71,6 +73,8 @@ let quiverDisplay: RegisterCtx["display"];
 let tileDisplay: RegisterCtx["display"];
 let tileFullOverviewApplied = false;
 let displayCleanups: Array<() => void> = [];
+/** Redraws the status panel with its last frame; set by hud(), called on driver-changed. */
+let statusRepaint: (() => void) | null = null;
 
 type HudCtx = Parameters<typeof createSource>[0] & { readonly flags: Readonly<Record<string, boolean>>; readonly prefs?: { get(): unknown } };
 
@@ -80,7 +84,18 @@ export default {
   register(_host: unknown, ctx: RegisterCtx): void {
     this.uninstall();
     ctx.log(`AnybandUI loaded on engine ${ctx.engine}`);
-    const flags = ctx.flags ?? {};
+    const flags = coexistingFlags(ctx.flags ?? {}, ctx.mods?.bind(ctx), ctx.log);
+    /* The listener lives here rather than in hud() so that uninstall removes
+     * it. An engine without the event still redraws the badge on the next HUD
+     * frame, because the badge's select reads the driver on every frame. */
+    if (ctx.events) {
+      const events = ctx.events as unknown as DriverEvents;
+      const repaint = (): void => statusRepaint?.();
+      try {
+        events.on("driver-changed", repaint);
+        displayCleanups.push(() => events.off("driver-changed", repaint));
+      } catch { /* no driver-changed event or grant on this engine */ }
+    }
     displayCleanups.push(installEffects({ flags, ...(ctx.snapshot ? { snapshot: ctx.snapshot as NonNullable<EffectContext["snapshot"]> } : {}), ...(ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {}), ...(ctx.events ? { events: ctx.events } : {}), ...(ctx.display?.snapshot ? { display: ctx.display as NonNullable<EffectContext["display"]> } : {}), ...(ctx.prefs ? { prefs: ctx.prefs } : {}) }));
     displayCleanups.push(installItems(ctx as unknown as ItemsContext));
     displayCleanups.push(installStores(ctx as unknown as StoreContext));
@@ -158,8 +173,7 @@ export default {
     uninstallFirstEncounter();
     uninstallAccessibilityAccommodations();
     quiverDisplay?.setQuiverItemization?.(false);
-    tileDisplay?.setTileScaling?.("auto");
-    if (tileFullOverviewApplied) tileDisplay?.setFullMapOverview?.(false);
+    if (tileDisplay?.setTileScaling) releaseTileSettings(tileDisplay as Parameters<typeof releaseTileSettings>[0], tileFullOverviewApplied);
     quiverDisplay = undefined;
     tileDisplay = undefined;
     tileFullOverviewApplied = false;
@@ -194,14 +208,18 @@ export default {
     }
     if (enabled.status) {
       const host = createPanelHost(doc, [
+        { key: "driver", render: (mount) => renderDriverBadge(mount, currentDriver(ctx)), select: () => currentDriver(ctx) },
         { key: "status", render: renderStatusBadges, select: (m) => [m.player.statuses, m.player.study] },
         { key: "dungeon", render: renderDungeonCard, select: (m) => [m.dungeon, m.player.trap_detected, m.player.recall, m.player.descent, m.player.resting, m.player.running, m.player.repeat, m.player.unignoring] },
       ], theme);
+      let last: readonly [HudSection, HudFrame] | null = null;
       output.status = { present(section: HudSection, frame: HudFrame) {
+        last = [section, frame];
         source.hud.status!.present(section, frame);
         const model = source.snapshot();
         if (model) host.present(section, frame, model);
       } };
+      statusRepaint = () => { if (last) output.status!.present(last[0], last[1]); };
     }
     if (enabled.messages) {
       const host = createPanelHost(doc, [{ key: "messages", render: renderMessageLog, select: (m) => [m.messages, m.message_pending] }], theme);

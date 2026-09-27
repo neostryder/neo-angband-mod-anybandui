@@ -27,7 +27,8 @@
     "input:prompt.reply",
     "event:combat-outcome",
     "event:heal",
-    "event:motion"
+    "event:motion",
+    "event:driver-changed"
   ],
   "author": "WurliMonkhaven, neostryder",
   "license": "GPL-2.0-only",
@@ -78,8 +79,8 @@
     },
     {
       "flag": "anybandui.status",
-      "title": "Status badges and dungeon card",
-      "description": "Replaces the status line with a badge for each timed effect, coloured by whether it helps or harms you, and a card showing depth, light, the level feeling and the terrain underfoot. Hover a badge to see how many turns it has left.",
+      "title": "TODO-PROSE",
+      "description": "TODO-PROSE",
       "default": false,
       "requiresReload": true
     },
