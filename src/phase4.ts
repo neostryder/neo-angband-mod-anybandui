@@ -1,3 +1,4 @@
+import { characterKey } from "./first-encounter.js";
 import { playerIsDriving } from "./input-owner.js";
 import { applyTheme, THEMES } from "./theme.js";
 import { validateSettings } from "./settings.js";
@@ -18,6 +19,18 @@ function drawIcon(parent: HTMLElement, style: string): void {
   path.setAttribute("fill", "none"); path.setAttribute("stroke", "currentColor"); path.setAttribute("stroke-width", "1.5"); svg.append(path); parent.prepend(svg);
 }
 
+/** The engine's own character identity when it offers one; otherwise the same
+ * birth fingerprint first-encounter alerts use, which never changes during a
+ * character's life, so bindings follow the character across saves and reloads. */
+export function characterFor(ctx: Phase4Context): string | null {
+  const own = ctx.character?.key?.();
+  if (own) return own;
+  const player = (ctx.state as { actor?: { player?: { race?: { name?: unknown }; cls?: { name?: unknown }; auBirth?: unknown; htBirth?: unknown; wtBirth?: unknown } } } | undefined)?.actor?.player;
+  if (!player || typeof player.race?.name !== "string" || typeof player.cls?.name !== "string" ||
+      typeof player.auBirth !== "number" || typeof player.htBirth !== "number" || typeof player.wtBirth !== "number") return null;
+  return characterKey({ raceName: player.race.name, clsName: player.cls.name, auBirth: player.auBirth, htBirth: player.htBirth, wtBirth: player.wtBirth });
+}
+
 export function installPhase4(ctx: Phase4Context): () => void {
   const flags = ctx.flags ?? {};
   const spellOn = flags["anybandui.spells"] === true;
@@ -32,14 +45,14 @@ export function installPhase4(ctx: Phase4Context): () => void {
   const mount = el(panel.root, "section"); mount.className = "phase4";
   let bookKey = "", spellIndex = -1, menu = -1, customize = -1, restOpen = false, restMode = -2, turns = 10, promptChoice = -1, error = "", signature = "", closed = false;
   let appearance: Appearance = { style: "automatic", text: "", color: "#7abaf4" };
-  let character = ctx.character?.key?.() ?? null;
+  let character = characterFor(ctx);
   let slots: Slots = character ? readSlots(ctx.prefs?.get(), character) : Array(30).fill(null);
   const save = (): void => { if (character) writeSlots(ctx, character, slots); };
   const assign = (index: number, binding: Binding | null): void => { const next = [...slots]; next[index] = binding; slots = next; save(); menu = -1; paint(true); };
   const paint = (force = false): void => {
     if (closed || !panel.root.isConnected) return;
     const snap = ctx.snapshot?.();
-    const key = ctx.character?.key?.() ?? null;
+    const key = characterFor(ctx);
     if (key !== character) { character = key; slots = key ? readSlots(ctx.prefs?.get(), key) : Array(30).fill(null); }
     const model = snap ? adaptSpells(snap, ctx.inspect) : null;
     const sig = JSON.stringify([snap, slots, bookKey, spellIndex, menu, customize, appearance, restOpen, restMode, turns, promptChoice, error]);

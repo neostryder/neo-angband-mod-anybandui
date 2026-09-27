@@ -45,11 +45,23 @@ describe("phase 4 spells and quickbar", () => {
     const movedCtx = { ...ctx, snapshot: () => moved, inspect: { ...ctx.inspect, itemTester: () => ({ token, items: [{ handle: 40 }] }) } };
     expect(resolve(moved, binding, null, movedCtx).usable).toBe(true); expect(activate(movedCtx, moved, binding)).toBe(true);
     expect(ctx.intent.submit).toHaveBeenCalledWith(token, { kind: "command", command: { code: "quaff", args: { handle: 40 } } }); });
-  it("preserves other preference fields and isolates characters", () => { const prefs = { get: vi.fn(() => ({ theme: "dark-graphite", phase4Quickbar: { A: Array(30).fill(null) } })), set: vi.fn() };
+  it("preserves other preference fields and isolates characters", () => { const prefs = { get: vi.fn(() => ({ theme: "dark-graphite", quickbar: { A: Array(30).fill(null) } })), set: vi.fn() };
     const ctx = { ...context(), prefs }; const slots = Array(30).fill(null); slots[0] = { type: "spell", key: "book:magic", index: 3, name: "Magic Missile", appearance: { style: "potion", text: "Blast", color: "#aabbcc" } }; slots[10] = { type: "command", code: "rest", name: "Rest" }; writeSlots(ctx, "B", slots);
     const written = prefs.set.mock.calls[0]?.[0] as Record<string, unknown>; expect(written.theme).toBe("dark-graphite"); expect(readSlots(written, "B")[0]).toEqual(slots[0]); expect(readSlots(written, "A")[0]).toBeNull(); });
   it("resolves the rest command binding", () => { const ctx = context(); const binding = { type: "command" as const, code: "rest" as const, name: "Rest" }; expect(activate(ctx, snap(), binding)).toBe(true); expect(ctx.intent.submit).toHaveBeenCalledWith(token, { kind: "command", command: { code: "rest", args: { count: -2 } } }); });
   it("leaves other phase controls untouched during prompts and blocked phases", () => { const ctx = context();
     for (const prompt of [null, { kind: "item", promptId: 5 }]) { const current = { ...snap(), prompt, phase: prompt ? "modal" as const : "store" as const }; expect(actionReady({ ...ctx, snapshot: () => current }, current)).toBe(false); }
     expect(actionReady({ ...ctx, snapshot: () => ({ ...snap(), messagePending: true }) }, snap())).toBe(false); });
+});
+
+describe("quickbar character identity", () => {
+  it("prefers the engine's key and falls back to the birth fingerprint", async () => {
+    const { characterFor } = await import("./phase4.js");
+    const player = { race: { name: "Dwarf" }, cls: { name: "Priest" }, auBirth: 120, htBirth: 48, wtBirth: 150 };
+    const base = { log: vi.fn() };
+    expect(characterFor({ ...base, character: { key: () => "engine-key" }, state: { actor: { player } } })).toBe("engine-key");
+    expect(characterFor({ ...base, state: { actor: { player } } })).toBe("Dwarf|Priest|120|48|150");
+    expect(characterFor({ ...base, state: { actor: { player: { ...player, auBirth: undefined } } } })).toBeNull();
+    expect(characterFor(base)).toBeNull();
+  });
 });

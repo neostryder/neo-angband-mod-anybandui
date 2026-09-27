@@ -15,7 +15,7 @@ export function quickbarOwnsKey(enabled: boolean, snap: Phase4Snapshot | null, c
 }
 export function readSlots(raw: unknown, character: string): Slots {
   const root = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
-  const profiles = root["phase4Quickbar"] && typeof root["phase4Quickbar"] === "object" ? root["phase4Quickbar"] as Record<string, unknown> : {};
+  const profiles = root["quickbar"] && typeof root["quickbar"] === "object" ? root["quickbar"] as Record<string, unknown> : {};
   const slots = profiles[character];
   return Array.from({ length: 30 }, (_, i) => {
     const entry = Array.isArray(slots) ? slots[i] : null;
@@ -30,8 +30,8 @@ export function readSlots(raw: unknown, character: string): Slots {
 export function writeSlots(ctx: Phase4Context, character: string, slots: Slots): void {
   if (!ctx.prefs?.set) return;
   const raw = ctx.prefs.get(); const root = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
-  const profiles = root["phase4Quickbar"] && typeof root["phase4Quickbar"] === "object" ? root["phase4Quickbar"] as Record<string, unknown> : {};
-  ctx.prefs.set({ ...root, phase4Quickbar: { ...profiles, [character]: slots } });
+  const profiles = root["quickbar"] && typeof root["quickbar"] === "object" ? root["quickbar"] as Record<string, unknown> : {};
+  ctx.prefs.set({ ...root, quickbar: { ...profiles, [character]: slots } });
 }
 export function itemBindings(snap: Phase4Snapshot, ctx: Phase4Context): Extract<Binding, { type: "item" }>[] {
   const codes = ["quaff", "read", "aim-wand", "activate"] as const;

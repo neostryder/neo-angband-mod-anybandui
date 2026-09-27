@@ -4537,7 +4537,7 @@ function quickbarOwnsKey(enabled, snap, code, shift, ctrl, menuOpen) {
 }
 function readSlots(raw, character) {
   const root = raw && typeof raw === "object" ? raw : {};
-  const profiles = root["phase4Quickbar"] && typeof root["phase4Quickbar"] === "object" ? root["phase4Quickbar"] : {};
+  const profiles = root["quickbar"] && typeof root["quickbar"] === "object" ? root["quickbar"] : {};
   const slots = profiles[character];
   return Array.from({ length: 30 }, (_, i) => {
     const entry2 = Array.isArray(slots) ? slots[i] : null;
@@ -4553,8 +4553,8 @@ function writeSlots(ctx, character, slots) {
   if (!ctx.prefs?.set) return;
   const raw = ctx.prefs.get();
   const root = raw && typeof raw === "object" ? raw : {};
-  const profiles = root["phase4Quickbar"] && typeof root["phase4Quickbar"] === "object" ? root["phase4Quickbar"] : {};
-  ctx.prefs.set({ ...root, phase4Quickbar: { ...profiles, [character]: slots } });
+  const profiles = root["quickbar"] && typeof root["quickbar"] === "object" ? root["quickbar"] : {};
+  ctx.prefs.set({ ...root, quickbar: { ...profiles, [character]: slots } });
 }
 function itemBindings(snap, ctx) {
   const codes = ["quaff", "read", "aim-wand", "activate"];
@@ -4689,6 +4689,13 @@ function drawIcon(parent, style) {
   svg.append(path);
   parent.prepend(svg);
 }
+function characterFor(ctx) {
+  const own = ctx.character?.key?.();
+  if (own) return own;
+  const player = ctx.state?.actor?.player;
+  if (!player || typeof player.race?.name !== "string" || typeof player.cls?.name !== "string" || typeof player.auBirth !== "number" || typeof player.htBirth !== "number" || typeof player.wtBirth !== "number") return null;
+  return characterKey({ raceName: player.race.name, clsName: player.cls.name, auBirth: player.auBirth, htBirth: player.htBirth, wtBirth: player.wtBirth });
+}
 function installPhase4(ctx) {
   const flags = ctx.flags ?? {};
   const spellOn = flags["anybandui.spells"] === true;
@@ -4708,7 +4715,7 @@ function installPhase4(ctx) {
   mount.className = "phase4";
   let bookKey = "", spellIndex = -1, menu = -1, customize = -1, restOpen = false, restMode = -2, turns = 10, promptChoice = -1, error = "", signature = "", closed = false;
   let appearance = { style: "automatic", text: "", color: "#7abaf4" };
-  let character = ctx.character?.key?.() ?? null;
+  let character = characterFor(ctx);
   let slots = character ? readSlots(ctx.prefs?.get(), character) : Array(30).fill(null);
   const save = () => {
     if (character) writeSlots(ctx, character, slots);
@@ -4724,7 +4731,7 @@ function installPhase4(ctx) {
   const paint = (force = false) => {
     if (closed || !panel.root.isConnected) return;
     const snap = ctx.snapshot?.();
-    const key = ctx.character?.key?.() ?? null;
+    const key = characterFor(ctx);
     if (key !== character) {
       character = key;
       slots = key ? readSlots(ctx.prefs?.get(), key) : Array(30).fill(null);

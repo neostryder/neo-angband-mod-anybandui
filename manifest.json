@@ -192,15 +192,15 @@
       "default": false,
       "requiresReload": true
     },
-    { "flag": "anybandui.spells", "title": "TODO-PROSE: Spell panel", "description": "TODO-PROSE: Browse carried books and cast or study spells.", "default": false, "requiresReload": true },
-    { "flag": "anybandui.quickbar", "title": "TODO-PROSE: Quickbar", "description": "TODO-PROSE: Assign spells and items to number keys with Shift and Ctrl rows.", "default": false, "requiresReload": true },
-    { "flag": "anybandui.blastPreview", "title": "TODO-PROSE: Blast preview", "description": "TODO-PROSE: Show the area affected while aiming a blast.", "default": false, "requiresReload": true },
-    { "flag": "anybandui.restDialog", "title": "TODO-PROSE: Rest dialog", "description": "TODO-PROSE: Choose a recovery condition or number of turns.", "default": false, "requiresReload": true },
-    { "flag": "anybandui.storeWindow", "title": "TODO-PROSE: Store window", "description": "TODO-PROSE: Show stock and your pack together while visiting a store or Home.", "default": false, "requiresReload": true },
-    { "flag": "anybandui.storePrices", "title": "TODO-PROSE: Store prices", "description": "TODO-PROSE: Show unit prices when the game supplies them.", "default": false, "requiresReload": true },
-    { "flag": "anybandui.storeComparison", "title": "TODO-PROSE: Store comparison", "description": "TODO-PROSE: Compare selected wearable gear with what you use now.", "default": false, "requiresReload": true },
-    { "flag": "anybandui.storeTransactions", "title": "TODO-PROSE: Store actions", "description": "TODO-PROSE: Buy, sell, stash, retrieve, and leave through the game.", "default": false, "requiresReload": true },
-    { "flag": "anybandui.storePrompts", "title": "TODO-PROSE: Store prompts", "description": "TODO-PROSE: Answer the game's quantity and price questions in the store window.", "default": false, "requiresReload": true }
+    { "flag": "anybandui.spells", "title": "Spell panel", "description": "Lists the spells in each book you carry, with mana, fail rate and whether you can cast or learn each one, plus its description. Click Cast or Study, or double-click a spell to cast it.", "default": false, "requiresReload": true },
+    { "flag": "anybandui.quickbar", "title": "Quickbar", "description": "Thirty slots on the number keys, with a second row on Shift and a third on Ctrl, for spells, potions, scrolls, wands and activations. Each slot shows its mana cost, charges or count and greys out when you cannot use it. Right-click a spell or drag it onto a slot to assign it. The number keys go back to the game inside menus and prompts, and each character keeps its own slots.", "default": false, "requiresReload": true },
+    { "flag": "anybandui.blastPreview", "title": "Blast preview", "description": "While you aim a ball or breath, shades every tile the blast would reach, worked out by the game itself. This needs a newer version of the game, and does nothing until then.", "default": false, "requiresReload": true },
+    { "flag": "anybandui.restDialog", "title": "Rest panel", "description": "Adds a Rest button that asks how long to rest: until you are fully recovered, until either hit points or mana are full, or for a set number of turns. Danger still interrupts rest as usual.", "default": false, "requiresReload": true },
+    { "flag": "anybandui.storeWindow", "title": "Store window", "description": "While you are in a store or your home, shows its stock and your pack side by side. Click an item to select it.", "default": false, "requiresReload": true },
+    { "flag": "anybandui.storePrices", "title": "Store prices", "description": "Shows the price of each item in the store window.", "default": false, "requiresReload": true },
+    { "flag": "anybandui.storeComparison", "title": "Store comparison", "description": "When you select something you could wear, compares it with your current equipment, the same way the item panel does.", "default": false, "requiresReload": true },
+    { "flag": "anybandui.storeTransactions", "title": "Store buttons", "description": "Adds Buy, Sell, Stash, Retrieve and Leave buttons to the store window. Only Leave works on this version of the game. The others wait for a version that asks its usual quantity and price questions before a sale.", "default": false, "requiresReload": true },
+    { "flag": "anybandui.storePrompts", "title": "Store questions", "description": "When the store asks how many or whether to accept a price, answers it with buttons in the store window instead of the keyboard.", "default": false, "requiresReload": true }
   ],
   "repository": "https://github.com/neostryder/neo-angband-mod-anybandui"
 }

@@ -29,10 +29,10 @@ A mouse-first desktop interface for Neo Angband, ported from Wurli Monkhaven's A
 | Full-level map overview | `anybandui.mapOverview` | off | The (M)ap screen shows every square of the level you know, shrunk to fit, with markers for you, the stairs and the shops, and an outline of what the main view shows. The mouse wheel zooms at the pointer, dragging pans, and Fit floor and Centre on player buttons sit beside the map. |
 | Schematic map | `anybandui.mapSchematic` | off | Draws the map overview as flat blocks of colour for walls, doors and floor instead of glyphs or tiles, which is easier to read when the whole level is shrunk. |
 | Item panel | `anybandui.itemsLists` | off | Opens a panel with your pack and equipment on separate tabs, a search box, and each item in its game colour. Click an item to select it. |
-| TODO-PROSE: Spell panel | `anybandui.spells` | off | Browse carried books and cast or study spells. |
-| TODO-PROSE: Quickbar | `anybandui.quickbar` | off | Assign spells and items to number keys with Shift and Ctrl rows. |
-| TODO-PROSE: Blast preview | `anybandui.blastPreview` | off | Show the area affected while aiming a blast. |
-| TODO-PROSE: Rest dialog | `anybandui.restDialog` | off | Choose a recovery condition or number of turns. |
+| Spell panel | `anybandui.spells` | off | Lists the spells in each book you carry, with mana, fail rate and whether you can cast or learn each one, plus its description. Click Cast or Study, or double-click a spell to cast it. |
+| Quickbar | `anybandui.quickbar` | off | Thirty slots on the number keys, with a second row on Shift and a third on Ctrl, for spells, potions, scrolls, wands and activations. Each slot shows its mana cost, charges or count and greys out when you cannot use it. Right-click a spell or drag it onto a slot to assign it. The number keys go back to the game inside menus and prompts, and each character keeps its own slots. |
+| Blast preview | `anybandui.blastPreview` | off | While you aim a ball or breath, shades every tile the blast would reach, worked out by the game itself. This needs a newer version of the game, and does nothing until then. |
+| Rest panel | `anybandui.restDialog` | off | Adds a Rest button that asks how long to rest: until you are fully recovered, until either hit points or mana are full, or for a set number of turns. Danger still interrupts rest as usual. |
 | Item inspection | `anybandui.itemsInspection` | off | Shows the game's full description of the item you select in the item panel, the same text the Inspect command gives. |
 | Equipment comparison | `anybandui.itemsComparison` | off | When you select something you could wear, a table compares your current equipment with the change: speed, armour, to-hit, damage, blows, stats and resistances. Only properties your character knows are counted, and a checkbox also shows the stats that stay the same. |
 | Quantity picker | `anybandui.itemsQuantity` | off | When the game asks how many, the item panel offers One, Half and All buttons and a box for any other number. |
@@ -41,12 +41,12 @@ A mouse-first desktop interface for Neo Angband, ported from Wurli Monkhaven's A
 | Item action buttons | `anybandui.itemsActions` | off | Adds buttons under the selected item for wielding, taking it off, dropping, inscribing and using it. Only the actions the game would accept right now appear. |
 | Item rules list | `anybandui.itemsRules` | off | Lists your ignore settings and auto-inscriptions in the item panel, so you can see why an item is hidden or inscribed. Change them through the game's knowledge menus as usual. |
 
-| TODO-PROSE: Store window | `anybandui.storeWindow` | off | TODO-PROSE: Show stock and your pack together while visiting a store or Home. |
-| TODO-PROSE: Store prices | `anybandui.storePrices` | off | TODO-PROSE: Show unit prices when the game supplies them. |
-| TODO-PROSE: Store comparison | `anybandui.storeComparison` | off | TODO-PROSE: Compare selected wearable gear with what you use now. |
-| TODO-PROSE: Store actions | `anybandui.storeTransactions` | off | TODO-PROSE: Buy, sell, stash, retrieve, and leave through the game. |
-| TODO-PROSE: Store prompts | `anybandui.storePrompts` | off | TODO-PROSE: Answer the game's quantity and price questions in the store window. |
+| Store window | `anybandui.storeWindow` | off | While you are in a store or your home, shows its stock and your pack side by side. Click an item to select it. |
+| Store prices | `anybandui.storePrices` | off | Shows the price of each item in the store window. |
+| Store comparison | `anybandui.storeComparison` | off | When you select something you could wear, compares it with your current equipment, the same way the item panel does. |
+| Store buttons | `anybandui.storeTransactions` | off | Adds Buy, Sell, Stash, Retrieve and Leave buttons to the store window. Only Leave works on this version of the game. The others wait for a version that asks its usual quantity and price questions before a sale. |
+| Store questions | `anybandui.storePrompts` | off | When the store asks how many or whether to accept a price, answers it with buttons in the store window instead of the keyboard. |
 
 ## What it needs
 
-`ui:sidebar.replace`, `ui:status.replace`, `ui:messages.replace`, `display:filter`, `ui:panel.mount`, `state:map.read`, `state:interaction.read`, `state:inventory.read`, `state:player.read`, `state:stores.read`, `input:intent`, and `input:prompt.reply`.
+`ui:sidebar.replace`, `ui:status.replace`, `ui:messages.replace`, `display:filter`, `ui:panel.mount`, `state:map.read`, `state:interaction.read`, `state:inventory.read`, `state:player.read`, `state:spells.read`, `state:stores.read`, `input:intent`, and `input:prompt.reply`.
