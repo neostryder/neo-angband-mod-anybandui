@@ -22,20 +22,20 @@ A mouse-first desktop interface for Neo Angband, ported from Wurli Monkhaven's A
 | Centre on a new level | `anybandui.recentreOnFloor` | off | Arriving on a new level centres the view on your character. |
 | Hover cards on the map overview | `anybandui.mapHoverCards` | off | Resting the pointer on a cell of the map overview, or holding a finger on it, opens a card with a magnified tile and what you know about that cell: terrain, creature, item, trap or shop. It shows nothing your character has not seen. |
 | Hover cards on the dungeon view | `anybandui.dungeonHoverCards` | off | Resting the pointer on a tile of the dungeon view opens a card with what you know about it: the creature or character there with a small health bar, the terrain, and up to five items on the floor. The delay before a card opens is one setting shared with the map overview's cards, 550 ms to start with. |
-| TODO-PROSE Click to walk or attack | `anybandui.clickToWalk` | off | Left-click a dungeon tile to take one step or travel there. |
-| TODO-PROSE Dungeon actions | `anybandui.dungeonActions` | off | Right-click a tile for available actions. |
-| TODO-PROSE Gold aiming path | `anybandui.aimPath` | off | Draw the engine's projection path while targeting. |
-| TODO-PROSE Walking route preview | `anybandui.walkRoutePreview` | off | Draw the engine's walking route when the optional read is available. |
+| Click to walk | `anybandui.clickToWalk` | off | Left-click a tile in the dungeon view to step there, or to travel there if it is further away. Clicking a creature next to you attacks it, and while you aim, a click picks the target. |
+| Tile action menu | `anybandui.dungeonActions` | off | Right-click a tile in the dungeon view for a menu of what you can do there: walk here, look, target, or pick up what lies on it. While you aim, the menu offers Select tile and Cancel. |
+| Gold aiming path | `anybandui.aimPath` | off | While you choose a target, a gold line shows the path your spell or missile would take to the tile under the pointer. The game works the path out itself, so the line stops wherever the shot would. |
+| Walking route preview | `anybandui.walkRoutePreview` | off | Draws a gold line along the route you would walk to reach the tile under the pointer. This needs a newer version of the game, and does nothing until then. |
 | Full-level map overview | `anybandui.mapOverview` | off | The (M)ap screen shows every square of the level you know, shrunk to fit, with markers for you, the stairs and the shops, and an outline of what the main view shows. The mouse wheel zooms at the pointer, dragging pans, and Fit floor and Centre on player buttons sit beside the map. |
 | Schematic map | `anybandui.mapSchematic` | off | Draws the map overview as flat blocks of colour for walls, doors and floor instead of glyphs or tiles, which is easier to read when the whole level is shrunk. |
-| TODO-PROSE: Item lists | `anybandui.itemsLists` | off | Search pack and equipment items. |
-| TODO-PROSE: Item inspection | `anybandui.itemsInspection` | off | Read an item's inspection text. |
-| TODO-PROSE: Equipment comparison | `anybandui.itemsComparison` | off | Compare the current and selected loadouts. |
-| TODO-PROSE: Quantity picker | `anybandui.itemsQuantity` | off | Answer quantity prompts with shortcuts. |
-| TODO-PROSE: Item choice prompts | `anybandui.itemsChoice` | off | Answer native item prompts. |
-| TODO-PROSE: Acquisition highlights | `anybandui.itemsHighlights` | off | Mark acquired items. |
-| TODO-PROSE: Item actions | `anybandui.itemsActions` | off | Submit validated item commands. |
-| TODO-PROSE: Item rules | `anybandui.itemsRules` | off | Requires a future item-rules seam. |
+| Item panel | `anybandui.itemsLists` | off | Opens a panel with your pack and equipment on separate tabs, a search box, and each item in its game colour. Click an item to select it. |
+| Item inspection | `anybandui.itemsInspection` | off | Shows the game's full description of the item you select in the item panel, the same text the Inspect command gives. |
+| Equipment comparison | `anybandui.itemsComparison` | off | When you select something you could wear, a table compares your current equipment with the change: speed, armour, to-hit, damage, blows, stats and resistances. Only properties your character knows are counted, and a checkbox also shows the stats that stay the same. |
+| Quantity picker | `anybandui.itemsQuantity` | off | When the game asks how many, the item panel offers One, Half and All buttons and a box for any other number. |
+| Item choice list | `anybandui.itemsChoice` | off | When the game asks you to pick an item, the item panel lists the choices so you can click one instead of typing its letter. |
+| Mark new items | `anybandui.itemsHighlights` | off | Items you have just picked up are marked NEW in the item panel, and a stack that grew shows how many were added, until you click it. |
+| Item action buttons | `anybandui.itemsActions` | off | Adds buttons under the selected item for wielding, taking it off, dropping, inscribing and using it. Only the actions the game would accept right now appear. |
+| Item rules list | `anybandui.itemsRules` | off | Lists your ignore and auto-inscription rules in the item panel, each with a button to remove it. This needs a newer version of the game, and does nothing until then. |
 
 ## What it needs
 
