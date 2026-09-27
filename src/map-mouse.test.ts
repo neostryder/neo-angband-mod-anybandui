@@ -57,13 +57,18 @@ describe("map mouse intents", () => {
     expect(tileMenuActions({ knownLevel: () => level(2) }, snap(), { x: 8, y: 8 }).map((a) => a.label)).toEqual(["Walk here", "Look", "Target"]);
   });
 
-  it("adds engine supplied tile actions when the optional seam is present", () => {
-    const extra: PlayerIntent = { kind: "command", command: { code: "open", dir: 6 } };
+  it("offers labelled engine tile actions with a direction, and never a raw code", () => {
     const { ctx, submitted } = fixture();
-    const withActions: MouseSeams = { ...ctx, inspect: { tileActions: () => [{ label: "Open", intent: extra }] } };
-    expect(tileMenuActions(withActions, snap(), { x: 8, y: 8 }).map((a) => a.label)).toContain("Open");
-    expect(runMenuAction(withActions, { x: 8, y: 8 }, "Open")).toBe(true);
-    expect(submitted[0]?.intent).toEqual(extra);
+    const withActions: MouseSeams = { ...ctx, inspect: { tileActions: () => ({ token: token(1), codes: ["walk", "open", "fly"] }) } };
+    const labels = tileMenuActions(withActions, snap(), { x: 6, y: 5 }).map((a) => a.label);
+    expect(labels).toEqual(["Walk here", "Look", "Target", "Open"]);
+    expect(runMenuAction(withActions, { x: 6, y: 5 }, "Open")).toBe(true);
+    expect(submitted[0]?.intent).toEqual({ kind: "command", command: { code: "open", dir: 6 } });
+    const onStairs: MouseSeams = { ...ctx, inspect: { tileActions: () => ({ token: token(1), codes: ["descend"] }) } };
+    expect(runMenuAction(onStairs, { x: 5, y: 5 }, "Go down the stairs")).toBe(true);
+    expect(submitted[1]?.intent).toEqual({ kind: "command", command: { code: "descend" } });
+    const stale: MouseSeams = { ...ctx, inspect: { tileActions: () => ({ token: token(0), codes: ["open"] }) } };
+    expect(tileMenuActions(stale, snap(), { x: 6, y: 5 }).map((a) => a.label)).not.toContain("Open");
   });
 
   it("submits menu target and look through the current token", () => {

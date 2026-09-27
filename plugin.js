@@ -3748,6 +3748,19 @@ function installMapHoverCards(ctx) {
   };
 }
 
+// src/item-rules.ts
+function itemRuleLines(rules) {
+  return [
+    ...rules.quality.filter((rule) => rule.threshold > 0).map((rule) => `${rule.name}: ${rule.thresholdName}`),
+    ...rules.kinds.flatMap((rule) => {
+      const note = rule.noteAware ?? rule.noteUnaware;
+      const parts = [rule.ignoreAware || rule.ignoreUnaware ? "ignored" : "", note ? `inscribed ${note}` : ""].filter(Boolean);
+      return parts.length ? [`${rule.name}: ${parts.join(", ")}`] : [];
+    }),
+    ...rules.egos.filter((rule) => rule.ignored).map((rule) => `${rule.name}: ignored`)
+  ];
+}
+
 // src/view-model/items.ts
 function adaptItems(snap) {
   if (!snap.core.inventory || !snap.core.equipment) return null;
@@ -4071,19 +4084,13 @@ function installItems(ctx) {
     }
     if (enabled("Highlights")) changes.update(model);
     showPrompt(model);
-    if (enabled("Rules") && ctx.inspect?.itemRules) {
-      const rules = ctx.inspect.itemRules;
+    const rules = enabled("Rules") ? ctx.inspect?.itemRules?.() ?? null : null;
+    if (rules && same(rules.token, model.token)) {
       const section = el(mount, "details");
-      el(section, "summary", "Item rules");
-      for (const rule of rules.list()) {
-        const line = el(section, "div");
-        el(line, "span", `${rule.kind}: ${rule.label} `);
-        button(line, "Remove", () => {
-          const result = rules.remove(rule.id);
-          error = result.accepted ? "" : result.reason ?? "Rule removal rejected.";
-          paint(true);
-        });
-      }
+      el(section, "summary", "Ignore settings and inscriptions");
+      const lines = itemRuleLines(rules);
+      if (!lines.length) el(section, "p", "No ignore settings or inscriptions yet.");
+      for (const line of lines) el(section, "div", line);
     }
     if (!enabled("Lists")) return;
     const tabs = el(mount, "div");
@@ -4180,6 +4187,16 @@ function walkIntent(player, at) {
   }
   return { kind: "travel", x: at.x, y: at.y };
 }
+var TILE_ACTION_LABELS = {
+  tunnel: "Tunnel",
+  open: "Open",
+  close: "Close",
+  disarm: "Disarm",
+  ascend: "Go up the stairs",
+  descend: "Go down the stairs",
+  pickup: "Pick up"
+};
+var DIRECTED_CODES = /* @__PURE__ */ new Set(["tunnel", "open", "close", "disarm"]);
 function tileMenuActions(ctx, snap, at) {
   if (snap.prompt?.kind === "target") return ctx.prompt ? [{ label: "Select tile", promptAction: "select" }, { label: "Cancel", promptAction: "cancel" }] : [];
   if (!ready(snap)) return [];
@@ -4192,8 +4209,17 @@ function tileMenuActions(ctx, snap, at) {
   if (known && sameToken(known.token, snap.token) && known.cells.some((cell) => cell.x === at.x && cell.y === at.y && cell.remembered.objects.length > 0)) {
     actions.push({ label: "Pick up", pickup: true });
   }
-  for (const action of ctx.inspect?.tileActions?.(at) ?? []) {
-    if (typeof action.label === "string" && action.intent) actions.push(action);
+  const offered = ctx.inspect?.tileActions?.(at);
+  if (offered && sameToken(offered.token, snap.token)) {
+    const player = snap.core.player.grid;
+    const dx = at.x - player.x, dy = at.y - player.y;
+    const dir = 5 + Math.sign(dx) - 3 * Math.sign(dy);
+    for (const code of offered.codes) {
+      const label2 = TILE_ACTION_LABELS[code];
+      if (!label2 || actions.some((action) => action.label === label2)) continue;
+      if (code === "pickup") actions.push({ label: label2, pickup: true });
+      else actions.push({ label: label2, intent: { kind: "command", command: DIRECTED_CODES.has(code) ? { code, dir } : { code } } });
+    }
   }
   return actions;
 }

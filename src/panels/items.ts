@@ -1,5 +1,6 @@
 import { applyTheme, THEMES } from "../theme.js";
 import { validateSettings } from "../settings.js";
+import { itemRuleLines } from "../item-rules.js";
 import type { ItemsContext, ItemPrompt, QuantityPrompt, LoadoutStats, AgentCommand } from "../seams.js";
 import { AcquisitionChanges, adaptItems, compareItem, type ItemRow, type ItemsModel } from "../view-model/items.js";
 import { answerItem, answerQuantity, buildItemCommand, quantityShortcut, submitItem } from "../item-interactions.js";
@@ -116,13 +117,14 @@ export function installItems(ctx: ItemsContext): () => void {
     if (!model) { el(mount, "p", "Inventory read unavailable."); return; }
     if (enabled("Highlights")) changes.update(model);
     showPrompt(model);
-    if (enabled("Rules") && ctx.inspect?.itemRules) {
-      const rules = ctx.inspect.itemRules;
-      const section = el(mount, "details") as HTMLDetailsElement; el(section, "summary", "Item rules");
-      for (const rule of rules.list()) {
-        const line = el(section, "div"); el(line, "span", `${rule.kind}: ${rule.label} `);
-        button(line, "Remove", () => { const result = rules.remove(rule.id); error = result.accepted ? "" : result.reason ?? "Rule removal rejected."; paint(true); });
-      }
+    // The engine reads rules only; changing one still goes through the game's
+    // own knowledge menus, so this section lists and never edits.
+    const rules = enabled("Rules") ? ctx.inspect?.itemRules?.() ?? null : null;
+    if (rules && same(rules.token, model.token)) {
+      const section = el(mount, "details") as HTMLDetailsElement; el(section, "summary", "Ignore settings and inscriptions");
+      const lines = itemRuleLines(rules);
+      if (!lines.length) el(section, "p", "No ignore settings or inscriptions yet.");
+      for (const line of lines) el(section, "div", line);
     }
     if (!enabled("Lists")) return;
     const tabs = el(mount, "div"); tabs.className = "tabs";

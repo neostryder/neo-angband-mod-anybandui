@@ -39,7 +39,13 @@ export interface IntentSeam { submit(token: InputToken, intent: PlayerIntent): I
 // Item panels: the item-facing slice of the same seams.
 export interface InspectResult { readonly token: InputToken; readonly title: string; readonly text: string }
 export interface ItemTesterResult { readonly token: InputToken; readonly items: readonly ({ readonly handle: number } | { readonly floor: { readonly x: number; readonly y: number; readonly index: number } })[] }
-export interface InspectSeam { inspectItem(ref: number): InspectResult | null; itemTester(code: string): ItemTesterResult | null; itemRules?: { list(): readonly { readonly id: string; readonly label: string; readonly kind: "ignore" | "auto-inscribe" }[]; remove(id: string): { accepted: boolean; reason?: string } } }
+export interface ItemRulesResult {
+  readonly token: InputToken;
+  readonly kinds: readonly { readonly kidx: number; readonly name: string; readonly ignoreAware: boolean; readonly ignoreUnaware: boolean; readonly noteAware: string | null; readonly noteUnaware: string | null }[];
+  readonly quality: readonly { readonly itype: number; readonly name: string; readonly threshold: number; readonly thresholdName: string }[];
+  readonly egos: readonly { readonly eidx: number; readonly name: string; readonly itype: number; readonly ignored: boolean }[];
+}
+export interface InspectSeam { inspectItem(ref: number): InspectResult | null; itemTester(code: string): ItemTesterResult | null; itemRules?(): ItemRulesResult | null }
 export interface PromptSeam { reply(promptId: number, answer: number): IntentResult }
 export interface LoadoutStats { readonly speed: number; readonly ac: number; readonly toH: number; readonly toD: number; readonly blows: number; readonly shots: number; readonly maxHp: number; readonly maxSp: number; readonly totalWeight: number; readonly statUse: readonly number[]; readonly resists: readonly number[]; readonly resistElements: readonly string[]; readonly objectFlags: readonly string[] }
 export interface LoadoutSimulation { readonly before: { readonly stats: LoadoutStats }; readonly after: { readonly stats: LoadoutStats }; readonly placements: readonly { readonly slot: number; readonly displaced: ItemView | null }[]; readonly unresolved: readonly unknown[] }
@@ -54,7 +60,7 @@ export interface MouseSeams {
   readonly prompt?: { reply(promptId: number, answer: { action: "move"; x: number; y: number } | { action: "select" | "cancel" }): IntentResult };
   readonly inspect?: {
     projectionPath?(to: Grid): { readonly token: InputToken; readonly grids: readonly Grid[] } | null;
-    tileActions?(at: Grid): readonly { readonly label: string; readonly intent: PlayerIntent }[] | null;
+    tileActions?(at: Grid): { readonly token: InputToken; readonly codes: readonly string[] } | null;
     travelPath?(to: Grid): { readonly token: InputToken; readonly grids: readonly Grid[] } | null;
   };
 }

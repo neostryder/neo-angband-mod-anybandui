@@ -29,6 +29,12 @@ export function walkIntent(player: Grid, at: Grid): PlayerIntent | null {
   return { kind: "travel", x: at.x, y: at.y };
 }
 
+const TILE_ACTION_LABELS: Readonly<Record<string, string>> = {
+  tunnel: "Tunnel", open: "Open", close: "Close", disarm: "Disarm",
+  ascend: "Go up the stairs", descend: "Go down the stairs", pickup: "Pick up",
+};
+const DIRECTED_CODES: ReadonlySet<string> = new Set(["tunnel", "open", "close", "disarm"]);
+
 interface TileMenuAction { label: string; intent?: PlayerIntent; pickup?: true; promptAction?: "select" | "cancel" }
 export function tileMenuActions(ctx: MouseSeams, snap: InputSnapshot, at: Grid): readonly TileMenuAction[] {
   if (snap.prompt?.kind === "target") return ctx.prompt ? [{ label: "Select tile", promptAction: "select" }, { label: "Cancel", promptAction: "cancel" }] : [];
@@ -42,8 +48,20 @@ export function tileMenuActions(ctx: MouseSeams, snap: InputSnapshot, at: Grid):
   if (known && sameToken(known.token, snap.token) && known.cells.some((cell) => cell.x === at.x && cell.y === at.y && cell.remembered.objects.length > 0)) {
     actions.push({ label: "Pick up", pickup: true });
   }
-  for (const action of ctx.inspect?.tileActions?.(at) ?? []) {
-    if (typeof action.label === "string" && action.intent) actions.push(action);
+  // The engine answers with command codes, checked by the same predicates the
+  // commands use. Only codes with a label here are offered, so a code added to
+  // the engine later never shows up raw. "walk" is left to "Walk here" above.
+  const offered = ctx.inspect?.tileActions?.(at);
+  if (offered && sameToken(offered.token, snap.token)) {
+    const player = snap.core.player!.grid;
+    const dx = at.x - player.x, dy = at.y - player.y;
+    const dir = 5 + Math.sign(dx) - 3 * Math.sign(dy);
+    for (const code of offered.codes) {
+      const label = TILE_ACTION_LABELS[code];
+      if (!label || actions.some((action) => action.label === label)) continue;
+      if (code === "pickup") actions.push({ label, pickup: true });
+      else actions.push({ label, intent: { kind: "command", command: DIRECTED_CODES.has(code) ? { code, dir } : { code } } });
+    }
   }
   return actions;
 }
