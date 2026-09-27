@@ -237,8 +237,8 @@ function applyTheme(root, theme = THEMES["terminal-original"]) {
 }
 
 // src/panels/panel-host.ts
-var CSS = `
-:host{position:fixed;display:none;z-index:50;box-sizing:border-box;color:var(--anyband-text);font:12px/1.35 system-ui,sans-serif}
+var HOST_CSS = `:host{position:fixed;display:none;z-index:50;box-sizing:border-box;color:var(--anyband-text);font:12px/1.35 system-ui,sans-serif}`;
+var PANEL_CSS = `
 *{box-sizing:border-box}.surface{width:100%;height:100%;overflow:auto;background:var(--anyband-surface);border:1px solid var(--anyband-accent);border-radius:var(--anyband-rounding);padding:5px}
 .group{min-height:0;overflow:auto}.heading{color:var(--anyband-accent);font-weight:700;border-bottom:1px solid var(--anyband-accent);margin:0 0 4px;padding-bottom:2px}
 .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}.metric-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}
@@ -249,6 +249,7 @@ var CSS = `
 .tip{display:none;position:absolute;z-index:2;max-width:26em;white-space:pre-wrap;pointer-events:none;background:var(--anyband-background);color:var(--anyband-text);border:1px solid var(--anyband-accent);border-radius:3px;padding:6px}
 input{width:100%;background:var(--anyband-background);color:var(--anyband-text);border:1px solid var(--anyband-accent)}
 `;
+var CSS = `${HOST_CSS}${PANEL_CSS}`;
 var panelHosts = /* @__PURE__ */ new Set();
 var panelVisualFilter = null;
 function setPanelHostVisualFilter(filter) {
@@ -278,19 +279,10 @@ function meter(parent, label2, value2, amount, colour, tip2) {
 function intersects(a, b) {
   return a.col < b.col + b.cols && b.col < a.col + a.cols && a.row < b.row + b.rows && b.row < a.row + a.rows;
 }
-function createPanelHost(doc, panels, theme) {
-  const element = doc.createElement("div");
-  element.className = "anyband-panel";
-  panelHosts.add(element);
-  element.style.filter = panelVisualFilter ?? "";
-  const shadow = element.attachShadow({ mode: "open" });
-  if (theme) applyTheme(shadow, theme);
-  else applyTheme(shadow);
-  node(shadow, "style", "", CSS);
-  const surface = node(shadow, "div", "surface");
+function createPanelContent(surface, panels) {
   const mounts = panels.map(() => node(surface, "div", "group"));
   const tip2 = node(surface, "div", "tip");
-  let signatures = [];
+  const signatures = [];
   surface.addEventListener("mouseover", (event) => {
     const target = event.target;
     const subject = target instanceof HTMLElement ? target.closest("[data-tip]") : null;
@@ -304,6 +296,27 @@ function createPanelHost(doc, panels, theme) {
   surface.addEventListener("mouseleave", () => {
     tip2.style.display = "none";
   });
+  return {
+    render(model) {
+      panels.forEach((panel, index) => {
+        const signature = JSON.stringify(panel.select(model));
+        if (signatures[index] === signature) return;
+        signatures[index] = signature;
+        panel.render(mounts[index], model);
+      });
+    }
+  };
+}
+function createPanelHost(doc, panels, theme) {
+  const element = doc.createElement("div");
+  element.className = "anyband-panel";
+  panelHosts.add(element);
+  element.style.filter = panelVisualFilter ?? "";
+  const shadow = element.attachShadow({ mode: "open" });
+  if (theme) applyTheme(shadow, theme);
+  else applyTheme(shadow);
+  node(shadow, "style", "", CSS);
+  const content = createPanelContent(node(shadow, "div", "surface"), panels);
   doc.body.appendChild(element);
   return {
     element,
@@ -321,151 +334,98 @@ function createPanelHost(doc, panels, theme) {
       element.style.top = `${box.y}px`;
       element.style.width = `${box.width}px`;
       element.style.height = `${box.height}px`;
-      panels.forEach((panel, index) => {
-        const signature = JSON.stringify(panel.select(model));
-        if (signatures[index] === signature) return;
-        signatures[index] = signature;
-        panel.render(mounts[index], model);
-      });
+      content.render(model);
     }
   };
 }
 
-// src/panels/character-card.ts
-function stat(value2) {
-  return value2 > 18 ? `18/${String(value2 - 18).padStart(2, "0")}` : String(value2);
+// src/preferences.ts
+var DEFAULT_DISPLAY_PREFERENCE = {
+  v: 2,
+  /* 28px was rung 3 in the former 16-48px ladder.  Keep that familiar
+   * default after adding smaller and larger manual zoom steps. */
+  zoomIndex: 7,
+  interfaceZoomIndex: 1,
+  mapDetail: 0
+};
+function finiteInteger(value2, fallback, min, max) {
+  return typeof value2 === "number" && Number.isInteger(value2) ? Math.max(min, Math.min(max, value2)) : fallback;
 }
-function renderCharacterCard(mount, model) {
-  mount.replaceChildren();
-  const p = model.player;
-  node(mount, "div", "heading", [p.name || "Adventurer", [p.race, p.class].filter(Boolean).join(" "), p.title].filter(Boolean).join(" - ")).dataset.tip = [p.name || "Adventurer", `Race: ${p.race}`, `Class: ${p.class}`, p.title ? `Title: ${p.title}` : ""].filter(Boolean).join("\n");
-  const grid = node(mount, "div", "grid");
-  meter(grid, "HP", `${Math.max(0, p.hp)} / ${Math.max(0, p.max_hp)}`, fraction(p.hp, p.max_hp), "#a82630", `HP: ${Math.max(0, p.hp)} / ${Math.max(0, p.max_hp)}`);
-  meter(grid, "SP", `${Math.max(0, p.sp)} / ${Math.max(0, p.max_sp)}`, fraction(p.sp, p.max_sp), "#244f9e", `SP: ${Math.max(0, p.sp)} / ${Math.max(0, p.max_sp)}`);
-  if (p.food_max !== void 0) {
-    const food = `${(p.food_max > 0 ? 100 * p.food / p.food_max : 0).toFixed(1)}% (${p.food})`;
-    meter(grid, "Food", food, fraction(p.food, p.food_max), "#246b3b", food);
-  } else {
-    node(grid, "div", "metric", `Food ${p.food}`);
-  }
-  if (p.next_level_experience !== void 0) {
-    const next = p.next_level_experience;
-    const base = p.level_start_experience;
-    const progress = next > 0 && base !== void 0 ? fraction(p.experience - base, next - base) : 0;
-    const value2 = next <= 0 ? "MAX" : base === void 0 ? `${p.experience} - Lv ${p.level}` : `${Math.round(progress * 100)}% - Lv ${p.level}`;
-    const tip2 = [`Level ${p.level}`, `Experience: ${p.experience}`, next <= 0 ? "Maximum level reached" : `Next level: ${next}
-Remaining: ${Math.max(0, next - p.experience)}`].join("\n");
-    if (next <= 0 || base !== void 0) meter(grid, "XP", value2, progress, "#8f5e1f", tip2);
-    else node(grid, "div", "metric", `XP ${value2}`).dataset.tip = tip2;
-  } else {
-    node(grid, "div", "metric", `XP ${p.experience} - Lv ${p.level}`);
-  }
-  if (p.stats.length) {
-    const stats = node(mount, "div", "stats");
-    for (const item of p.stats) {
-      const cell = node(stats, "div", item.drained ? "drained" : "");
-      node(cell, "div", "", `${item.label}${item.drained ? "*" : ""}`);
-      node(cell, "div", "", stat(item.value));
-      cell.dataset.tip = `${item.label}: ${stat(item.value)}`;
-    }
-  }
-  const metrics = node(mount, "div", "metric-grid");
-  for (const [label2, value2] of [["Gold", p.gold], ["Armour", p.armour], ["Speed", p.speed]]) {
-    const tile = node(metrics, "div", "metric", label2);
-    node(tile, "b", "", String(value2));
-  }
-  if (p.extra_moves) node(mount, "div", "", `Extra moves: ${p.extra_moves > 0 ? "+" : ""}${p.extra_moves}`);
+function isRecord(value2) {
+  return !!value2 && typeof value2 === "object";
 }
-
-// src/panels/dungeon-card.ts
-function renderDungeonCard(mount, model) {
-  mount.replaceChildren();
-  node(mount, "div", "heading", "Dungeon");
-  const p = model.player;
-  const d = model.dungeon;
-  const grid = node(mount, "div", "grid");
-  for (const [label2, value2, tip2] of [["Depth", String(d.depth), `Depth: ${d.depth_feet} feet`], ["Light", String(d.light), ""], ["Feel", d.feeling || "?", d.feeling_description ?? ""], ["", d.floor ?? "", ""]]) {
-    const tile = node(grid, "div", "metric", label2);
-    node(tile, "b", "", value2);
-    if (tip2) tile.dataset.tip = tip2;
-  }
-  for (const [condition, label2] of [[p.trap_detected, "Trap-detected area"], [p.recall, "Recall pending"], [p.descent, "Descent pending"], [p.resting, "Resting"], [p.running, "Running"], [p.repeat, `Repeating: ${p.repeat}`], [p.unignoring, "Showing ignored items"]]) {
-    if (condition) node(mount, "div", "", label2);
-  }
-}
-
-// src/panels/status-badges.ts
-var colours = { harm: "#ff7559", mixed: "#ffc259", benefit: "#66e0b3", neutral: "#8cbfff", study: "#8cbfff" };
-var kinds = { harm: "Harmful effect", mixed: "Benefits and drawbacks", benefit: "Beneficial effect", neutral: "Active effect", study: "Learning available" };
-function renderStatusBadges(mount, model) {
-  mount.replaceChildren();
-  const statuses = model.player.statuses.filter((item) => item.visible !== false && item.label !== "FOOD");
-  statuses.sort((a, b) => (a.priority ?? 2) - (b.priority ?? 2));
-  if (model.player.study && model.player.study > 0) statuses.push({ label: "Study", name: "Study", visible: true, priority: void 0, kind: "study", duration: model.player.study, description: void 0 });
-  if (!statuses.length) return;
-  node(mount, "div", "heading", "Status effects");
-  const wrap = node(mount, "div", "badges");
-  for (const effect of statuses) {
-    const kind = effect.kind ?? "neutral";
-    const name = effect.name || effect.label || "Effect";
-    const badge = node(wrap, "span", "badge", kind === "study" && effect.duration !== void 0 ? `${name} - ${effect.duration}` : name);
-    badge.style.color = colours[kind];
-    badge.style.backgroundColor = `${colours[kind]}29`;
-    const lines = [effect.duration === void 0 ? name : `${name} (${effect.duration})`, kinds[kind]];
-    if (effect.description) lines.push("---------", effect.description);
-    badge.dataset.tip = lines.join("\n");
-  }
-}
-
-// src/panels/tracked-creature.ts
-function renderTrackedCreature(mount, model) {
-  mount.replaceChildren();
-  node(mount, "div", "heading", "Tracked creature");
-  const target = model.player.tracked_creature;
-  if (!target || !target.visible) {
-    node(mount, "div", "muted", target ? "Out of sight" : "No creature tracked");
-    meter(mount, "HP", "-- / --", 0, "#8f5e1f");
-    return;
-  }
-  node(mount, "div", "", target.name).dataset.tip = target.name;
-  if (target.hp !== void 0 && target.max_hp !== void 0) {
-    meter(mount, "HP", `${Math.max(0, target.hp)} / ${target.max_hp}`, fraction(target.hp, target.max_hp), "#8f5e1f");
-  }
-}
-
-// src/panels/message-log.ts
-var ink = { system: "#64a0b5b4", combat: "#c88f5fb4", loot: "#b1a962b4", other: "#5b8a71a0" };
-function renderMessageLog(mount, model) {
-  const previous = mount.querySelector("input")?.value ?? "";
-  mount.replaceChildren();
-  const heading = node(mount, "div", "heading", "Messages");
-  if (model.message_pending === true) {
-    heading.style.color = "#ffba4d";
-    node(mount, "div", "ribbon", "Messages waiting");
-  }
-  const search = node(mount, "input");
-  search.type = "search";
-  search.placeholder = "Search messages";
-  search.setAttribute("aria-label", "Search messages");
-  search.value = previous;
-  const list = node(mount, "div", "messages");
-  const recent = model.messages.slice(0, 20);
-  const draw = () => {
-    list.replaceChildren();
-    const match = search.value.toLocaleLowerCase();
-    if (!recent.length) {
-      node(list, "div", "muted", "No messages yet.");
-      return;
-    }
-    for (const [index, message] of recent.entries()) {
-      if (!message.text.toLocaleLowerCase().includes(match)) continue;
-      const row = node(list, "div", "message", `${message.text}${index === 0 && (message.count ?? 1) > 1 ? ` (x${message.count})` : ""}`);
-      const group = message.system ? "system" : message.group === "combat" ? "combat" : message.group === "loot" ? "loot" : "other";
-      row.style.color = ink[group];
-    }
+var LEGACY_PLAY_ZOOM_INDEX_TO_CURRENT = [4, 5, 6, 7, 8, 9, 10, 11];
+function storedDisplayPreference(raw) {
+  if (!isRecord(raw) || raw.v !== 2 || !isRecord(raw.display)) return null;
+  const candidate = raw.display;
+  const legacy = candidate.v === 1;
+  if (!legacy && candidate.v !== 2) return null;
+  const legacyIndex = finiteInteger(candidate.zoomIndex, 3, 0, 7);
+  return {
+    v: 2,
+    zoomIndex: legacy ? LEGACY_PLAY_ZOOM_INDEX_TO_CURRENT[legacyIndex] ?? DEFAULT_DISPLAY_PREFERENCE.zoomIndex : finiteInteger(candidate.zoomIndex, DEFAULT_DISPLAY_PREFERENCE.zoomIndex, 0, 18),
+    interfaceZoomIndex: finiteInteger(
+      candidate.interfaceZoomIndex,
+      DEFAULT_DISPLAY_PREFERENCE.interfaceZoomIndex,
+      0,
+      3
+    ),
+    mapDetail: finiteInteger(candidate.mapDetail, DEFAULT_DISPLAY_PREFERENCE.mapDetail, 0, 3)
   };
-  search.addEventListener("input", draw);
-  draw();
+}
+function storedRememberedSettings(raw) {
+  if (!isRecord(raw)) return null;
+  const candidate = raw.v === 2 ? raw.options : raw.v === 1 ? raw : void 0;
+  return isRecord(candidate) && candidate.v === 1 && isRecord(candidate.values) ? candidate : null;
+}
+function readFirstEncounterPreference(raw) {
+  if (!isRecord(raw)) return null;
+  const candidate = raw.v === 2 ? raw.firstEncounter : raw.v === 1 ? raw : void 0;
+  if (!isRecord(candidate) || typeof candidate.characterKey !== "string" || !Array.isArray(candidate.monsters) || !Array.isArray(candidate.artifacts)) {
+    return null;
+  }
+  return {
+    characterKey: candidate.characterKey,
+    monsters: candidate.monsters.filter((value2) => typeof value2 === "number"),
+    artifacts: candidate.artifacts.filter((value2) => typeof value2 === "number")
+  };
+}
+function readSubwindowZoomPreference(raw) {
+  if (!isRecord(raw) || raw.v !== 2 || !isRecord(raw.subwindowZoom)) return {};
+  const steps = {};
+  for (const [id, value2] of Object.entries(raw.subwindowZoom)) {
+    if (typeof value2 === "number") {
+      if (Number.isInteger(value2) && value2 >= 0) steps[id] = { step: value2, manual: true };
+      continue;
+    }
+    if (isRecord(value2) && typeof value2.step === "number" && Number.isInteger(value2.step) && value2.step >= 0 && typeof value2.manual === "boolean") {
+      steps[id] = { step: value2.step, manual: value2.manual };
+    }
+  }
+  return steps;
+}
+function preservedPreferences(raw) {
+  const options = storedRememberedSettings(raw);
+  const display = storedDisplayPreference(raw);
+  const firstEncounter = readFirstEncounterPreference(raw);
+  const hideRepeatShortcuts = isRecord(raw) && raw.v === 2 && raw.hideRepeatShortcuts === true;
+  const subwindowZoom = readSubwindowZoomPreference(raw);
+  return {
+    ...options ? { options } : {},
+    ...display ? { display } : {},
+    ...hideRepeatShortcuts ? { hideRepeatShortcuts } : {},
+    ...firstEncounter ? { firstEncounter } : {},
+    ...Object.keys(subwindowZoom).length > 0 ? { subwindowZoom } : {}
+  };
+}
+function readDisplayPreference(raw) {
+  return storedDisplayPreference(raw) ?? DEFAULT_DISPLAY_PREFERENCE;
+}
+function withDisplayPreference(raw, display) {
+  return { ...isRecord(raw) ? raw : {}, v: 2, ...preservedPreferences(raw), display };
+}
+function withSubwindowZoomPreference(raw, subwindowZoom) {
+  return { ...isRecord(raw) ? raw : {}, v: 2, ...preservedPreferences(raw), subwindowZoom };
 }
 
 // src/fonts.ts
@@ -512,58 +472,6 @@ function validateSettings(value2) {
     panelZoom: record2["panelZoom"] && typeof record2["panelZoom"] === "object" && !Array.isArray(record2["panelZoom"]) ? Object.fromEntries(Object.entries(record2["panelZoom"]).filter(([id, step]) => id.length > 0 && typeof step === "number" && Number.isInteger(step) && step >= 0 && step <= 6)) : DEFAULT_SETTINGS.panelZoom,
     effects: record2["effects"] && typeof record2["effects"] === "object" && !Array.isArray(record2["effects"]) ? Object.fromEntries(Object.entries(record2["effects"]).filter(([id, value3]) => id.length > 0 && typeof value3 === "number" && Number.isFinite(value3)).map(([id, value3]) => [id, Math.max(0, Math.min(100, Math.round(value3)))])) : DEFAULT_SETTINGS.effects
   };
-}
-
-// src/accessibility.ts
-var COLORBLIND_FILTER_ID = "anybandui-accessibility-colorblind";
-var HIGH_CONTRAST_FILTER = "contrast(1.55) saturate(1.2)";
-var COLORBLIND_MATRIX = "0.812 0.199 -0.011 0 0 0 1 0 0 0 -0.188 0.199 0.989 0 0 0 0 0 1 0";
-function accessibilityFilter(flags) {
-  const filters = [];
-  if (flags["anybandui.colourblind"] === true) filters.push(`url("#${COLORBLIND_FILTER_ID}")`);
-  else if (flags["anybandui.highContrast"] === true) filters.push(HIGH_CONTRAST_FILTER);
-  if (flags["anybandui.crt"] === true) filters.push("contrast(1.08) saturate(1.25) brightness(1.02)");
-  return filters.length ? filters.join(" ") : null;
-}
-function ensureColorblindFilter() {
-  if (typeof document === "undefined" || document.getElementById(COLORBLIND_FILTER_ID)) return;
-  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  svg.setAttribute("aria-hidden", "true");
-  svg.setAttribute("width", "0");
-  svg.setAttribute("height", "0");
-  svg.style.position = "absolute";
-  const filter = document.createElementNS("http://www.w3.org/2000/svg", "filter");
-  filter.setAttribute("id", COLORBLIND_FILTER_ID);
-  const matrix = document.createElementNS("http://www.w3.org/2000/svg", "feColorMatrix");
-  matrix.setAttribute("type", "matrix");
-  matrix.setAttribute("values", COLORBLIND_MATRIX);
-  filter.appendChild(matrix);
-  svg.appendChild(filter);
-  document.body?.appendChild(svg);
-}
-var configuredDisplay = null;
-function installAccessibilityAccommodations(ctx) {
-  uninstallAccessibilityAccommodations();
-  const filter = accessibilityFilter(ctx.flags);
-  if (!filter) return;
-  if (!ctx.display) {
-    ctx.log?.("this game is too old for visual accessibility filters");
-    return;
-  }
-  if (ctx.flags["anybandui.colourblind"] === true) ensureColorblindFilter();
-  configuredDisplay = ctx.display;
-  if (ctx.display.setVisualFilter.length >= 2) ctx.display.setVisualFilter(filter, { scope: "game" });
-  else ctx.display.setVisualFilter(filter);
-  setPanelHostVisualFilter(filter);
-}
-function uninstallAccessibilityAccommodations() {
-  const display = configuredDisplay;
-  configuredDisplay = null;
-  if (display) {
-    if (display.setVisualFilter.length >= 2) display.setVisualFilter(null, { scope: "game" });
-    else display.setVisualFilter(null);
-  }
-  setPanelHostVisualFilter(null);
 }
 
 // src/bitmap-font.ts
@@ -1237,396 +1145,6 @@ function paintBitmapButtonLabel(button4, text, css, cellWidth, cellHeight, dpr) 
   canvas.style.display = "block";
   paintBitmapLine(canvas, [{ text, css }], cellWidth, cellHeight, dpr);
   button4.appendChild(canvas);
-}
-
-// src/encounter-preference.ts
-function record(value2) {
-  return value2 !== null && typeof value2 === "object" && !Array.isArray(value2);
-}
-function readFirstEncounterPreference(raw) {
-  if (!record(raw)) return null;
-  const candidate = raw.v === 2 ? raw.firstEncounter : raw.v === 1 ? raw : void 0;
-  if (!record(candidate) || typeof candidate.characterKey !== "string" || !Array.isArray(candidate.monsters) || !Array.isArray(candidate.artifacts)) return null;
-  return {
-    characterKey: candidate.characterKey,
-    monsters: candidate.monsters.filter((value2) => typeof value2 === "number"),
-    artifacts: candidate.artifacts.filter((value2) => typeof value2 === "number")
-  };
-}
-function withFirstEncounterPreference(raw, firstEncounter) {
-  const existing = record(raw) && raw.v === 2 ? raw : {};
-  return { ...existing, v: 2, firstEncounter };
-}
-
-// src/first-encounter.ts
-var DEADLY_OUT_OF_DEPTH_LEVELS = 5;
-function classifyMonsterThreat(race, currentDepth) {
-  if (race.unique) return "unique";
-  const over = race.level - currentDepth;
-  if (over >= DEADLY_OUT_OF_DEPTH_LEVELS) return "deadly";
-  if (over >= 1) return "outOfDepth";
-  return "ordinary";
-}
-function characterKey(fingerprint) {
-  return [
-    fingerprint.raceName,
-    fingerprint.clsName,
-    fingerprint.auBirth,
-    fingerprint.htBirth,
-    fingerprint.wtBirth
-  ].join("|");
-}
-function readFirstEncounterNotebook(raw, key) {
-  const stored = readFirstEncounterPreference(raw);
-  if (stored?.characterKey === key) {
-    return {
-      monsters: new Set(stored.monsters),
-      artifacts: new Set(stored.artifacts)
-    };
-  }
-  return { monsters: /* @__PURE__ */ new Set(), artifacts: /* @__PURE__ */ new Set() };
-}
-function withFirstEncounterNotebook(raw, key, notebook) {
-  const firstEncounter = {
-    characterKey: key,
-    monsters: [...notebook.monsters],
-    artifacts: [...notebook.artifacts]
-  };
-  return withFirstEncounterPreference(raw, firstEncounter);
-}
-function newMonsterSightings(visible, alreadySeen) {
-  const found = [];
-  const claimed = /* @__PURE__ */ new Set();
-  for (const race of visible) {
-    if (alreadySeen.has(race.ridx) || claimed.has(race.ridx)) continue;
-    claimed.add(race.ridx);
-    found.push(race);
-  }
-  return found;
-}
-function newArtifactFinds(carried, alreadySeen) {
-  const found = [];
-  const claimed = /* @__PURE__ */ new Set();
-  for (const artifact of carried) {
-    if (alreadySeen.has(artifact.aidx) || claimed.has(artifact.aidx)) continue;
-    claimed.add(artifact.aidx);
-    found.push(artifact);
-  }
-  return found;
-}
-function carriedKnownArtifacts(gear, liveObjectIsKnownArtifact) {
-  const found = [];
-  for (const obj of gear) {
-    if (obj.artifact && liveObjectIsKnownArtifact(obj)) found.push(obj.artifact);
-  }
-  return found;
-}
-var TIER_LABEL = {
-  unique: "Unique!",
-  deadly: "Deadly - well out of depth",
-  outOfDepth: "Out of depth",
-  ordinary: "First sighting"
-};
-var TIER_COLOR = {
-  unique: "#e8c34a",
-  deadly: "#e05a4e",
-  outOfDepth: "#e0954e",
-  ordinary: "#7fd88f"
-};
-function monsterCardContent(race, currentDepth, fmtDepth, colorToCss, tiles) {
-  const tier = classifyMonsterThreat(race, currentDepth);
-  const useTile = tiles !== void 0 && tiles.active && tiles.hasMonsterTile(race.ridx);
-  return {
-    kind: "monster",
-    title: TIER_LABEL[tier],
-    name: race.name,
-    depthText: fmtDepth(race.level),
-    tier,
-    glyphChar: race.dChar,
-    glyphColor: colorToCss(race.dAttr),
-    ...useTile ? { tilePaint: { ridx: race.ridx, tiles } } : {}
-  };
-}
-function artifactCardContent(artifact, fmtDepth) {
-  return {
-    kind: "artifact",
-    title: "Artifact found!",
-    name: artifact.name,
-    depthText: fmtDepth(artifact.level)
-  };
-}
-var POLL_MS = 750;
-var AUTO_DISMISS_MS = 9e3;
-var timer = null;
-var queue = [];
-var activePanel = null;
-var activeTimeout = null;
-var activeTheme = THEMES["terminal-original"];
-function showNext(ui) {
-  if (activePanel) return;
-  const content = queue.shift();
-  if (!content) return;
-  let panel;
-  try {
-    panel = ui.openPanel({ id: "first-encounter", modal: false, label: content.title });
-  } catch {
-    return;
-  }
-  activePanel = panel;
-  drawCard(panel, content, activeTheme);
-  const advance = () => {
-    activePanel = null;
-    showNext(ui);
-  };
-  void panel.closed.then(advance);
-  activeTimeout = setTimeout(() => {
-    activeTimeout = null;
-    panel.close();
-  }, AUTO_DISMISS_MS);
-}
-var TILE_PORTRAIT_SIZE = 24;
-function paintTilePortrait(tilePaint, dpr) {
-  const canvas = document.createElement("canvas");
-  const device = Math.max(1, Math.round(TILE_PORTRAIT_SIZE * dpr));
-  canvas.width = device;
-  canvas.height = device;
-  canvas.style.width = `${String(TILE_PORTRAIT_SIZE)}px`;
-  canvas.style.height = `${String(TILE_PORTRAIT_SIZE)}px`;
-  canvas.setAttribute("aria-hidden", "true");
-  const ctx2d = canvas.getContext("2d");
-  if (!ctx2d) return null;
-  ctx2d.imageSmoothingEnabled = false;
-  const drew = tilePaint.tiles.drawMonster(ctx2d, tilePaint.ridx, 0, 0, device, device);
-  return drew ? canvas : null;
-}
-function drawCard(panel, content, theme) {
-  const root = panel.root;
-  applyTheme(root, theme);
-  const style = document.createElement("style");
-  const accent = content.tier ? TIER_COLOR[content.tier] : TIER_COLOR.ordinary;
-  style.textContent = ":host { all: initial; }.wrap { position: fixed; inset: auto 1rem 1rem auto; display: flex; justify-content: flex-end; pointer-events: none; }.card { position: relative; pointer-events: auto; width: 19rem; max-width: calc(100vw - 2rem); background: var(--anyband-surface); color: var(--anyband-text); border-radius: var(--anyband-rounding); padding: .8rem 1rem; box-shadow: 0 6px 22px rgba(0,0,0,.45); border: 2px solid " + accent + "; animation: anyband-first-encounter-in .3s ease-out; }@keyframes anyband-first-encounter-in { from { transform: translateY(14px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }.head { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; }.glyph { flex: none; width: 2.1rem; height: 2.1rem; display: flex; align-items: center; justify-content: center; background: var(--anyband-background); border-radius: var(--anyband-rounding); }.depth { margin-top: .3rem; }.close { position: absolute; top: .3rem; right: .45rem; pointer-events: auto; background: none; border: none; opacity: .55; padding: .2rem; }.close:hover { opacity: 1; }";
-  const wrap = document.createElement("div");
-  wrap.className = "wrap";
-  const card = document.createElement("div");
-  card.className = "card";
-  card.setAttribute("role", "status");
-  const dpr = window.devicePixelRatio || 1;
-  const cellHeight = 16;
-  const cellWidth = cellHeight * (16 / 24);
-  const titleCellHeight = 12;
-  const titleCellWidth = titleCellHeight * (16 / 24);
-  const nameCellHeight = 20;
-  const nameCellWidth = nameCellHeight * (16 / 24);
-  const maxChars = Math.max(10, Math.floor((19 * 16 - 32 - 34) / nameCellWidth));
-  const close = document.createElement("button");
-  close.className = "close";
-  close.type = "button";
-  close.addEventListener("click", () => panel.close());
-  paintBitmapButtonLabel(close, "X", theme.text, cellWidth, cellHeight, dpr);
-  close.setAttribute("aria-label", "Dismiss");
-  const head = document.createElement("div");
-  head.className = "head";
-  if (content.tilePaint || content.glyphChar) {
-    const glyph = document.createElement("span");
-    glyph.className = "glyph";
-    const portrait = content.tilePaint ? paintTilePortrait(content.tilePaint, dpr) : null;
-    if (portrait) {
-      glyph.appendChild(portrait);
-    } else if (content.glyphChar) {
-      glyph.appendChild(
-        bitmapTextBlock(
-          [[{ text: content.glyphChar, css: content.glyphColor ?? theme.text }]],
-          24,
-          24,
-          dpr
-        )
-      );
-    }
-    head.append(glyph);
-  }
-  const titleBlock = document.createElement("div");
-  const title = bitmapTextBlock(
-    [[{ text: content.title.toUpperCase(), css: accent }]],
-    titleCellWidth,
-    titleCellHeight,
-    dpr
-  );
-  const name = bitmapTextBlock(
-    wrapBitmapText(content.name, maxChars).map((line) => [{ text: line, css: theme.text }]),
-    nameCellWidth,
-    nameCellHeight,
-    dpr
-  );
-  name.style.marginTop = ".15rem";
-  titleBlock.append(title, name);
-  head.append(titleBlock);
-  const depth = document.createElement("div");
-  depth.className = "depth";
-  depth.appendChild(
-    bitmapTextBlock(
-      [[{ text: `Native depth: ${content.depthText}`, css: theme.text }]],
-      cellWidth,
-      cellHeight,
-      dpr
-    )
-  );
-  card.append(close, head, depth);
-  wrap.append(card);
-  root.append(style, wrap);
-}
-function characterKeyFor(player) {
-  return characterKey({
-    raceName: player.race.name,
-    clsName: player.cls.name,
-    auBirth: player.auBirth,
-    htBirth: player.htBirth,
-    wtBirth: player.wtBirth
-  });
-}
-function installFirstEncounter(ctx) {
-  uninstallFirstEncounter();
-  if (!ctx.ui || typeof ctx.core.monsterListCollect !== "function" || typeof ctx.core.liveObjectIsKnownArtifact !== "function" || typeof ctx.core.fmtDepth !== "function" || typeof ctx.core.colorToCss !== "function") {
-    ctx.log?.("this game is too old for first-encounter alerts");
-    return;
-  }
-  const ui = ctx.ui;
-  activeTheme = ctx.theme ?? THEMES["terminal-original"];
-  const core = ctx.core;
-  const key = characterKeyFor(ctx.state.actor.player);
-  const notebook = readFirstEncounterNotebook(ctx.prefs?.get(), key);
-  const save = () => ctx.prefs?.set(withFirstEncounterNotebook(ctx.prefs?.get(), key, notebook));
-  timer = setInterval(() => {
-    let visible;
-    try {
-      visible = core.monsterListCollect(ctx.state).entries.map((entry2) => entry2.race);
-    } catch (error) {
-      ctx.log?.(`first-encounter alerts: could not read visible monsters: ${String(error)}`);
-      return;
-    }
-    const newMonsters = newMonsterSightings(visible, notebook.monsters);
-    let carried;
-    try {
-      carried = carriedKnownArtifacts(ctx.state.gear.store.values(), core.liveObjectIsKnownArtifact);
-    } catch (error) {
-      ctx.log?.(`first-encounter alerts: could not read carried gear: ${String(error)}`);
-      return;
-    }
-    const newArtifacts = newArtifactFinds(carried, notebook.artifacts);
-    if (newMonsters.length === 0 && newArtifacts.length === 0) return;
-    for (const race of newMonsters) notebook.monsters.add(race.ridx);
-    for (const artifact of newArtifacts) notebook.artifacts.add(artifact.aidx);
-    save();
-    const depth = ctx.state.chunk.depth;
-    for (const race of newMonsters) {
-      queue.push(monsterCardContent(race, depth, core.fmtDepth, core.colorToCss, ctx.tiles));
-    }
-    for (const artifact of newArtifacts) {
-      queue.push(artifactCardContent(artifact, core.fmtDepth));
-    }
-    showNext(ui);
-  }, POLL_MS);
-}
-function uninstallFirstEncounter() {
-  if (timer !== null) {
-    clearInterval(timer);
-    timer = null;
-  }
-  if (activeTimeout !== null) {
-    clearTimeout(activeTimeout);
-    activeTimeout = null;
-  }
-  activePanel?.close();
-  activePanel = null;
-  queue = [];
-}
-
-// src/preferences.ts
-var DEFAULT_DISPLAY_PREFERENCE = {
-  v: 2,
-  /* 28px was rung 3 in the former 16-48px ladder.  Keep that familiar
-   * default after adding smaller and larger manual zoom steps. */
-  zoomIndex: 7,
-  interfaceZoomIndex: 1,
-  mapDetail: 0
-};
-function finiteInteger(value2, fallback, min, max) {
-  return typeof value2 === "number" && Number.isInteger(value2) ? Math.max(min, Math.min(max, value2)) : fallback;
-}
-function isRecord(value2) {
-  return !!value2 && typeof value2 === "object";
-}
-var LEGACY_PLAY_ZOOM_INDEX_TO_CURRENT = [4, 5, 6, 7, 8, 9, 10, 11];
-function storedDisplayPreference(raw) {
-  if (!isRecord(raw) || raw.v !== 2 || !isRecord(raw.display)) return null;
-  const candidate = raw.display;
-  const legacy = candidate.v === 1;
-  if (!legacy && candidate.v !== 2) return null;
-  const legacyIndex = finiteInteger(candidate.zoomIndex, 3, 0, 7);
-  return {
-    v: 2,
-    zoomIndex: legacy ? LEGACY_PLAY_ZOOM_INDEX_TO_CURRENT[legacyIndex] ?? DEFAULT_DISPLAY_PREFERENCE.zoomIndex : finiteInteger(candidate.zoomIndex, DEFAULT_DISPLAY_PREFERENCE.zoomIndex, 0, 18),
-    interfaceZoomIndex: finiteInteger(
-      candidate.interfaceZoomIndex,
-      DEFAULT_DISPLAY_PREFERENCE.interfaceZoomIndex,
-      0,
-      3
-    ),
-    mapDetail: finiteInteger(candidate.mapDetail, DEFAULT_DISPLAY_PREFERENCE.mapDetail, 0, 3)
-  };
-}
-function storedRememberedSettings(raw) {
-  if (!isRecord(raw)) return null;
-  const candidate = raw.v === 2 ? raw.options : raw.v === 1 ? raw : void 0;
-  return isRecord(candidate) && candidate.v === 1 && isRecord(candidate.values) ? candidate : null;
-}
-function readFirstEncounterPreference2(raw) {
-  if (!isRecord(raw)) return null;
-  const candidate = raw.v === 2 ? raw.firstEncounter : raw.v === 1 ? raw : void 0;
-  if (!isRecord(candidate) || typeof candidate.characterKey !== "string" || !Array.isArray(candidate.monsters) || !Array.isArray(candidate.artifacts)) {
-    return null;
-  }
-  return {
-    characterKey: candidate.characterKey,
-    monsters: candidate.monsters.filter((value2) => typeof value2 === "number"),
-    artifacts: candidate.artifacts.filter((value2) => typeof value2 === "number")
-  };
-}
-function readSubwindowZoomPreference(raw) {
-  if (!isRecord(raw) || raw.v !== 2 || !isRecord(raw.subwindowZoom)) return {};
-  const steps = {};
-  for (const [id, value2] of Object.entries(raw.subwindowZoom)) {
-    if (typeof value2 === "number") {
-      if (Number.isInteger(value2) && value2 >= 0) steps[id] = { step: value2, manual: true };
-      continue;
-    }
-    if (isRecord(value2) && typeof value2.step === "number" && Number.isInteger(value2.step) && value2.step >= 0 && typeof value2.manual === "boolean") {
-      steps[id] = { step: value2.step, manual: value2.manual };
-    }
-  }
-  return steps;
-}
-function preservedPreferences(raw) {
-  const options = storedRememberedSettings(raw);
-  const display = storedDisplayPreference(raw);
-  const firstEncounter = readFirstEncounterPreference2(raw);
-  const hideRepeatShortcuts = isRecord(raw) && raw.v === 2 && raw.hideRepeatShortcuts === true;
-  const subwindowZoom = readSubwindowZoomPreference(raw);
-  return {
-    ...options ? { options } : {},
-    ...display ? { display } : {},
-    ...hideRepeatShortcuts ? { hideRepeatShortcuts } : {},
-    ...firstEncounter ? { firstEncounter } : {},
-    ...Object.keys(subwindowZoom).length > 0 ? { subwindowZoom } : {}
-  };
-}
-function readDisplayPreference(raw) {
-  return storedDisplayPreference(raw) ?? DEFAULT_DISPLAY_PREFERENCE;
-}
-function withDisplayPreference(raw, display) {
-  return { ...isRecord(raw) ? raw : {}, v: 2, ...preservedPreferences(raw), display };
-}
-function withSubwindowZoomPreference(raw, subwindowZoom) {
-  return { ...isRecord(raw) ? raw : {}, v: 2, ...preservedPreferences(raw), subwindowZoom };
 }
 
 // src/zoom.ts
@@ -2741,6 +2259,653 @@ function uninstallZoomPan() {
   }
 }
 
+// src/panels/surface.ts
+function interfaceScale(ctx) {
+  if (ctx.flags?.["anybandui.zoom"] !== true) return 1;
+  return INTERFACE_ZOOM_SCALES[readDisplayPreference(ctx.prefs?.get()).interfaceZoomIndex] ?? 1;
+}
+function prepare(ctx, root, css) {
+  applyTheme(root, THEMES[validateSettings(ctx.prefs?.get()).theme]);
+  const style = root.ownerDocument.createElement("style");
+  style.textContent = css;
+  root.appendChild(style);
+}
+function section(root, className) {
+  const container = root.ownerDocument.createElement("section");
+  container.className = className;
+  root.appendChild(container);
+  return container;
+}
+function openSurfaces(ctx, specs, overlay, css, onChange) {
+  const entries = /* @__PURE__ */ new Map();
+  const scale = (container) => {
+    container.style.zoom = String(interfaceScale(ctx));
+  };
+  const register = ctx.ui?.registerPanelKind;
+  if (register) {
+    const unregister = specs.map((spec) => register({
+      kind: spec.key,
+      label: spec.label,
+      ...spec.tab ? { tab: spec.tab } : {},
+      ...spec.minSize ? { minSize: spec.minSize } : {},
+      ...spec.placement ? { preferredPlacement: spec.placement } : {},
+      ...spec.fitHeight !== void 0 ? { fitHeight: spec.fitHeight } : {},
+      mount(host) {
+        prepare(ctx, host.root, css);
+        const entry2 = { container: section(host.root, overlay.className), host, active: host.active, fitted: spec.fitHeight ?? null };
+        entries.set(spec.key, entry2);
+        const stop = host.onStateChange((state) => {
+          entry2.active = state.active;
+          onChange();
+        });
+        onChange();
+        return () => {
+          stop();
+          entries.delete(spec.key);
+        };
+      }
+    }));
+    return {
+      mounts: () => new Map([...entries].filter(([, entry2]) => entry2.active).map(([key, entry2]) => {
+        scale(entry2.container);
+        return [key, entry2.container];
+      })),
+      fit: (key, px) => {
+        const entry2 = entries.get(key);
+        const next = Math.ceil(px);
+        if (entry2?.host && entry2.fitted !== next) {
+          entry2.fitted = next;
+          entry2.host.setFitHeight(next);
+        }
+      },
+      focus: (key) => entries.get(key)?.host?.requestFocus(),
+      close: () => {
+        for (const stop of unregister) stop();
+        entries.clear();
+      }
+    };
+  }
+  if (!ctx.ui?.openPanel) return null;
+  const panel = ctx.ui.openPanel({ id: overlay.id, modal: false, label: overlay.label });
+  prepare(ctx, panel.root, css);
+  for (const spec of specs) entries.set(spec.key, { container: section(panel.root, overlay.className), host: null, active: true, fitted: null });
+  let open = true;
+  void panel.closed.then(() => {
+    open = false;
+    entries.clear();
+  });
+  return {
+    mounts: () => open ? new Map([...entries].map(([key, entry2]) => {
+      scale(entry2.container);
+      return [key, entry2.container];
+    })) : /* @__PURE__ */ new Map(),
+    fit: () => {
+    },
+    focus: () => {
+    },
+    close: () => {
+      if (open) panel.close();
+      open = false;
+      entries.clear();
+    }
+  };
+}
+
+// src/panels/character-pane.ts
+var PANE_SIDEBAR_EXTENT = { columns: 0, topRows: 0 };
+var PANE_CSS = `:host{display:block;height:100%;color:var(--anyband-text);font:12px/1.35 system-ui,sans-serif}${PANEL_CSS}.surface{position:relative}`;
+var paneOwnsSidebar = false;
+function gateSidebarExtent(display) {
+  return new Proxy(display, { get(target, property) {
+    const member = Reflect.get(target, property);
+    if (typeof member !== "function") return member;
+    if (property !== "setSidebarExtent") return member.bind(target);
+    return (extent) => Reflect.apply(member, target, [extent && paneOwnsSidebar ? PANE_SIDEBAR_EXTENT : extent]);
+  } });
+}
+function installCharacterPane(ctx, panels) {
+  if (!ctx.ui?.registerPanelKind) return null;
+  let latest;
+  const contents = /* @__PURE__ */ new WeakMap();
+  let surfaces = null;
+  const render = () => {
+    if (!latest || !surfaces) return;
+    for (const container of surfaces.mounts().values()) {
+      let content = contents.get(container);
+      if (!content) {
+        content = createPanelContent(container, panels);
+        contents.set(container, content);
+      }
+      content.render(latest);
+    }
+  };
+  surfaces = openSurfaces(
+    ctx,
+    [{
+      key: "character",
+      label: "Character",
+      tab: "Character",
+      minSize: { width: 180, height: 160 },
+      placement: { kind: "dock", target: "main", edge: "left" }
+    }],
+    { id: "character", label: "Character", className: "surface" },
+    PANE_CSS,
+    render
+  );
+  if (!surfaces) return null;
+  const opened = surfaces;
+  let claimed = false;
+  return {
+    claimSidebar() {
+      if (claimed) return;
+      claimed = true;
+      paneOwnsSidebar = true;
+      ctx.display?.setSidebarExtent?.(PANE_SIDEBAR_EXTENT);
+    },
+    paint(model) {
+      latest = model;
+      render();
+    },
+    close() {
+      opened.close();
+      if (claimed) ctx.display?.setSidebarExtent?.(null);
+      claimed = false;
+      paneOwnsSidebar = false;
+      latest = void 0;
+    }
+  };
+}
+
+// src/panels/character-card.ts
+function stat(value2) {
+  return value2 > 18 ? `18/${String(value2 - 18).padStart(2, "0")}` : String(value2);
+}
+function renderCharacterCard(mount, model) {
+  mount.replaceChildren();
+  const p = model.player;
+  node(mount, "div", "heading", [p.name || "Adventurer", [p.race, p.class].filter(Boolean).join(" "), p.title].filter(Boolean).join(" - ")).dataset.tip = [p.name || "Adventurer", `Race: ${p.race}`, `Class: ${p.class}`, p.title ? `Title: ${p.title}` : ""].filter(Boolean).join("\n");
+  const grid = node(mount, "div", "grid");
+  meter(grid, "HP", `${Math.max(0, p.hp)} / ${Math.max(0, p.max_hp)}`, fraction(p.hp, p.max_hp), "#a82630", `HP: ${Math.max(0, p.hp)} / ${Math.max(0, p.max_hp)}`);
+  meter(grid, "SP", `${Math.max(0, p.sp)} / ${Math.max(0, p.max_sp)}`, fraction(p.sp, p.max_sp), "#244f9e", `SP: ${Math.max(0, p.sp)} / ${Math.max(0, p.max_sp)}`);
+  if (p.food_max !== void 0) {
+    const food = `${(p.food_max > 0 ? 100 * p.food / p.food_max : 0).toFixed(1)}% (${p.food})`;
+    meter(grid, "Food", food, fraction(p.food, p.food_max), "#246b3b", food);
+  } else {
+    node(grid, "div", "metric", `Food ${p.food}`);
+  }
+  if (p.next_level_experience !== void 0) {
+    const next = p.next_level_experience;
+    const base = p.level_start_experience;
+    const progress = next > 0 && base !== void 0 ? fraction(p.experience - base, next - base) : 0;
+    const value2 = next <= 0 ? "MAX" : base === void 0 ? `${p.experience} - Lv ${p.level}` : `${Math.round(progress * 100)}% - Lv ${p.level}`;
+    const tip2 = [`Level ${p.level}`, `Experience: ${p.experience}`, next <= 0 ? "Maximum level reached" : `Next level: ${next}
+Remaining: ${Math.max(0, next - p.experience)}`].join("\n");
+    if (next <= 0 || base !== void 0) meter(grid, "XP", value2, progress, "#8f5e1f", tip2);
+    else node(grid, "div", "metric", `XP ${value2}`).dataset.tip = tip2;
+  } else {
+    node(grid, "div", "metric", `XP ${p.experience} - Lv ${p.level}`);
+  }
+  if (p.stats.length) {
+    const stats = node(mount, "div", "stats");
+    for (const item of p.stats) {
+      const cell = node(stats, "div", item.drained ? "drained" : "");
+      node(cell, "div", "", `${item.label}${item.drained ? "*" : ""}`);
+      node(cell, "div", "", stat(item.value));
+      cell.dataset.tip = `${item.label}: ${stat(item.value)}`;
+    }
+  }
+  const metrics = node(mount, "div", "metric-grid");
+  for (const [label2, value2] of [["Gold", p.gold], ["Armour", p.armour], ["Speed", p.speed]]) {
+    const tile = node(metrics, "div", "metric", label2);
+    node(tile, "b", "", String(value2));
+  }
+  if (p.extra_moves) node(mount, "div", "", `Extra moves: ${p.extra_moves > 0 ? "+" : ""}${p.extra_moves}`);
+}
+
+// src/panels/dungeon-card.ts
+function renderDungeonCard(mount, model) {
+  mount.replaceChildren();
+  node(mount, "div", "heading", "Dungeon");
+  const p = model.player;
+  const d = model.dungeon;
+  const grid = node(mount, "div", "grid");
+  for (const [label2, value2, tip2] of [["Depth", String(d.depth), `Depth: ${d.depth_feet} feet`], ["Light", String(d.light), ""], ["Feel", d.feeling || "?", d.feeling_description ?? ""], ["", d.floor ?? "", ""]]) {
+    const tile = node(grid, "div", "metric", label2);
+    node(tile, "b", "", value2);
+    if (tip2) tile.dataset.tip = tip2;
+  }
+  for (const [condition, label2] of [[p.trap_detected, "Trap-detected area"], [p.recall, "Recall pending"], [p.descent, "Descent pending"], [p.resting, "Resting"], [p.running, "Running"], [p.repeat, `Repeating: ${p.repeat}`], [p.unignoring, "Showing ignored items"]]) {
+    if (condition) node(mount, "div", "", label2);
+  }
+}
+
+// src/panels/status-badges.ts
+var colours = { harm: "#ff7559", mixed: "#ffc259", benefit: "#66e0b3", neutral: "#8cbfff", study: "#8cbfff" };
+var kinds = { harm: "Harmful effect", mixed: "Benefits and drawbacks", benefit: "Beneficial effect", neutral: "Active effect", study: "Learning available" };
+function renderStatusBadges(mount, model) {
+  mount.replaceChildren();
+  const statuses = model.player.statuses.filter((item) => item.visible !== false && item.label !== "FOOD");
+  statuses.sort((a, b) => (a.priority ?? 2) - (b.priority ?? 2));
+  if (model.player.study && model.player.study > 0) statuses.push({ label: "Study", name: "Study", visible: true, priority: void 0, kind: "study", duration: model.player.study, description: void 0 });
+  if (!statuses.length) return;
+  node(mount, "div", "heading", "Status effects");
+  const wrap = node(mount, "div", "badges");
+  for (const effect of statuses) {
+    const kind = effect.kind ?? "neutral";
+    const name = effect.name || effect.label || "Effect";
+    const badge = node(wrap, "span", "badge", kind === "study" && effect.duration !== void 0 ? `${name} - ${effect.duration}` : name);
+    badge.style.color = colours[kind];
+    badge.style.backgroundColor = `${colours[kind]}29`;
+    const lines = [effect.duration === void 0 ? name : `${name} (${effect.duration})`, kinds[kind]];
+    if (effect.description) lines.push("---------", effect.description);
+    badge.dataset.tip = lines.join("\n");
+  }
+}
+
+// src/panels/tracked-creature.ts
+function renderTrackedCreature(mount, model) {
+  mount.replaceChildren();
+  node(mount, "div", "heading", "Tracked creature");
+  const target = model.player.tracked_creature;
+  if (!target || !target.visible) {
+    node(mount, "div", "muted", target ? "Out of sight" : "No creature tracked");
+    meter(mount, "HP", "-- / --", 0, "#8f5e1f");
+    return;
+  }
+  node(mount, "div", "", target.name).dataset.tip = target.name;
+  if (target.hp !== void 0 && target.max_hp !== void 0) {
+    meter(mount, "HP", `${Math.max(0, target.hp)} / ${target.max_hp}`, fraction(target.hp, target.max_hp), "#8f5e1f");
+  }
+}
+
+// src/panels/message-log.ts
+var ink = { system: "#64a0b5b4", combat: "#c88f5fb4", loot: "#b1a962b4", other: "#5b8a71a0" };
+function renderMessageLog(mount, model) {
+  const previous = mount.querySelector("input")?.value ?? "";
+  mount.replaceChildren();
+  const heading = node(mount, "div", "heading", "Messages");
+  if (model.message_pending === true) {
+    heading.style.color = "#ffba4d";
+    node(mount, "div", "ribbon", "Messages waiting");
+  }
+  const search = node(mount, "input");
+  search.type = "search";
+  search.placeholder = "Search messages";
+  search.setAttribute("aria-label", "Search messages");
+  search.value = previous;
+  const list = node(mount, "div", "messages");
+  const recent = model.messages.slice(0, 20);
+  const draw = () => {
+    list.replaceChildren();
+    const match = search.value.toLocaleLowerCase();
+    if (!recent.length) {
+      node(list, "div", "muted", "No messages yet.");
+      return;
+    }
+    for (const [index, message] of recent.entries()) {
+      if (!message.text.toLocaleLowerCase().includes(match)) continue;
+      const row = node(list, "div", "message", `${message.text}${index === 0 && (message.count ?? 1) > 1 ? ` (x${message.count})` : ""}`);
+      const group = message.system ? "system" : message.group === "combat" ? "combat" : message.group === "loot" ? "loot" : "other";
+      row.style.color = ink[group];
+    }
+  };
+  search.addEventListener("input", draw);
+  draw();
+}
+
+// src/accessibility.ts
+var COLORBLIND_FILTER_ID = "anybandui-accessibility-colorblind";
+var HIGH_CONTRAST_FILTER = "contrast(1.55) saturate(1.2)";
+var COLORBLIND_MATRIX = "0.812 0.199 -0.011 0 0 0 1 0 0 0 -0.188 0.199 0.989 0 0 0 0 0 1 0";
+function accessibilityFilter(flags) {
+  const filters = [];
+  if (flags["anybandui.colourblind"] === true) filters.push(`url("#${COLORBLIND_FILTER_ID}")`);
+  else if (flags["anybandui.highContrast"] === true) filters.push(HIGH_CONTRAST_FILTER);
+  if (flags["anybandui.crt"] === true) filters.push("contrast(1.08) saturate(1.25) brightness(1.02)");
+  return filters.length ? filters.join(" ") : null;
+}
+function ensureColorblindFilter() {
+  if (typeof document === "undefined" || document.getElementById(COLORBLIND_FILTER_ID)) return;
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("aria-hidden", "true");
+  svg.setAttribute("width", "0");
+  svg.setAttribute("height", "0");
+  svg.style.position = "absolute";
+  const filter = document.createElementNS("http://www.w3.org/2000/svg", "filter");
+  filter.setAttribute("id", COLORBLIND_FILTER_ID);
+  const matrix = document.createElementNS("http://www.w3.org/2000/svg", "feColorMatrix");
+  matrix.setAttribute("type", "matrix");
+  matrix.setAttribute("values", COLORBLIND_MATRIX);
+  filter.appendChild(matrix);
+  svg.appendChild(filter);
+  document.body?.appendChild(svg);
+}
+var configuredDisplay = null;
+function installAccessibilityAccommodations(ctx) {
+  uninstallAccessibilityAccommodations();
+  const filter = accessibilityFilter(ctx.flags);
+  if (!filter) return;
+  if (!ctx.display) {
+    ctx.log?.("this game is too old for visual accessibility filters");
+    return;
+  }
+  if (ctx.flags["anybandui.colourblind"] === true) ensureColorblindFilter();
+  configuredDisplay = ctx.display;
+  if (ctx.display.setVisualFilter.length >= 2) ctx.display.setVisualFilter(filter, { scope: "game" });
+  else ctx.display.setVisualFilter(filter);
+  setPanelHostVisualFilter(filter);
+}
+function uninstallAccessibilityAccommodations() {
+  const display = configuredDisplay;
+  configuredDisplay = null;
+  if (display) {
+    if (display.setVisualFilter.length >= 2) display.setVisualFilter(null, { scope: "game" });
+    else display.setVisualFilter(null);
+  }
+  setPanelHostVisualFilter(null);
+}
+
+// src/encounter-preference.ts
+function record(value2) {
+  return value2 !== null && typeof value2 === "object" && !Array.isArray(value2);
+}
+function readFirstEncounterPreference2(raw) {
+  if (!record(raw)) return null;
+  const candidate = raw.v === 2 ? raw.firstEncounter : raw.v === 1 ? raw : void 0;
+  if (!record(candidate) || typeof candidate.characterKey !== "string" || !Array.isArray(candidate.monsters) || !Array.isArray(candidate.artifacts)) return null;
+  return {
+    characterKey: candidate.characterKey,
+    monsters: candidate.monsters.filter((value2) => typeof value2 === "number"),
+    artifacts: candidate.artifacts.filter((value2) => typeof value2 === "number")
+  };
+}
+function withFirstEncounterPreference(raw, firstEncounter) {
+  const existing = record(raw) && raw.v === 2 ? raw : {};
+  return { ...existing, v: 2, firstEncounter };
+}
+
+// src/first-encounter.ts
+var DEADLY_OUT_OF_DEPTH_LEVELS = 5;
+function classifyMonsterThreat(race, currentDepth) {
+  if (race.unique) return "unique";
+  const over = race.level - currentDepth;
+  if (over >= DEADLY_OUT_OF_DEPTH_LEVELS) return "deadly";
+  if (over >= 1) return "outOfDepth";
+  return "ordinary";
+}
+function characterKey(fingerprint) {
+  return [
+    fingerprint.raceName,
+    fingerprint.clsName,
+    fingerprint.auBirth,
+    fingerprint.htBirth,
+    fingerprint.wtBirth
+  ].join("|");
+}
+function readFirstEncounterNotebook(raw, key) {
+  const stored = readFirstEncounterPreference2(raw);
+  if (stored?.characterKey === key) {
+    return {
+      monsters: new Set(stored.monsters),
+      artifacts: new Set(stored.artifacts)
+    };
+  }
+  return { monsters: /* @__PURE__ */ new Set(), artifacts: /* @__PURE__ */ new Set() };
+}
+function withFirstEncounterNotebook(raw, key, notebook) {
+  const firstEncounter = {
+    characterKey: key,
+    monsters: [...notebook.monsters],
+    artifacts: [...notebook.artifacts]
+  };
+  return withFirstEncounterPreference(raw, firstEncounter);
+}
+function newMonsterSightings(visible, alreadySeen) {
+  const found = [];
+  const claimed = /* @__PURE__ */ new Set();
+  for (const race of visible) {
+    if (alreadySeen.has(race.ridx) || claimed.has(race.ridx)) continue;
+    claimed.add(race.ridx);
+    found.push(race);
+  }
+  return found;
+}
+function newArtifactFinds(carried, alreadySeen) {
+  const found = [];
+  const claimed = /* @__PURE__ */ new Set();
+  for (const artifact of carried) {
+    if (alreadySeen.has(artifact.aidx) || claimed.has(artifact.aidx)) continue;
+    claimed.add(artifact.aidx);
+    found.push(artifact);
+  }
+  return found;
+}
+function carriedKnownArtifacts(gear, liveObjectIsKnownArtifact) {
+  const found = [];
+  for (const obj of gear) {
+    if (obj.artifact && liveObjectIsKnownArtifact(obj)) found.push(obj.artifact);
+  }
+  return found;
+}
+var TIER_LABEL = {
+  unique: "Unique!",
+  deadly: "Deadly - well out of depth",
+  outOfDepth: "Out of depth",
+  ordinary: "First sighting"
+};
+var TIER_COLOR = {
+  unique: "#e8c34a",
+  deadly: "#e05a4e",
+  outOfDepth: "#e0954e",
+  ordinary: "#7fd88f"
+};
+function monsterCardContent(race, currentDepth, fmtDepth, colorToCss, tiles) {
+  const tier = classifyMonsterThreat(race, currentDepth);
+  const useTile = tiles !== void 0 && tiles.active && tiles.hasMonsterTile(race.ridx);
+  return {
+    kind: "monster",
+    title: TIER_LABEL[tier],
+    name: race.name,
+    depthText: fmtDepth(race.level),
+    tier,
+    glyphChar: race.dChar,
+    glyphColor: colorToCss(race.dAttr),
+    ...useTile ? { tilePaint: { ridx: race.ridx, tiles } } : {}
+  };
+}
+function artifactCardContent(artifact, fmtDepth) {
+  return {
+    kind: "artifact",
+    title: "Artifact found!",
+    name: artifact.name,
+    depthText: fmtDepth(artifact.level)
+  };
+}
+var POLL_MS = 750;
+var AUTO_DISMISS_MS = 9e3;
+var timer = null;
+var queue = [];
+var activePanel = null;
+var activeTimeout = null;
+var activeTheme = THEMES["terminal-original"];
+function showNext(ui) {
+  if (activePanel) return;
+  const content = queue.shift();
+  if (!content) return;
+  let panel;
+  try {
+    panel = ui.openPanel({ id: "first-encounter", modal: false, label: content.title });
+  } catch {
+    return;
+  }
+  activePanel = panel;
+  drawCard(panel, content, activeTheme);
+  const advance = () => {
+    activePanel = null;
+    showNext(ui);
+  };
+  void panel.closed.then(advance);
+  activeTimeout = setTimeout(() => {
+    activeTimeout = null;
+    panel.close();
+  }, AUTO_DISMISS_MS);
+}
+var TILE_PORTRAIT_SIZE = 24;
+function paintTilePortrait(tilePaint, dpr) {
+  const canvas = document.createElement("canvas");
+  const device = Math.max(1, Math.round(TILE_PORTRAIT_SIZE * dpr));
+  canvas.width = device;
+  canvas.height = device;
+  canvas.style.width = `${String(TILE_PORTRAIT_SIZE)}px`;
+  canvas.style.height = `${String(TILE_PORTRAIT_SIZE)}px`;
+  canvas.setAttribute("aria-hidden", "true");
+  const ctx2d = canvas.getContext("2d");
+  if (!ctx2d) return null;
+  ctx2d.imageSmoothingEnabled = false;
+  const drew = tilePaint.tiles.drawMonster(ctx2d, tilePaint.ridx, 0, 0, device, device);
+  return drew ? canvas : null;
+}
+function drawCard(panel, content, theme) {
+  const root = panel.root;
+  applyTheme(root, theme);
+  const style = document.createElement("style");
+  const accent = content.tier ? TIER_COLOR[content.tier] : TIER_COLOR.ordinary;
+  style.textContent = ":host { all: initial; }.wrap { position: fixed; inset: auto 1rem 1rem auto; display: flex; justify-content: flex-end; pointer-events: none; }.card { position: relative; pointer-events: auto; width: 19rem; max-width: calc(100vw - 2rem); background: var(--anyband-surface); color: var(--anyband-text); border-radius: var(--anyband-rounding); padding: .8rem 1rem; box-shadow: 0 6px 22px rgba(0,0,0,.45); border: 2px solid " + accent + "; animation: anyband-first-encounter-in .3s ease-out; }@keyframes anyband-first-encounter-in { from { transform: translateY(14px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }.head { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; }.glyph { flex: none; width: 2.1rem; height: 2.1rem; display: flex; align-items: center; justify-content: center; background: var(--anyband-background); border-radius: var(--anyband-rounding); }.depth { margin-top: .3rem; }.close { position: absolute; top: .3rem; right: .45rem; pointer-events: auto; background: none; border: none; opacity: .55; padding: .2rem; }.close:hover { opacity: 1; }";
+  const wrap = document.createElement("div");
+  wrap.className = "wrap";
+  const card = document.createElement("div");
+  card.className = "card";
+  card.setAttribute("role", "status");
+  const dpr = window.devicePixelRatio || 1;
+  const cellHeight = 16;
+  const cellWidth = cellHeight * (16 / 24);
+  const titleCellHeight = 12;
+  const titleCellWidth = titleCellHeight * (16 / 24);
+  const nameCellHeight = 20;
+  const nameCellWidth = nameCellHeight * (16 / 24);
+  const maxChars = Math.max(10, Math.floor((19 * 16 - 32 - 34) / nameCellWidth));
+  const close = document.createElement("button");
+  close.className = "close";
+  close.type = "button";
+  close.addEventListener("click", () => panel.close());
+  paintBitmapButtonLabel(close, "X", theme.text, cellWidth, cellHeight, dpr);
+  close.setAttribute("aria-label", "Dismiss");
+  const head = document.createElement("div");
+  head.className = "head";
+  if (content.tilePaint || content.glyphChar) {
+    const glyph = document.createElement("span");
+    glyph.className = "glyph";
+    const portrait = content.tilePaint ? paintTilePortrait(content.tilePaint, dpr) : null;
+    if (portrait) {
+      glyph.appendChild(portrait);
+    } else if (content.glyphChar) {
+      glyph.appendChild(
+        bitmapTextBlock(
+          [[{ text: content.glyphChar, css: content.glyphColor ?? theme.text }]],
+          24,
+          24,
+          dpr
+        )
+      );
+    }
+    head.append(glyph);
+  }
+  const titleBlock = document.createElement("div");
+  const title = bitmapTextBlock(
+    [[{ text: content.title.toUpperCase(), css: accent }]],
+    titleCellWidth,
+    titleCellHeight,
+    dpr
+  );
+  const name = bitmapTextBlock(
+    wrapBitmapText(content.name, maxChars).map((line) => [{ text: line, css: theme.text }]),
+    nameCellWidth,
+    nameCellHeight,
+    dpr
+  );
+  name.style.marginTop = ".15rem";
+  titleBlock.append(title, name);
+  head.append(titleBlock);
+  const depth = document.createElement("div");
+  depth.className = "depth";
+  depth.appendChild(
+    bitmapTextBlock(
+      [[{ text: `Native depth: ${content.depthText}`, css: theme.text }]],
+      cellWidth,
+      cellHeight,
+      dpr
+    )
+  );
+  card.append(close, head, depth);
+  wrap.append(card);
+  root.append(style, wrap);
+}
+function characterKeyFor(player) {
+  return characterKey({
+    raceName: player.race.name,
+    clsName: player.cls.name,
+    auBirth: player.auBirth,
+    htBirth: player.htBirth,
+    wtBirth: player.wtBirth
+  });
+}
+function installFirstEncounter(ctx) {
+  uninstallFirstEncounter();
+  if (!ctx.ui || typeof ctx.core.monsterListCollect !== "function" || typeof ctx.core.liveObjectIsKnownArtifact !== "function" || typeof ctx.core.fmtDepth !== "function" || typeof ctx.core.colorToCss !== "function") {
+    ctx.log?.("this game is too old for first-encounter alerts");
+    return;
+  }
+  const ui = ctx.ui;
+  activeTheme = ctx.theme ?? THEMES["terminal-original"];
+  const core = ctx.core;
+  const key = characterKeyFor(ctx.state.actor.player);
+  const notebook = readFirstEncounterNotebook(ctx.prefs?.get(), key);
+  const save = () => ctx.prefs?.set(withFirstEncounterNotebook(ctx.prefs?.get(), key, notebook));
+  timer = setInterval(() => {
+    let visible;
+    try {
+      visible = core.monsterListCollect(ctx.state).entries.map((entry2) => entry2.race);
+    } catch (error) {
+      ctx.log?.(`first-encounter alerts: could not read visible monsters: ${String(error)}`);
+      return;
+    }
+    const newMonsters = newMonsterSightings(visible, notebook.monsters);
+    let carried;
+    try {
+      carried = carriedKnownArtifacts(ctx.state.gear.store.values(), core.liveObjectIsKnownArtifact);
+    } catch (error) {
+      ctx.log?.(`first-encounter alerts: could not read carried gear: ${String(error)}`);
+      return;
+    }
+    const newArtifacts = newArtifactFinds(carried, notebook.artifacts);
+    if (newMonsters.length === 0 && newArtifacts.length === 0) return;
+    for (const race of newMonsters) notebook.monsters.add(race.ridx);
+    for (const artifact of newArtifacts) notebook.artifacts.add(artifact.aidx);
+    save();
+    const depth = ctx.state.chunk.depth;
+    for (const race of newMonsters) {
+      queue.push(monsterCardContent(race, depth, core.fmtDepth, core.colorToCss, ctx.tiles));
+    }
+    for (const artifact of newArtifacts) {
+      queue.push(artifactCardContent(artifact, core.fmtDepth));
+    }
+    showNext(ui);
+  }, POLL_MS);
+}
+function uninstallFirstEncounter() {
+  if (timer !== null) {
+    clearInterval(timer);
+    timer = null;
+  }
+  if (activeTimeout !== null) {
+    clearTimeout(activeTimeout);
+    activeTimeout = null;
+  }
+  activePanel?.close();
+  activePanel = null;
+  queue = [];
+}
+
 // src/map-overview.ts
 function mapProjection(snapshot) {
   if (snapshot.mode === "map" && typeof document !== "undefined") {
@@ -3749,98 +3914,6 @@ function installMapHoverCards(ctx) {
     clearHold();
     card.root.remove();
     hoverCardsWired = false;
-  };
-}
-
-// src/panels/surface.ts
-function interfaceScale(ctx) {
-  if (ctx.flags?.["anybandui.zoom"] !== true) return 1;
-  return INTERFACE_ZOOM_SCALES[readDisplayPreference(ctx.prefs?.get()).interfaceZoomIndex] ?? 1;
-}
-function prepare(ctx, root, css) {
-  applyTheme(root, THEMES[validateSettings(ctx.prefs?.get()).theme]);
-  const style = root.ownerDocument.createElement("style");
-  style.textContent = css;
-  root.appendChild(style);
-}
-function section(root, className) {
-  const container = root.ownerDocument.createElement("section");
-  container.className = className;
-  root.appendChild(container);
-  return container;
-}
-function openSurfaces(ctx, specs, overlay, css, onChange) {
-  const entries = /* @__PURE__ */ new Map();
-  const scale = (container) => {
-    container.style.zoom = String(interfaceScale(ctx));
-  };
-  const register = ctx.ui?.registerPanelKind;
-  if (register) {
-    const unregister = specs.map((spec) => register({
-      kind: spec.key,
-      label: spec.label,
-      ...spec.tab ? { tab: spec.tab } : {},
-      ...spec.minSize ? { minSize: spec.minSize } : {},
-      ...spec.placement ? { preferredPlacement: spec.placement } : {},
-      ...spec.fitHeight !== void 0 ? { fitHeight: spec.fitHeight } : {},
-      mount(host) {
-        prepare(ctx, host.root, css);
-        const entry2 = { container: section(host.root, overlay.className), host, active: host.active, fitted: spec.fitHeight ?? null };
-        entries.set(spec.key, entry2);
-        const stop = host.onStateChange((state) => {
-          entry2.active = state.active;
-          onChange();
-        });
-        onChange();
-        return () => {
-          stop();
-          entries.delete(spec.key);
-        };
-      }
-    }));
-    return {
-      mounts: () => new Map([...entries].filter(([, entry2]) => entry2.active).map(([key, entry2]) => {
-        scale(entry2.container);
-        return [key, entry2.container];
-      })),
-      fit: (key, px) => {
-        const entry2 = entries.get(key);
-        const next = Math.ceil(px);
-        if (entry2?.host && entry2.fitted !== next) {
-          entry2.fitted = next;
-          entry2.host.setFitHeight(next);
-        }
-      },
-      focus: (key) => entries.get(key)?.host?.requestFocus(),
-      close: () => {
-        for (const stop of unregister) stop();
-        entries.clear();
-      }
-    };
-  }
-  if (!ctx.ui?.openPanel) return null;
-  const panel = ctx.ui.openPanel({ id: overlay.id, modal: false, label: overlay.label });
-  prepare(ctx, panel.root, css);
-  for (const spec of specs) entries.set(spec.key, { container: section(panel.root, overlay.className), host: null, active: true, fitted: null });
-  let open = true;
-  void panel.closed.then(() => {
-    open = false;
-    entries.clear();
-  });
-  return {
-    mounts: () => open ? new Map([...entries].map(([key, entry2]) => {
-      scale(entry2.container);
-      return [key, entry2.container];
-    })) : /* @__PURE__ */ new Map(),
-    fit: () => {
-    },
-    focus: () => {
-    },
-    close: () => {
-      if (open) panel.close();
-      open = false;
-      entries.clear();
-    }
   };
 }
 
@@ -5620,6 +5693,7 @@ var quiverDisplay;
 var tileDisplay;
 var tileFullOverviewApplied = false;
 var displayCleanups = [];
+var characterPane = null;
 var plugin_default = {
   api: 1,
   register(_host, ctx) {
@@ -5645,7 +5719,7 @@ var plugin_default = {
       const display = ctx.display;
       installZoomPan({
         flags,
-        display,
+        display: gateSidebarExtent(display),
         manageTileSettings: false,
         ...ctx.prefs ? { prefs: ctx.prefs } : {},
         ...ctx.snapshot ? { snapshot: ctx.snapshot } : {},
@@ -5724,6 +5798,8 @@ var plugin_default = {
     }
   },
   uninstall() {
+    characterPane?.close();
+    characterPane = null;
     for (const cleanup of displayCleanups.splice(0).reverse()) cleanup();
     uninstallFirstEncounter();
     uninstallAccessibilityAccommodations();
@@ -5735,6 +5811,8 @@ var plugin_default = {
     tileFullOverviewApplied = false;
   },
   hud(ctx) {
+    characterPane?.close();
+    characterPane = null;
     const doc = globalThis.document;
     if (!doc?.body) return void 0;
     const enabled = {
@@ -5747,14 +5825,26 @@ var plugin_default = {
     const source = createSource(ctx);
     const theme = THEMES[validateSettings(ctx.prefs?.get()).theme];
     const output = {};
-    if (enabled.sidebar) {
-      const host = createPanelHost(doc, [
-        { key: "character", render: renderCharacterCard, select: (m) => {
-          const p = m.player;
-          return [p.name, p.race, p.class, p.title, p.hp, p.max_hp, p.sp, p.max_sp, p.food, p.food_max, p.experience, p.level_start_experience, p.next_level_experience, p.level, p.stats, p.gold, p.armour, p.speed, p.extra_moves];
-        } },
-        { key: "tracked", render: renderTrackedCreature, select: (m) => m.player.tracked_creature }
-      ], theme);
+    const cardPanels = [
+      { key: "character", render: renderCharacterCard, select: (m) => {
+        const p = m.player;
+        return [p.name, p.race, p.class, p.title, p.hp, p.max_hp, p.sp, p.max_sp, p.food, p.food_max, p.experience, p.level_start_experience, p.next_level_experience, p.level, p.stats, p.gold, p.armour, p.speed, p.extra_moves];
+      } },
+      { key: "tracked", render: renderTrackedCreature, select: (m) => m.player.tracked_creature }
+    ];
+    const pane = enabled.sidebar ? installCharacterPane({ flags: ctx.flags, ui: ctx.ui, prefs: ctx.prefs, display: ctx.display, log: ctx.log ?? (() => {
+    }) }, cardPanels) : null;
+    characterPane = pane;
+    if (pane) {
+      output.sidebar = { present(section2, frame) {
+        zoomPanHud({ flags: ctx.flags })?.sidebar?.present(section2, frame);
+        source.hud.sidebar.present(section2, frame);
+        pane.claimSidebar();
+        const model = source.snapshot();
+        if (model) pane.paint(model);
+      } };
+    } else if (enabled.sidebar) {
+      const host = createPanelHost(doc, cardPanels, theme);
       output.sidebar = { present(section2, frame) {
         zoomPanHud({ flags: ctx.flags })?.sidebar?.present(section2, frame);
         source.hud.sidebar.present(section2, frame);
@@ -5774,6 +5864,7 @@ var plugin_default = {
         source.hud.status.present(section2, frame);
         const model = source.snapshot();
         if (model) host.present(section2, frame, model);
+        if (model) pane?.paint(model);
       } };
     }
     if (enabled.messages) {
@@ -5782,6 +5873,7 @@ var plugin_default = {
         source.hud.messages.present(section2, frame);
         const model = source.snapshot();
         if (model) host.present(section2, frame, model);
+        if (model) pane?.paint(model);
       } };
     }
     return output;

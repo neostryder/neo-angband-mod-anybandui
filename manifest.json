@@ -71,8 +71,8 @@
     },
     {
       "flag": "anybandui.sidebar",
-      "title": "Character card",
-      "description": "Replaces the character column with a card: your name, race and class, bars for hit points, spell points, food and experience, your stats, gold, armour and speed, and a health bar for the creature you are tracking. Hover a bar or stat to see its numbers.",
+      "title": "TODO-PROSE",
+      "description": "TODO-PROSE",
       "default": false,
       "requiresReload": true
     },

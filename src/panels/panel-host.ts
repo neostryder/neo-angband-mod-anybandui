@@ -5,8 +5,12 @@ import type { ViewModel } from "../view-model/protocol.js";
 
 export type PanelRender = (mount: HTMLElement, model: ViewModel) => void;
 
-const CSS = `
-:host{position:fixed;display:none;z-index:50;box-sizing:border-box;color:var(--anyband-text);font:12px/1.35 system-ui,sans-serif}
+/** Places the overlay host over its HUD region. A host pane sizes its own slot, so
+ * character-pane.ts pairs PANEL_CSS with a :host rule of its own instead. */
+const HOST_CSS = `:host{position:fixed;display:none;z-index:50;box-sizing:border-box;color:var(--anyband-text);font:12px/1.35 system-ui,sans-serif}`;
+
+/** How a card looks inside its surface, shared by the overlay and the host pane. */
+export const PANEL_CSS = `
 *{box-sizing:border-box}.surface{width:100%;height:100%;overflow:auto;background:var(--anyband-surface);border:1px solid var(--anyband-accent);border-radius:var(--anyband-rounding);padding:5px}
 .group{min-height:0;overflow:auto}.heading{color:var(--anyband-accent);font-weight:700;border-bottom:1px solid var(--anyband-accent);margin:0 0 4px;padding-bottom:2px}
 .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}.metric-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}
@@ -17,6 +21,7 @@ const CSS = `
 .tip{display:none;position:absolute;z-index:2;max-width:26em;white-space:pre-wrap;pointer-events:none;background:var(--anyband-background);color:var(--anyband-text);border:1px solid var(--anyband-accent);border-radius:3px;padding:6px}
 input{width:100%;background:var(--anyband-background);color:var(--anyband-text);border:1px solid var(--anyband-accent)}
 `;
+const CSS = `${HOST_CSS}${PANEL_CSS}`;
 
 const panelHosts = new Set<HTMLElement>();
 let panelVisualFilter: string | null = null;
@@ -54,7 +59,35 @@ function intersects(a: { col: number; row: number; cols: number; rows: number },
   return a.col < b.col + b.cols && b.col < a.col + a.cols && a.row < b.row + b.rows && b.row < a.row + a.rows;
 }
 
-export function createPanelHost(doc: Document, panels: readonly { key: string; render: PanelRender; select: (model: ViewModel) => unknown }[], theme?: Readonly<ThemeTokens>): {
+export interface PanelSpec { readonly key: string; readonly render: PanelRender; readonly select: (model: ViewModel) => unknown }
+
+/** Fill a surface with one group per panel and a shared tooltip. render() redraws
+ * only the panels whose selected data changed since the last call. */
+export function createPanelContent(surface: HTMLElement, panels: readonly PanelSpec[]): { render(model: ViewModel): void } {
+  const mounts = panels.map(() => node(surface, "div", "group"));
+  const tip = node(surface, "div", "tip");
+  const signatures: string[] = [];
+  surface.addEventListener("mouseover", (event) => {
+    const target = event.target;
+    const subject = target instanceof HTMLElement ? target.closest<HTMLElement>("[data-tip]") : null;
+    tip.textContent = subject?.dataset.tip ?? "";
+    tip.style.display = subject ? "block" : "none";
+    if (subject) { tip.style.left = `${Math.min(subject.offsetLeft, Math.max(0, surface.clientWidth - tip.offsetWidth))}px`; tip.style.top = `${Math.min(subject.offsetTop + subject.offsetHeight, Math.max(0, surface.clientHeight - tip.offsetHeight))}px`; }
+  });
+  surface.addEventListener("mouseleave", () => { tip.style.display = "none"; });
+  return {
+    render(model) {
+      panels.forEach((panel, index) => {
+        const signature = JSON.stringify(panel.select(model));
+        if (signatures[index] === signature) return;
+        signatures[index] = signature;
+        panel.render(mounts[index]!, model);
+      });
+    },
+  };
+}
+
+export function createPanelHost(doc: Document, panels: readonly PanelSpec[], theme?: Readonly<ThemeTokens>): {
   present(section: HudSection, frame: HudFrame, model: ViewModel): void;
   element: HTMLElement;
 } {
@@ -66,18 +99,7 @@ export function createPanelHost(doc: Document, panels: readonly { key: string; r
   if (theme) applyTheme(shadow, theme);
   else applyTheme(shadow);
   node(shadow as unknown as HTMLElement, "style", "", CSS);
-  const surface = node(shadow as unknown as HTMLElement, "div", "surface");
-  const mounts = panels.map(() => node(surface, "div", "group"));
-  const tip = node(surface, "div", "tip");
-  let signatures: string[] = [];
-  surface.addEventListener("mouseover", (event) => {
-    const target = event.target;
-    const subject = target instanceof HTMLElement ? target.closest<HTMLElement>("[data-tip]") : null;
-    tip.textContent = subject?.dataset.tip ?? "";
-    tip.style.display = subject ? "block" : "none";
-    if (subject) { tip.style.left = `${Math.min(subject.offsetLeft, Math.max(0, surface.clientWidth - tip.offsetWidth))}px`; tip.style.top = `${Math.min(subject.offsetTop + subject.offsetHeight, Math.max(0, surface.clientHeight - tip.offsetHeight))}px`; }
-  });
-  surface.addEventListener("mouseleave", () => { tip.style.display = "none"; });
+  const content = createPanelContent(node(shadow as unknown as HTMLElement, "div", "surface"), panels);
   doc.body.appendChild(element);
   return {
     element,
@@ -96,12 +118,7 @@ export function createPanelHost(doc: Document, panels: readonly { key: string; r
       element.style.top = `${box.y}px`;
       element.style.width = `${box.width}px`;
       element.style.height = `${box.height}px`;
-      panels.forEach((panel, index) => {
-        const signature = JSON.stringify(panel.select(model));
-        if (signatures[index] === signature) return;
-        signatures[index] = signature;
-        panel.render(mounts[index]!, model);
-      });
+      content.render(model);
     },
   };
 }
