@@ -1,3 +1,4 @@
+import { playerIsDriving } from "./input-owner.js";
 import { applyTheme, THEMES } from "./theme.js";
 import { validateSettings } from "./settings.js";
 import type { Phase4Context, Phase4Snapshot, SpellPrompt } from "./seams.js";
@@ -77,7 +78,7 @@ export function installPhase4(ctx: Phase4Context): () => void {
             for (let i = 0; i < 30; i++) button(box, `${i < 10 ? "" : i < 20 ? "Shift+" : "Ctrl+"}${keys[i % 10]}`, () => assign(i, { type: "spell", key: book.key, index: selected.index, name: selected.name })); }
         }
       }
-      if (snap.prompt?.kind === "spell" && ctx.prompt?.reply && (ctx.controller?.driver?.()?.kind ?? "player") === "player") {
+      if (snap.prompt?.kind === "spell" && ctx.prompt?.reply && playerIsDriving(ctx)) {
         // Spell prompts own their choices; the item panel only handles item and quantity prompts.
         const prompt = snap.prompt as SpellPrompt; const box = el(mount, "div"); box.className = "menu"; el(box, "h3", "Choose spell"); el(box, "p", prompt.label);
         for (const choice of prompt.choices) button(box, choice.name, () => { promptChoice = choice.index; paint(true); });

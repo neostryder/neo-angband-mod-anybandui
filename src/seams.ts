@@ -9,9 +9,10 @@ export interface Grid { readonly x: number; readonly y: number }
 export interface InputToken { readonly epoch: number; readonly revision: number }
 export interface ItemView { readonly handle: number; readonly label: string; readonly number: number; readonly inscription: string | null; readonly kindId?: string; readonly tval: number; readonly sval: number; readonly pval?: number; readonly timeout?: number; readonly artifact: boolean; readonly ego: boolean }
 export interface CoreSnapshot {
-  readonly player?: { readonly grid: Grid } | null;
+  readonly player?: { readonly grid: Grid; readonly gold?: number } | null;
   readonly inventory?: readonly ItemView[] | null;
   readonly equipment?: readonly (ItemView | null)[] | null;
+  readonly stores?: readonly StoreView[] | null;
 }
 interface PromptBase { readonly promptId: number; readonly label?: string; readonly cursor?: Grid; readonly path?: readonly Grid[] }
 export type ItemPrompt = PromptBase & { readonly kind: "item"; readonly label: string; readonly choices: readonly { readonly handle: number; readonly label: string; readonly letter: string }[]; readonly tabs: Readonly<{ floor: boolean; quiver: boolean; equipment: boolean }> };
@@ -46,11 +47,11 @@ export interface ItemRulesResult {
   readonly egos: readonly { readonly eidx: number; readonly name: string; readonly itype: number; readonly ignored: boolean }[];
 }
 export interface InspectSeam { inspectItem(ref: number): InspectResult | null; itemTester(code: string): ItemTesterResult | null; itemRules?(): ItemRulesResult | null }
-export interface PromptSeam { reply(promptId: number, answer: number): IntentResult }
+export interface PromptSeam { reply(promptId: number, answer: number | boolean): IntentResult }
 export interface LoadoutStats { readonly speed: number; readonly ac: number; readonly toH: number; readonly toD: number; readonly blows: number; readonly shots: number; readonly maxHp: number; readonly maxSp: number; readonly totalWeight: number; readonly statUse: readonly number[]; readonly resists: readonly number[]; readonly resistElements: readonly string[]; readonly objectFlags: readonly string[] }
 export interface LoadoutSimulation { readonly before: { readonly stats: LoadoutStats }; readonly after: { readonly stats: LoadoutStats }; readonly placements: readonly { readonly slot: number; readonly displaced: ItemView | null }[]; readonly unresolved: readonly unknown[] }
 export interface ActionBuilders { wear(handle: number): AgentCommand; takeoff(handle: number): AgentCommand; drop(handle: number, quantity?: number): AgentCommand; raw(code: string, args?: Record<string, unknown>): AgentCommand }
-export interface ItemsContext { readonly flags?: Readonly<Record<string, boolean>>; readonly snapshot?: () => InputSnapshot | null; readonly inspect?: InspectSeam; readonly intent?: IntentSeam; readonly prompt?: PromptSeam; readonly ui?: { openPanel(spec: { id: string; modal: boolean; label: string }): { readonly root: ShadowRoot; readonly closed: Promise<void>; close(): void } }; readonly core?: { createAgentView?(state: unknown): { simulateLoadout?(change: { wield: readonly { from: "gear"; handle: number }[] }): LoadoutSimulation | null }; createAgentActions?(state: unknown): ActionBuilders }; readonly state?: unknown; readonly prefs?: { get(): unknown }; readonly log: (message: string) => void }
+export interface ItemsContext { readonly flags?: Readonly<Record<string, boolean>>; readonly snapshot?: () => InputSnapshot | null; readonly inspect?: InspectSeam; readonly intent?: IntentSeam; readonly prompt?: PromptSeam; readonly ui?: { openPanel(spec: { id: string; modal: boolean; label: string }): { readonly root: ShadowRoot; readonly closed: Promise<void>; close(): void } }; readonly core?: { createAgentView?(state: unknown): { simulateLoadout?(change: { wield: readonly ({ from: "gear"; handle: number } | { from: "store"; store: number; index: number })[] }): LoadoutSimulation | null }; createAgentActions?(state: unknown): ActionBuilders }; readonly state?: unknown; readonly prefs?: { get(): unknown }; readonly log: (message: string) => void }
 
 // Map mouse: the map-facing slice of the same seams.
 export interface MouseSeams {
@@ -72,3 +73,15 @@ export interface SpellInspectResult { readonly token: InputToken; readonly name:
 export interface SpellPrompt { readonly kind: "spell"; readonly promptId: number; readonly label: string; readonly choices: readonly { readonly index: number; readonly name: string; readonly level: number; readonly mana: number; readonly fail: number; readonly castable: boolean }[] }
 export interface Phase4Snapshot extends Omit<InputSnapshot, "core" | "prompt"> { readonly core: CoreSnapshot & { readonly spellbooks?: readonly SpellbookView[] | null; readonly player?: (NonNullable<CoreSnapshot["player"]> & { readonly level?: number; readonly sp?: number; readonly hp?: number; readonly maxHp?: number; readonly maxSp?: number; readonly classFlags?: readonly string[] }) | null }; readonly prompt: InputSnapshot["prompt"] | SpellPrompt }
 export interface Phase4Context { readonly flags?: Readonly<Record<string, boolean>>; readonly snapshot?: () => Phase4Snapshot | null; readonly intent?: IntentSeam; readonly prompt?: { reply(promptId: number, answer: number | string | null): IntentResult }; readonly inspect?: { spellInfo?(index: number): SpellInspectResult | null; bookForItem?(handle: number): number | null; itemTester?(code: string): ItemTesterResult | null; inspectItem?(handle: number): InspectResult | null; blastArea?(to: Grid, radius: number): { readonly token: InputToken; readonly grids: readonly Grid[] } | null; projectionPath?(to: Grid): { readonly token: InputToken; readonly grids: readonly Grid[] } | null }; readonly ui?: ItemsContext["ui"]; readonly prefs?: { get(): unknown; set(value: unknown): void }; readonly display?: { snapshot(): import("./zoom.js").DisplaySnapshot }; readonly controller?: { driver(): { readonly kind: "player" | "autoplayer"; readonly owner?: string; readonly label?: string } | null }; readonly character?: { key(): string | null }; readonly targeting?: { blastRadius(): number | null }; readonly log: (message: string) => void }
+// Phase 5: StoreView mirrors packages/core/src/agent/types.ts; CoreSnapshot.stores
+// and player.gold mirror agent/boundary.ts and entity-views.ts. StoreContext
+// combines packages/web/src/mod-plugin.ts with an optional proposed store
+// status read. The current host does not publish readiness or sell eligibility.
+export interface StoreItemView extends ItemView { readonly index: number; readonly price?: number }
+export interface StoreView { readonly feat: number; readonly featName: string; readonly isHome: boolean; readonly owner: { readonly name: string; readonly purse: number }; readonly stock: readonly StoreItemView[] }
+export interface StoreStatus { readonly feat: number; readonly ready: boolean; readonly noSelling: boolean; readonly transactionPrompts?: boolean; readonly inventory?: readonly { readonly handle: number; readonly eligible: boolean; readonly price?: number }[] }
+export interface StoreContext extends ItemsContext {
+  readonly knownLevel?: () => KnownLevel | null;
+  readonly controller?: { driver?(): { readonly kind: "player" | "autoplayer"; readonly owner?: string; readonly label?: string } | null };
+  readonly store?: { current?(): StoreStatus | null };
+}

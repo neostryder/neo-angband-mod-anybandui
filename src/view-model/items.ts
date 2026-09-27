@@ -17,11 +17,12 @@ export function adaptItems(snap: InputSnapshot): ItemsModel | null {
       ...snap.core.equipment.flatMap((item, slot) => item ? [row(item, "equipment", slot)] : [])] };
 }
 
-export function compareItem(ctx: ItemsContext, token: InputToken, handle: number): LoadoutSimulation | null {
+export function compareItem(ctx: ItemsContext, token: InputToken, handle: number | { store: number; index: number }): LoadoutSimulation | null {
   if (!ctx.core?.createAgentView || !ctx.state) return null;
   const before = ctx.snapshot?.();
   if (!before || before.token.epoch !== token.epoch || before.token.revision !== token.revision) return null;
-  return ctx.core.createAgentView(ctx.state).simulateLoadout?.({ wield: [{ from: "gear", handle }] }) ?? null;
+  const ref = typeof handle === "number" ? { from: "gear" as const, handle } : { from: "store" as const, ...handle };
+  return ctx.core.createAgentView(ctx.state).simulateLoadout?.({ wield: [ref] }) ?? null;
 }
 
 export class AcquisitionChanges {

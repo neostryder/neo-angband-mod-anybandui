@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { adapt } from "./adapter.js";
 import { createSource } from "./source.js";
 import { adaptItems } from "./items.js";
+import { adaptStore } from "./stores.js";
 import type { InputSnapshot } from "../seams.js";
 
 const checkout = process.env["NEO_ANGBAND_REPO"];
@@ -65,6 +66,13 @@ describe.skipIf(!checkout)("adapter over a real game", () => {
       if (captured) {
         adaptItems({ token: captured.token, phase: "play", prompt: null,
           core: { inventory: captured.inventory, equipment: captured.equipment } } as InputSnapshot);
+        // Store adaptation reads only copied store, gear and known-cell views.
+        adaptStore({ token: captured.token, phase: "store", prompt: null,
+          core: { player: captured.player, inventory: captured.inventory,
+            equipment: captured.equipment, stores: captured.stores } } as InputSnapshot,
+          view.knownLevel?.() ?? null, null);
+        const stocked = captured.stores?.findIndex((store: { stock: readonly unknown[] }) => store.stock.length > 0) ?? -1;
+        if (stocked >= 0) view.simulateLoadout?.({ wield: [{ from: "store", store: stocked, index: 0 }] });
       }
     }
     expect(fingerprint()).toBe(before);

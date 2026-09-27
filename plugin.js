@@ -265,7 +265,7 @@ function node(parent, tag, className = "", value2) {
 function fraction(current, maximum) {
   return maximum > 0 ? Math.max(0, Math.min(1, current / maximum)) : 0;
 }
-function meter(parent, label2, value2, amount, colour, tip) {
+function meter(parent, label2, value2, amount, colour, tip2) {
   const cell = node(parent, "div", "meter");
   node(cell, "span", "", label2);
   node(cell, "span", "", ` ${value2}`);
@@ -273,7 +273,7 @@ function meter(parent, label2, value2, amount, colour, tip) {
   const fill = node(track, "div", "fill");
   fill.style.width = `${Math.round(amount * 100)}%`;
   fill.style.backgroundColor = colour;
-  if (tip) cell.dataset.tip = tip;
+  if (tip2) cell.dataset.tip = tip2;
 }
 function intersects(a, b) {
   return a.col < b.col + b.cols && b.col < a.col + a.cols && a.row < b.row + b.rows && b.row < a.row + a.rows;
@@ -289,20 +289,20 @@ function createPanelHost(doc, panels, theme) {
   node(shadow, "style", "", CSS);
   const surface = node(shadow, "div", "surface");
   const mounts = panels.map(() => node(surface, "div", "group"));
-  const tip = node(surface, "div", "tip");
+  const tip2 = node(surface, "div", "tip");
   let signatures = [];
   surface.addEventListener("mouseover", (event) => {
     const target = event.target;
     const subject = target instanceof HTMLElement ? target.closest("[data-tip]") : null;
-    tip.textContent = subject?.dataset.tip ?? "";
-    tip.style.display = subject ? "block" : "none";
+    tip2.textContent = subject?.dataset.tip ?? "";
+    tip2.style.display = subject ? "block" : "none";
     if (subject) {
-      tip.style.left = `${Math.min(subject.offsetLeft, Math.max(0, surface.clientWidth - tip.offsetWidth))}px`;
-      tip.style.top = `${Math.min(subject.offsetTop + subject.offsetHeight, Math.max(0, surface.clientHeight - tip.offsetHeight))}px`;
+      tip2.style.left = `${Math.min(subject.offsetLeft, Math.max(0, surface.clientWidth - tip2.offsetWidth))}px`;
+      tip2.style.top = `${Math.min(subject.offsetTop + subject.offsetHeight, Math.max(0, surface.clientHeight - tip2.offsetHeight))}px`;
     }
   });
   surface.addEventListener("mouseleave", () => {
-    tip.style.display = "none";
+    tip2.style.display = "none";
   });
   doc.body.appendChild(element);
   return {
@@ -353,10 +353,10 @@ function renderCharacterCard(mount, model) {
     const base = p.level_start_experience;
     const progress = next > 0 && base !== void 0 ? fraction(p.experience - base, next - base) : 0;
     const value2 = next <= 0 ? "MAX" : base === void 0 ? `${p.experience} - Lv ${p.level}` : `${Math.round(progress * 100)}% - Lv ${p.level}`;
-    const tip = [`Level ${p.level}`, `Experience: ${p.experience}`, next <= 0 ? "Maximum level reached" : `Next level: ${next}
+    const tip2 = [`Level ${p.level}`, `Experience: ${p.experience}`, next <= 0 ? "Maximum level reached" : `Next level: ${next}
 Remaining: ${Math.max(0, next - p.experience)}`].join("\n");
-    if (next <= 0 || base !== void 0) meter(grid, "XP", value2, progress, "#8f5e1f", tip);
-    else node(grid, "div", "metric", `XP ${value2}`).dataset.tip = tip;
+    if (next <= 0 || base !== void 0) meter(grid, "XP", value2, progress, "#8f5e1f", tip2);
+    else node(grid, "div", "metric", `XP ${value2}`).dataset.tip = tip2;
   } else {
     node(grid, "div", "metric", `XP ${p.experience} - Lv ${p.level}`);
   }
@@ -384,10 +384,10 @@ function renderDungeonCard(mount, model) {
   const p = model.player;
   const d = model.dungeon;
   const grid = node(mount, "div", "grid");
-  for (const [label2, value2, tip] of [["Depth", String(d.depth), `Depth: ${d.depth_feet} feet`], ["Light", String(d.light), ""], ["Feel", d.feeling || "?", d.feeling_description ?? ""], ["", d.floor ?? "", ""]]) {
+  for (const [label2, value2, tip2] of [["Depth", String(d.depth), `Depth: ${d.depth_feet} feet`], ["Light", String(d.light), ""], ["Feel", d.feeling || "?", d.feeling_description ?? ""], ["", d.floor ?? "", ""]]) {
     const tile = node(grid, "div", "metric", label2);
     node(tile, "b", "", value2);
-    if (tip) tile.dataset.tip = tip;
+    if (tip2) tile.dataset.tip = tip2;
   }
   for (const [condition, label2] of [[p.trap_detected, "Trap-detected area"], [p.recall, "Recall pending"], [p.descent, "Descent pending"], [p.resting, "Resting"], [p.running, "Running"], [p.repeat, `Repeating: ${p.repeat}`], [p.unignoring, "Showing ignored items"]]) {
     if (condition) node(mount, "div", "", label2);
@@ -1200,8 +1200,8 @@ function wrapBitmapParagraphs(text, maxChars) {
     (paragraph) => paragraph.trim() === "" ? [""] : wrapBitmapText(paragraph, maxChars)
   );
 }
-function styleAsScreenReaderOnly(el3) {
-  Object.assign(el3.style, {
+function styleAsScreenReaderOnly(el5) {
+  Object.assign(el5.style, {
     position: "absolute",
     width: "1px",
     height: "1px",
@@ -1225,14 +1225,14 @@ function bitmapTextBlock(lines, cellWidth, cellHeight, dpr) {
   wrap.appendChild(label2);
   return wrap;
 }
-function paintBitmapButtonLabel(button3, text, css, cellWidth, cellHeight, dpr) {
-  button3.replaceChildren();
-  if (!button3.hasAttribute("aria-label")) button3.setAttribute("aria-label", text);
+function paintBitmapButtonLabel(button4, text, css, cellWidth, cellHeight, dpr) {
+  button4.replaceChildren();
+  if (!button4.hasAttribute("aria-label")) button4.setAttribute("aria-label", text);
   const canvas = document.createElement("canvas");
   canvas.setAttribute("aria-hidden", "true");
   canvas.style.display = "block";
   paintBitmapLine(canvas, [{ text, css }], cellWidth, cellHeight, dpr);
-  button3.appendChild(canvas);
+  button4.appendChild(canvas);
 }
 
 // src/encounter-preference.ts
@@ -2514,11 +2514,11 @@ function paintSidebar(rt, section, frame) {
     sidebar.body.appendChild(row);
   }
   if (plan.pages > 1) {
-    const button3 = document.createElement("button");
-    button3.type = "button";
-    button3.setAttribute("data-anybandui-sidebar-page", "");
-    button3.setAttribute("aria-label", `Show status page ${String((plan.page + 1) % plan.pages + 1)} of ${String(plan.pages)}`);
-    Object.assign(button3.style, {
+    const button4 = document.createElement("button");
+    button4.type = "button";
+    button4.setAttribute("data-anybandui-sidebar-page", "");
+    button4.setAttribute("aria-label", `Show status page ${String((plan.page + 1) % plan.pages + 1)} of ${String(plan.pages)}`);
+    Object.assign(button4.style, {
       appearance: "none",
       background: "transparent",
       border: "1px solid #686878",
@@ -2529,15 +2529,15 @@ function paintSidebar(rt, section, frame) {
       padding: "0 0.35em"
     });
     paintBitmapButtonLabel(
-      button3,
+      button4,
       `${String(plan.page + 1)}/${String(plan.pages)} >`,
       "#d8d87c",
       cellWidth,
       cellHeight,
       dpr
     );
-    button3.addEventListener("click", () => turnSidebarPage(rt, 1));
-    sidebar.body.appendChild(button3);
+    button4.addEventListener("click", () => turnSidebarPage(rt, 1));
+    sidebar.body.appendChild(button4);
   }
 }
 function cameraOrigin(snapshot, point) {
@@ -3371,18 +3371,18 @@ function hoverCardContent(core, state, grid) {
   return { kind, text, title: KIND_TITLE[kind] };
 }
 var hoverCardsWired = false;
-function positionHoverCard(el3, clientX, clientY) {
+function positionHoverCard(el5, clientX, clientY) {
   const GAP = 14;
   const vw = window.innerWidth;
   const vh = window.innerHeight;
-  const w = el3.offsetWidth;
-  const h = el3.offsetHeight;
+  const w = el5.offsetWidth;
+  const h = el5.offsetHeight;
   let left = clientX + GAP;
   let top = clientY + GAP;
   if (left + w > vw) left = clientX - GAP - w;
   if (top + h > vh) top = clientY - GAP - h;
-  el3.style.left = `${String(Math.max(0, left))}px`;
-  el3.style.top = `${String(Math.max(0, top))}px`;
+  el5.style.left = `${String(Math.max(0, left))}px`;
+  el5.style.top = `${String(Math.max(0, top))}px`;
 }
 var HOVER_CARD_CELL_HEIGHT = 14;
 var HOVER_CARD_CELL_WIDTH = HOVER_CARD_CELL_HEIGHT * (16 / 24);
@@ -3649,8 +3649,8 @@ function installMapHoverCards(ctx) {
       if (ctx.display?.snapshot().mode !== "map" && !mapOpenGuess) return;
       const resolved = resolveCaveGrid(ev.clientX, ev.clientY);
       if (touchPinned) {
-        const same2 = resolved !== null && shownGridKey !== null && gridKey(resolved.grid) === shownGridKey;
-        if (same2) {
+        const same4 = resolved !== null && shownGridKey !== null && gridKey(resolved.grid) === shownGridKey;
+        if (same4) {
           ev.preventDefault();
           ev.stopImmediatePropagation();
           return;
@@ -3788,7 +3788,8 @@ function compareItem(ctx, token, handle) {
   if (!ctx.core?.createAgentView || !ctx.state) return null;
   const before = ctx.snapshot?.();
   if (!before || before.token.epoch !== token.epoch || before.token.revision !== token.revision) return null;
-  return ctx.core.createAgentView(ctx.state).simulateLoadout?.({ wield: [{ from: "gear", handle }] }) ?? null;
+  const ref = typeof handle === "number" ? { from: "gear", handle } : { from: "store", ...handle };
+  return ctx.core.createAgentView(ctx.state).simulateLoadout?.({ wield: [ref] }) ?? null;
 }
 var AcquisitionChanges = class {
   previous = /* @__PURE__ */ new Map();
@@ -3865,20 +3866,87 @@ function submitItem(intent, inspect, token, code, handle, command) {
   return intent?.submit(token, { kind: "command", command }) ?? { accepted: false, reason: "Intent seam unavailable." };
 }
 
+// src/panels/item-comparison.ts
+var METRICS = [["speed", "Speed", 1], ["ac", "Armour", 1], ["toH", "To hit", 1], ["toD", "To damage", 1], ["blows", "Blows", 100], ["shots", "Shots", 10], ["maxHp", "Max HP", 1], ["maxSp", "Max SP", 1], ["totalWeight", "Weight", 10]];
+var tip = "Whole-character preview. The replaced item stays in your pack; an item from outside your belongings adds its weight.";
+function readableFlag(flag) {
+  const words = flag.replace(/^(OF|OBJ_MOD|ELEM)_/, "").replaceAll("_", " ").toLowerCase();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+function el(parent, tag, value2) {
+  const node2 = parent.ownerDocument.createElement(tag);
+  if (value2 !== void 0) node2.textContent = value2;
+  parent.appendChild(node2);
+  return node2;
+}
+function renderItemComparison(parent, sim, unchanged, toggle) {
+  if (sim.unresolved.length) return;
+  const details = el(parent, "details");
+  details.open = true;
+  el(details, "summary", "Equipment comparison");
+  if (!sim.placements.length) {
+    el(details, "p", "No compatible equipment slot.");
+    return;
+  }
+  const placement = sim.placements[0];
+  el(details, "p", `Replacing: ${placement.displaced?.label ?? "empty slot"}`);
+  el(details, "p", "Known properties only; unidentified effects may differ.");
+  const checkbox = el(details, "input");
+  checkbox.type = "checkbox";
+  checkbox.checked = unchanged;
+  checkbox.addEventListener("change", () => toggle(checkbox.checked));
+  el(details, "span", " Show unchanged stats");
+  const table = el(details, "table");
+  const head = el(table, "tr");
+  for (const label2 of ["Stat", "Current", "Selected", "Change"]) el(head, "th", label2);
+  for (const [key, label2, scale] of METRICS) {
+    const before = sim.before.stats[key];
+    const after = sim.after.stats[key];
+    const delta = after - before;
+    if (!unchanged && !delta && !["speed", "ac", "blows"].includes(key)) continue;
+    const row = el(table, "tr");
+    const name = el(row, "td", label2);
+    name.title = tip;
+    el(row, "td", String(before / scale));
+    el(row, "td", String(after / scale));
+    const change = el(row, "td", delta ? `${delta > 0 ? "+" : ""}${delta / scale}` : "-");
+    change.className = delta === 0 ? "muted" : key === "totalWeight" ? delta < 0 ? "gain" : "loss" : delta > 0 ? "gain" : "loss";
+  }
+  for (const [index, name] of ["STR", "INT", "WIS", "DEX", "CON"].entries()) {
+    const before = sim.before.stats.statUse[index], after = sim.after.stats.statUse[index];
+    if (before === void 0 || after === void 0 || !unchanged && before === after) continue;
+    const row = el(table, "tr");
+    for (const value2 of [name, String(before), String(after), after === before ? "-" : `${after > before ? "+" : ""}${after - before}`]) el(row, "td", value2);
+  }
+  el(details, "h4", "Resistances and abilities");
+  sim.after.stats.resists.forEach((after, index) => {
+    const before = sim.before.stats.resists[index] ?? 0;
+    if (unchanged || after !== before) el(details, "div", `${sim.after.stats.resistElements[index] ?? `Element ${index + 1}`}: ${before} to ${after}`);
+  });
+  for (const flag of /* @__PURE__ */ new Set([...sim.before.stats.objectFlags, ...sim.after.stats.objectFlags])) {
+    const before = sim.before.stats.objectFlags.includes(flag), after = sim.after.stats.objectFlags.includes(flag);
+    if (unchanged || before !== after) el(details, "div", `${readableFlag(flag)}: ${before ? "Yes" : "No"} to ${after ? "Yes" : "No"}`);
+  }
+}
+
+// src/input-owner.ts
+function playerIsDriving(ctx) {
+  return (ctx?.controller?.driver?.()?.kind ?? "player") === "player";
+}
+
 // src/panels/items.ts
 var CSS2 = `:host{color:var(--anyband-text);font:13px/1.4 system-ui,sans-serif}.items{position:absolute;right:12px;top:12px;width:min(440px,44vw);max-height:calc(100vh - 24px);overflow:auto;padding:10px;background:var(--anyband-surface);border:1px solid var(--anyband-accent);border-radius:var(--anyband-rounding);pointer-events:auto}button,input,select{font:inherit;color:var(--anyband-text);background:var(--anyband-background);border:1px solid var(--anyband-accent);border-radius:3px;padding:3px 5px}button{cursor:pointer}button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--anyband-accent)}input[type=search]{width:100%}.tabs,.actions,.quick{display:flex;gap:5px;flex-wrap:wrap;margin:6px 0}table{width:100%;border-collapse:collapse}th{text-align:left;position:sticky;top:0;background:var(--anyband-surface)}td,th{padding:3px;border-bottom:1px solid var(--anyband-accent)}tr.new{background:#437d5541}.row{width:100%;text-align:left;border:0;background:transparent}details{margin:8px 0}summary{color:var(--anyband-accent);cursor:pointer;font-weight:bold}.muted{opacity:.65}.gain{color:#80b891}.loss{color:#ff7559}.error{color:#ff7559}.prompt{border:1px solid var(--anyband-accent);padding:8px;margin:8px 0}`;
 var ACTIONS = ["wield", "takeoff", "drop", "inscribe", "use"];
 var ACTION_LABELS = { wield: "Wield", takeoff: "Take off", drop: "Drop", inscribe: "Inscribe", use: "Use" };
 var USE_CODES = ["activate", "use-staff", "aim-wand", "zap-rod", "eat", "quaff", "read"];
-var METRICS = [["speed", "Speed", 1], ["ac", "Armour", 1], ["toH", "To hit", 1], ["toD", "To damage", 1], ["blows", "Blows", 100], ["shots", "Shots", 10], ["maxHp", "Max HP", 1], ["maxSp", "Max SP", 1], ["totalWeight", "Weight", 10]];
-function el(parent, tag, text) {
+function el2(parent, tag, text) {
   const child = parent.ownerDocument.createElement(tag);
   if (text !== void 0) child.textContent = text;
   parent.appendChild(child);
   return child;
 }
 function button(parent, label2, action) {
-  const b = el(parent, "button", label2);
+  const b = el2(parent, "button", label2);
   b.type = "button";
   b.addEventListener("click", action);
   return b;
@@ -3897,8 +3965,8 @@ function installItems(ctx) {
   }
   const panel = ctx.ui.openPanel({ id: "items", modal: false, label: "Items" });
   applyTheme(panel.root, THEMES[validateSettings(ctx.prefs?.get()).theme]);
-  el(panel.root, "style", CSS2);
-  const mount = el(panel.root, "section");
+  el2(panel.root, "style", CSS2);
+  const mount = el2(panel.root, "section");
   mount.className = "items";
   const changes = new AcquisitionChanges();
   let tab = "pack";
@@ -3921,7 +3989,7 @@ function installItems(ctx) {
   };
   const act = (model, item, code) => {
     const latest = read();
-    if (!latest || !same(latest.token, model.token) || latest.phase !== "play" || latest.prompt || !ctx.intent?.submit) {
+    if (!latest || !same(latest.token, model.token) || latest.phase !== "play" || latest.prompt || !ctx.intent?.submit || !playerIsDriving(ctx)) {
       error = "Action unavailable at this input wait.";
       paint(true);
       return;
@@ -3945,6 +4013,7 @@ function installItems(ctx) {
     paint(true);
   };
   const showPrompt = (model) => {
+    if (model.phase !== "play" || !playerIsDriving(ctx)) return;
     const prompt = model.prompt;
     if (!prompt || !ctx.prompt?.reply) return;
     if (prompt.kind === "quantity" && enabled("Quantity")) {
@@ -3953,12 +4022,12 @@ function installItems(ctx) {
         promptId = q.promptId;
         quantity = q.defaultValue;
       }
-      const box = el(mount, "section");
+      const box = el2(mount, "section");
       box.className = "prompt";
-      el(box, "h3", "Choose quantity");
-      el(box, "p", q.label);
-      el(box, "p", `Available for this action: ${q.max}`);
-      const input = el(box, "input");
+      el2(box, "h3", "Choose quantity");
+      el2(box, "p", q.label);
+      el2(box, "p", `Available for this action: ${q.max}`);
+      const input = el2(box, "input");
       input.type = "number";
       input.min = String(q.min);
       input.max = String(q.max);
@@ -3966,7 +4035,7 @@ function installItems(ctx) {
       input.addEventListener("input", () => {
         quantity = Number(input.value);
       });
-      const quick = el(box, "div");
+      const quick = el2(box, "div");
       quick.className = "quick";
       for (const label2 of ["One", "Half", "All"]) button(quick, label2, () => {
         quantity = quantityShortcut(q, label2);
@@ -3983,29 +4052,29 @@ function installItems(ctx) {
         promptId = p.promptId;
         selected = p.choices[0]?.handle ?? null;
       }
-      const box = el(mount, "section");
+      const box = el2(mount, "section");
       box.className = "prompt";
-      el(box, "h3", "Angband asks");
-      el(box, "p", p.label);
-      const table = el(box, "table");
-      const head = el(table, "tr");
-      for (const name of ["Key", "Item", "Location", "Qty"]) el(head, "th", name);
+      el2(box, "h3", "Angband asks");
+      el2(box, "p", p.label);
+      const table = el2(box, "table");
+      const head = el2(table, "tr");
+      for (const name of ["Key", "Item", "Location", "Qty"]) el2(head, "th", name);
       for (const choice of p.choices) {
         const item = model.rows.find((row2) => row2.handle === choice.handle);
-        const row = el(table, "tr");
-        el(row, "td", choice.letter);
-        const cell = el(row, "td");
+        const row = el2(table, "tr");
+        el2(row, "td", choice.letter);
+        const cell = el2(row, "td");
         button(cell, choice.label, () => {
           selected = choice.handle;
           paint(true);
         });
-        el(row, "td", item?.location ?? "Floor");
-        el(row, "td", item ? String(item.quantity) : "");
+        el2(row, "td", item?.location ?? "Floor");
+        el2(row, "td", item ? String(item.quantity) : "");
       }
       const current = p.choices.find((choice) => choice.handle === selected);
       if (current && selected !== null) {
         const inspection = ctx.inspect?.inspectItem(selected);
-        if (inspection && same(inspection.token, model.token)) el(box, "p", inspection.text);
+        if (inspection && same(inspection.token, model.token)) el2(box, "p", inspection.text);
       }
       const choose = button(box, "Choose", () => {
         if (current) {
@@ -4020,80 +4089,37 @@ function installItems(ctx) {
   const showComparison = (model, item) => {
     if (!enabled("Comparison") || item.location !== "pack") return;
     const sim = compareItem(ctx, model.token, item.handle);
-    if (!sim || sim.unresolved.length) return;
-    const details = el(mount, "details");
-    details.open = true;
-    el(details, "summary", "Equipment comparison");
-    if (!sim.placements.length) {
-      el(details, "p", "No compatible equipment slot.");
-      return;
-    }
-    const placement = sim.placements[0];
-    el(details, "p", `Replacing: ${placement.displaced?.label ?? "empty slot"}`);
-    el(details, "p", "Known properties only; unidentified effects may differ.");
-    const toggle = el(details, "input");
-    toggle.type = "checkbox";
-    toggle.checked = unchanged;
-    toggle.addEventListener("change", () => {
-      unchanged = toggle.checked;
+    if (sim) renderItemComparison(mount, sim, unchanged, (value2) => {
+      unchanged = value2;
       paint(true);
     });
-    el(details, "span", " Show unchanged stats");
-    const table = el(details, "table");
-    const head = el(table, "tr");
-    for (const label2 of ["Stat", "Current", "Selected", "Change"]) el(head, "th", label2);
-    for (const [key, label2, scale] of METRICS) {
-      const before = sim.before.stats[key];
-      const after = sim.after.stats[key];
-      const delta = after - before;
-      if (!unchanged && !delta && !["speed", "ac", "blows"].includes(key)) continue;
-      const row = el(table, "tr");
-      el(row, "td", label2);
-      el(row, "td", String(before / scale));
-      el(row, "td", String(after / scale));
-      const change = el(row, "td", delta ? `${delta > 0 ? "+" : ""}${delta / scale}` : "-");
-      change.className = delta === 0 ? "muted" : key === "totalWeight" ? delta < 0 ? "gain" : "loss" : delta > 0 ? "gain" : "loss";
-    }
-    for (const [index, name] of ["STR", "INT", "WIS", "DEX", "CON"].entries()) {
-      const before = sim.before.stats.statUse[index], after = sim.after.stats.statUse[index];
-      if (before === void 0 || after === void 0 || !unchanged && before === after) continue;
-      const row = el(table, "tr");
-      for (const value2 of [name, String(before), String(after), after === before ? "-" : `${after > before ? "+" : ""}${after - before}`]) el(row, "td", value2);
-    }
-    el(details, "h4", "Resistances & abilities");
-    sim.after.stats.resists.forEach((after, index) => {
-      const before = sim.before.stats.resists[index] ?? 0;
-      if (unchanged || after !== before) el(details, "div", `${sim.after.stats.resistElements[index] ?? index}: ${before} -> ${after}`);
-    });
-    for (const flag of /* @__PURE__ */ new Set([...sim.before.stats.objectFlags, ...sim.after.stats.objectFlags])) {
-      const before = sim.before.stats.objectFlags.includes(flag), after = sim.after.stats.objectFlags.includes(flag);
-      if (unchanged || before !== after) el(details, "div", `${flag}: ${before ? "Yes" : "No"} -> ${after ? "Yes" : "No"}`);
-    }
   };
   const paint = (force = false) => {
     if (closed || !panel.root.isConnected) return;
     const model = read();
+    panel.root.host.style.display = model?.phase === "store" ? "none" : "";
+    if (model?.phase === "store") return;
     const next = JSON.stringify([model, tab, search, selected, unchanged, quantity, error]);
     if (!force && next === signature) return;
     signature = next;
     mount.replaceChildren();
-    el(mount, "h2", "Items");
+    el2(mount, "h2", "Items");
     if (!model) {
-      el(mount, "p", "Inventory read unavailable.");
+      el2(mount, "p", "Inventory read unavailable.");
       return;
     }
     if (enabled("Highlights")) changes.update(model);
     showPrompt(model);
     const rules = enabled("Rules") ? ctx.inspect?.itemRules?.() ?? null : null;
     if (rules && same(rules.token, model.token)) {
-      const section = el(mount, "details");
-      el(section, "summary", "Ignore settings and inscriptions");
+      const section = el2(mount, "details");
+      el2(section, "summary", "Ignore settings and inscriptions");
       const lines = itemRuleLines(rules);
-      if (!lines.length) el(section, "p", "No ignore settings or inscriptions yet.");
-      for (const line of lines) el(section, "div", line);
+      if (!lines.length) el2(section, "p", "No ignore settings or inscriptions yet.");
+      for (const line of lines) el2(section, "div", line);
     }
     if (!enabled("Lists")) return;
-    const tabs = el(mount, "div");
+    const tabs = el2(mount, "div");
     tabs.className = "tabs";
     for (const name of ["pack", "equipment", "quiver"]) {
       const b = button(tabs, name[0].toUpperCase() + name.slice(1), () => {
@@ -4102,7 +4128,7 @@ function installItems(ctx) {
       });
       b.setAttribute("aria-pressed", String(tab === name));
     }
-    const searchBox = el(mount, "input");
+    const searchBox = el2(mount, "input");
     searchBox.type = "search";
     searchBox.placeholder = "Search items";
     searchBox.value = search;
@@ -4112,15 +4138,15 @@ function installItems(ctx) {
       mount.querySelector("input[type=search]")?.focus();
     });
     const rows = model.rows.filter((item2) => item2.location === tab && item2.label.toLowerCase().includes(search.toLowerCase()));
-    if (!rows.length) el(mount, "p", tab === "pack" ? "Your pack is empty." : tab === "equipment" ? "Nothing equipped." : "No quiver items available.");
-    const table = el(mount, "table");
-    const head = el(table, "tr");
-    for (const name of tab === "equipment" ? ["Item", "Slot", "Qty"] : ["Item", "Qty"]) el(head, "th", name);
+    if (!rows.length) el2(mount, "p", tab === "pack" ? "Your pack is empty." : tab === "equipment" ? "Nothing equipped." : "No quiver items available.");
+    const table = el2(mount, "table");
+    const head = el2(table, "tr");
+    for (const name of tab === "equipment" ? ["Item", "Slot", "Qty"] : ["Item", "Qty"]) el2(head, "th", name);
     for (const item2 of rows) {
-      const row = el(table, "tr");
+      const row = el2(table, "tr");
       const badge = enabled("Highlights") ? changes.badge(item2) : null;
       if (badge) row.className = "new";
-      const cell = el(row, "td");
+      const cell = el2(row, "td");
       const b = button(cell, `${item2.label}${badge ? ` ${badge}` : ""}`, () => {
         selected = item2.handle;
         changes.acknowledge(item2);
@@ -4129,15 +4155,15 @@ function installItems(ctx) {
       b.className = "row";
       b.style.color = item2.colour;
       b.title = [badge === "NEW" ? "Newly acquired" : badge ? `${badge.slice(1)} acquired` : "", item2.inscription ? `Inscription: ${item2.inscription}` : ""].filter(Boolean).join("\n");
-      if (tab === "equipment") el(row, "td", String(item2.slot ?? ""));
-      el(row, "td", String(item2.quantity));
+      if (tab === "equipment") el2(row, "td", String(item2.slot ?? ""));
+      el2(row, "td", String(item2.quantity));
     }
     const item = model.rows.find((row) => row.handle === selected);
     if (item) {
-      el(mount, "h3", "Inspection");
-      el(mount, "strong", item.label);
-      if (enabled("Actions") && model.phase === "play" && !model.prompt && ctx.intent?.submit) {
-        const actions = el(mount, "div");
+      el2(mount, "h3", "Inspection");
+      el2(mount, "strong", item.label);
+      if (enabled("Actions") && model.phase === "play" && !model.prompt && ctx.intent?.submit && playerIsDriving(ctx)) {
+        const actions = el2(mount, "div");
         actions.className = "actions";
         for (const code of ACTIONS) {
           if (code === "use" ? USE_CODES.some((candidate) => usable(model, item, candidate)) : usable(model, item, code)) button(actions, ACTION_LABELS[code], () => act(model, item, code));
@@ -4147,15 +4173,15 @@ function installItems(ctx) {
       if (enabled("Inspection")) {
         const inspection = ctx.inspect?.inspectItem(item.handle);
         if (inspection && same(inspection.token, model.token)) {
-          const details = el(mount, "details");
+          const details = el2(mount, "details");
           details.open = true;
-          el(details, "summary", inspection.title);
-          el(details, "p", inspection.text);
+          el2(details, "summary", inspection.title);
+          el2(details, "p", inspection.text);
         }
       }
     }
     if (error) {
-      const message = el(mount, "p", error);
+      const message = el2(mount, "p", error);
       message.className = "error";
     }
   };
@@ -4224,6 +4250,7 @@ function tileMenuActions(ctx, snap, at) {
   return actions;
 }
 function clickTile(ctx, at) {
+  if (!playerIsDriving(ctx)) return false;
   const snap = ctx.snapshot?.() ?? null;
   if (snap?.prompt?.kind === "target") return !!ctx.prompt?.reply(snap.prompt.promptId, { action: "move", ...at }).accepted;
   if (!ready(snap) || !snap || !ctx.intent) return false;
@@ -4231,6 +4258,7 @@ function clickTile(ctx, at) {
   return !!intent && ctx.intent.submit(snap.token, intent).accepted;
 }
 function runMenuAction(ctx, at, label2) {
+  if (!playerIsDriving(ctx)) return false;
   const snap = ctx.snapshot?.() ?? null;
   if (!snap) return false;
   const action = tileMenuActions(ctx, snap, at).find((item) => item.label === label2);
@@ -4246,6 +4274,7 @@ function runMenuAction(ctx, at, label2) {
   return !!action.intent && ctx.intent.submit(snap.token, action.intent).accepted;
 }
 function finishPickup(ctx, at, previous) {
+  if (!playerIsDriving(ctx)) return false;
   const next = ctx.snapshot?.() ?? null;
   if (!ready(next) || !next || sameToken(previous.token, next.token) || !ctx.intent) return false;
   const grid = next.core.player.grid;
@@ -4325,7 +4354,7 @@ function installMapMouse(ctx) {
     hide();
     if (!flags["anybandui.dungeonActions"]) return;
     const at = locate(event), snap = ctx.snapshot?.() ?? null;
-    if (!at || !snap || !(ready(snap) || snap.prompt?.kind === "target")) return;
+    if (!at || !snap || !playerIsDriving(ctx) || !(ready(snap) || snap.prompt?.kind === "target")) return;
     const actions = tileMenuActions(ctx, snap, at);
     if (!actions.length) return;
     event.preventDefault();
@@ -4334,12 +4363,12 @@ function installMapMouse(ctx) {
     menuToken = snap.token;
     menuPromptId = snap.prompt?.promptId ?? null;
     for (const action of actions) {
-      const button3 = document.createElement("button");
-      button3.type = "button";
-      button3.setAttribute("role", "menuitem");
-      button3.textContent = action.label;
-      button3.style.cssText = `display:block;width:100%;text-align:left;background:${theme.surface};color:${theme.text};border:0;padding:5px 9px;cursor:pointer`;
-      button3.addEventListener("click", () => {
+      const button4 = document.createElement("button");
+      button4.type = "button";
+      button4.setAttribute("role", "menuitem");
+      button4.textContent = action.label;
+      button4.style.cssText = `display:block;width:100%;text-align:left;background:${theme.surface};color:${theme.text};border:0;padding:5px 9px;cursor:pointer`;
+      button4.addEventListener("click", () => {
         const current = ctx.snapshot?.() ?? null;
         if (!menuAt || !current || !menuToken || !sameToken(menuToken, current.token) || menuPromptId !== (current.prompt?.promptId ?? null)) {
           hide();
@@ -4359,7 +4388,7 @@ function installMapMouse(ctx) {
         } else runMenuAction(ctx, selected, action.label);
         hide();
       });
-      menu.appendChild(button3);
+      menu.appendChild(button4);
     }
     menu.style.display = "block";
     menu.style.left = `${Math.min(event.clientX, window.innerWidth - menu.offsetWidth)}px`;
@@ -4387,7 +4416,7 @@ function installMapMouse(ctx) {
         targetAt = null;
         targetPromptId = null;
       } else if (next.promptId !== targetPromptId && next.cursor?.x === targetAt.x && next.cursor.y === targetAt.y) {
-        ctx.prompt?.reply(next.promptId, { action: "select" });
+        if (playerIsDriving(ctx)) ctx.prompt?.reply(next.promptId, { action: "select" });
         targetAt = null;
         targetPromptId = null;
       }
@@ -4477,7 +4506,7 @@ function adaptSpells(snap, inspect) {
 // src/spell-actions.ts
 function actionReady(ctx, snap) {
   const next = ctx.snapshot?.();
-  return !!next && sameToken2(next.token, snap.token) && next.phase === "play" && !next.prompt && !next.messagePending && (ctx.controller?.driver?.()?.kind ?? "player") === "player";
+  return !!next && sameToken2(next.token, snap.token) && next.phase === "play" && !next.prompt && !next.messagePending && playerIsDriving(ctx);
 }
 function castSpell(ctx, snap, spell) {
   if (!spell.canCast || !actionReady(ctx, snap)) return false;
@@ -4489,7 +4518,7 @@ function studySpell(ctx, snap, book, spell) {
 }
 function answerSpell(ctx, snap, index) {
   const next = ctx.snapshot?.();
-  if (snap.prompt?.kind !== "spell" || !next || !sameToken2(next.token, snap.token) || next.prompt?.promptId !== snap.prompt.promptId || (ctx.controller?.driver?.()?.kind ?? "player") !== "player") return false;
+  if (snap.prompt?.kind !== "spell" || !next || !sameToken2(next.token, snap.token) || next.prompt?.promptId !== snap.prompt.promptId || !playerIsDriving(ctx)) return false;
   if (!snap.prompt.choices.some((choice) => choice.index === index)) return false;
   return ctx.prompt?.reply(snap.prompt.promptId, index).accepted ?? false;
 }
@@ -4633,14 +4662,14 @@ function installBlastPreview(ctx) {
 
 // src/phase4.ts
 var CSS3 = `:host{color:var(--anyband-text);font:13px/1.4 system-ui,sans-serif}.phase4{position:fixed;left:12px;bottom:12px;width:min(680px,calc(100vw - 24px));max-height:55vh;overflow:auto;padding:10px;background:var(--anyband-surface);border:1px solid var(--anyband-accent);border-radius:var(--anyband-rounding);pointer-events:auto}button,select,input{font:inherit;color:var(--anyband-text);background:var(--anyband-background);border:1px solid var(--anyband-accent);border-radius:3px;padding:4px}button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--anyband-accent)}button:disabled{opacity:.45}table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:3px;border-bottom:1px solid var(--anyband-accent)}.slots{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:3px}.slot{min-height:42px;overflow:hidden;word-break:break-word}.muted{opacity:.55}.row{width:100%;text-align:left;border:0;background:transparent}.menu{margin:6px 0;padding:6px;border:1px solid var(--anyband-accent)}.menu button{margin:2px}.hint{font-size:12px}`;
-function el2(parent, tag, content) {
+function el3(parent, tag, content) {
   const node2 = parent.ownerDocument.createElement(tag);
   if (content !== void 0) node2.textContent = content;
   parent.append(node2);
   return node2;
 }
 function button2(parent, label2, callback) {
-  const node2 = el2(parent, "button", label2);
+  const node2 = el3(parent, "button", label2);
   node2.type = "button";
   node2.addEventListener("click", callback);
   return node2;
@@ -4674,8 +4703,8 @@ function installPhase4(ctx) {
   }
   const panel = ctx.ui.openPanel({ id: "phase4", modal: false, label: "Spells and quickbar" });
   applyTheme(panel.root, THEMES[validateSettings(ctx.prefs?.get()).theme]);
-  el2(panel.root, "style", CSS3);
-  const mount = el2(panel.root, "section");
+  el3(panel.root, "style", CSS3);
+  const mount = el3(panel.root, "section");
   mount.className = "phase4";
   let bookKey = "", spellIndex = -1, menu = -1, customize = -1, restOpen = false, restMode = -2, turns = 10, promptChoice = -1, error = "", signature = "", closed = false;
   let appearance = { style: "automatic", text: "", color: "#7abaf4" };
@@ -4706,18 +4735,18 @@ function installPhase4(ctx) {
     signature = sig;
     mount.replaceChildren();
     if (!snap) {
-      el2(mount, "p", "Game state unavailable.");
+      el3(mount, "p", "Game state unavailable.");
       return;
     }
     if (spellOn) {
-      el2(mount, "h2", "Spells");
-      if (!model) el2(mount, "p", "Spell list unavailable.");
-      else if (!model.books.length) el2(mount, "p", "No readable spellbooks carried.");
+      el3(mount, "h2", "Spells");
+      if (!model) el3(mount, "p", "Spell list unavailable.");
+      else if (!model.books.length) el3(mount, "p", "No readable spellbooks carried.");
       else {
-        const picker = el2(mount, "select");
+        const picker = el3(mount, "select");
         picker.setAttribute("aria-label", "Spellbook");
         for (const book2 of model.books) {
-          const opt = el2(picker, "option", book2.name);
+          const opt = el3(picker, "option", book2.name);
           opt.value = book2.key;
         }
         if (!model.books.some((book2) => book2.key === bookKey)) bookKey = model.books[0].key;
@@ -4728,13 +4757,13 @@ function installPhase4(ctx) {
           paint(true);
         });
         const book = model.books.find((entry2) => entry2.key === bookKey);
-        const table = el2(mount, "table");
-        const head = el2(table, "tr");
-        for (const label2 of ["Spell", "Mana", "Fail", "State"]) el2(head, "th", label2);
+        const table = el3(mount, "table");
+        const head = el3(table, "tr");
+        for (const label2 of ["Spell", "Mana", "Fail", "State"]) el3(head, "th", label2);
         for (const spell of book.spells) {
-          const row = el2(table, "tr");
+          const row = el3(table, "tr");
           if (!spell.canCast && !spell.canStudy) row.className = "muted";
-          const cell = el2(row, "td");
+          const cell = el3(row, "td");
           const pick = button2(cell, spell.name, () => {
             spellIndex = spell.index;
             paint(true);
@@ -4756,9 +4785,9 @@ function installPhase4(ctx) {
             spellIndex = spell.index;
             paint(true);
           });
-          el2(row, "td", String(spell.mana));
-          el2(row, "td", `${spell.fail}%`);
-          el2(row, "td", spell.state);
+          el3(row, "td", String(spell.mana));
+          el3(row, "td", `${spell.fail}%`);
+          el3(row, "td", spell.state);
         }
         const selected = book.spells.find((entry2) => entry2.index === spellIndex) ?? book.spells[0];
         if (selected) {
@@ -4773,24 +4802,24 @@ function installPhase4(ctx) {
           });
           study.disabled = !(book.chooseSpells ? selected.canStudy : book.spells.some((entry2) => entry2.canStudy)) || !ctx.intent?.submit;
           if (!book.chooseSpells) study.title = "Your class learns a random eligible spell from this book.";
-          el2(mount, "h3", selected.name);
-          el2(mount, "p", `Level ${selected.level}. Mana ${selected.mana}. Failure ${selected.fail}%. ${selected.state}.`);
-          if (selected.canCast && (snap.core.player?.sp ?? 0) < selected.mana) el2(mount, "p", "Not enough mana. Confirmation may be required.");
-          el2(mount, "p", selected.description);
+          el3(mount, "h3", selected.name);
+          el3(mount, "p", `Level ${selected.level}. Mana ${selected.mana}. Failure ${selected.fail}%. ${selected.state}.`);
+          if (selected.canCast && (snap.core.player?.sp ?? 0) < selected.mana) el3(mount, "p", "Not enough mana. Confirmation may be required.");
+          el3(mount, "p", selected.description);
           if (quickOn && menu === -2) {
-            const box = el2(mount, "div");
+            const box = el3(mount, "div");
             box.className = "menu";
-            el2(box, "strong", "Assign spell to quickbar");
+            el3(box, "strong", "Assign spell to quickbar");
             for (let i = 0; i < 30; i++) button2(box, `${i < 10 ? "" : i < 20 ? "Shift+" : "Ctrl+"}${keys[i % 10]}`, () => assign(i, { type: "spell", key: book.key, index: selected.index, name: selected.name }));
           }
         }
       }
-      if (snap.prompt?.kind === "spell" && ctx.prompt?.reply && (ctx.controller?.driver?.()?.kind ?? "player") === "player") {
+      if (snap.prompt?.kind === "spell" && ctx.prompt?.reply && playerIsDriving(ctx)) {
         const prompt = snap.prompt;
-        const box = el2(mount, "div");
+        const box = el3(mount, "div");
         box.className = "menu";
-        el2(box, "h3", "Choose spell");
-        el2(box, "p", prompt.label);
+        el3(box, "h3", "Choose spell");
+        el3(box, "p", prompt.label);
         for (const choice of prompt.choices) button2(box, choice.name, () => {
           promptChoice = choice.index;
           paint(true);
@@ -4806,11 +4835,11 @@ function installPhase4(ctx) {
       }
     }
     if (quickOn && snap.phase === "play") {
-      el2(mount, "h2", "Quickbar");
-      if (!character) el2(mount, "p", "Assignments last for this game session.");
+      el3(mount, "h2", "Quickbar");
+      if (!character) el3(mount, "p", "Assignments last for this game session.");
       for (let row = 0; row < 3; row++) {
-        el2(mount, "h3", row === 0 ? "Number keys" : row === 1 ? "Shift and number" : "Ctrl and number");
-        const line = el2(mount, "div");
+        el3(mount, "h3", row === 0 ? "Number keys" : row === 1 ? "Shift and number" : "Ctrl and number");
+        const line = el3(mount, "div");
         line.className = "slots";
         for (let col = 0; col < 10; col++) {
           const index = row * 10 + col;
@@ -4866,9 +4895,9 @@ function installPhase4(ctx) {
         }
       }
       if (menu >= 0) {
-        const box = el2(mount, "div");
+        const box = el3(mount, "div");
         box.className = "menu";
-        el2(box, "strong", `Assign ${keys[menu % 10]}`);
+        el3(box, "strong", `Assign ${keys[menu % 10]}`);
         if (slots[menu]) button2(box, "Customize", () => {
           customize = menu;
           appearance = slots[menu]?.appearance ?? { style: "automatic", text: "", color: "#7abaf4" };
@@ -4889,13 +4918,13 @@ function installPhase4(ctx) {
         });
       }
       if (customize >= 0 && slots[customize]) {
-        const box = el2(mount, "div");
+        const box = el3(mount, "div");
         box.className = "menu";
-        el2(box, "h3", "Customize slot");
-        const style = el2(box, "select");
+        el3(box, "h3", "Customize slot");
+        const style = el3(box, "select");
         style.setAttribute("aria-label", "Appearance");
         for (const [value2, label2] of [["automatic", "Automatic"], ["text", "Custom text"], ["potion", "Potion icon"], ["scroll", "Scroll icon"], ["wand", "Wand icon"]]) {
-          const opt = el2(style, "option", label2);
+          const opt = el3(style, "option", label2);
           opt.value = value2;
         }
         style.value = appearance.style;
@@ -4903,14 +4932,14 @@ function installPhase4(ctx) {
           appearance = { ...appearance, style: style.value };
           paint(true);
         });
-        const input = el2(box, "input");
+        const input = el3(box, "input");
         input.value = appearance.text;
         input.placeholder = "Text wraps to fit the slot.";
         input.setAttribute("aria-label", "Slot text");
         input.addEventListener("input", () => {
           appearance = { ...appearance, text: input.value.slice(0, 60) };
         });
-        const color = el2(box, "input");
+        const color = el3(box, "input");
         color.type = "color";
         color.value = appearance.color;
         color.setAttribute("aria-label", "Slot color");
@@ -4939,19 +4968,19 @@ function installPhase4(ctx) {
         paint(true);
       });
       if (restOpen) {
-        const box = el2(mount, "div");
+        const box = el3(mount, "div");
         box.className = "menu";
-        el2(box, "h3", "Rest");
+        el3(box, "h3", "Rest");
         for (const [count, label2, description] of [[-2, "Fully recovered", "Recover HP and mana and wait out harmful conditions."], [-1, "HP and mana", "Stop when both are full."], [-3, "HP or mana", "Stop as soon as either is full."], [1, "Number of turns", "Rest for a set number of turns."]]) {
           const choice = button2(box, label2, () => {
             restMode = count;
             paint(true);
           });
           choice.setAttribute("aria-pressed", String(restMode === count));
-          el2(box, "p", description);
+          el3(box, "p", description);
         }
         if (restMode === 1) {
-          const input = el2(box, "input");
+          const input = el3(box, "input");
           input.type = "number";
           input.min = "1";
           input.max = "9999";
@@ -4961,8 +4990,8 @@ function installPhase4(ctx) {
             turns = Number(input.value);
           });
         }
-        if (restMode === 1 && (!Number.isInteger(turns) || turns < 1 || turns > 9999)) el2(box, "p", "Enter between 1 and 9999 turns.");
-        el2(box, "p", "Danger interrupts rest normally.");
+        if (restMode === 1 && (!Number.isInteger(turns) || turns < 1 || turns > 9999)) el3(box, "p", "Enter between 1 and 9999 turns.");
+        el3(box, "p", "Danger interrupts rest normally.");
         const confirm = button2(box, "Rest", () => {
           if (!rest(ctx, snap, restMode === 1 ? turns : restMode)) error = "Rest unavailable.";
           else restOpen = false;
@@ -4976,7 +5005,7 @@ function installPhase4(ctx) {
       }
     }
     if (error) {
-      const p = el2(mount, "p", error);
+      const p = el3(mount, "p", error);
       p.setAttribute("role", "status");
     }
   };
@@ -5007,6 +5036,288 @@ function installPhase4(ctx) {
   };
 }
 
+// src/view-model/stores.ts
+var same2 = (a, b) => a.epoch === b.epoch && a.revision === b.revision;
+function adaptStore(snap, known, status) {
+  if (snap.phase !== "store" || !snap.core.stores || !snap.core.player || !snap.core.inventory) return null;
+  const cell = known && same2(known.token, snap.token) ? known.cells.find((entry2) => entry2.x === snap.core.player.grid.x && entry2.y === snap.core.player.grid.y) : null;
+  const feat = status?.feat ?? cell?.remembered.feat;
+  if (feat === void 0) return null;
+  const index = snap.core.stores.findIndex((store2) => store2.feat === feat);
+  if (index < 0) return null;
+  const store = snap.core.stores[index];
+  const items = adaptItems(snap);
+  const eligibility = new Map(status?.inventory?.map((entry2) => [entry2.handle, entry2]));
+  const pack = (items?.rows ?? []).filter((item) => eligibility.get(item.handle)?.eligible !== false).map((item) => ({
+    key: item.handle,
+    label: item.label,
+    quantity: item.quantity,
+    colour: item.colour,
+    location: item.location === "pack" ? "Pack" : "Equipment",
+    eligible: eligibility.get(item.handle)?.eligible ?? true,
+    ...eligibility.get(item.handle)?.price === void 0 ? {} : { price: eligibility.get(item.handle).price }
+  }));
+  return {
+    token: snap.token,
+    index,
+    name: store.isHome ? "Home" : store.featName,
+    owner: store.isHome ? "" : store.owner.name,
+    home: store.isHome,
+    ...snap.core.player.gold === void 0 ? {} : { gold: snap.core.player.gold },
+    ready: status?.ready ?? true,
+    noSelling: status?.noSelling ?? false,
+    transactionPrompts: status?.transactionPrompts === true,
+    stock: store.stock.map((item) => ({
+      key: item.index,
+      label: item.label,
+      quantity: item.number,
+      colour: item.artifact ? "#e89e42" : item.ego ? "#80b891" : "inherit",
+      eligible: true,
+      ...item.price === void 0 ? {} : { price: item.price }
+    })),
+    pack,
+    prompt: snap.prompt
+  };
+}
+
+// src/panels/stores.ts
+var CSS4 = `:host{color:var(--anyband-text);font:13px/1.4 system-ui,sans-serif}.store{position:absolute;inset:12px;overflow:auto;padding:10px;background:var(--anyband-surface);border:1px solid var(--anyband-accent);border-radius:var(--anyband-rounding);pointer-events:auto}.sides{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.side{min-width:0;overflow:auto}h2,h3{color:var(--anyband-accent);border-bottom:1px solid var(--anyband-accent)}table{width:100%;border-collapse:collapse}th{text-align:left}td,th{padding:3px;border-bottom:1px solid var(--anyband-accent)}button,input{font:inherit;color:var(--anyband-text);background:var(--anyband-background);border:1px solid var(--anyband-accent);border-radius:3px;padding:3px 6px}button{cursor:pointer}button:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid var(--anyband-accent)}.row{width:100%;text-align:left;border:0;background:transparent}.row[aria-pressed=true]{background:var(--anyband-accent);color:var(--anyband-background)!important}.actions{display:flex;gap:6px;margin:6px 0}.prompt{border:1px solid var(--anyband-accent);padding:8px;max-width:30em}.prompt input{width:100%}.muted{opacity:.65}.gain{color:#80b891}.loss,.error,.unaffordable{color:#ff7559}details{margin:8px 0}summary{color:var(--anyband-accent);cursor:pointer}@media(max-width:650px){.sides{grid-template-columns:1fr}}`;
+var same3 = (a, b) => a.epoch === b.epoch && a.revision === b.revision;
+function el4(parent, tag, value2) {
+  const node2 = parent.ownerDocument.createElement(tag);
+  if (value2 !== void 0) node2.textContent = value2;
+  parent.appendChild(node2);
+  return node2;
+}
+function button3(parent, label2, click) {
+  const node2 = el4(parent, "button", label2);
+  node2.type = "button";
+  node2.addEventListener("click", click);
+  return node2;
+}
+function storeAction(ctx, model, side, key) {
+  const snap = ctx.snapshot?.();
+  if (!snap || snap.phase !== "store" || snap.prompt || !same3(snap.token, model.token) || !model.ready || !ctx.intent?.submit) return false;
+  if (!playerIsDriving(ctx)) return false;
+  const rows = side === "stock" ? model.stock : model.pack;
+  if (side !== "leave" && (!model.transactionPrompts || !rows.some((row) => row.key === key && row.eligible && (side === "pack" || model.home || row.price === void 0 || model.gold === void 0 || row.price <= model.gold)))) return false;
+  const command = side === "leave" ? { code: "shop-exit" } : side === "stock" ? { code: "shop-buy", args: { index: key } } : { code: "shop-sell", args: { handle: key } };
+  return ctx.intent.submit(snap.token, { kind: "command", command }).accepted;
+}
+function storePromptReply(ctx, model, value2) {
+  const snap = ctx.snapshot?.();
+  if (!snap || snap.phase !== "store" || !same3(snap.token, model.token) || !snap.prompt || snap.prompt.promptId !== model.prompt?.promptId || !ctx.prompt?.reply) return false;
+  if (!playerIsDriving(ctx)) return false;
+  if (snap.prompt.kind === "quantity") {
+    const quantity = snap.prompt;
+    if (typeof value2 !== "number" || !Number.isInteger(value2) || value2 < quantity.min || value2 > quantity.max) return false;
+  } else if (snap.prompt.kind === "confirm") {
+    if (typeof value2 !== "boolean") return false;
+  } else return false;
+  return ctx.prompt.reply(snap.prompt.promptId, value2).accepted;
+}
+function installStores(ctx) {
+  const flags = ctx.flags ?? {};
+  if (!Object.entries(flags).some(([flag, on2]) => flag.startsWith("anybandui.store") && on2)) return () => {
+  };
+  if (!ctx.ui?.openPanel || !ctx.snapshot) {
+    ctx.log("stores: panel or snapshot seam unavailable");
+    return () => {
+    };
+  }
+  let panel = null;
+  let stockSelection = null, packSelection = null, unchanged = false, amount = 1, lastPrompt = -1, split = 50;
+  let place = "", signature = "", error = "";
+  let mount = null;
+  const on = (part) => flags[`anybandui.store${part}`] === true;
+  const read = () => {
+    const snap = ctx.snapshot?.();
+    if (snap?.phase !== "store") return null;
+    const status = ctx.store?.current?.() ?? null;
+    return adaptStore(snap, ctx.knownLevel?.() ?? null, status);
+  };
+  const paint = (force = false) => {
+    const model = read();
+    if (!model) {
+      if (panel) {
+        panel.close();
+        panel = null;
+        mount = null;
+      }
+      return;
+    }
+    if (!panel) {
+      panel = ctx.ui.openPanel({ id: "store", modal: false, label: "Store" });
+      applyTheme(panel.root, THEMES[validateSettings(ctx.prefs?.get()).theme]);
+      el4(panel.root, "style", CSS4);
+      mount = el4(panel.root, "section");
+      mount.className = "store";
+    }
+    const name = `${model.index}:${model.name}`;
+    if (name !== place) {
+      place = name;
+      stockSelection = null;
+      packSelection = null;
+      error = "";
+    }
+    if (!model.stock.some((row) => row.key === stockSelection)) stockSelection = null;
+    if (!model.pack.some((row) => row.key === packSelection)) packSelection = null;
+    const next = JSON.stringify([model, stockSelection, packSelection, unchanged, amount, error]);
+    if (!force && next === signature) return;
+    signature = next;
+    const host = mount;
+    host.replaceChildren();
+    const width = el4(host, "input");
+    width.type = "range";
+    width.min = "25";
+    width.max = "75";
+    width.value = String(split);
+    width.setAttribute("aria-label", "Stock column width");
+    width.title = "Resize stock and inventory columns";
+    width.addEventListener("input", () => {
+      split = Number(width.value);
+      sides.style.gridTemplateColumns = `${split}% ${100 - split}%`;
+    });
+    const sides = el4(host, "div");
+    sides.className = "sides";
+    sides.style.gridTemplateColumns = `${split}% ${100 - split}%`;
+    const action = (side, key) => {
+      error = storeAction(ctx, model, side, key) ? "" : "Action unavailable at this input wait.";
+      paint(true);
+    };
+    const draw = (side) => {
+      const box = el4(sides, "section");
+      box.className = "side";
+      el4(box, "h2", side === "stock" ? `${model.name}${model.owner ? ` - ${model.owner}` : ""}` : `Your inventory${model.gold === void 0 ? "" : ` (Gold: ${model.gold})`}`);
+      const rows = side === "stock" ? model.stock : model.pack;
+      const selected = side === "stock" ? stockSelection : packSelection;
+      const table = el4(box, "table");
+      const head = el4(table, "tr");
+      for (const label2 of ["Item", "Qty", ...side === "pack" ? ["Location"] : [], ...on("Prices") && !model.home ? ["Gold each"] : []]) el4(head, "th", label2);
+      if (!rows.length) el4(box, "p", side === "stock" ? "No stock here." : "No items in your pack.");
+      for (const row of rows) {
+        const tr = el4(table, "tr");
+        const cell = el4(tr, "td");
+        const pick = button3(cell, row.label, () => {
+          if (side === "stock") stockSelection = row.key;
+          else packSelection = row.key;
+          paint(true);
+        });
+        pick.className = "row";
+        pick.style.color = row.colour;
+        pick.title = row.label;
+        pick.setAttribute("aria-pressed", String(selected === row.key));
+        el4(tr, "td", String(row.quantity));
+        if (side === "pack") el4(tr, "td", row.location ?? "Pack");
+        if (on("Prices") && !model.home) {
+          const price = el4(tr, "td", row.price === void 0 ? "" : String(row.price));
+          if (side === "stock" && row.price !== void 0 && model.gold !== void 0 && row.price > model.gold) price.className = "unaffordable";
+        }
+      }
+      if (on("Transactions")) {
+        const actions = el4(box, "div");
+        actions.className = "actions";
+        const label2 = side === "stock" ? model.home ? "Retrieve" : "Buy" : model.home ? "Stash" : model.noSelling ? "Give" : "Sell";
+        const active = rows.find((row) => row.key === selected);
+        const drive = playerIsDriving(ctx);
+        const submit = button3(actions, label2, () => action(side, selected ?? void 0));
+        submit.disabled = !drive || !ctx.intent?.submit || !model.transactionPrompts || !model.ready || !!model.prompt || !active || !active.eligible || side === "stock" && !model.home && active.price !== void 0 && model.gold !== void 0 && active.price > model.gold;
+        if (!model.transactionPrompts) submit.title = "Store confirmations are unavailable in this game.";
+        if (model.noSelling && side === "pack") submit.title = "Shops accept eligible gifts without paying gold.";
+        if (side === "stock") {
+          const leave = button3(actions, model.home ? "Leave home" : "Leave store", () => action("leave"));
+          leave.disabled = !drive || !ctx.intent?.submit || !model.ready || !!model.prompt;
+        }
+      }
+      el4(box, "h3", "Inspection");
+      const chosen = rows.find((row) => row.key === selected);
+      if (!chosen) {
+        const empty = el4(box, "p", "Select an item to inspect it.");
+        empty.className = "muted";
+        return;
+      }
+      el4(box, "strong", chosen.label).style.color = chosen.colour;
+      if (on("Comparison")) {
+        const sim = compareItem(ctx, model.token, side === "stock" ? { store: model.index, index: chosen.key } : chosen.key);
+        if (sim) renderItemComparison(box, sim, unchanged, (value2) => {
+          unchanged = value2;
+          paint(true);
+        });
+      }
+      if (side === "pack") {
+        const inspection = ctx.inspect?.inspectItem(chosen.key);
+        if (inspection && same3(inspection.token, model.token)) {
+          const details = el4(box, "details");
+          details.open = true;
+          el4(details, "summary", inspection.title);
+          el4(details, "p", inspection.text);
+        }
+      }
+    };
+    draw("stock");
+    draw("pack");
+    if (on("Prompts") && model.prompt && ctx.prompt?.reply) {
+      const prompt = model.prompt;
+      if (prompt.promptId !== lastPrompt) {
+        lastPrompt = prompt.promptId;
+        if (prompt.kind === "quantity") amount = prompt.defaultValue;
+      }
+      if (prompt.kind === "quantity" || prompt.kind === "confirm") {
+        const box = el4(host, "section");
+        box.className = "prompt";
+        el4(box, "h3", prompt.kind === "quantity" ? "Choose quantity" : "Confirm price");
+        el4(box, "p", prompt.label ?? "Confirm transaction?");
+        const reply = (value2) => {
+          error = storePromptReply(ctx, model, value2) ? "" : "Prompt answer unavailable.";
+          paint(true);
+        };
+        if (prompt.kind === "quantity") {
+          const quantity = prompt;
+          el4(box, "p", `Available for this action: ${quantity.max}`);
+          const input = el4(box, "input");
+          input.type = "number";
+          input.min = String(quantity.min);
+          input.max = String(quantity.max);
+          input.value = String(amount);
+          input.addEventListener("input", () => {
+            amount = Number(input.value);
+          });
+          input.addEventListener("keydown", (event) => {
+            if (event.key === "Enter") {
+              event.stopPropagation();
+              reply(amount);
+            }
+          });
+          const actions = el4(box, "div");
+          actions.className = "actions";
+          for (const [label2, value2] of [["One", 1], ["Half", Math.max(1, Math.floor(quantity.max / 2))], ["All", quantity.max]]) button3(actions, label2, () => {
+            amount = value2;
+            input.value = String(value2);
+          });
+          const confirm = button3(actions, "Confirm", () => reply(amount));
+          confirm.disabled = amount < quantity.min || amount > quantity.max;
+        } else {
+          const actions = el4(box, "div");
+          actions.className = "actions";
+          button3(actions, "Yes", () => reply(true));
+          button3(actions, "No", () => reply(false));
+        }
+      }
+    }
+    if (error) {
+      const line = el4(host, "p", error);
+      line.className = "error";
+    }
+  };
+  paint(true);
+  const timer2 = globalThis.setInterval(() => paint(), 200);
+  return () => {
+    globalThis.clearInterval(timer2);
+    panel?.close();
+    panel = null;
+  };
+}
+
 // plugin.ts
 var quiverDisplay;
 var tileDisplay;
@@ -5019,6 +5330,7 @@ var plugin_default = {
     ctx.log(`AnybandUI loaded on engine ${ctx.engine}`);
     const flags = ctx.flags ?? {};
     displayCleanups.push(installItems(ctx));
+    displayCleanups.push(installStores(ctx));
     if (flags["anybandui.highContrast"] || flags["anybandui.colourblind"]) {
       installAccessibilityAccommodations({ flags, ...ctx.display ? { display: ctx.display } : {}, log: ctx.log });
     }

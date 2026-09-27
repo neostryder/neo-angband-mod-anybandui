@@ -1,15 +1,16 @@
 import { applyTheme, THEMES } from "../theme.js";
 import { validateSettings } from "../settings.js";
 import { itemRuleLines } from "../item-rules.js";
-import type { ItemsContext, ItemPrompt, QuantityPrompt, LoadoutStats, AgentCommand } from "../seams.js";
+import type { ItemsContext, ItemPrompt, QuantityPrompt, AgentCommand } from "../seams.js";
 import { AcquisitionChanges, adaptItems, compareItem, type ItemRow, type ItemsModel } from "../view-model/items.js";
 import { answerItem, answerQuantity, buildItemCommand, quantityShortcut, submitItem } from "../item-interactions.js";
+import { renderItemComparison } from "./item-comparison.js";
+import { playerIsDriving } from "../input-owner.js";
 
 const CSS = `:host{color:var(--anyband-text);font:13px/1.4 system-ui,sans-serif}.items{position:absolute;right:12px;top:12px;width:min(440px,44vw);max-height:calc(100vh - 24px);overflow:auto;padding:10px;background:var(--anyband-surface);border:1px solid var(--anyband-accent);border-radius:var(--anyband-rounding);pointer-events:auto}button,input,select{font:inherit;color:var(--anyband-text);background:var(--anyband-background);border:1px solid var(--anyband-accent);border-radius:3px;padding:3px 5px}button{cursor:pointer}button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--anyband-accent)}input[type=search]{width:100%}.tabs,.actions,.quick{display:flex;gap:5px;flex-wrap:wrap;margin:6px 0}table{width:100%;border-collapse:collapse}th{text-align:left;position:sticky;top:0;background:var(--anyband-surface)}td,th{padding:3px;border-bottom:1px solid var(--anyband-accent)}tr.new{background:#437d5541}.row{width:100%;text-align:left;border:0;background:transparent}details{margin:8px 0}summary{color:var(--anyband-accent);cursor:pointer;font-weight:bold}.muted{opacity:.65}.gain{color:#80b891}.loss{color:#ff7559}.error{color:#ff7559}.prompt{border:1px solid var(--anyband-accent);padding:8px;margin:8px 0}`;
 const ACTIONS = ["wield", "takeoff", "drop", "inscribe", "use"] as const;
 const ACTION_LABELS: Record<(typeof ACTIONS)[number], string> = { wield: "Wield", takeoff: "Take off", drop: "Drop", inscribe: "Inscribe", use: "Use" };
 const USE_CODES = ["activate", "use-staff", "aim-wand", "zap-rod", "eat", "quaff", "read"] as const;
-const METRICS: readonly [keyof LoadoutStats, string, number][] = [["speed", "Speed", 1], ["ac", "Armour", 1], ["toH", "To hit", 1], ["toD", "To damage", 1], ["blows", "Blows", 100], ["shots", "Shots", 10], ["maxHp", "Max HP", 1], ["maxSp", "Max SP", 1], ["totalWeight", "Weight", 10]];
 function el(parent: Element | ShadowRoot, tag: string, text?: string): HTMLElement { const child = parent.ownerDocument.createElement(tag); if (text !== undefined) child.textContent = text; parent.appendChild(child); return child; }
 function button(parent: Element, label: string, action: () => void): HTMLButtonElement { const b = el(parent, "button", label) as HTMLButtonElement; b.type = "button"; b.addEventListener("click", action); return b; }
 function same(a: { epoch: number; revision: number }, b: { epoch: number; revision: number }): boolean { return a.epoch === b.epoch && a.revision === b.revision; }
@@ -40,7 +41,7 @@ export function installItems(ctx: ItemsContext): () => void {
   };
   const act = (model: ItemsModel, item: ItemRow, code: string): void => {
     const latest = read();
-    if (!latest || !same(latest.token, model.token) || latest.phase !== "play" || latest.prompt || !ctx.intent?.submit) { error = "Action unavailable at this input wait."; paint(true); return; }
+    if (!latest || !same(latest.token, model.token) || latest.phase !== "play" || latest.prompt || !ctx.intent?.submit || !playerIsDriving(ctx)) { error = "Action unavailable at this input wait."; paint(true); return; }
     const actualCode = code === "use" ? USE_CODES.find((candidate) => usable(model, item, candidate)) : code;
     if (!actualCode) { error = "No usable command is available for this item."; paint(true); return; }
     const builders = ctx.core?.createAgentActions?.(ctx.state);
@@ -52,6 +53,8 @@ export function installItems(ctx: ItemsContext): () => void {
     paint(true);
   };
   const showPrompt = (model: ItemsModel): void => {
+    // Store prompts belong to the store panel when both item and store flags are on.
+    if (model.phase !== "play" || !playerIsDriving(ctx)) return;
     const prompt = model.prompt;
     if (!prompt || !ctx.prompt?.reply) return;
     if (prompt.kind === "quantity" && enabled("Quantity")) {
@@ -84,32 +87,14 @@ export function installItems(ctx: ItemsContext): () => void {
   const showComparison = (model: ItemsModel, item: ItemRow): void => {
     if (!enabled("Comparison") || item.location !== "pack") return;
     const sim = compareItem(ctx, model.token, item.handle);
-    if (!sim || sim.unresolved.length) return;
-    const details = el(mount, "details") as HTMLDetailsElement; details.open = true; el(details, "summary", "Equipment comparison");
-    if (!sim.placements.length) { el(details, "p", "No compatible equipment slot."); return; }
-    const placement = sim.placements[0]!;
-    el(details, "p", `Replacing: ${placement.displaced?.label ?? "empty slot"}`);
-    el(details, "p", "Known properties only; unidentified effects may differ.");
-    const toggle = el(details, "input") as HTMLInputElement; toggle.type = "checkbox"; toggle.checked = unchanged;
-    toggle.addEventListener("change", () => { unchanged = toggle.checked; paint(true); }); el(details, "span", " Show unchanged stats");
-    const table = el(details, "table"); const head = el(table, "tr"); for (const label of ["Stat", "Current", "Selected", "Change"]) el(head, "th", label);
-    for (const [key, label, scale] of METRICS) {
-      const before = sim.before.stats[key] as number; const after = sim.after.stats[key] as number; const delta = after - before;
-      if (!unchanged && !delta && !["speed", "ac", "blows"].includes(key)) continue;
-      const row = el(table, "tr"); el(row, "td", label); el(row, "td", String(before / scale)); el(row, "td", String(after / scale));
-      const change = el(row, "td", delta ? `${delta > 0 ? "+" : ""}${delta / scale}` : "-"); change.className = delta === 0 ? "muted" : key === "totalWeight" ? delta < 0 ? "gain" : "loss" : delta > 0 ? "gain" : "loss";
-    }
-    for (const [index, name] of ["STR", "INT", "WIS", "DEX", "CON"].entries()) {
-      const before = sim.before.stats.statUse[index], after = sim.after.stats.statUse[index]; if (before === undefined || after === undefined || (!unchanged && before === after)) continue;
-      const row = el(table, "tr"); for (const value of [name, String(before), String(after), after === before ? "-" : `${after > before ? "+" : ""}${after - before}`]) el(row, "td", value);
-    }
-    el(details, "h4", "Resistances & abilities");
-    sim.after.stats.resists.forEach((after, index) => { const before = sim.before.stats.resists[index] ?? 0; if (unchanged || after !== before) el(details, "div", `${sim.after.stats.resistElements[index] ?? index}: ${before} -> ${after}`); });
-    for (const flag of new Set([...sim.before.stats.objectFlags, ...sim.after.stats.objectFlags])) { const before = sim.before.stats.objectFlags.includes(flag), after = sim.after.stats.objectFlags.includes(flag); if (unchanged || before !== after) el(details, "div", `${flag}: ${before ? "Yes" : "No"} -> ${after ? "Yes" : "No"}`); }
+    if (sim) renderItemComparison(mount, sim, unchanged, (value) => { unchanged = value; paint(true); });
   };
   const paint = (force = false): void => {
     if (closed || !panel.root.isConnected) return;
     const model = read();
+    // The store window owns these pixels and prompts during a store visit.
+    (panel.root.host as HTMLElement).style.display = model?.phase === "store" ? "none" : "";
+    if (model?.phase === "store") return;
     const next = JSON.stringify([model, tab, search, selected, unchanged, quantity, error]);
     if (!force && next === signature) return; signature = next;
     mount.replaceChildren();
@@ -142,7 +127,7 @@ export function installItems(ctx: ItemsContext): () => void {
     const item = model.rows.find((row) => row.handle === selected);
     if (item) {
       el(mount, "h3", "Inspection"); el(mount, "strong", item.label);
-      if (enabled("Actions") && model.phase === "play" && !model.prompt && ctx.intent?.submit) {
+      if (enabled("Actions") && model.phase === "play" && !model.prompt && ctx.intent?.submit && playerIsDriving(ctx)) {
         const actions = el(mount, "div"); actions.className = "actions";
         for (const code of ACTIONS) { if (code === "use" ? USE_CODES.some((candidate) => usable(model, item, candidate)) : usable(model, item, code)) button(actions, ACTION_LABELS[code], () => act(model, item, code)); }
       }

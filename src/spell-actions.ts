@@ -1,9 +1,10 @@
+import { playerIsDriving } from "./input-owner.js";
 import type { Phase4Context, Phase4Snapshot } from "./seams.js";
 import { sameToken, type BookRow, type SpellRow } from "./view-model/spells.js";
 
 export function actionReady(ctx: Phase4Context, snap: Phase4Snapshot): boolean {
   const next = ctx.snapshot?.();
-  return !!next && sameToken(next.token, snap.token) && next.phase === "play" && !next.prompt && !next.messagePending && (ctx.controller?.driver?.()?.kind ?? "player") === "player";
+  return !!next && sameToken(next.token, snap.token) && next.phase === "play" && !next.prompt && !next.messagePending && playerIsDriving(ctx);
 }
 export function castSpell(ctx: Phase4Context, snap: Phase4Snapshot, spell: SpellRow): boolean {
   if (!spell.canCast || !actionReady(ctx, snap)) return false;
@@ -15,7 +16,7 @@ export function studySpell(ctx: Phase4Context, snap: Phase4Snapshot, book: BookR
 }
 export function answerSpell(ctx: Phase4Context, snap: Phase4Snapshot, index: number): boolean {
   const next = ctx.snapshot?.();
-  if (snap.prompt?.kind !== "spell" || !next || !sameToken(next.token, snap.token) || next.prompt?.promptId !== snap.prompt.promptId || (ctx.controller?.driver?.()?.kind ?? "player") !== "player") return false;
+  if (snap.prompt?.kind !== "spell" || !next || !sameToken(next.token, snap.token) || next.prompt?.promptId !== snap.prompt.promptId || !playerIsDriving(ctx)) return false;
   if (!(snap.prompt as import("./seams.js").SpellPrompt).choices.some((choice) => choice.index === index)) return false;
   return ctx.prompt?.reply(snap.prompt.promptId, index).accepted ?? false;
 }
