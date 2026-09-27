@@ -8,6 +8,10 @@ AnybandUI's `deluxe` branch is a native C++ program built on Dear ImGui and SDL'
 
 Neo Angband runs in a browser page and in an Electron window, so this mod reimplements the interface in TypeScript on Neo Angband's own UI seams: `ui:sidebar.replace`, `ui:messages.replace` and `ui:status.replace` for the HUD, `ui:menu.replace` and `ui:screen.replace` for menus and the 39 modeled screens, `ui:region.create` for new panes, `ui:panel.mount` for HTML windows, and `display:replace` for the dungeon view. His layouts, colours, effects and interaction design carry over directly. His fonts, sounds and shaders come across with their licences, and the HLSL shaders are rewritten for WebGL.
 
+## Effects work on text and tiles alike
+
+Every visual effect works in the game's text mode and with whatever tileset the player has switched on, including Linoleum's packs and tiles that other mods add. An effect is attached to a map cell, an item or a creature, never to a particular glyph or tile image, so a glow, a haze or a sleeping creature's z marks look right however that cell is drawn. Each effect is tested in text mode and with at least one tileset before it ships.
+
 ## The view model
 
 Every panel reads one adapter, `src/view-model/`, which turns Neo Angband's agent view and world frames into the payload shapes full-v1 defines: the player record, items with `actual` and `player_known` halves, monsters, dungeon cells in terrain, trap, item and actor layers, prompts, targeting, store, spells, and the event stream. Panels never read engine objects directly.
