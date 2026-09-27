@@ -4,11 +4,11 @@ import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 import { adapt } from "./adapter.js";
 import { createSource } from "./source.js";
-import { adaptItems } from "./items.js";
+import { adaptItems, panelRows } from "./items.js";
 import { adaptStore } from "./stores.js";
 import { adaptSpells } from "./spells.js";
 import { creatureRecall, recallLine } from "../hover-cards.js";
-import type { InputSnapshot, MessageSnapshot, RecallSnapshot } from "../seams.js";
+import type { InputSnapshot, ItemPanelSnapshot, MessageSnapshot, RecallSnapshot } from "../seams.js";
 
 const checkout = process.env["NEO_ANGBAND_REPO"];
 
@@ -108,6 +108,19 @@ describe.skipIf(!checkout)("adapter over a real game", () => {
       if (captured) {
         adaptItems({ token: captured.token, phase: "play", prompt: null,
           core: { inventory: captured.inventory, equipment: captured.equipment } } as InputSnapshot);
+        // The item panel's reads: the quiver, slot names and floor pile in the
+        // capture, sectioned inspection of gear and floor, per-slot comparison
+        // and the rules list.
+        const panel = adaptItems({ token: captured.token, phase: "play", prompt: null,
+          core: { player: captured.player, inventory: captured.inventory, equipment: captured.equipment,
+            quiver: captured.quiver, equipmentSlots: captured.equipmentSlots, floorHere: captured.floorHere } } as ItemPanelSnapshot);
+        for (const row of panel ? panelRows(panel) : []) {
+          if (row.location === "floor") view.inspectItem?.({ floor: { x: panel!.player!.x, y: panel!.player!.y, index: row.floorIndex! } });
+          else { view.inspectItem?.(row.handle); view.compareLoadoutSlots?.({ from: "gear", handle: row.handle }); }
+        }
+        view.inspectItem?.({ floor: { x: game.state.actor.grid.x, y: game.state.actor.grid.y, index: 0 } });
+        view.itemRules?.();
+        view.itemTester?.("ignore");
         // Store adaptation reads only copied store, gear and known-cell views.
         adaptStore({ token: captured.token, phase: "store", prompt: null,
           core: { player: captured.player, inventory: captured.inventory,

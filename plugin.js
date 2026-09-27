@@ -4060,29 +4060,162 @@ function itemRuleLines(rules) {
     ...rules.egos.filter((rule) => rule.ignored).map((rule) => `${rule.name}: ignored`)
   ];
 }
+var QUALITY_NAMES = ["no ignore", "bad", "average", "good", "non-artifact"];
+var LIMITED_QUALITY = /* @__PURE__ */ new Set([24, 25]);
+var NOTE_LIMIT = 79;
+function qualityChoices(itype) {
+  return LIMITED_QUALITY.has(itype) ? QUALITY_NAMES.slice(0, 2) : QUALITY_NAMES;
+}
+function ruleEditorRows(rules, filter, limit = 30) {
+  const needle = filter.trim().toLowerCase();
+  const typeName = new Map(rules.quality.map((row) => [row.itype, row.name]));
+  const kinds2 = rules.kinds.filter((row) => needle ? row.name.toLowerCase().includes(needle) : row.ignoreAware || row.ignoreUnaware || row.noteAware !== null || row.noteUnaware !== null);
+  const egos = rules.egos.map((row) => ({ ...row, typeName: typeName.get(row.itype) ?? "" })).filter((row) => needle ? `${row.name} ${row.typeName}`.toLowerCase().includes(needle) : row.ignored);
+  const quality = needle ? rules.quality.filter((row) => row.name.toLowerCase().includes(needle)) : rules.quality;
+  const shownKinds = kinds2.slice(0, limit);
+  const shownEgos = egos.slice(0, Math.max(0, limit - shownKinds.length));
+  return { quality, kinds: shownKinds, egos: shownEgos, hidden: kinds2.length + egos.length - shownKinds.length - shownEgos.length };
+}
+function ruleIntent(rules, rule, index, value2, itype) {
+  if (rule === "quality") {
+    if (typeof value2 !== "number" || !rules.quality.some((row) => row.itype === index) || !Number.isInteger(value2) || value2 < 0 || value2 >= qualityChoices(index).length) return { reason: "That ignore level is not available for this item type." };
+    return { intent: { kind: "item-rule", rule, index, value: value2 } };
+  }
+  if (rule === "ego") {
+    if (typeof value2 !== "boolean" || itype === void 0 || !rules.egos.some((row) => row.eidx === index && row.itype === itype)) return { reason: "That ego is not in your knowledge list." };
+    return { intent: { kind: "item-rule", rule, index, itype, value: value2 } };
+  }
+  if (!rules.kinds.some((row) => row.kidx === index)) return { reason: "That item kind is not in your knowledge list." };
+  if (rule === "note-aware" || rule === "note-unaware") {
+    if (typeof value2 !== "string") return { reason: "An inscription must be text." };
+    const note = value2.trim();
+    if (note.length > NOTE_LIMIT) return { reason: `An inscription can be at most ${NOTE_LIMIT} characters.` };
+    return { intent: { kind: "item-rule", rule, index, value: note } };
+  }
+  if (typeof value2 !== "boolean") return { reason: "Choose on or off." };
+  return { intent: { kind: "item-rule", rule, index, value: value2 } };
+}
+function intentAvailable(ctx, kind) {
+  try {
+    return ctx.intent?.catalogue?.()?.intents.some((entry2) => entry2.kind === kind) ?? false;
+  } catch {
+    return false;
+  }
+}
+function submitItemIntent(ctx, token, intent) {
+  const result = ctx.intent?.submit(token, intent) ?? { accepted: false, reason: "Intent seam unavailable." };
+  return result.code === "controller-owned" ? { ...result, quiet: true } : result;
+}
+function rulesEditable(ctx, phase, promptOpen) {
+  return phase === "play" && !promptOpen && playerIsDriving(ctx) && intentAvailable(ctx, "item-rule");
+}
 
 // src/view-model/items.ts
+var NAME_COLOURS = {
+  slate: "#808080",
+  orange: "#ff8000",
+  red: "#c00000",
+  green: "#008040",
+  blue: "#0040ff",
+  umber: "#804000",
+  "light dark": "#606060",
+  "light slate": "#c0c0c0",
+  "light purple": "#ff00ff",
+  yellow: "#ffff00",
+  "light red": "#ff4040",
+  "light green": "#00ff00",
+  "light blue": "#00ffff",
+  "light umber": "#c08040",
+  purple: "#900090",
+  violet: "#9020ff",
+  teal: "#00a0a0",
+  mud: "#6c6c30",
+  "light yellow": "#ffff90",
+  "magenta pink": "#ff00a0",
+  "light teal": "#20ffdc",
+  "light violet": "#b8a8ff",
+  "light pink": "#ff8080",
+  mustard: "#b4b400",
+  "blue slate": "#a0c0d0",
+  "deep light blue": "#00b0ff"
+};
+var ATTR_LETTERS = {
+  s: "slate",
+  o: "orange",
+  r: "red",
+  g: "green",
+  b: "blue",
+  u: "umber",
+  D: "light dark",
+  W: "light slate",
+  P: "light purple",
+  y: "yellow",
+  R: "light red",
+  G: "light green",
+  B: "light blue",
+  U: "light umber",
+  p: "purple",
+  v: "violet",
+  t: "teal",
+  m: "mud",
+  Y: "light yellow",
+  i: "magenta pink",
+  T: "light teal",
+  V: "light violet",
+  I: "light pink",
+  M: "mustard",
+  z: "blue slate",
+  Z: "deep light blue"
+};
+function itemColour(item) {
+  const raw = item.nameColor;
+  if (raw) {
+    const name = raw.length === 1 ? ATTR_LETTERS[raw] : raw.toLowerCase().replace(/[-_]+/g, " ").trim();
+    if (name === "white" || name === "dark" || raw === "w" || raw === "d") return "inherit";
+    const colour = name ? NAME_COLOURS[name] : void 0;
+    if (colour) return colour;
+  }
+  return item.artifact ? "#e89e42" : item.ego ? "#80b891" : "inherit";
+}
+function slotLabel(slots, slot) {
+  const name = slots?.[slot]?.name;
+  return name ? name.charAt(0).toUpperCase() + name.slice(1) : void 0;
+}
 function adaptItems(snap) {
-  if (!snap.core.inventory || !snap.core.equipment) return null;
-  const row = (item, location2, slot) => ({
-    handle: item.handle,
-    label: item.label,
-    quantity: item.number,
-    location: location2,
-    ...slot === void 0 ? {} : { slot },
-    colour: item.artifact ? "#e89e42" : item.ego ? "#80b891" : "inherit",
-    inscription: item.inscription,
-    family: item.kindId ?? `${item.tval}:${item.sval}`
-  });
+  const core = snap.core;
+  if (!core.inventory || !core.equipment) return null;
+  const row = (item, location2, extra = {}) => {
+    const family = item.kindKey ?? item.kindId ?? `${item.tval}:${item.sval}`;
+    const slotName = extra.slot === void 0 ? void 0 : slotLabel(core.equipmentSlots, extra.slot);
+    return {
+      handle: item.handle,
+      key: location2 === "floor" ? `floor:${extra.floorIndex}:${family}` : item.itemKey ?? `gear:${item.handle}`,
+      label: item.label,
+      quantity: item.number,
+      location: location2,
+      ...extra.slot === void 0 ? {} : { slot: extra.slot },
+      ...slotName === void 0 ? {} : { slotName },
+      ...extra.floorIndex === void 0 ? {} : { floorIndex: extra.floorIndex },
+      colour: itemColour(item),
+      inscription: item.inscription,
+      family
+    };
+  };
   return {
     token: snap.token,
     phase: snap.phase,
     prompt: snap.prompt,
     rows: [
-      ...snap.core.inventory.map((item) => row(item, "pack")),
-      ...snap.core.equipment.flatMap((item, slot) => item ? [row(item, "equipment", slot)] : [])
-    ]
+      ...core.inventory.map((item) => row(item, "pack")),
+      ...core.equipment.flatMap((item, slot) => item ? [row(item, "equipment", { slot })] : [])
+    ],
+    quiver: core.quiver ? core.quiver.map((item) => row(item, "quiver")) : null,
+    floor: core.floorHere ? core.floorHere.map((item, floorIndex) => row(item, "floor", { floorIndex })) : null,
+    player: core.player?.grid ? { x: core.player.grid.x, y: core.player.grid.y } : null
   };
+}
+function panelRows(model) {
+  return [...model.rows, ...model.quiver ?? [], ...model.floor ?? []];
 }
 function compareItem(ctx, token, handle) {
   if (!ctx.core?.createAgentView || !ctx.state) return null;
@@ -4091,39 +4224,76 @@ function compareItem(ctx, token, handle) {
   const ref = typeof handle === "number" ? { from: "gear", handle } : { from: "store", ...handle };
   return ctx.core.createAgentView(ctx.state).simulateLoadout?.({ wield: [ref] }) ?? null;
 }
+function compareSlots(ctx, token, handle) {
+  const same4 = (other) => other.epoch === token.epoch && other.revision === token.revision;
+  if (ctx.inspect?.compareLoadoutSlots) {
+    const ref = typeof handle === "number" ? { from: "gear", handle } : { from: "store", ...handle };
+    let result = null;
+    try {
+      result = ctx.inspect.compareLoadoutSlots(ref);
+    } catch {
+      result = null;
+    }
+    if (result) return same4(result.token) ? result.slots : null;
+  }
+  const sim = compareItem(ctx, token, handle);
+  if (!sim) return null;
+  const placement = sim.placements[0];
+  if (!placement || sim.unresolved.length) return [];
+  const slots = ctx.snapshot?.()?.core.equipmentSlots;
+  return [{ slot: placement.slot, name: slots?.[placement.slot]?.name ?? "", comparison: sim }];
+}
+function defaultSlot(slots) {
+  const empty = slots.find((entry2) => entry2.comparison.placements.some((placement) => placement.slot === entry2.slot && !placement.displaced));
+  return (empty ?? slots[0])?.slot ?? null;
+}
 var AcquisitionChanges = class {
   previous = /* @__PURE__ */ new Map();
+  families = /* @__PURE__ */ new Map();
   pending = /* @__PURE__ */ new Map();
   epoch;
+  // The first look at a game only records what is carried, as upstream's
+  // InventoryChanges does, so a loaded character's pack is not all marked new.
+  initialized = false;
+  reset() {
+    this.previous.clear();
+    this.families.clear();
+    this.pending.clear();
+    this.initialized = false;
+  }
   update(model) {
     if (model.phase !== "play" && model.phase !== "store") {
-      this.previous.clear();
-      this.pending.clear();
+      this.reset();
       this.epoch = void 0;
       return;
     }
     if (this.epoch !== model.token.epoch) {
-      this.previous.clear();
-      this.pending.clear();
+      this.reset();
       this.epoch = model.token.epoch;
     }
     const current = /* @__PURE__ */ new Map();
-    const family = /* @__PURE__ */ new Map();
-    for (const item of model.rows) {
+    const totals = /* @__PURE__ */ new Map();
+    const familyOf = /* @__PURE__ */ new Map();
+    for (const item of [...model.rows, ...model.quiver ?? []]) {
       if (!item.handle) continue;
-      const key = `${item.family}:${item.handle}`;
-      current.set(key, (current.get(key) ?? 0) + Math.max(0, item.quantity));
-      family.set(item.family, (family.get(item.family) ?? 0) + Math.max(0, item.quantity));
+      const key = this.keyOf(item);
+      const count = Math.max(0, item.quantity);
+      current.set(key, (current.get(key) ?? 0) + count);
+      totals.set(item.family, (totals.get(item.family) ?? 0) + count);
+      familyOf.set(key, item.family);
     }
-    const previousFamily = /* @__PURE__ */ new Map();
-    for (const [key, count] of this.previous) {
-      const name = key.slice(0, key.lastIndexOf(":"));
-      previousFamily.set(name, (previousFamily.get(name) ?? 0) + count);
-    }
-    for (const [key, count] of current) {
-      const name = key.slice(0, key.lastIndexOf(":"));
-      const added = Math.min(Math.max(0, count - (this.previous.get(key) ?? 0)), Math.max(0, (family.get(name) ?? 0) - (previousFamily.get(name) ?? 0)));
-      if (added) this.pending.set(key, { amount: Math.min(count, (this.pending.get(key)?.amount ?? 0) + added), fresh: (this.previous.get(key) ?? 0) === 0 });
+    if (this.initialized) {
+      const gains = new Map([...totals].map(([family, count]) => [family, Math.max(0, count - (this.families.get(family) ?? 0))]));
+      for (const [key, count] of current) {
+        const family = familyOf.get(key);
+        const before = this.previous.get(key) ?? 0;
+        const added = Math.min(Math.max(0, count - before), gains.get(family) ?? 0);
+        if (added > 0) {
+          const entry2 = this.pending.get(key);
+          this.pending.set(key, { amount: (entry2?.amount ?? 0) + added, fresh: (entry2?.fresh ?? false) || before === 0 });
+          gains.set(family, (gains.get(family) ?? 0) - added);
+        }
+      }
     }
     for (const [key, value2] of this.pending) {
       const count = current.get(key) ?? 0;
@@ -4131,13 +4301,20 @@ var AcquisitionChanges = class {
       else if (value2.amount > count) this.pending.set(key, { ...value2, amount: count });
     }
     this.previous = current;
+    this.families = totals;
+    this.initialized = true;
   }
   badge(item) {
-    const entry2 = this.pending.get(`${item.family}:${item.handle}`);
+    const entry2 = this.pending.get(this.keyOf(item));
     return entry2 ? entry2.fresh ? "NEW" : `+${entry2.amount}` : null;
   }
   acknowledge(item) {
-    this.pending.delete(`${item.family}:${item.handle}`);
+    this.pending.delete(this.keyOf(item));
+  }
+  // The kind key and the gear key: a stack keeps its mark when its letter changes,
+  // and a handle reused for another kind is a new item.
+  keyOf(item) {
+    return `${item.family}|${item.key}`;
   }
 };
 
@@ -4165,6 +4342,35 @@ function submitItem(intent, inspect, token, code, handle, command) {
   if (!tester || tester.token.epoch !== token.epoch || tester.token.revision !== token.revision || !tester.items.some((item) => "handle" in item && item.handle === handle)) return { accepted: false, reason: "Item is unavailable for this action." };
   return intent?.submit(token, { kind: "command", command }) ?? { accepted: false, reason: "Intent seam unavailable." };
 }
+function submitIgnore(ctx, token, kind, handle) {
+  const tester = ctx.inspect?.itemTester("ignore");
+  if (!tester || tester.token.epoch !== token.epoch || tester.token.revision !== token.revision || !tester.items.some((item) => "handle" in item && item.handle === handle)) return { accepted: false, reason: "Item is unavailable for this action." };
+  return submitItemIntent(ctx, token, { kind, handle });
+}
+function floorChoiceIndex(handle) {
+  return handle < 0 ? -handle - 1 : null;
+}
+
+// src/item-inspection.ts
+var LABEL = /^([^\n:]{1,40}):[ \t]*\n/u;
+function inspectionBlocks(result) {
+  const sections = result.sections;
+  if (!sections?.length) return [{ heading: result.title, body: result.text, open: true }];
+  const title = sections.find((section2) => section2.kind === "title")?.text ?? result.title;
+  const description = sections.filter((section2) => section2.kind === "description").map((section2) => section2.text).join("\n\n");
+  const blocks = [{ heading: title, body: description, open: true }];
+  for (const section2 of sections) {
+    if (section2.kind !== "info") continue;
+    const label2 = LABEL.exec(section2.text);
+    if (label2) {
+      blocks.push({ heading: label2[1].trim(), body: section2.text.slice(label2[0].length), open: true });
+      continue;
+    }
+    const [first = "", ...rest2] = section2.text.split("\n");
+    blocks.push(rest2.length ? { heading: first.trim(), body: rest2.join("\n"), open: true, lead: true } : { heading: "", body: first, open: true });
+  }
+  return blocks;
+}
 
 // src/panels/item-comparison.ts
 var METRICS = [["speed", "Speed", 1], ["ac", "Armour", 1], ["toH", "To hit", 1], ["toD", "To damage", 1], ["blows", "Blows", 100], ["shots", "Shots", 10], ["maxHp", "Max HP", 1], ["maxSp", "Max SP", 1], ["totalWeight", "Weight", 10]];
@@ -4179,7 +4385,11 @@ function el(parent, tag, value2) {
   parent.appendChild(node2);
   return node2;
 }
-function renderItemComparison(parent, sim, unchanged, toggle) {
+function slotOptionLabel(name, displaced) {
+  const slot = name ? name.charAt(0).toUpperCase() + name.slice(1) : "Slot";
+  return `${slot}: ${displaced ?? "empty"}`;
+}
+function renderItemComparison(parent, sim, unchanged, toggle, choice) {
   if (sim.unresolved.length) return;
   const details = el(parent, "details");
   details.open = true;
@@ -4188,7 +4398,17 @@ function renderItemComparison(parent, sim, unchanged, toggle) {
     el(details, "p", "No compatible equipment slot.");
     return;
   }
-  const placement = sim.placements[0];
+  if (choice && choice.options.length > 1) {
+    const label2 = el(details, "label", "Replace slot ");
+    const select = el(label2, "select");
+    for (const option of choice.options) {
+      const entry2 = el(select, "option", option.label);
+      entry2.value = String(option.slot);
+      entry2.selected = option.slot === choice.chosen;
+    }
+    select.addEventListener("change", () => choice.choose(Number(select.value)));
+  }
+  const placement = (choice ? sim.placements.find((entry2) => entry2.slot === choice.chosen) : void 0) ?? sim.placements[0];
   el(details, "p", `Replacing: ${placement.displaced?.label ?? "empty slot"}`);
   el(details, "p", "Known properties only; unidentified effects may differ.");
   const checkbox = el(details, "input");
@@ -4230,10 +4450,11 @@ function renderItemComparison(parent, sim, unchanged, toggle) {
 }
 
 // src/panels/items.ts
-var CSS2 = `:host{color:var(--anyband-text);font:13px/1.4 system-ui,sans-serif}.items{position:absolute;right:12px;top:12px;width:min(440px,44vw);max-height:calc(100vh - 24px);overflow:auto;padding:10px;background:var(--anyband-surface);border:1px solid var(--anyband-accent);border-radius:var(--anyband-rounding);pointer-events:auto}button,input,select{font:inherit;color:var(--anyband-text);background:var(--anyband-background);border:1px solid var(--anyband-accent);border-radius:3px;padding:3px 5px}button{cursor:pointer}button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--anyband-accent)}input[type=search]{width:100%}.tabs,.actions,.quick{display:flex;gap:5px;flex-wrap:wrap;margin:6px 0}table{width:100%;border-collapse:collapse}th{text-align:left;position:sticky;top:0;background:var(--anyband-surface)}td,th{padding:3px;border-bottom:1px solid var(--anyband-accent)}tr.new{background:#437d5541}.row{width:100%;text-align:left;border:0;background:transparent}details{margin:8px 0}summary{color:var(--anyband-accent);cursor:pointer;font-weight:bold}.muted{opacity:.65}.gain{color:#80b891}.loss{color:#ff7559}.error{color:#ff7559}.prompt{border:1px solid var(--anyband-accent);padding:8px;margin:8px 0}`;
+var CSS2 = `:host{color:var(--anyband-text);font:13px/1.4 system-ui,sans-serif}.items{position:absolute;right:12px;top:12px;width:min(440px,44vw);max-height:calc(100vh - 24px);overflow:auto;padding:10px;background:var(--anyband-surface);border:1px solid var(--anyband-accent);border-radius:var(--anyband-rounding);pointer-events:auto}button,input,select{font:inherit;color:var(--anyband-text);background:var(--anyband-background);border:1px solid var(--anyband-accent);border-radius:3px;padding:3px 5px}button{cursor:pointer}button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--anyband-accent)}input[type=search]{width:100%}.tabs,.actions,.quick{display:flex;gap:5px;flex-wrap:wrap;margin:6px 0}table{width:100%;border-collapse:collapse}th{text-align:left;position:sticky;top:0;background:var(--anyband-surface)}td,th{padding:3px;border-bottom:1px solid var(--anyband-accent)}tr.new{background:#437d5541}tr.chosen{outline:1px solid var(--anyband-accent)}.row{width:100%;text-align:left;border:0;background:transparent}details{margin:8px 0}summary{color:var(--anyband-accent);cursor:pointer;font-weight:bold}.muted{opacity:.65}.gain{color:#80b891}.loss{color:#ff7559}.error{color:#ff7559}.prompt{border:1px solid var(--anyband-accent);padding:8px;margin:8px 0}.rule{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;padding:3px 0;border-bottom:1px solid var(--anyband-accent)}.rule .name{flex:1 1 12em}.rule input[type=text]{width:9em}.info{white-space:pre-wrap;margin:4px 0}summary.lead{font-weight:normal;color:inherit}`;
 var ACTIONS = ["wield", "takeoff", "drop", "inscribe", "use"];
 var ACTION_LABELS = { wield: "Wield", takeoff: "Take off", drop: "Drop", inscribe: "Inscribe", use: "Use" };
 var USE_CODES = ["activate", "use-staff", "aim-wand", "zap-rod", "eat", "quaff", "read"];
+var TAB_NAMES = { pack: "Pack", equipment: "Equipment", quiver: "Quiver" };
 function el2(parent, tag, text) {
   const child = parent.ownerDocument.createElement(tag);
   if (text !== void 0) child.textContent = text;
@@ -4277,24 +4498,38 @@ function installItems(ctx) {
   let tab = "pack";
   let search = "";
   let selected = null;
+  let promptChoice = null;
   let unchanged = false;
   let quantity = 1;
   let promptId = -1;
   let error = "";
   let signature = "";
   let closed = false;
+  let slotChoice = null;
+  const ignoredHere = /* @__PURE__ */ new Set();
+  let ignoreEpoch;
+  let ruleFilter = "";
+  let rulesOpen = false;
+  const drafts = /* @__PURE__ */ new Map();
+  const folded = /* @__PURE__ */ new Set();
   const enabled = (name) => flags[`anybandui.items${name}`] === true;
   const read = () => {
     const snap = ctx.snapshot?.();
     return snap?.core ? adaptItems(snap) : null;
   };
+  const current = (model) => {
+    const latest = read();
+    return !!latest && same(latest.token, model.token) && latest.phase === "play" && !latest.prompt && playerIsDriving(ctx);
+  };
   const usable = (model, item, code) => {
     const tester = ctx.inspect?.itemTester(code);
     return !!tester && same(tester.token, model.token) && tester.items.some((ref) => "handle" in ref && ref.handle === item.handle);
   };
+  const report = (result, fallback) => {
+    error = result.accepted || result.quiet ? "" : result.reason ?? fallback;
+  };
   const act = (model, item, code) => {
-    const latest = read();
-    if (!latest || !same(latest.token, model.token) || latest.phase !== "play" || latest.prompt || !ctx.intent?.submit || !playerIsDriving(ctx)) {
+    if (!current(model) || !ctx.intent?.submit) {
       error = "Action unavailable at this input wait.";
       paint(true);
       return;
@@ -4314,9 +4549,43 @@ function installItems(ctx) {
     }
     const command = buildItemCommand(builders, actualCode, item.handle, inscription);
     const result = submitItem(ctx.intent, ctx.inspect, model.token, actualCode, item.handle, command);
-    error = result.accepted ? "" : result.reason ?? "Action rejected.";
+    report({ ...result, quiet: result.code === "controller-owned" }, "Action rejected.");
     paint(true);
   };
+  const ignore = (model, item, kind) => {
+    if (!current(model)) {
+      error = "Action unavailable at this input wait.";
+      paint(true);
+      return;
+    }
+    const result = submitIgnore(ctx, model.token, kind, item.handle);
+    if (result.accepted) {
+      if (kind === "ignore") ignoredHere.add(item.key);
+      else ignoredHere.delete(item.key);
+      error = "";
+    } else if (!result.quiet && result.reason === "invalid item action") {
+      if (kind === "ignore") ignoredHere.add(item.key);
+      else ignoredHere.delete(item.key);
+      error = kind === "ignore" ? "This item is already ignored." : "This item is not ignored.";
+    } else report(result, "Action rejected.");
+    paint(true);
+  };
+  const editRule = (model, rules, rule, index, value2, itype) => {
+    if (!current(model)) {
+      error = "Rules can be changed only while the game waits for a command.";
+      paint(true);
+      return;
+    }
+    const built = ruleIntent(rules, rule, index, value2, itype);
+    if ("reason" in built) {
+      error = built.reason;
+      paint(true);
+      return;
+    }
+    report(submitItemIntent(ctx, model.token, built.intent), "The game did not accept that rule.");
+    paint(true);
+  };
+  const inspectRef = (model, item) => item.location === "floor" ? model.player && item.floorIndex !== void 0 ? { floor: { x: model.player.x, y: model.player.y, index: item.floorIndex } } : null : item.handle;
   const showPrompt = (model) => {
     if (model.phase !== "play" || !playerIsDriving(ctx)) return;
     const prompt = model.prompt;
@@ -4348,14 +4617,14 @@ function installItems(ctx) {
       });
       button(box, "Confirm", () => {
         const result = answerQuantity(ctx.prompt, q, quantity);
-        error = result.accepted ? "" : result.reason ?? "Prompt rejected.";
+        report({ ...result, quiet: result.code === "controller-owned" }, "Prompt rejected.");
         paint(true);
       });
     } else if (prompt.kind === "item" && enabled("Choice")) {
       const p = prompt;
       if (promptId !== p.promptId) {
         promptId = p.promptId;
-        selected = p.choices[0]?.handle ?? null;
+        promptChoice = p.choices[0]?.handle ?? null;
       }
       const box = el2(mount, "section");
       box.className = "prompt";
@@ -4364,56 +4633,215 @@ function installItems(ctx) {
       const table = el2(box, "table");
       const head = el2(table, "tr");
       for (const name of ["Key", "Item", "Location", "Qty"]) el2(head, "th", name);
+      const rowFor = (handle) => {
+        const floor = floorChoiceIndex(handle);
+        return floor === null ? panelRows(model).find((row) => row.handle === handle && row.location !== "floor") : model.floor?.[floor];
+      };
       for (const choice of p.choices) {
-        const item = model.rows.find((row2) => row2.handle === choice.handle);
+        const item = rowFor(choice.handle);
         const row = el2(table, "tr");
         el2(row, "td", choice.letter);
+        if (choice.handle === promptChoice) row.className = "chosen";
         const cell = el2(row, "td");
-        button(cell, choice.label, () => {
-          selected = choice.handle;
+        const b = button(cell, choice.label, () => {
+          promptChoice = choice.handle;
           paint(true);
         });
-        el2(row, "td", item?.location ?? "Floor");
+        b.className = "row";
+        if (item) b.style.color = item.colour;
+        el2(row, "td", item ? TAB_NAMES[item.location] ?? "Floor" : "Floor");
         el2(row, "td", item ? String(item.quantity) : "");
       }
-      const current = p.choices.find((choice) => choice.handle === selected);
-      if (current && selected !== null) {
-        const inspection = ctx.inspect?.inspectItem(selected);
+      const chosen = p.choices.find((choice) => choice.handle === promptChoice);
+      if (chosen) {
+        const item = rowFor(chosen.handle);
+        const ref = item ? inspectRef(model, item) : chosen.handle > 0 ? chosen.handle : null;
+        const inspection = ref === null ? null : ctx.inspect?.inspectItem(ref);
         if (inspection && same(inspection.token, model.token)) el2(box, "p", inspection.text);
       }
       const choose = button(box, "Choose", () => {
-        if (current) {
-          const result = answerItem(ctx.prompt, p, current.handle);
-          error = result.accepted ? "" : result.reason ?? "Prompt rejected.";
+        if (chosen) {
+          const result = answerItem(ctx.prompt, p, chosen.handle);
+          report({ ...result, quiet: result.code === "controller-owned" }, "Prompt rejected.");
           paint(true);
         }
       });
-      choose.disabled = !current;
+      choose.disabled = !chosen;
     }
+  };
+  const showRules = (model) => {
+    const rules = enabled("Rules") ? ctx.inspect?.itemRules?.() ?? null : null;
+    if (!rules || !same(rules.token, model.token)) return;
+    const section2 = el2(mount, "details");
+    section2.open = rulesOpen;
+    section2.addEventListener("toggle", () => {
+      rulesOpen = section2.open;
+    });
+    el2(section2, "summary", "Ignore settings and inscriptions");
+    if (!rulesEditable(ctx, model.phase, !!model.prompt)) {
+      const lines = itemRuleLines(rules);
+      if (!lines.length) el2(section2, "p", "No ignore settings or inscriptions yet.");
+      for (const line of lines) el2(section2, "div", line);
+      return;
+    }
+    const filter = el2(section2, "input");
+    filter.type = "search";
+    filter.placeholder = "Find an item kind or ego";
+    filter.value = ruleFilter;
+    filter.dataset["focus"] = "rule-filter";
+    filter.addEventListener("input", () => {
+      ruleFilter = filter.value;
+      paint(true);
+    });
+    const rows = ruleEditorRows(rules, ruleFilter);
+    if (rows.quality.length) {
+      el2(section2, "h4", "Ignore by quality");
+      for (const row of rows.quality) {
+        const line = el2(section2, "div");
+        line.className = "rule";
+        el2(line, "span", row.name).className = "name";
+        const select = el2(line, "select");
+        select.setAttribute("aria-label", `Ignore ${row.name}`);
+        qualityChoices(row.itype).forEach((name, value2) => {
+          const option = el2(select, "option", name);
+          option.value = String(value2);
+          option.selected = value2 === row.threshold;
+        });
+        select.addEventListener("change", () => editRule(model, rules, "quality", row.itype, Number(select.value)));
+      }
+    }
+    const checkbox = (line, label2, checked, change) => {
+      const wrap = el2(line, "label");
+      const box = el2(wrap, "input");
+      box.type = "checkbox";
+      box.checked = checked;
+      box.addEventListener("change", () => change(box.checked));
+      wrap.append(` ${label2}`);
+    };
+    if (rows.kinds.length) {
+      el2(section2, "h4", "Item kinds");
+      for (const row of rows.kinds) {
+        const line = el2(section2, "div");
+        line.className = "rule";
+        el2(line, "span", row.name).className = "name";
+        checkbox(line, "Ignore", row.ignoreAware, (value2) => editRule(model, rules, "kind-aware", row.kidx, value2));
+        if (row.ignoreUnaware) checkbox(line, "Ignore unidentified", true, (value2) => editRule(model, rules, "kind-unaware", row.kidx, value2));
+        const key = `note:${row.kidx}`;
+        const note = el2(line, "input");
+        note.type = "text";
+        note.maxLength = NOTE_LIMIT;
+        note.placeholder = "Inscription";
+        note.dataset["focus"] = key;
+        note.setAttribute("aria-label", `Auto-inscription for ${row.name}`);
+        note.value = drafts.get(key) ?? row.noteAware ?? "";
+        note.addEventListener("input", () => {
+          drafts.set(key, note.value);
+        });
+        button(line, "Save", () => {
+          drafts.delete(key);
+          editRule(model, rules, "note-aware", row.kidx, note.value);
+        });
+        if (row.noteUnaware) {
+          el2(line, "span", `Unidentified: ${row.noteUnaware}`);
+          button(line, "Clear", () => editRule(model, rules, "note-unaware", row.kidx, ""));
+        }
+      }
+    }
+    if (rows.egos.length) {
+      el2(section2, "h4", "Egos");
+      for (const row of rows.egos) {
+        const line = el2(section2, "div");
+        line.className = "rule";
+        el2(line, "span", row.typeName ? `${row.name} (${row.typeName})` : row.name).className = "name";
+        checkbox(line, "Ignore", row.ignored, (value2) => editRule(model, rules, "ego", row.eidx, value2, row.itype));
+      }
+    }
+    if (rows.hidden) el2(section2, "p", `${rows.hidden} more match. Type more of the name to narrow the list.`).className = "muted";
+    else if (!ruleFilter.trim() && !rows.kinds.length && !rows.egos.length) el2(section2, "p", "No kind or ego rules yet. Type a name above to add one.").className = "muted";
   };
   const showComparison = (model, item) => {
     if (!enabled("Comparison") || item.location !== "pack") return;
-    const sim = compareItem(ctx, model.token, item.handle);
-    if (sim) renderItemComparison(mount, sim, unchanged, (value2) => {
+    const slots = compareSlots(ctx, model.token, item.handle);
+    if (!slots?.length) return;
+    if (!slotChoice || slotChoice.key !== item.key || !slots.some((entry2) => entry2.slot === slotChoice.slot)) {
+      const slot = defaultSlot(slots);
+      slotChoice = slot === null ? null : { key: item.key, slot };
+    }
+    const chosen = slots.find((entry2) => entry2.slot === slotChoice?.slot) ?? slots[0];
+    renderItemComparison(mount, chosen.comparison, unchanged, (value2) => {
       unchanged = value2;
       paint(true);
+    }, {
+      options: slots.map((entry2) => ({ slot: entry2.slot, label: slotOptionLabel(entry2.name, entry2.comparison.placements.find((placement) => placement.slot === entry2.slot)?.displaced?.label ?? null) })),
+      chosen: chosen.slot,
+      choose: (slot) => {
+        slotChoice = { key: item.key, slot };
+        paint(true);
+      }
     });
+  };
+  const showInspection = (model, item) => {
+    if (!enabled("Inspection")) return;
+    const ref = inspectRef(model, item);
+    const inspection = ref === null ? null : ctx.inspect?.inspectItem(ref);
+    if (!inspection || !same(inspection.token, model.token)) return;
+    for (const block of inspectionBlocks(inspection)) {
+      if (!block.heading) {
+        el2(mount, "p", block.body).className = "info";
+        continue;
+      }
+      const details = el2(mount, "details");
+      details.open = !folded.has(block.heading);
+      details.addEventListener("toggle", () => {
+        if (details.open) folded.delete(block.heading);
+        else folded.add(block.heading);
+      });
+      const summary = el2(details, "summary", block.heading);
+      if (block.lead) summary.className = "lead";
+      if (block.body) el2(details, "p", block.body).className = "info";
+    }
+  };
+  const itemButton = (cell, item, badge) => {
+    const b = button(cell, `${item.label}${badge ? ` ${badge}` : ""}`, () => {
+      selected = item.key;
+      changes.acknowledge(item);
+      paint(true);
+    });
+    b.className = "row";
+    b.style.color = item.colour;
+    b.setAttribute("aria-pressed", String(selected === item.key));
+    b.title = [badge === "NEW" ? "Newly acquired" : badge ? `${badge.slice(1)} acquired` : "", item.inscription ? `Inscription: ${item.inscription}` : ""].filter(Boolean).join("\n");
   };
   const paint = (force = false) => {
     if (closed) return;
-    const current = surfaces.mounts().get("items");
-    if (!current) return;
-    if (current !== mount) {
-      mount = current;
+    const host = surfaces.mounts().get("items");
+    if (!host) return;
+    if (host !== mount) {
+      mount = host;
       signature = "";
     }
     const model = read();
     mount.getRootNode().host.style.display = model?.phase === "store" ? "none" : "";
     if (model?.phase === "store") return;
-    const next = JSON.stringify([model, tab, search, selected, unchanged, quantity, error]);
+    if (model && ignoreEpoch !== model.token.epoch) {
+      ignoredHere.clear();
+      ignoreEpoch = model.token.epoch;
+    }
+    const next = JSON.stringify([model, tab, search, selected, promptChoice, unchanged, quantity, error, slotChoice, [...ignoredHere], ruleFilter]);
     if (!force && next === signature) return;
     signature = next;
+    const active = mount.getRootNode().activeElement;
+    const focusKey = active && mount.contains(active) ? active.dataset?.["focus"] : void 0;
+    const caret = focusKey ? [active.selectionStart, active.selectionEnd] : null;
     mount.replaceChildren();
+    build(model);
+    if (focusKey) {
+      const field = mount.querySelector(`[data-focus="${focusKey}"]`);
+      field?.focus();
+      if (field && caret && caret[0] !== null) field.setSelectionRange(caret[0], caret[1]);
+    }
+  };
+  const build = (model) => {
     el2(mount, "h2", "Items");
     if (!model) {
       el2(mount, "p", "Inventory read unavailable.");
@@ -4421,19 +4849,23 @@ function installItems(ctx) {
     }
     if (enabled("Highlights")) changes.update(model);
     showPrompt(model);
-    const rules = enabled("Rules") ? ctx.inspect?.itemRules?.() ?? null : null;
-    if (rules && same(rules.token, model.token)) {
-      const section2 = el2(mount, "details");
-      el2(section2, "summary", "Ignore settings and inscriptions");
-      const lines = itemRuleLines(rules);
-      if (!lines.length) el2(section2, "p", "No ignore settings or inscriptions yet.");
-      for (const line of lines) el2(section2, "div", line);
-    }
+    showRules(model);
     if (!enabled("Lists")) return;
+    if (model.floor?.length) {
+      el2(mount, "h3", "On this tile");
+      const table2 = el2(mount, "table");
+      const head2 = el2(table2, "tr");
+      for (const name of ["Item", "Qty"]) el2(head2, "th", name);
+      for (const item2 of model.floor) {
+        const row = el2(table2, "tr");
+        itemButton(el2(row, "td"), item2, null);
+        el2(row, "td", String(item2.quantity));
+      }
+    }
     const tabs = el2(mount, "div");
     tabs.className = "tabs";
     for (const name of ["pack", "equipment", "quiver"]) {
-      const b = button(tabs, name[0].toUpperCase() + name.slice(1), () => {
+      const b = button(tabs, TAB_NAMES[name], () => {
         tab = name;
         paint(true);
       });
@@ -4443,13 +4875,14 @@ function installItems(ctx) {
     searchBox.type = "search";
     searchBox.placeholder = "Search items";
     searchBox.value = search;
+    searchBox.dataset["focus"] = "item-search";
     searchBox.addEventListener("input", () => {
       search = searchBox.value;
       paint(true);
-      mount.querySelector("input[type=search]")?.focus();
     });
-    const rows = model.rows.filter((item2) => item2.location === tab && item2.label.toLowerCase().includes(search.toLowerCase()));
-    if (!rows.length) el2(mount, "p", tab === "pack" ? "Your pack is empty." : tab === "equipment" ? "Nothing equipped." : "No quiver items available.");
+    const listed = tab === "quiver" ? model.quiver ?? [] : model.rows.filter((item2) => item2.location === tab);
+    const rows = listed.filter((item2) => item2.label.toLowerCase().includes(search.toLowerCase()));
+    if (!rows.length) el2(mount, "p", tab === "pack" ? "Your pack is empty." : tab === "equipment" ? "Nothing equipped." : model.quiver ? "Your quiver is empty." : "No quiver items available.");
     const table = el2(mount, "table");
     const head = el2(table, "tr");
     for (const name of tab === "equipment" ? ["Item", "Slot", "Qty"] : ["Item", "Qty"]) el2(head, "th", name);
@@ -4457,39 +4890,27 @@ function installItems(ctx) {
       const row = el2(table, "tr");
       const badge = enabled("Highlights") ? changes.badge(item2) : null;
       if (badge) row.className = "new";
-      const cell = el2(row, "td");
-      const b = button(cell, `${item2.label}${badge ? ` ${badge}` : ""}`, () => {
-        selected = item2.handle;
-        changes.acknowledge(item2);
-        paint(true);
-      });
-      b.className = "row";
-      b.style.color = item2.colour;
-      b.title = [badge === "NEW" ? "Newly acquired" : badge ? `${badge.slice(1)} acquired` : "", item2.inscription ? `Inscription: ${item2.inscription}` : ""].filter(Boolean).join("\n");
-      if (tab === "equipment") el2(row, "td", String(item2.slot ?? ""));
+      itemButton(el2(row, "td"), item2, badge);
+      if (tab === "equipment") el2(row, "td", item2.slotName ?? String(item2.slot ?? ""));
       el2(row, "td", String(item2.quantity));
     }
-    const item = model.rows.find((row) => row.handle === selected);
+    const item = panelRows(model).find((row) => row.key === selected);
     if (item) {
       el2(mount, "h3", "Inspection");
-      el2(mount, "strong", item.label);
-      if (enabled("Actions") && model.phase === "play" && !model.prompt && ctx.intent?.submit && playerIsDriving(ctx)) {
+      el2(mount, "strong", item.label).style.color = item.colour;
+      if (enabled("Actions") && item.handle > 0 && model.phase === "play" && !model.prompt && ctx.intent?.submit && playerIsDriving(ctx)) {
         const actions = el2(mount, "div");
         actions.className = "actions";
         for (const code of ACTIONS) {
           if (code === "use" ? USE_CODES.some((candidate) => usable(model, item, candidate)) : usable(model, item, code)) button(actions, ACTION_LABELS[code], () => act(model, item, code));
         }
-      }
-      showComparison(model, item);
-      if (enabled("Inspection")) {
-        const inspection = ctx.inspect?.inspectItem(item.handle);
-        if (inspection && same(inspection.token, model.token)) {
-          const details = el2(mount, "details");
-          details.open = true;
-          el2(details, "summary", inspection.title);
-          el2(details, "p", inspection.text);
+        const kind = ignoredHere.has(item.key) ? "unignore" : "ignore";
+        if (intentAvailable(ctx, kind) && usable(model, item, "ignore")) {
+          button(actions, kind === "ignore" ? "Ignore" : "Unignore", () => ignore(model, item, kind));
         }
       }
+      showComparison(model, item);
+      showInspection(model, item);
     }
     if (error) {
       const message = el2(mount, "p", error);
