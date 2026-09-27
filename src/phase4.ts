@@ -3,7 +3,7 @@ import { characterKey } from "./first-encounter.js";
 import { playerIsDriving } from "./input-owner.js";
 import type { Phase4Context, Phase4Snapshot, SpellPrompt } from "./seams.js";
 import { adaptSpells, type BookRow, type SpellRow } from "./view-model/spells.js";
-import { actionReady, answerRest, answerSpell, castSpell, rest, restPrompt, stopResting, studySpell } from "./spell-actions.js";
+import { actionReady, answerRest, answerSpell, cancelSpell, castSpell, rest, restPrompt, stopResting, studySpell } from "./spell-actions.js";
 import { activate, catalogueCommands, itemBindings, migrateSlots, quickbarOwnsKey, readSlots, resolve, slotIndex, writeSlots, type Appearance, type Binding, type Slots } from "./quickbar.js";
 import { installBlastPreview } from "./blast-preview.js";
 
@@ -50,8 +50,20 @@ export function adoptLineage(ctx: Phase4Context, snap: Phase4Snapshot | null | u
 /** The quickbar's readable name for a command binding in the Assign menu. */
 const assignLabel = (binding: Binding): string => binding.type === "command" ? binding.name : binding.type === "spell" ? `Cast: ${binding.name}` :
   `${binding.code === "quaff" ? "Drink" : binding.code === "read" ? "Read" : binding.code === "aim-wand" ? "Aim" : "Activate"}: ${binding.name}`;
-/** What the resting indicator says for the game's rest count or special mode. */
+/** What the resting indicator says for the game's rest count or special mode.
+ * An older engine still sends a number in `mode`; a newer engine sends a name. */
 export function restingText(resting: NonNullable<Phase4Snapshot["resting"]>): string {
+  if (typeof resting.mode === "string") {
+    if (resting.mode === "turns") {
+      const left = resting.turnsRemaining ?? 0;
+      const total = resting.turnsRequested ?? left;
+      if (left <= 0) return "Resting.";
+      return `Resting: ${left} of ${total} turns left.`;
+    }
+    if (resting.mode === "complete") return "Resting until fully recovered.";
+    if (resting.mode === "all-points") return "Resting until hit points and mana are full.";
+    if (resting.mode === "some-points") return "Resting until hit points or mana are full.";
+  }
   if (resting.turnsRemaining !== null && resting.turnsRemaining > 0) return `Resting: ${resting.turnsRemaining} ${resting.turnsRemaining === 1 ? "turn" : "turns"} left.`;
   return resting.mode === -2 ? "Resting until fully recovered." : resting.mode === -1 ? "Resting until hit points and mana are full." :
     resting.mode === -3 ? "Resting until hit points or mana are full." : "Resting.";
@@ -145,8 +157,10 @@ ${snap?.core.player?.race ?? ""}`;
         const prompt = snap.prompt as SpellPrompt; const box = el(spellMount, "div"); box.className = "menu"; el(box, "h3", "Choose spell"); el(box, "p", prompt.label);
         for (const choice of prompt.choices) button(box, choice.name, () => { promptChoice = choice.index; paint(true); });
         button(box, "Choose", () => { if (!answerSpell(ctx, snap, promptChoice)) fail("Choice unavailable."); paint(true); });
-        // The spell prompt accepts only a spell index, so the player cancels it with Escape.
-        el(box, "p", "Press Escape to cancel.").className = "hint";
+        // PROSE: dismisses the open spell prompt without picking a spell.
+        // A newer engine closes the prompt with the typed cancel reply; on an
+        // older engine the reply is refused and Escape is still the way out.
+        button(box, "Cancel", () => { if (cancelSpell(ctx, snap)) promptChoice = -1; else fail("Press Escape to cancel."); paint(true); });
       }
     }
     if (quickOn && quickMount && snap.phase === "play") {

@@ -149,7 +149,8 @@ function messagePayload(input) {
     count: item.count,
     system: void 0,
     category: item.category,
-    group: void 0
+    group: void 0,
+    color: item.color
   }));
 }
 function dungeonPayload(player) {
@@ -186,11 +187,20 @@ function playerIsDriving(ctx) {
 
 // src/view-model/source.ts
 var MATCH_WINDOW = 8;
-function messageHistory(entries, log) {
+function messageHistory(entries, log, hostLog) {
+  if (hostLog) {
+    const history2 = [];
+    for (let index = hostLog.length - 1; index >= 0; index--) {
+      const entry2 = hostLog[index];
+      history2.push({ text: entry2.text, count: entry2.count, category: void 0, color: entry2.color });
+    }
+    return history2;
+  }
   const core = log === void 0 ? [] : Array.from({ length: log.num() }, (_, age) => ({
     text: log.str(age),
     count: log.count(age),
-    category: log.type(age)
+    category: log.type(age),
+    color: void 0
   }));
   if (!entries) return core;
   const history = [];
@@ -205,10 +215,11 @@ function messageHistory(entries, log) {
       }
     }
     if (found < 0) {
-      history.push({ text, count: void 0, category: void 0 });
+      history.push({ text, count: void 0, category: void 0, color: void 0 });
       continue;
     }
-    history.push(core[found]);
+    const foundEntry = core[found];
+    history.push({ text: foundEntry.text, count: foundEntry.count, category: foundEntry.category, color: void 0 });
     next = found + 1;
   }
   return history;
@@ -247,7 +258,7 @@ function createSource(ctx) {
       const pending = messagePending(snap);
       return adapt(ctx.core.createAgentView(state), latest, {
         name: state.actor.player.fullName,
-        history: messageHistory(snap?.messages?.entries, state.messages),
+        history: messageHistory(snap?.messages?.entries, state.messages, snap?.messages?.log),
         study: state.actor.player.upkeep.newSpells,
         repeat: state.cmdQueue?.[0]?.repeatRemaining ?? 0,
         resting: state.resting !== void 0,
@@ -2655,7 +2666,7 @@ function renderMessageLog(mount, model, options = {}) {
       if (!message.text.toLocaleLowerCase().includes(match)) continue;
       const row = node(list, "div", "message", `${message.text}${index === 0 && (message.count ?? 1) > 1 ? ` (x${message.count})` : ""}`);
       const group = message.system ? "system" : message.group === "combat" ? "combat" : message.group === "loot" ? "loot" : "other";
-      row.style.color = ink[group];
+      row.style.color = message.color ?? ink[group];
     }
   };
   search.addEventListener("input", draw);
@@ -4064,8 +4075,8 @@ function itemRuleLines(rules) {
 var QUALITY_NAMES = ["no ignore", "bad", "average", "good", "non-artifact"];
 var LIMITED_QUALITY = /* @__PURE__ */ new Set([24, 25]);
 var NOTE_LIMIT = 79;
-function qualityChoices(itype) {
-  return LIMITED_QUALITY.has(itype) ? QUALITY_NAMES.slice(0, 2) : QUALITY_NAMES;
+function qualityChoices(row) {
+  return row.levels ?? (LIMITED_QUALITY.has(row.itype) ? QUALITY_NAMES.slice(0, 2) : QUALITY_NAMES);
 }
 function ruleEditorRows(rules, filter, limit = 30) {
   const needle = filter.trim().toLowerCase();
@@ -4079,7 +4090,8 @@ function ruleEditorRows(rules, filter, limit = 30) {
 }
 function ruleIntent(rules, rule, index, value2, itype) {
   if (rule === "quality") {
-    if (typeof value2 !== "number" || !rules.quality.some((row) => row.itype === index) || !Number.isInteger(value2) || value2 < 0 || value2 >= qualityChoices(index).length) return { reason: "That ignore level is not available for this item type." };
+    const row = rules.quality.find((entry2) => entry2.itype === index);
+    if (!row || typeof value2 !== "number" || !Number.isInteger(value2) || value2 < 0 || value2 >= qualityChoices(row).length) return { reason: "That ignore level is not available for this item type." };
     return { intent: { kind: "item-rule", rule, index, value: value2 } };
   }
   if (rule === "ego") {
@@ -4188,10 +4200,12 @@ function adaptItems(snap) {
   const row = (item, location2, extra = {}) => {
     const family = item.kindKey ?? item.kindId ?? `${item.tval}:${item.sval}`;
     const slotName = extra.slot === void 0 ? void 0 : slotLabel(core.equipmentSlots, extra.slot);
+    const key = location2 === "floor" ? item.itemKey ?? `floor:${extra.floorIndex}:${family}` : item.itemKey ?? `gear:${item.handle}`;
+    const label2 = item.name ?? item.label;
     return {
       handle: item.handle,
-      key: location2 === "floor" ? `floor:${extra.floorIndex}:${family}` : item.itemKey ?? `gear:${item.handle}`,
-      label: item.label,
+      key,
+      label: label2,
       quantity: item.number,
       location: location2,
       ...extra.slot === void 0 ? {} : { slot: extra.slot },
@@ -4199,7 +4213,8 @@ function adaptItems(snap) {
       ...extra.floorIndex === void 0 ? {} : { floorIndex: extra.floorIndex },
       colour: itemColour(item),
       inscription: item.inscription,
-      family
+      family,
+      ...item.ignored === void 0 ? {} : { ignored: item.ignored }
     };
   };
   return {
@@ -4338,9 +4353,18 @@ function buildItemCommand(builders, code, handle, inscription) {
   const args = inscription === void 0 ? { handle } : { handle, inscription };
   return builders?.raw(code, args) ?? { code, args };
 }
+function buildFloorCommand(builders, code, floorIndex, inscription) {
+  const args = inscription === void 0 ? { floor: floorIndex } : { floor: floorIndex, inscription };
+  return builders?.raw(code, args) ?? { code, args };
+}
 function submitItem(intent, inspect, token, code, handle, command) {
   const tester = inspect?.itemTester(code);
   if (!tester || tester.token.epoch !== token.epoch || tester.token.revision !== token.revision || !tester.items.some((item) => "handle" in item && item.handle === handle)) return { accepted: false, reason: "Item is unavailable for this action." };
+  return intent?.submit(token, { kind: "command", command }) ?? { accepted: false, reason: "Intent seam unavailable." };
+}
+function submitFloorItem(intent, inspect, token, code, floor, command) {
+  const tester = inspect?.itemTester(code);
+  if (!tester || tester.token.epoch !== token.epoch || tester.token.revision !== token.revision || !tester.items.some((item) => "floor" in item && item.floor.x === floor.x && item.floor.y === floor.y && item.floor.index === floor.index)) return { accepted: false, reason: "Item is unavailable for this action." };
   return intent?.submit(token, { kind: "command", command }) ?? { accepted: false, reason: "Intent seam unavailable." };
 }
 function submitIgnore(ctx, token, kind, handle) {
@@ -4524,7 +4548,24 @@ function installItems(ctx) {
   };
   const usable = (model, item, code) => {
     const tester = ctx.inspect?.itemTester(code);
-    return !!tester && same(tester.token, model.token) && tester.items.some((ref) => "handle" in ref && ref.handle === item.handle);
+    if (!tester || !same(tester.token, model.token)) return false;
+    if (item.location === "floor") {
+      if (item.floorIndex === void 0 || !model.player) return false;
+      const x = model.player.x, y = model.player.y, index = item.floorIndex;
+      return tester.items.some((ref) => "floor" in ref && ref.floor.index === index && ref.floor.x === x && ref.floor.y === y);
+    }
+    return tester.items.some((ref) => "handle" in ref && ref.handle === item.handle);
+  };
+  const readCatalogue = () => {
+    try {
+      return ctx.intent?.catalogue?.() ?? null;
+    } catch {
+      return null;
+    }
+  };
+  const codeAcceptsFloor = (code) => {
+    const entry2 = readCatalogue()?.commands?.find((c) => c.code === code);
+    return !!entry2 && entry2.args.includes("floor:");
   };
   const report = (result, fallback) => {
     error = result.accepted || result.quiet ? "" : result.reason ?? fallback;
@@ -4548,9 +4589,39 @@ function installItems(ctx) {
       if (input === null || input === void 0) return;
       inscription = input;
     }
+    if (item.location === "floor") {
+      if (item.floorIndex === void 0 || !model.player) {
+        error = "Action unavailable at this input wait.";
+        paint(true);
+        return;
+      }
+      const command2 = buildFloorCommand(builders, actualCode, item.floorIndex, inscription);
+      const floor = { x: model.player.x, y: model.player.y, index: item.floorIndex };
+      const result2 = submitFloorItem(ctx.intent, ctx.inspect, model.token, actualCode, floor, command2);
+      report({ ...result2, quiet: result2.code === "controller-owned" }, "Action rejected.");
+      paint(true);
+      return;
+    }
     const command = buildItemCommand(builders, actualCode, item.handle, inscription);
     const result = submitItem(ctx.intent, ctx.inspect, model.token, actualCode, item.handle, command);
     report({ ...result, quiet: result.code === "controller-owned" }, "Action rejected.");
+    paint(true);
+  };
+  const pickup = (model, item) => {
+    if (!current(model) || !ctx.intent?.submit) {
+      error = "Action unavailable at this input wait.";
+      paint(true);
+      return;
+    }
+    if (item.location !== "floor" || item.floorIndex === void 0 || !model.player) {
+      error = "Action unavailable at this input wait.";
+      paint(true);
+      return;
+    }
+    const builders = ctx.core?.createAgentActions?.(ctx.state);
+    const command = buildFloorCommand(builders, "pickup", item.floorIndex);
+    const result = ctx.intent.submit(model.token, { kind: "command", command });
+    report({ ...result, quiet: result.code === "controller-owned" }, "You cannot pick that up right now.");
     paint(true);
   };
   const ignore = (model, item, kind) => {
@@ -4571,6 +4642,7 @@ function installItems(ctx) {
     } else report(result, "Action rejected.");
     paint(true);
   };
+  const isIgnored = (item) => item.ignored ?? ignoredHere.has(item.key);
   const editRule = (model, rules, rule, index, value2, itype) => {
     if (!current(model)) {
       error = "Rules can be changed only while the game waits for a command.";
@@ -4644,7 +4716,7 @@ function installItems(ctx) {
         el2(row, "td", choice.letter);
         if (choice.handle === promptChoice) row.className = "chosen";
         const cell = el2(row, "td");
-        const b = button(cell, choice.label, () => {
+        const b = button(cell, item ? item.label : choice.label, () => {
           promptChoice = choice.handle;
           paint(true);
         });
@@ -4703,7 +4775,7 @@ function installItems(ctx) {
         el2(line, "span", row.name).className = "name";
         const select = el2(line, "select");
         select.setAttribute("aria-label", `Ignore ${row.name}`);
-        qualityChoices(row.itype).forEach((name, value2) => {
+        qualityChoices(row).forEach((name, value2) => {
           const option = el2(select, "option", name);
           option.value = String(value2);
           option.selected = value2 === row.threshold;
@@ -4899,14 +4971,27 @@ function installItems(ctx) {
     if (item) {
       el2(mount, "h3", "Inspection");
       el2(mount, "strong", item.label).style.color = item.colour;
-      if (enabled("Actions") && item.handle > 0 && model.phase === "play" && !model.prompt && ctx.intent?.submit && playerIsDriving(ctx)) {
+      if (enabled("Actions") && (item.handle > 0 || item.location === "floor") && model.phase === "play" && !model.prompt && ctx.intent?.submit && playerIsDriving(ctx)) {
         const actions = el2(mount, "div");
         actions.className = "actions";
-        for (const code of ACTIONS) {
-          if (code === "use" ? USE_CODES.some((candidate) => usable(model, item, candidate)) : usable(model, item, code)) button(actions, ACTION_LABELS[code], () => act(model, item, code));
+        if (item.location === "floor") {
+          if (codeAcceptsFloor("pickup")) button(actions, "Pick up", () => pickup(model, item));
+          for (const code of ACTIONS) {
+            if (code === "takeoff" || code === "drop") continue;
+            if (code === "use") {
+              const candidate = USE_CODES.find((entry2) => codeAcceptsFloor(entry2) && usable(model, item, entry2));
+              if (candidate) button(actions, ACTION_LABELS[code], () => act(model, item, code));
+            } else if (codeAcceptsFloor(code) && usable(model, item, code)) {
+              button(actions, ACTION_LABELS[code], () => act(model, item, code));
+            }
+          }
+        } else {
+          for (const code of ACTIONS) {
+            if (code === "use" ? USE_CODES.some((candidate) => usable(model, item, candidate)) : usable(model, item, code)) button(actions, ACTION_LABELS[code], () => act(model, item, code));
+          }
         }
-        const kind = ignoredHere.has(item.key) ? "unignore" : "ignore";
-        if (intentAvailable(ctx, kind) && usable(model, item, "ignore")) {
+        const kind = isIgnored(item) ? "unignore" : "ignore";
+        if (item.location !== "floor" && intentAvailable(ctx, kind) && usable(model, item, "ignore")) {
           button(actions, kind === "ignore" ? "Ignore" : "Unignore", () => ignore(model, item, kind));
         }
       }
@@ -5286,6 +5371,11 @@ function answerSpell(ctx, snap, index) {
   if (!snap.prompt.choices.some((choice) => choice.index === index)) return false;
   return ctx.prompt?.reply(snap.prompt.promptId, index).accepted ?? false;
 }
+function cancelSpell(ctx, snap) {
+  const next = ctx.snapshot?.();
+  if (snap.prompt?.kind !== "spell" || !next || !sameToken2(next.token, snap.token) || next.prompt?.promptId !== snap.prompt.promptId || !playerIsDriving(ctx) || !ctx.prompt?.reply) return false;
+  return ctx.prompt.reply(snap.prompt.promptId, { action: "cancel" }).accepted ?? false;
+}
 var validRest = (count) => [-3, -2, -1].includes(count) || Number.isInteger(count) && count >= 1 && count <= 9999;
 function rest(ctx, snap, count) {
   if (!actionReady(ctx, snap) || !validRest(count)) return false;
@@ -5301,10 +5391,14 @@ function restAnswer(count) {
 }
 function answerRest(ctx, snap, count) {
   const prompt = restPrompt(snap), next = ctx.snapshot?.();
-  if (!prompt || !next || restPrompt(next)?.promptId !== prompt.promptId || !playerIsDriving(ctx)) return false;
+  if (!prompt || !next || restPrompt(next)?.promptId !== prompt.promptId || !playerIsDriving(ctx) || !ctx.prompt?.reply) return false;
+  if (count === null) {
+    const cancel = ctx.prompt.reply(prompt.promptId, { action: "cancel" });
+    if (cancel.accepted) return true;
+  }
   const answer = count === null ? "" : restAnswer(count);
   if (answer === null || answer.length > prompt.maxLength) return false;
-  return ctx.prompt?.reply(prompt.promptId, answer).accepted ?? false;
+  return ctx.prompt.reply(prompt.promptId, answer).accepted ?? false;
 }
 function stopResting(ctx) {
   const next = ctx.snapshot?.();
@@ -5325,6 +5419,7 @@ var COMMAND_LABELS = Object.freeze({
   look: "Look around"
 });
 var TILE_COMMANDS = /* @__PURE__ */ new Set(["pickup", "ascend", "descend"]);
+var verbLabel = (verb) => verb.charAt(0).toUpperCase() + verb.slice(1);
 function catalogueCommands(ctx) {
   let catalogue = null;
   try {
@@ -5332,7 +5427,12 @@ function catalogueCommands(ctx) {
   } catch {
     catalogue = null;
   }
-  return (catalogue?.commands ?? []).filter((entry2) => entry2.phase === "play" && entry2.args.startsWith("args?") && entry2.code !== "rest" && Object.hasOwn(COMMAND_LABELS, entry2.code)).map((entry2) => ({ type: "command", code: entry2.code, name: COMMAND_LABELS[entry2.code] }));
+  return (catalogue?.commands ?? []).filter((entry2) => entry2.phase === "play" && entry2.args.startsWith("args?") && entry2.code !== "rest").flatMap((entry2) => {
+    const verb = typeof entry2.verb === "string" && entry2.verb.length > 0 ? verbLabel(entry2.verb) : null;
+    const table = Object.hasOwn(COMMAND_LABELS, entry2.code) ? COMMAND_LABELS[entry2.code] : null;
+    const name = verb ?? table;
+    return name ? [{ type: "command", code: entry2.code, name }] : [];
+  });
 }
 var slotIndex = (code, shift, ctrl) => {
   if (!/^Digit[0-9]$/.test(code)) return -1;
@@ -5351,7 +5451,7 @@ function readSlots(raw, character) {
     const b = entry2;
     if (b.type === "spell" && typeof b.key === "string" && Number.isInteger(b.index) && typeof b.name === "string") return b;
     if (b.type === "item" && typeof b.key === "string" && ["quaff", "read", "aim-wand", "activate"].includes(String(b.code)) && typeof b.name === "string") return b;
-    if (b.type === "command" && (b.code === "rest" || Object.hasOwn(COMMAND_LABELS, String(b.code))) && typeof b.name === "string") return b;
+    if (b.type === "command" && typeof b.name === "string" && b.name.length > 0 && typeof b.code === "string") return b;
     return null;
   });
 }
@@ -5380,8 +5480,9 @@ function resolve(snap, binding, spells, ctx) {
   if (!binding) return { label: "Empty", detail: "Right-click to assign.", usable: false };
   if (binding.type === "command" && binding.code === "rest") return { label: "Rest", detail: "Rest until fully recovered.", usable: true, command: { code: "rest", args: { count: -2 } } };
   if (binding.type === "command") {
-    const name = COMMAND_LABELS[binding.code] ?? binding.name;
-    if (!catalogueCommands(ctx).some((entry2) => entry2.code === binding.code)) return { label: name, detail: "This command is not available in this game.", usable: false };
+    const listed = catalogueCommands(ctx).find((entry2) => entry2.code === binding.code);
+    const name = listed?.name ?? COMMAND_LABELS[binding.code] ?? binding.name;
+    if (!listed) return { label: name, detail: "This command is not available in this game.", usable: false };
     let usable2 = true;
     const grid = snap.core.player?.grid;
     if (TILE_COMMANDS.has(binding.code) && grid && ctx.inspect?.tileActions) {
@@ -5438,7 +5539,7 @@ function blastGrids(ctx, snap, hovered) {
   if (!at) return null;
   let area = null;
   try {
-    area = ctx.inspect?.blastArea?.(at, blast.radius) ?? null;
+    area = ctx.inspect?.blastArea?.(at, blast.radius, blast.arc) ?? null;
   } catch {
     area = null;
   }
@@ -5569,6 +5670,17 @@ function adoptLineage(ctx, snap) {
 }
 var assignLabel = (binding) => binding.type === "command" ? binding.name : binding.type === "spell" ? `Cast: ${binding.name}` : `${binding.code === "quaff" ? "Drink" : binding.code === "read" ? "Read" : binding.code === "aim-wand" ? "Aim" : "Activate"}: ${binding.name}`;
 function restingText(resting) {
+  if (typeof resting.mode === "string") {
+    if (resting.mode === "turns") {
+      const left = resting.turnsRemaining ?? 0;
+      const total = resting.turnsRequested ?? left;
+      if (left <= 0) return "Resting.";
+      return `Resting: ${left} of ${total} turns left.`;
+    }
+    if (resting.mode === "complete") return "Resting until fully recovered.";
+    if (resting.mode === "all-points") return "Resting until hit points and mana are full.";
+    if (resting.mode === "some-points") return "Resting until hit points or mana are full.";
+  }
   if (resting.turnsRemaining !== null && resting.turnsRemaining > 0) return `Resting: ${resting.turnsRemaining} ${resting.turnsRemaining === 1 ? "turn" : "turns"} left.`;
   return resting.mode === -2 ? "Resting until fully recovered." : resting.mode === -1 ? "Resting until hit points and mana are full." : resting.mode === -3 ? "Resting until hit points or mana are full." : "Resting.";
 }
@@ -5736,7 +5848,11 @@ ${snap?.core.player?.race ?? ""}`;
           if (!answerSpell(ctx, snap, promptChoice)) fail("Choice unavailable.");
           paint(true);
         });
-        el3(box, "p", "Press Escape to cancel.").className = "hint";
+        button2(box, "Cancel", () => {
+          if (cancelSpell(ctx, snap)) promptChoice = -1;
+          else fail("Press Escape to cancel.");
+          paint(true);
+        });
       }
     }
     if (quickOn && quickMount && snap.phase === "play") {
@@ -5966,7 +6082,22 @@ function adaptStore(snap, known) {
   const store = snap.core.stores[index];
   const items = adaptItems(snap);
   const quotes = new Map(status?.inventory.map((entry2) => [entry2.handle, entry2]));
-  const pack = (items?.rows ?? []).map((item) => {
+  const located = status !== null && status.inventory.some((entry2) => entry2.location !== void 0);
+  const byHandle = new Map((items?.rows ?? []).map((item) => [item.handle, item]));
+  const pack = located ? status.inventory.map((entry2) => {
+    const item = byHandle.get(entry2.handle);
+    return {
+      key: entry2.handle,
+      quantity: item?.quantity ?? 1,
+      colour: item?.colour ?? "inherit",
+      // PROSE
+      label: item?.label ?? "Item",
+      // PROSE
+      location: entry2.location === "equipment" ? "Equipment" : entry2.location === "quiver" ? "Quiver" : "Pack",
+      eligible: entry2.eligible,
+      ...entry2.eligible && entry2.price !== null ? { price: entry2.price } : {}
+    };
+  }) : (items?.rows ?? []).map((item) => {
     const quote = quotes.get(item.handle);
     return {
       key: item.handle,
@@ -6042,7 +6173,7 @@ function storePromptReply(ctx, model, answer) {
     const quantity = snap.prompt;
     if (!cancel && (typeof answer !== "number" || !Number.isInteger(answer) || answer < quantity.min || answer > quantity.max)) return REFUSED;
   } else if (snap.prompt.kind === "confirm") {
-    if (typeof answer !== "boolean") return REFUSED;
+    if (!cancel && typeof answer !== "boolean") return REFUSED;
   } else return REFUSED;
   return outcome(ctx.prompt.reply(snap.prompt.promptId, answer));
 }
@@ -6294,8 +6425,10 @@ function installStores(ctx) {
         const valid = Number.isInteger(amount) && amount >= low && amount <= quantity.max;
         confirm.disabled = !valid;
         if (total) {
-          const sum = amount === 1 && quantity.totalPrice !== void 0 ? quantity.totalPrice : quantity.unitPrice * amount;
-          total.textContent = valid ? `Total: ${amount === 1 ? "" : "about "}${sum} gold` : "";
+          const exact = quantity.totals?.[amount];
+          const hasExact = typeof exact === "number";
+          const sum = hasExact ? exact : amount === 1 && quantity.totalPrice !== void 0 ? quantity.totalPrice : quantity.unitPrice * amount;
+          total.textContent = valid ? `Total: ${!hasExact && amount !== 1 ? "about " : ""}${sum} gold` : "";
           total.className = !selling && quantity.gold !== void 0 && sum > quantity.gold ? "unaffordable" : "";
         }
       };
@@ -6322,16 +6455,19 @@ function installStores(ctx) {
     el4(box, "h3", pending && !model.home ? selling ? "Accept this offer?" : "Accept this price?" : "Confirm");
     const text = cleanLabel(prompt.label);
     if (text) el4(box, "p", text);
+    const price = prompt.price;
     if (pending && !model.home) {
       const row = (pending.side === "stock" ? model.stock : model.pack).find((entry2) => entry2.key === pending.key);
       const unit = pending.unitPrice ?? row?.price;
       if (selling && model.noSelling) el4(box, "p", "You get no gold for this.");
+      else if (price !== void 0) el4(box, "p", `${selling ? "You receive" : "Price"}: ${price} gold`);
       else if (unit !== void 0) el4(box, "p", `${selling ? "You receive" : "Price"}: ${pending.amount === 1 ? "" : "about "}${unit * pending.amount} gold`);
     }
     const actions = el4(box, "div");
     actions.className = "actions";
     button3(actions, "Accept", () => reply(true));
     button3(actions, "Decline", () => reply(false));
+    button3(actions, "Cancel", () => reply({ action: "cancel" }));
   };
   paint(true);
   const timer2 = globalThis.setInterval(() => paint(), 200);

@@ -1,8 +1,8 @@
 import { openSurfaces } from "./surface.js";
 import { intentAvailable, itemRuleLines, rulesEditable, qualityChoices, ruleEditorRows, ruleIntent, submitItemIntent, NOTE_LIMIT } from "../item-rules.js";
-import type { ItemPanelContext, ItemPrompt, QuantityPrompt, ItemRef, ItemRulesResult, ItemIntent } from "../seams.js";
+import type { ItemPanelContext, ItemPrompt, QuantityPrompt, ItemRef, ItemRulesResult, ItemIntent, IntentCatalogue } from "../seams.js";
 import { AcquisitionChanges, adaptItems, compareSlots, defaultSlot, panelRows, type ItemRow, type ItemsModel } from "../view-model/items.js";
-import { answerItem, answerQuantity, buildItemCommand, floorChoiceIndex, quantityShortcut, submitIgnore, submitItem } from "../item-interactions.js";
+import { answerItem, answerQuantity, buildFloorCommand, buildItemCommand, floorChoiceIndex, quantityShortcut, submitFloorItem, submitIgnore, submitItem } from "../item-interactions.js";
 import { inspectionBlocks } from "../item-inspection.js";
 import { renderItemComparison, slotOptionLabel } from "./item-comparison.js";
 import { playerIsDriving } from "../input-owner.js";
@@ -40,8 +40,8 @@ export function installItems(ctx: ItemPanelContext): () => void {
   let signature = "";
   let closed = false;
   let slotChoice: { key: string; slot: number } | null = null;
-  // Items this panel ignored. No read reports an item's own ignore mark, so the
-  // panel remembers what it did, and learns from the host's refusal otherwise.
+  // Items this panel ignored. On an engine without ItemView.ignored the panel keeps
+  // its own memory and learns from the host's refusal otherwise.
   const ignoredHere = new Set<string>();
   let ignoreEpoch: number | undefined;
   let ruleFilter = "";
@@ -56,7 +56,23 @@ export function installItems(ctx: ItemPanelContext): () => void {
   };
   const usable = (model: ItemsModel, item: ItemRow, code: string): boolean => {
     const tester = ctx.inspect?.itemTester(code);
-    return !!tester && same(tester.token, model.token) && tester.items.some((ref) => "handle" in ref && ref.handle === item.handle);
+    if (!tester || !same(tester.token, model.token)) return false;
+    // A floor item has no handle; the engine reports its tester entry by pile position.
+    if (item.location === "floor") {
+      if (item.floorIndex === undefined || !model.player) return false;
+      const x = model.player.x, y = model.player.y, index = item.floorIndex;
+      return tester.items.some((ref) => "floor" in ref && ref.floor.index === index && ref.floor.x === x && ref.floor.y === y);
+    }
+    return tester.items.some((ref) => "handle" in ref && ref.handle === item.handle);
+  };
+  // The intent catalogue's command args strings name which commands take a floor reference.
+  // Engines that predate the args update do not publish commands here, and floor rows stay inspect-only.
+  const readCatalogue = (): IntentCatalogue | null => {
+    try { return ctx.intent?.catalogue?.() ?? null; } catch { return null; }
+  };
+  const codeAcceptsFloor = (code: string): boolean => {
+    const entry = readCatalogue()?.commands?.find((c) => c.code === code);
+    return !!entry && entry.args.includes("floor:");
   };
   const report = (result: { accepted: boolean; reason?: string; quiet?: boolean }, fallback: string): void => {
     error = result.accepted || result.quiet ? "" : result.reason ?? fallback;
@@ -68,9 +84,29 @@ export function installItems(ctx: ItemPanelContext): () => void {
     const builders = ctx.core?.createAgentActions?.(ctx.state);
     let inscription: string | undefined;
     if (code === "inscribe") { const input = globalThis.prompt?.("Inscription", item.inscription ?? ""); if (input === null || input === undefined) return; inscription = input; }
+    if (item.location === "floor") {
+      if (item.floorIndex === undefined || !model.player) { error = "Action unavailable at this input wait."; paint(true); return; }
+      const command = buildFloorCommand(builders, actualCode, item.floorIndex, inscription);
+      const floor = { x: model.player.x, y: model.player.y, index: item.floorIndex };
+      const result = submitFloorItem(ctx.intent, ctx.inspect, model.token, actualCode, floor, command);
+      report({ ...result, quiet: (result as { code?: string }).code === "controller-owned" }, "Action rejected.");
+      paint(true);
+      return;
+    }
     const command = buildItemCommand(builders, actualCode, item.handle, inscription);
     const result = submitItem(ctx.intent, ctx.inspect, model.token, actualCode, item.handle, command);
     report({ ...result, quiet: (result as { code?: string }).code === "controller-owned" }, "Action rejected.");
+    paint(true);
+  };
+  const pickup = (model: ItemsModel, item: ItemRow): void => {
+    if (!current(model) || !ctx.intent?.submit) { error = "Action unavailable at this input wait."; paint(true); return; }
+    if (item.location !== "floor" || item.floorIndex === undefined || !model.player) { error = "Action unavailable at this input wait."; paint(true); return; }
+    const builders = ctx.core?.createAgentActions?.(ctx.state);
+    const command = buildFloorCommand(builders, "pickup", item.floorIndex);
+    // The item tester has no pickup code, so this is not tester-gated: the host
+    // checks the floor index itself and refuses one with no object behind it.
+    const result = ctx.intent.submit(model.token, { kind: "command", command });
+    report({ ...result, quiet: (result as { code?: string }).code === "controller-owned" }, "You cannot pick that up right now.");
     paint(true);
   };
   const ignore = (model: ItemsModel, item: ItemRow, kind: "ignore" | "unignore"): void => {
@@ -85,6 +121,9 @@ export function installItems(ctx: ItemPanelContext): () => void {
     } else report(result, "Action rejected.");
     paint(true);
   };
+  // The engine's ItemView.ignored decides when present; on older engines the panel
+  // remembers what it ignored, and learns from the host's refusal otherwise.
+  const isIgnored = (item: ItemRow): boolean => item.ignored ?? ignoredHere.has(item.key);
   const editRule = (model: ItemsModel, rules: ItemRulesResult, rule: Extract<ItemIntent, { kind: "item-rule" }>["rule"], index: number, value: boolean | number | string, itype?: number): void => {
     if (!current(model)) { error = "Rules can be changed only while the game waits for a command."; paint(true); return; }
     const built = ruleIntent(rules, rule, index, value, itype);
@@ -123,7 +162,9 @@ export function installItems(ctx: ItemPanelContext): () => void {
       for (const choice of p.choices) {
         const item = rowFor(choice.handle);
         const row = el(table, "tr"); el(row, "td", choice.letter); if (choice.handle === promptChoice) row.className = "chosen";
-        const cell = el(row, "td"); const b = button(cell, choice.label, () => { promptChoice = choice.handle; paint(true); }); b.className = "row"; if (item) b.style.color = item.colour;
+        // The row's label is name ?? label, so the prompt shows the inventory name on engines
+        // that publish it; older engines and unknown choices fall back to choice.label.
+        const cell = el(row, "td"); const b = button(cell, item ? item.label : choice.label, () => { promptChoice = choice.handle; paint(true); }); b.className = "row"; if (item) b.style.color = item.colour;
         el(row, "td", item ? TAB_NAMES[item.location as keyof typeof TAB_NAMES] ?? "Floor" : "Floor"); el(row, "td", item ? String(item.quantity) : "");
       }
       const chosen = p.choices.find((choice) => choice.handle === promptChoice);
@@ -159,7 +200,7 @@ export function installItems(ctx: ItemPanelContext): () => void {
         const line = el(section, "div"); line.className = "rule";
         el(line, "span", row.name).className = "name";
         const select = el(line, "select") as HTMLSelectElement; select.setAttribute("aria-label", `Ignore ${row.name}`);
-        qualityChoices(row.itype).forEach((name, value) => { const option = el(select, "option", name) as HTMLOptionElement; option.value = String(value); option.selected = value === row.threshold; });
+        qualityChoices(row).forEach((name, value) => { const option = el(select, "option", name) as HTMLOptionElement; option.value = String(value); option.selected = value === row.threshold; });
         select.addEventListener("change", () => editRule(model, rules, "quality", row.itype, Number(select.value)));
       }
     }
@@ -283,11 +324,27 @@ export function installItems(ctx: ItemPanelContext): () => void {
     const item = panelRows(model).find((row) => row.key === selected);
     if (item) {
       el(mount, "h3", "Inspection"); el(mount, "strong", item.label).style.color = item.colour;
-      if (enabled("Actions") && item.handle > 0 && model.phase === "play" && !model.prompt && ctx.intent?.submit && playerIsDriving(ctx)) {
+      if (enabled("Actions") && (item.handle > 0 || item.location === "floor") && model.phase === "play" && !model.prompt && ctx.intent?.submit && playerIsDriving(ctx)) {
         const actions = el(mount, "div"); actions.className = "actions";
-        for (const code of ACTIONS) { if (code === "use" ? USE_CODES.some((candidate) => usable(model, item, candidate)) : usable(model, item, code)) button(actions, ACTION_LABELS[code], () => act(model, item, code)); }
-        const kind = ignoredHere.has(item.key) ? "unignore" : "ignore";
-        if (intentAvailable(ctx, kind) && usable(model, item, "ignore")) {
+        if (item.location === "floor") {
+          // Floor rows: only actions the engine's catalogue says accept floor references,
+          // gated by the item tester. Takeoff and drop do not apply; pickup has its own button.
+          if (codeAcceptsFloor("pickup")) button(actions, "Pick up", () => pickup(model, item));
+          for (const code of ACTIONS) {
+            if (code === "takeoff" || code === "drop") continue;
+            if (code === "use") {
+              const candidate = USE_CODES.find((entry) => codeAcceptsFloor(entry) && usable(model, item, entry));
+              if (candidate) button(actions, ACTION_LABELS[code], () => act(model, item, code));
+            } else if (codeAcceptsFloor(code) && usable(model, item, code)) {
+              button(actions, ACTION_LABELS[code], () => act(model, item, code));
+            }
+          }
+        } else {
+          for (const code of ACTIONS) { if (code === "use" ? USE_CODES.some((candidate) => usable(model, item, candidate)) : usable(model, item, code)) button(actions, ACTION_LABELS[code], () => act(model, item, code)); }
+        }
+        const kind = isIgnored(item) ? "unignore" : "ignore";
+        // The ignore intents take a carried or worn handle, so a floor row has none.
+        if (item.location !== "floor" && intentAvailable(ctx, kind) && usable(model, item, "ignore")) {
           button(actions, kind === "ignore" ? "Ignore" : "Unignore", () => ignore(model, item, kind));
         }
       }

@@ -28,11 +28,10 @@ export interface CharacterPane {
  * alternatives were worse. Releasing the sink would make core draw the column
  * again beside the pane. Changing the player's sidebar mode to None would
  * rewrite a setting the player owns, and it is not a mod seam. Zero is the
- * honest request: core's setSidebarExtent (packages/web/src/main.ts) clamps an
- * explicit extent to at least six columns and one row, so today the map gains
- * seven of the classic thirteen columns, and a host that accepts zero gives it
- * the whole width with no change here. The request is per mod and core drops it
- * at teardown; close() also clears it with null.
+ * honest request: setSidebarExtent (packages/web/src/main.ts) accepts a
+ * zero-wide column or zero-tall top row as a request to give the whole region
+ * to the map. The request is per mod and core drops it at teardown; close()
+ * also clears it with null.
  */
 export const PANE_SIDEBAR_EXTENT = { columns: 0, topRows: 0 } as const;
 

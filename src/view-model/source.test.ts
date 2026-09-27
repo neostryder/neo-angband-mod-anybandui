@@ -29,7 +29,24 @@ describe("message history", () => {
       { text: "The host saved.", count: undefined, category: undefined },
       { text: "You enter a maze.", count: 1, category: 0 },
     ]);
-    expect(messageHistory(["Only here."], undefined)).toEqual([{ text: "Only here.", count: undefined, category: undefined }]);
+    expect(messageHistory(["Only here."], undefined)).toEqual([{ text: "Only here.", count: undefined, category: undefined, color: undefined }]);
+  });
+
+  it("takes counts and colors straight from the host log when present, newest first", () => {
+    /* The host log is oldest first, as packages/web/src/input-snapshot.ts
+     * InputSnapshot.messages.log says; the source reverses it. */
+    const log = coreLog([["You hit it.", 99, 99]]);
+    expect(messageHistory(undefined, log, [
+      { text: "You hit it.", count: 3, color: "#c88f5fb4" },
+      { text: "You enter a maze.", count: 1, color: "#64a0b5b4" },
+    ])).toEqual([
+      { text: "You enter a maze.", count: 1, category: undefined, color: "#64a0b5b4" },
+      { text: "You hit it.", count: 3, category: undefined, color: "#c88f5fb4" },
+    ]);
+  });
+
+  it("lets an empty host log match the older-engine return shape", () => {
+    expect(messageHistory(undefined, undefined, [])).toEqual([]);
   });
 });
 
@@ -73,5 +90,30 @@ describe("source", () => {
   it("treats a throwing snapshot read as absent", () => {
     const source = createSource({ state, core: { createAgentView: () => view }, snapshot: () => { throw new Error("gone"); }, prompt: { reply: () => ({ accepted: true }) } });
     expect(source.acknowledge!()).toBe(false);
+  });
+
+  it("forwards a -more- pause from the snapshot to the view model so the ribbon appears from the present alone", () => {
+    /* Engine #294 raises the pending flag before render(), so the HUD frame
+     * already carries the pause. The present() handler reads the snapshot, so
+     * the ribbon's `message_pending` is true on this very frame and needs no
+     * second paint to appear. */
+    const pauseView = {
+      player: () => ({ race: "", cls: "", level: 0, maxLevel: 0, exp: 0, maxExp: 0,
+        gold: 0, depth: 0, maxDepth: 0, hp: 0, maxHp: 0, sp: 0, maxSp: 0,
+        speed: 0, ac: 0, toHit: 0, toDam: 0, stats: [0, 0, 0, 0, 0],
+        light: 0, grid: { x: 0, y: 0 },
+        status: { blind: 0, confused: 0, afraid: 0, poisoned: 0, cut: 0, stun: 0, paralyzed: 0, food: 0,
+          fast: 0, sprint: 0, protEvil: 0, hero: 0, shero: 0, shield: 0, stoneskin: 0, blessed: 0,
+          fastcast: 0, resAcid: 0, resElec: 0, resFire: 0, resCold: 0, resPois: 0 } }),
+      target: () => null, monsters: () => [],
+    } as unknown as AgentView;
+    const source = createSource({
+      state,
+      core: { createAgentView: () => pauseView },
+      snapshot: () => snapshot({ phase: "more", messagePending: true }),
+      driver: () => ({ kind: "player" as const }),
+    } as Parameters<typeof createSource>[0]);
+    const model = source.snapshot({ messages: true });
+    expect(model?.message_pending).toBe(true);
   });
 });

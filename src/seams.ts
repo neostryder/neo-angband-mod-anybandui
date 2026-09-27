@@ -7,7 +7,14 @@
  */
 export interface Grid { readonly x: number; readonly y: number }
 export interface InputToken { readonly epoch: number; readonly revision: number }
-export interface ItemView { readonly handle: number; readonly label: string; readonly number: number; readonly inscription: string | null; readonly kindId?: string; readonly tval: number; readonly sval: number; readonly pval?: number; readonly timeout?: number; readonly artifact: boolean; readonly ego: boolean }
+export interface ItemView { readonly handle: number; readonly label: string; readonly number: number; readonly inscription: string | null; readonly kindId?: string; readonly tval: number; readonly sval: number; readonly pval?: number; readonly timeout?: number; readonly artifact: boolean; readonly ego: boolean;
+  // MOD_SEAMS (packages/core/src/agent/types.ts ItemView); absent on older engines.
+  /** The inventory name with its article and every detail the player knows. */
+  readonly name?: string;
+  /** Whether the game ignores this object now; absent on older engines. */
+  readonly ignored?: boolean;
+  /** A floor object's place in the pile under its grid, as a command's args.floor takes it. */
+  readonly floorIndex?: number }
 export interface CoreSnapshot {
   readonly player?: { readonly grid: Grid; readonly gold?: number } | null;
   readonly inventory?: readonly ItemView[] | null;
@@ -60,7 +67,10 @@ export interface ItemTesterResult { readonly token: InputToken; readonly items: 
 export interface ItemRulesResult {
   readonly token: InputToken;
   readonly kinds: readonly { readonly kidx: number; readonly name: string; readonly ignoreAware: boolean; readonly ignoreUnaware: boolean; readonly noteAware: string | null; readonly noteUnaware: string | null }[];
-  readonly quality: readonly { readonly itype: number; readonly name: string; readonly threshold: number; readonly thresholdName: string }[];
+  readonly quality: readonly { readonly itype: number; readonly name: string; readonly threshold: number; readonly thresholdName: string;
+    // MOD_SEAMS (packages/core/src/agent/inspect.ts ItemRulesResult); absent on older engines.
+    /** Threshold names the game's quality menu allows for this item type, in order. */
+    readonly levels?: readonly string[] }[];
   readonly egos: readonly { readonly eidx: number; readonly name: string; readonly itype: number; readonly ignored: boolean }[];
 }
 export interface InspectSeam { inspectItem(ref: number): InspectResult | null; itemTester(code: string): ItemTesterResult | null; itemRules?(): ItemRulesResult | null }
@@ -89,7 +99,7 @@ export interface SpellbookView { readonly tval: number; readonly name: string; r
 export interface SpellInspectResult { readonly token: InputToken; readonly name: string; readonly description: string; readonly level: number; readonly mana: number; readonly failChance: number; readonly canCastNow: boolean }
 export interface SpellPrompt { readonly kind: "spell"; readonly promptId: number; readonly label: string; readonly choices: readonly { readonly index: number; readonly name: string; readonly level: number; readonly mana: number; readonly fail: number; readonly castable: boolean }[] }
 export interface Phase4Snapshot extends Omit<InputSnapshot, "core" | "prompt"> { readonly core: CoreSnapshot & { readonly spellbooks?: readonly SpellbookView[] | null; readonly player?: (NonNullable<CoreSnapshot["player"]> & { readonly level?: number; readonly sp?: number; readonly hp?: number; readonly maxHp?: number; readonly maxSp?: number; readonly classFlags?: readonly string[]; readonly learnableSpells?: number; readonly race?: string; readonly cls?: string }) | null }; readonly prompt: InputSnapshot["prompt"] | SpellPrompt | TextPrompt; readonly resting?: RestingView | null; readonly activeBlast?: ActiveBlastView | null }
-export interface Phase4Context { readonly flags?: Readonly<Record<string, boolean>>; readonly snapshot?: () => Phase4Snapshot | null; readonly intent?: { submit(token: InputToken, intent: PlayerIntent | StopRestingIntent): IntentResult; catalogue?(): CommandCatalogue | null }; readonly prompt?: { reply(promptId: number, answer: number | string): IntentResult }; readonly inspect?: { spellInfo?(index: number): SpellInspectResult | null; bookForItem?(handle: number): BookItemResult | null; itemTester?(code: string): ItemTesterResult | null; inspectItem?(handle: number): InspectResult | null; blastArea?(to: Grid, radius: number): BlastAreaResult | null; tileActions?(at: Grid): { readonly token: InputToken; readonly codes: readonly string[] } | null }; readonly ui?: ItemsContext["ui"]; readonly prefs?: { get(): unknown; set(value: unknown): void }; readonly display?: { snapshot(): import("./zoom.js").DisplaySnapshot }; readonly driver?: () => InputDriver; readonly character?: { key(): string | null }; readonly state?: unknown; readonly log: (message: string) => void }
+export interface Phase4Context { readonly flags?: Readonly<Record<string, boolean>>; readonly snapshot?: () => Phase4Snapshot | null; readonly intent?: { submit(token: InputToken, intent: PlayerIntent | StopRestingIntent): IntentResult; catalogue?(): CommandCatalogue | null }; readonly prompt?: { reply(promptId: number, answer: number | string | { readonly action: "cancel" }): IntentResult }; readonly inspect?: { spellInfo?(index: number): SpellInspectResult | null; bookForItem?(handle: number): BookItemResult | null; itemTester?(code: string): ItemTesterResult | null; inspectItem?(handle: number): InspectResult | null; blastArea?(to: Grid, radius: number, arc?: number): BlastAreaResult | null; tileActions?(at: Grid): { readonly token: InputToken; readonly codes: readonly string[] } | null }; readonly ui?: ItemsContext["ui"]; readonly prefs?: { get(): unknown; set(value: unknown): void }; readonly display?: { snapshot(): import("./zoom.js").DisplaySnapshot }; readonly driver?: () => InputDriver; readonly character?: { key(): string | null }; readonly state?: unknown; readonly log: (message: string) => void }
 // Phase 5: StoreView mirrors packages/core/src/agent/types.ts; CoreSnapshot.stores
 // and player.gold mirror agent/boundary.ts and entity-views.ts. StoreStatus
 // mirrors InputSnapshot.storeStatus in packages/web/src/input-snapshot.ts, and
@@ -97,7 +107,7 @@ export interface Phase4Context { readonly flags?: Readonly<Record<string, boolea
 // appended at the end of this file.
 export interface StoreItemView extends ItemView { readonly index: number; readonly price?: number }
 export interface StoreView { readonly feat: number; readonly featName: string; readonly isHome: boolean; readonly owner: { readonly name: string; readonly purse: number }; readonly stock: readonly StoreItemView[] }
-export interface StoreStatus { readonly token: InputToken; readonly feat: number; readonly ready: boolean; readonly noSelling: boolean; readonly inventory: readonly { readonly handle: number; readonly eligible: boolean; readonly price: number | null }[] }
+export interface StoreStatus { readonly token: InputToken; readonly feat: number; readonly ready: boolean; readonly noSelling: boolean; readonly inventory: readonly { readonly handle: number; readonly location?: "pack" | "quiver" | "equipment"; readonly eligible: boolean; readonly price: number | null }[] }
 export interface StoreContext extends ItemsContext {
   readonly snapshot?: () => StoreSnapshot | null;
   readonly prompt?: StorePromptSeam;
@@ -159,7 +169,8 @@ export interface DriverSeams {
 // InspectResult.sections and LoadoutSlotsResult from packages/core/src/agent/inspect.ts
 // and LoadoutItemRef from packages/core/src/agent/types.ts.
 export interface StoreSnapshot extends InputSnapshot { readonly storeStatus?: StoreStatus | null }
-export type StoreQuantityPrompt = QuantityPrompt & { readonly unitPrice?: number; readonly totalPrice?: number; readonly gold?: number };
+export type StoreQuantityPrompt = QuantityPrompt & { readonly unitPrice?: number; readonly totalPrice?: number; readonly totals?: readonly number[]; readonly gold?: number };
+export type StoreConfirmPrompt = PromptBase & { readonly kind: "confirm"; readonly label: string; readonly price?: number };
 export type StorePromptAnswer = number | boolean | { readonly action: "cancel" };
 export type StoreReplyResult = IntentResult;
 export interface StorePromptSeam { reply(promptId: number, answer: StorePromptAnswer): StoreReplyResult }
@@ -180,20 +191,32 @@ export interface StoreInspectSeam extends Omit<InspectSeam, "inspectItem"> {
 // packages/web/src/input-snapshot.ts InputSnapshot.resting and activeBlast;
 // TextPrompt mirrors the text descriptor in packages/web/src/prompt-view.ts;
 // StopRestingIntent and CommandCatalogue mirror packages/web/src/intent-gate.ts.
+// RestMode, BlastAreaResult.arc, ActiveBlastView.arc, CommandCatalogue.commands[].verb
+// and the cancel reply on Phase4Context.prompt mirror the new fields in those
+// files and remain optional so an older engine's payload still satisfies these
+// shapes.
+export type RestMode = "turns" | "complete" | "all-points" | "some-points";
 export interface BookItemResult { readonly token: InputToken; readonly bookIndex: number; readonly spells: readonly number[] }
-export interface BlastAreaResult { readonly token: InputToken; readonly grids: readonly Grid[]; readonly radius?: number; readonly element?: string | null; readonly wallsStop?: boolean }
-export interface RestingView { readonly active: boolean; readonly mode: number | null; readonly turnsRemaining: number | null }
-export interface ActiveBlastView { readonly token: InputToken; readonly radius: number; readonly element: string; readonly wallsStop: boolean }
+export interface BlastAreaResult { readonly token: InputToken; readonly grids: readonly Grid[]; readonly radius?: number; readonly element?: string | null; readonly wallsStop?: boolean; readonly arc?: number | null }
+export interface RestingView { readonly active: boolean; readonly mode: number | RestMode | null; readonly turnsRequested?: number | null; readonly turnsRemaining: number | null; readonly turnsRested?: number | null }
+export interface ActiveBlastView { readonly token: InputToken; readonly radius: number; readonly arc?: number; readonly element: string; readonly wallsStop: boolean }
 export interface TextPrompt { readonly kind: "text"; readonly promptId: number; readonly label: string; readonly maxLength: number; readonly defaultValue: string; readonly tag?: "rest" }
 export interface StopRestingIntent { readonly kind: "stop-resting" }
-export interface CommandCatalogue { readonly token: InputToken; readonly commands: readonly { readonly code: string; readonly args: string; readonly phase: "play" | "store" }[]; readonly intents: readonly { readonly kind: string; readonly args: string }[] }
+export interface CommandCatalogue { readonly token: InputToken; readonly commands: readonly { readonly code: string; readonly verb?: string | null | undefined; readonly args: string; readonly phase: "play" | "store" }[]; readonly intents: readonly { readonly kind: string; readonly args: string }[] }
 
 // Map clicks, hover cards and messages. MessageHistory mirrors the `messages`
 // part of packages/web/src/input-snapshot.ts InputSnapshot; AckPrompt mirrors
 // the "ack" arm of prompt-view.ts PromptDescriptor and AckReply the matching
 // PromptAnswer; MonsterRecallResult mirrors packages/core/src/agent/types.ts
-// InspectResult as monsterRecall returns it (inspect.ts).
-export interface MessageHistory { readonly token: InputToken; readonly entries: readonly string[] }
+// InspectResult as monsterRecall returns it (inspect.ts). `log` mirrors the
+// `log` arm InputSnapshot gained alongside `entries` (input-snapshot.ts): the
+// oldest-first history with each entry's repeat count and the colour it was
+// drawn in. Absent on engines that pre-date the field.
+export interface MessageHistory {
+  readonly token: InputToken;
+  readonly entries: readonly string[];
+  readonly log?: readonly { readonly text: string; readonly count: number; readonly color?: string }[];
+}
 export type AckPrompt = PromptBase & { readonly kind: "ack"; readonly label: string; readonly tag: "more" };
 export interface AckReply { readonly action: "acknowledge" }
 export interface MonsterRecallResult { readonly token: InputToken; readonly title: string; readonly text: string }
@@ -231,7 +254,10 @@ export type ItemIntent =
   | { readonly kind: "item-rule"; readonly rule: ItemRuleName; readonly index: number; readonly itype?: number; readonly value: boolean | number | string };
 // InspectSection and LoadoutSlotsResult are declared once, in the store window section above.
 export type ItemIntentResult = IntentResult;
-export interface IntentCatalogue { readonly token: InputToken; readonly intents: readonly { readonly kind: string; readonly args: string }[] }
+export interface IntentCatalogue { readonly token: InputToken;
+  // MOD_SEAMS (packages/web/src/intent-gate.ts catalogue.commands); absent on older engines.
+  readonly commands?: readonly { readonly code: string; readonly args: string }[];
+  readonly intents: readonly { readonly kind: string; readonly args: string }[] }
 export interface ItemPanelContext extends Omit<ItemsContext, "snapshot" | "inspect" | "intent"> {
   readonly snapshot?: () => ItemPanelSnapshot | null;
   readonly inspect?: Omit<InspectSeam, "inspectItem"> & { inspectItem(ref: ItemRef): ItemInspectResult | null; compareLoadoutSlots?(ref: LoadoutRef): LoadoutSlotsResult | null };

@@ -6,7 +6,9 @@ export interface Appearance { readonly style: "automatic" | "text" | "potion" | 
 export type Binding = ({ readonly type: "spell"; readonly key: string; readonly index: number; readonly name: string } | { readonly type: "item"; readonly key: string; readonly code: "quaff" | "read" | "aim-wand" | "activate"; readonly name: string } | { readonly type: "command"; readonly code: string; readonly name: string }) & { readonly appearance?: Appearance };
 /** Readable names for play commands that take no arguments. The catalogue has
  * codes only, and codes never reach the screen, so a code with no name here,
- * such as another mod's command, is left out. */
+ * such as another mod's command, is left out. A newer engine reports its own
+ * verb for the command in the catalogue; the mod then uses it (first letter
+ * capitalised) and skips codes without either a label here or a verb. */
 export const COMMAND_LABELS: Readonly<Record<string, string>> = Object.freeze({
   hold: "Stay still", pickup: "Pick up", descend: "Go down stairs", ascend: "Go up stairs",
   explore: "Explore", "navigate-down": "Walk to down stairs", "navigate-up": "Walk to up stairs",
@@ -14,13 +16,21 @@ export const COMMAND_LABELS: Readonly<Record<string, string>> = Object.freeze({
 });
 /** Grid-bound commands whose use the game can already rule on for the player's grid. */
 const TILE_COMMANDS = new Set(["pickup", "ascend", "descend"]);
+/** Capitalise the first letter of a verb, leaving the rest untouched. The
+ * game's own verbs arrive lower case, so the on-screen form differs only there. */
+const verbLabel = (verb: string): string => verb.charAt(0).toUpperCase() + verb.slice(1);
 /** The argument-free play commands the engine's catalogue offers, by name.
  * Rest keeps its own binding with a duration, and cast needs a spell. */
 export function catalogueCommands(ctx: Phase4Context): Extract<Binding, { type: "command" }>[] {
   let catalogue: ReturnType<NonNullable<NonNullable<Phase4Context["intent"]>["catalogue"]>> = null;
   try { catalogue = ctx.intent?.catalogue?.() ?? null; } catch { catalogue = null; }
-  return (catalogue?.commands ?? []).filter((entry) => entry.phase === "play" && entry.args.startsWith("args?") && entry.code !== "rest" && Object.hasOwn(COMMAND_LABELS, entry.code))
-    .map((entry) => ({ type: "command" as const, code: entry.code, name: COMMAND_LABELS[entry.code]! }));
+  return (catalogue?.commands ?? []).filter((entry) => entry.phase === "play" && entry.args.startsWith("args?") && entry.code !== "rest")
+    .flatMap((entry) => {
+      const verb = typeof entry.verb === "string" && entry.verb.length > 0 ? verbLabel(entry.verb) : null;
+      const table = Object.hasOwn(COMMAND_LABELS, entry.code) ? COMMAND_LABELS[entry.code]! : null;
+      const name = verb ?? table;
+      return name ? [{ type: "command" as const, code: entry.code, name }] : [];
+    });
 }
 export type Slots = readonly (Binding | null)[];
 export const slotIndex = (code: string, shift: boolean, ctrl: boolean): number => {
@@ -41,7 +51,11 @@ export function readSlots(raw: unknown, character: string): Slots {
     const b = entry as Record<string, unknown>;
     if (b.type === "spell" && typeof b.key === "string" && Number.isInteger(b.index) && typeof b.name === "string") return b as Binding;
     if (b.type === "item" && typeof b.key === "string" && ["quaff", "read", "aim-wand", "activate"].includes(String(b.code)) && typeof b.name === "string") return b as Binding;
-    if (b.type === "command" && (b.code === "rest" || Object.hasOwn(COMMAND_LABELS, String(b.code))) && typeof b.name === "string") return b as Binding;
+    // A command slot keeps its saved name, which came from this table or from
+    // the engine's verb, so a mod command survives a reload. resolve() marks it
+    // unavailable when the catalogue no longer lists the code, and the code
+    // itself never reaches the screen.
+    if (b.type === "command" && typeof b.name === "string" && b.name.length > 0 && typeof b.code === "string") return b as Binding;
     return null;
   });
 }
@@ -72,8 +86,11 @@ export function resolve(snap: Phase4Snapshot, binding: Binding | null, spells: S
   if (!binding) return { label: "Empty", detail: "Right-click to assign.", usable: false };
   if (binding.type === "command" && binding.code === "rest") return { label: "Rest", detail: "Rest until fully recovered.", usable: true, command: { code: "rest", args: { count: -2 } } };
   if (binding.type === "command") {
-    const name = COMMAND_LABELS[binding.code] ?? binding.name;
-    if (!catalogueCommands(ctx).some((entry) => entry.code === binding.code)) return { label: name, detail: "This command is not available in this game.", usable: false };
+    // The catalogue's verb wins so the slot matches what the engine prints; on
+    // an older engine without verbs the table label or the saved name stands.
+    const listed = catalogueCommands(ctx).find((entry) => entry.code === binding.code);
+    const name = listed?.name ?? COMMAND_LABELS[binding.code] ?? binding.name;
+    if (!listed) return { label: name, detail: "This command is not available in this game.", usable: false };
     let usable = true;
     const grid = snap.core.player?.grid;
     if (TILE_COMMANDS.has(binding.code) && grid && ctx.inspect?.tileActions) {

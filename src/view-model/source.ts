@@ -12,7 +12,12 @@ interface SourceCtx extends MessageSeams {
 
 /** The core message log's read side, newest at age 0 (GameState.messages). */
 interface CoreLog { num(): number; str(age: number): string; count(age: number): number; type(age: number): number }
-export interface HistoryEntry { readonly text: string; readonly count: number | undefined; readonly category: number | undefined }
+/* The host's own message log, oldest first (packages/web/src/input-snapshot.ts
+ * InputSnapshot.messages.log). Each entry carries its repeat count and the
+ * colour the engine drew it in, so the source no longer has to match against
+ * the core log to recover a count or guess a category. */
+interface SnapshotLogEntry { readonly text: string; readonly count: number; readonly color?: string }
+export interface HistoryEntry { readonly text: string; readonly count: number | undefined; readonly category: number | undefined; readonly color: string | undefined }
 
 /* How far ahead in the core log a snapshot entry is looked for. The host's
  * log and the core log are fed from the same message sink, so they normally
@@ -29,10 +34,27 @@ const MATCH_WINDOW = 8;
  * the text; an entry with no match keeps its text and leaves both unknown.
  * Without entries, the core log is read directly, as before the snapshot
  * carried messages.
+ *
+ * When the snapshot also carries a `log` (the field the host added alongside
+ * `entries` for engine #294), every entry takes its count and the colour the
+ * engine drew it in straight from the host's log. The core log is left alone,
+ * so an older engine without `log` keeps the text-match path above.
  */
-export function messageHistory(entries: readonly string[] | null | undefined, log: CoreLog | undefined): HistoryEntry[] {
+export function messageHistory(
+  entries: readonly string[] | null | undefined,
+  log: CoreLog | undefined,
+  hostLog?: readonly SnapshotLogEntry[] | null,
+): HistoryEntry[] {
+  if (hostLog) {
+    const history: HistoryEntry[] = [];
+    for (let index = hostLog.length - 1; index >= 0; index--) {
+      const entry = hostLog[index]!;
+      history.push({ text: entry.text, count: entry.count, category: undefined, color: entry.color });
+    }
+    return history;
+  }
   const core = log === undefined ? [] : Array.from({ length: log.num() }, (_, age) => ({
-    text: log.str(age), count: log.count(age), category: log.type(age),
+    text: log.str(age), count: log.count(age), category: log.type(age), color: undefined,
   }));
   if (!entries) return core;
   const history: HistoryEntry[] = [];
@@ -43,8 +65,9 @@ export function messageHistory(entries: readonly string[] | null | undefined, lo
     for (let age = next; age < Math.min(core.length, next + MATCH_WINDOW); age++) {
       if (core[age]!.text === text) { found = age; break; }
     }
-    if (found < 0) { history.push({ text, count: undefined, category: undefined }); continue; }
-    history.push(core[found]!);
+    if (found < 0) { history.push({ text, count: undefined, category: undefined, color: undefined }); continue; }
+    const foundEntry = core[found]!;
+    history.push({ text: foundEntry.text, count: foundEntry.count, category: foundEntry.category, color: undefined });
     next = found + 1;
   }
   return history;
@@ -98,7 +121,7 @@ export function createSource(ctx: SourceCtx): {
       const pending = messagePending(snap);
       return adapt(ctx.core.createAgentView(state), latest, {
         name: state.actor.player.fullName,
-        history: messageHistory(snap?.messages?.entries, state.messages),
+        history: messageHistory(snap?.messages?.entries, state.messages, snap?.messages?.log),
         study: state.actor.player.upkeep.newSpells,
         repeat: state.cmdQueue?.[0]?.repeatRemaining ?? 0,
         resting: state.resting !== undefined,

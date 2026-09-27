@@ -47,8 +47,8 @@ function fixture(): ViewModel {
       { label: "Hidden", name: undefined, visible: false, priority: 2, kind: "mixed", duration: undefined, description: undefined }], study: 2,
   };
   return { player, dungeon: { depth: 4, depth_feet: 200, light: 2, feeling: "3", feeling_indices: undefined, feeling_description: "A quiet floor", floor: "granite" },
-    messages: [{ text: "Orc hits.", count: 3, system: false, category: 1, group: "combat" },
-      { text: "Found gold.", count: 2, system: false, category: 2, group: "loot" }], message_pending: true };
+    messages: [{ text: "Orc hits.", count: 3, system: false, category: 1, group: "combat", color: undefined },
+      { text: "Found gold.", count: 2, system: false, category: 2, group: "loot", color: undefined }], message_pending: true };
 }
 
 describe("Phase 1 panels", () => {
@@ -125,5 +125,25 @@ describe("Phase 1 panels", () => {
     expect(ribbon.disabled).toBe(true);
     model.message_pending = false; renderMessageLog(asHtml(root), model, { acknowledge });
     expect(root.walk().some((e) => e.className === "ribbon")).toBe(false);
+  });
+
+  it("paints the row from the engine's per-entry color when the host publishes it", () => {
+    const root = mount();
+    const model = { ...fixture(), message_pending: false,
+      messages: [{ text: "You hit it.", count: 1, system: undefined, category: undefined, group: undefined, color: "#c88f5fb4" },
+        { text: "Found gold.", count: 1, system: undefined, category: undefined, group: undefined, color: "#b1a962b4" }] };
+    renderMessageLog(asHtml(root), model);
+    const rows = root.walk().filter((e) => e.className === "message");
+    expect(rows[0]?.style.color).toBe("#c88f5fb4");
+    expect(rows[1]?.style.color).toBe("#b1a962b4");
+  });
+
+  it("uses the ink group when the host publishes no color", () => {
+    const root = mount();
+    const model = { ...fixture(), message_pending: false,
+      messages: [{ text: "Mystery.", count: 1, system: undefined, category: undefined, group: undefined, color: undefined }] };
+    renderMessageLog(asHtml(root), model);
+    const row = root.walk().find((e) => e.className === "message");
+    expect(row?.style.color).toBe("#5b8a71a0");
   });
 });

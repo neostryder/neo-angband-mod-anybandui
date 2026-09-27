@@ -20,6 +20,13 @@ export function answerSpell(ctx: Phase4Context, snap: Phase4Snapshot, index: num
   if (!(snap.prompt as SpellPrompt).choices.some((choice) => choice.index === index)) return false;
   return ctx.prompt?.reply(snap.prompt.promptId, index).accepted ?? false;
 }
+/** Try to cancel an open spell prompt with the engine's cancel reply. On an
+ * older engine the reply is refused and the panel keeps its hint. */
+export function cancelSpell(ctx: Phase4Context, snap: Phase4Snapshot): boolean {
+  const next = ctx.snapshot?.();
+  if (snap.prompt?.kind !== "spell" || !next || !sameToken(next.token, snap.token) || next.prompt?.promptId !== snap.prompt.promptId || !playerIsDriving(ctx) || !ctx.prompt?.reply) return false;
+  return ctx.prompt.reply(snap.prompt.promptId, { action: "cancel" }).accepted ?? false;
+}
 const validRest = (count: number): boolean => [-3, -2, -1].includes(count) || (Number.isInteger(count) && count >= 1 && count <= 9999);
 export function rest(ctx: Phase4Context, snap: Phase4Snapshot, count: number): boolean {
   if (!actionReady(ctx, snap) || !validRest(count)) return false;
@@ -38,13 +45,19 @@ export function restAnswer(count: number): string | null {
   return count === -2 ? "&" : count === -1 ? "*" : count === -3 ? "!" : String(count);
 }
 /** Answer the open rest prompt. On an empty answer the game rests zero turns
- * and uses no energy, so Cancel replies with an empty string. */
+ * and uses no energy, so Cancel replies with an empty string. A newer engine
+ * accepts a typed cancel reply instead, so the empty-string answer is only
+ * sent if that one is refused. */
 export function answerRest(ctx: Phase4Context, snap: Phase4Snapshot, count: number | null): boolean {
   const prompt = restPrompt(snap), next = ctx.snapshot?.();
-  if (!prompt || !next || restPrompt(next)?.promptId !== prompt.promptId || !playerIsDriving(ctx)) return false;
+  if (!prompt || !next || restPrompt(next)?.promptId !== prompt.promptId || !playerIsDriving(ctx) || !ctx.prompt?.reply) return false;
+  if (count === null) {
+    const cancel = ctx.prompt.reply(prompt.promptId, { action: "cancel" });
+    if (cancel.accepted) return true;
+  }
   const answer = count === null ? "" : restAnswer(count);
   if (answer === null || answer.length > prompt.maxLength) return false;
-  return ctx.prompt?.reply(prompt.promptId, answer).accepted ?? false;
+  return ctx.prompt.reply(prompt.promptId, answer).accepted ?? false;
 }
 /** Interrupt a rest in progress. The host takes this during the rest modal, so
  * it skips the ordinary play-phase check and reads the token at the moment of

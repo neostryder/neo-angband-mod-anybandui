@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { CommandCatalogue, Phase4Context, Phase4Snapshot, SpellPrompt, TextPrompt } from "./seams.js";
 import { adaptSpells } from "./view-model/spells.js";
-import { actionReady, answerRest, answerSpell, castSpell, rest, restAnswer, restPrompt, stopResting, studySpell } from "./spell-actions.js";
+import { actionReady, answerRest, answerSpell, cancelSpell, castSpell, rest, restAnswer, restPrompt, stopResting, studySpell } from "./spell-actions.js";
 import { activate, catalogueCommands, itemBindings, migrateSlots, quickbarOwnsKey, readSlots, resolve, slotIndex, writeSlots } from "./quickbar.js";
 import { blastGrids } from "./blast-preview.js";
 import { adoptLineage, characterFor, restingText } from "./phase4.js";
@@ -32,6 +32,19 @@ describe("phase 4 spells and quickbar", () => {
   it("answers only the live spell prompt", () => { const prompt: SpellPrompt = { kind: "spell", promptId: 14, label: "Choose a spell", choices: [{ index: 3, name: "Magic Missile", level: 1, mana: 2, fail: 12, castable: true }] };
     const current = { ...snap(), prompt }; const reply = vi.fn(() => ({ accepted: true })); const ctx = { ...context(() => current), prompt: { reply } };
     expect(answerSpell(ctx, current, 3)).toBe(true); expect(reply).toHaveBeenCalledWith(14, 3); expect(answerSpell(ctx, current, 4)).toBe(false); expect(reply).toHaveBeenCalledTimes(1); });
+  it("cancels the live spell prompt with the typed reply", () => {
+    const prompt: SpellPrompt = { kind: "spell", promptId: 14, label: "Choose a spell", choices: [{ index: 3, name: "Magic Missile", level: 1, mana: 2, fail: 12, castable: true }] };
+    const current = { ...snap(), prompt }; const reply = vi.fn(() => ({ accepted: true })); const ctx = { ...context(() => current), prompt: { reply } };
+    expect(cancelSpell(ctx, current)).toBe(true); expect(reply).toHaveBeenLastCalledWith(14, { action: "cancel" });
+    // A moved token declines the cancel reply.
+    expect(cancelSpell(ctx, { ...current, token: { epoch: 2, revision: 3 } })).toBe(false);
+    expect(cancelSpell({ ...ctx, driver: () => ({ kind: "controller" as const, owner: "core:borg" }) }, current)).toBe(false);
+  });
+  it("declines to cancel an older engine that refuses the reply", () => {
+    const prompt: SpellPrompt = { kind: "spell", promptId: 14, label: "Choose a spell", choices: [{ index: 3, name: "Magic Missile", level: 1, mana: 2, fail: 12, castable: true }] };
+    const current = { ...snap(), prompt }; const reply = vi.fn(() => ({ accepted: false })); const ctx = { ...context(() => current), prompt: { reply } };
+    expect(cancelSpell(ctx, current)).toBe(false); expect(reply).toHaveBeenLastCalledWith(14, { action: "cancel" });
+  });
   it("submits rest counts and declines while an autoplayer drives", () => { const ctx = context(); expect(rest(ctx, snap(), -2)).toBe(true);
     expect(ctx.intent.submit).toHaveBeenCalledWith(token, { kind: "command", command: { code: "rest", args: { count: -2 } } });
     expect(rest(ctx, snap(), 10000)).toBe(false); const driven = { ...ctx, driver: () => ({ kind: "controller" as const, owner: "borg" }) }; expect(actionReady(driven, snap())).toBe(false); expect(rest(driven, snap(), 5)).toBe(false); const { driver: _driver, ...withoutDriver } = ctx; expect(rest(withoutDriver, snap(), 5)).toBe(true); });
@@ -104,7 +117,10 @@ describe("adopted core seams: rest", () => {
     expect([-2, -1, -3, 25, 9999, 0, 10000].map(restAnswer)).toEqual(["&", "*", "!", "25", "9999", null, null]);
   });
   it("answers the tagged rest question and never an ordinary text question", () => {
-    const asking: Phase4Snapshot = { ...snap(), phase: "modal", prompt: restQuestion }; const reply = vi.fn(() => ({ accepted: true }));
+    // Cancel reply is refused so the empty-string fallback runs, the same way
+    // the older engine answered the rest prompt before the typed cancel reply.
+    const asking: Phase4Snapshot = { ...snap(), phase: "modal", prompt: restQuestion };
+    const reply = vi.fn((_id: number, answer: unknown) => ({ accepted: !(typeof answer === "object" && answer !== null && (answer as { action?: string }).action === "cancel") }));
     const ctx = { ...context(() => asking), prompt: { reply } };
     expect(restPrompt(asking)?.promptId).toBe(21);
     expect(answerRest(ctx, asking, -1)).toBe(true); expect(reply).toHaveBeenLastCalledWith(21, "*");
@@ -114,7 +130,7 @@ describe("adopted core seams: rest", () => {
     const { tag: _tag, ...untagged } = restQuestion;
     const inscription: Phase4Snapshot = { ...asking, prompt: { ...untagged, promptId: 22 } };
     expect(restPrompt(inscription)).toBeNull(); expect(answerRest({ ...ctx, snapshot: () => inscription }, inscription, -2)).toBe(false);
-    expect(reply).toHaveBeenCalledTimes(3);
+    expect(reply).toHaveBeenCalledTimes(4);
   });
   it("leaves number keys to the rest question", () => {
     expect(quickbarOwnsKey(true, { ...snap(), prompt: restQuestion }, "Digit5", false, false, false)).toBe(false);
@@ -131,15 +147,47 @@ describe("adopted core seams: rest", () => {
     expect([{ active: true, mode: 30, turnsRemaining: 12 }, { active: true, mode: 1, turnsRemaining: 1 }, { active: true, mode: -2, turnsRemaining: null }, { active: true, mode: -1, turnsRemaining: null }, { active: true, mode: -3, turnsRemaining: null }].map(restingText))
       .toEqual(["Resting: 12 turns left.", "Resting: 1 turn left.", "Resting until fully recovered.", "Resting until hit points and mana are full.", "Resting until hit points or mana are full."]);
   });
+  it("describes the named rest modes and a timed rest with both counts", () => {
+    expect([
+      { active: true, mode: "turns" as const, turnsRequested: 25, turnsRemaining: 12, turnsRested: 13 },
+      { active: true, mode: "turns" as const, turnsRequested: 1, turnsRemaining: 1, turnsRested: 0 },
+      { active: true, mode: "complete" as const, turnsRequested: null, turnsRemaining: null, turnsRested: 7 },
+      { active: true, mode: "all-points" as const, turnsRequested: null, turnsRemaining: null, turnsRested: 7 },
+      { active: true, mode: "some-points" as const, turnsRequested: null, turnsRemaining: null, turnsRested: 7 },
+    ].map(restingText)).toEqual([
+      "Resting: 12 of 25 turns left.",
+      "Resting: 1 of 1 turns left.",
+      "Resting until fully recovered.",
+      "Resting until hit points and mana are full.",
+      "Resting until hit points or mana are full.",
+    ]);
+  });
+  it("cancels a rest prompt with the typed reply on a newer engine and the empty string on an older one", () => {
+    const asking: Phase4Snapshot = { ...snap(), phase: "modal", prompt: restQuestion }; const reply = vi.fn();
+    const newer = { ...context(() => asking), prompt: { reply: reply.mockImplementation(() => ({ accepted: true })) } };
+    expect(answerRest(newer, asking, null)).toBe(true); expect(reply).toHaveBeenLastCalledWith(21, { action: "cancel" });
+    // Older engine: cancel reply is refused, so the empty string falls back.
+    reply.mockReset();
+    const older = { ...context(() => asking), prompt: { reply: reply.mockImplementation((id, answer) => ({ accepted: !(typeof answer === "object" && answer.action === "cancel") })) } };
+    expect(answerRest(older, asking, null)).toBe(true); expect(reply.mock.calls[0]).toEqual([21, { action: "cancel" }]);
+    expect(reply.mock.calls[1]).toEqual([21, ""]);
+  });
 });
 
 describe("adopted core seams: blast preview", () => {
   const area = vi.fn((to: { x: number; y: number }, radius: number) => ({ token, grids: [to, { x: to.x + radius, y: to.y }], radius, element: "FIRE", wallsStop: true }));
   const ball = { token, radius: 2, element: "FIRE", wallsStop: true };
+  const breath = { token, radius: 2, arc: 60, element: "FIRE", wallsStop: true };
   it("draws the game's blast area at the target cursor with the pending radius", () => {
     const aiming: Phase4Snapshot = { ...snap(), phase: "modal", activeBlast: ball, prompt: { kind: "target", promptId: 3, cursor: { x: 9, y: 4 } } };
     const result = blastGrids({ ...context(), inspect: { blastArea: area } }, aiming, { x: 1, y: 1 });
-    expect(area).toHaveBeenLastCalledWith({ x: 9, y: 4 }, 2); expect(result).toEqual({ grids: [{ x: 9, y: 4 }, { x: 11, y: 4 }], element: "FIRE" });
+    // A ball carries no arc; the third argument is undefined for the older engine and a numeric breath for the newer one.
+    expect(area).toHaveBeenLastCalledWith({ x: 9, y: 4 }, 2, undefined); expect(result).toEqual({ grids: [{ x: 9, y: 4 }, { x: 11, y: 4 }], element: "FIRE" });
+  });
+  it("forwards a breath's arc to the blast area preview", () => {
+    const aiming: Phase4Snapshot = { ...snap(), phase: "modal", activeBlast: breath, prompt: { kind: "target", promptId: 3, cursor: { x: 9, y: 4 } } };
+    blastGrids({ ...context(), inspect: { blastArea: area } }, aiming, { x: 1, y: 1 });
+    expect(area).toHaveBeenLastCalledWith({ x: 9, y: 4 }, 2, 60);
   });
   it("uses the hovered grid for a direction question and draws nothing without a pending blast", () => {
     const direction: Phase4Snapshot = { ...snap(), phase: "modal", activeBlast: ball, prompt: { kind: "direction", promptId: 4 } };
@@ -153,18 +201,39 @@ describe("adopted core seams: blast preview", () => {
 });
 
 describe("adopted core seams: quickbar commands and identity", () => {
-  const catalogue = (): CommandCatalogue => ({ token, intents: [{ kind: "stop-resting", args: "none" }], commands: [
-    { code: "walk", phase: "play", args: "dir: 1..9" }, { code: "hold", phase: "play", args: "args?: plain object" },
-    { code: "descend", phase: "play", args: "args?: plain object" }, { code: "look", phase: "play", args: "args?: {x: integer, y: integer}" },
-    { code: "rest", phase: "play", args: "args?: {count: integer}" }, { code: "quaff", phase: "play", args: "args: {handle: integer, quantity?: positive integer}" },
-    { code: "shop-exit", phase: "store", args: "args?: plain object" }, { code: "mymod-dance", phase: "play", args: "args?: plain object" }] });
+  const catalogue = (overrides: Record<string, Partial<{ verb: string | null }>> = {}): CommandCatalogue => {
+    const base = { walk: null, hold: null, descend: null, look: null, rest: null, quaff: null, "shop-exit": null, "mymod-dance": null } as Record<string, string | null>;
+    for (const [code, value] of Object.entries(overrides)) base[code] = value.verb ?? null;
+    return { token, intents: [{ kind: "stop-resting", args: "none" }], commands: [
+      { code: "walk", verb: base.walk, phase: "play", args: "dir: 1..9" },
+      { code: "hold", verb: base.hold, phase: "play", args: "args?: plain object" },
+      { code: "descend", verb: base.descend, phase: "play", args: "args?: plain object" },
+      { code: "look", verb: base.look, phase: "play", args: "args?: {x: integer, y: integer}" },
+      { code: "rest", verb: base.rest, phase: "play", args: "args?: {count: integer}" },
+      { code: "quaff", verb: base.quaff, phase: "play", args: "args: {handle: integer, quantity?: positive integer}" },
+      { code: "shop-exit", verb: base["shop-exit"], phase: "store", args: "args?: plain object" },
+      { code: "mymod-dance", verb: base["mymod-dance"], phase: "play", args: "args?: plain object" },
+    ] };
+  };
   it("offers argument-free play commands by a readable name and never a raw code", () => {
-    const ctx = { ...context(), intent: { submit: vi.fn(() => ({ accepted: true })), catalogue } };
+    const ctx = { ...context(), intent: { submit: vi.fn(() => ({ accepted: true })), catalogue: () => catalogue() } };
     const offered = catalogueCommands(ctx);
     expect(offered.map((b) => b.code)).toEqual(["hold", "descend", "look"]);
     expect(offered.map((b) => b.name)).toEqual(["Stay still", "Go down stairs", "Look around"]);
     for (const b of offered) expect(b.name).not.toBe(b.code);
     expect(catalogueCommands(context())).toEqual([]);
+  });
+  it("labels a slot with the engine's verb when no table entry exists, and skips verbs that are null with no table entry", () => {
+    const ctx = { ...context(), intent: { submit: vi.fn(() => ({ accepted: true })), catalogue: () => catalogue({ "mymod-dance": { verb: "dance" }, hold: { verb: null } }) } };
+    const offered = catalogueCommands(ctx);
+    // mymod-dance has no table entry but the engine supplies a verb, so it appears.
+    expect(offered.find((b) => b.code === "mymod-dance")?.name).toBe("Dance");
+    // hold still has a table entry, which wins over the missing verb.
+    expect(offered.find((b) => b.code === "hold")?.name).toBe("Stay still");
+  });
+  it("omits codes without a table entry and without a verb on a newer engine", () => {
+    const ctx = { ...context(), intent: { submit: vi.fn(() => ({ accepted: true })), catalogue: () => catalogue() } };
+    expect(catalogueCommands(ctx).some((b) => b.code === "mymod-dance")).toBe(false);
   });
   it("submits a command slot with no arguments and greys a stair command off the stairs", () => {
     const submit = vi.fn(() => ({ accepted: true }));
@@ -177,9 +246,9 @@ describe("adopted core seams: quickbar commands and identity", () => {
     expect(activate(ctx, snap(), { type: "command", code: "rest", name: "Rest" })).toBe(true);
     expect(submit).toHaveBeenLastCalledWith(token, { kind: "command", command: { code: "rest", args: { count: -2 } } });
   });
-  it("keeps saved command slots and drops unknown codes", () => {
-    const saved = { quickbar: { A: [{ type: "command", code: "hold", name: "Stay still" }, { type: "command", code: "mymod-dance", name: "Dance" }] } };
-    expect(readSlots(saved, "A").slice(0, 2)).toEqual([{ type: "command", code: "hold", name: "Stay still" }, null]);
+  it("keeps saved command slots, including a mod command named by its verb, and drops nameless ones", () => {
+    const saved = { quickbar: { A: [{ type: "command", code: "hold", name: "Stay still" }, { type: "command", code: "mymod-dance", name: "Dance" }, { type: "command", code: "mymod-hop", name: "" }] } };
+    expect(readSlots(saved, "A").slice(0, 3)).toEqual([{ type: "command", code: "hold", name: "Stay still" }, { type: "command", code: "mymod-dance", name: "Dance" }, null]);
   });
   it("moves a character's slots from the birth fingerprint to the lineage once", () => {
     const fingerprint = "Dwarf|Priest|120|48|150"; const bar = Array(30).fill(null); bar[0] = { type: "command", code: "rest", name: "Rest" };

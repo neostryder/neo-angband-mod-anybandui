@@ -24,8 +24,11 @@ const LIMITED_QUALITY = new Set([24, 25]);
 // (ui-knowledge.c note_text[80]), so a note holds at most 79 characters.
 export const NOTE_LIMIT = 79;
 
-export function qualityChoices(itype: number): readonly string[] {
-  return LIMITED_QUALITY.has(itype) ? QUALITY_NAMES.slice(0, 2) : QUALITY_NAMES;
+/** The threshold names to offer in the editor. An engine publishing the quality row's
+ * `levels` decides; on an older engine, fall back to the mod's own list, which keeps
+ * rings and amulets at the two values the game's own menu allows for them. */
+export function qualityChoices(row: { readonly itype: number; readonly levels?: readonly string[] }): readonly string[] {
+  return row.levels ?? (LIMITED_QUALITY.has(row.itype) ? QUALITY_NAMES.slice(0, 2) : QUALITY_NAMES);
 }
 
 export type KindRule = ItemRulesResult["kinds"][number];
@@ -58,7 +61,8 @@ export function ruleEditorRows(rules: ItemRulesResult, filter: string, limit = 3
 /** Build one item-rule intent, or explain why the value cannot be sent. */
 export function ruleIntent(rules: ItemRulesResult, rule: Extract<ItemIntent, { kind: "item-rule" }>["rule"], index: number, value: boolean | number | string, itype?: number): { intent: ItemIntent } | { reason: string } {
   if (rule === "quality") {
-    if (typeof value !== "number" || !rules.quality.some((row) => row.itype === index) || !Number.isInteger(value) || value < 0 || value >= qualityChoices(index).length) return { reason: "That ignore level is not available for this item type." };
+    const row = rules.quality.find((entry) => entry.itype === index);
+    if (!row || typeof value !== "number" || !Number.isInteger(value) || value < 0 || value >= qualityChoices(row).length) return { reason: "That ignore level is not available for this item type." };
     return { intent: { kind: "item-rule", rule, index, value } };
   }
   if (rule === "ego") {

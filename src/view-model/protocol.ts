@@ -78,6 +78,11 @@ export interface MessagePayload {
   system: boolean | undefined;
   category: number | undefined;
   group: string | undefined;
+  /* The colour the engine drew this entry in (packages/web/src/input-snapshot.ts
+   * InputSnapshot.messages.log.color). Absent when the engine does not publish
+   * the field, or when the entry has no count source to compare it to; the
+   * renderer falls back to system/group in that case. */
+  color: string | undefined;
 }
 
 export interface DungeonSummaryPayload {

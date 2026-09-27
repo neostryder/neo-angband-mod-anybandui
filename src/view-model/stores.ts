@@ -25,15 +25,29 @@ export function adaptStore(snap: StoreSnapshot, known: KnownLevel | null): Store
   if (index < 0) return null;
   const store: StoreView = snap.core.stores[index]!;
   const items = adaptItems(snap);
-  // The status covers the pack only. Worn gear has no row, so it stays
-  // selectable and the store's own check decides whether it buys it.
   const quotes = new Map(status?.inventory.map((entry) => [entry.handle, entry]));
-  const pack: StoreRow[] = (items?.rows ?? []).map((item: ItemRow) => {
-    const quote = quotes.get(item.handle);
-    return { key: item.handle, label: item.label, quantity: item.quantity, colour: item.colour,
-      location: item.location === "pack" ? "Pack" : "Equipment", eligible: quote?.eligible ?? true,
-      ...(quote && quote.eligible && quote.price !== null ? { price: quote.price } : {}) };
-  });
+  // An engine that tags each store row with a location also lists the worn
+  // equipment, so the sell side offers exactly what the store reports, quotes
+  // included, with each row's place: pack, quiver or equipment. An older engine's status covers the
+  // pack only, so its rows stay as they were and the store's own check decides.
+  const located = status !== null && status.inventory.some((entry) => entry.location !== undefined);
+  const byHandle = new Map((items?.rows ?? []).map((item) => [item.handle, item]));
+  const pack: StoreRow[] = located
+    ? status!.inventory.map((entry) => {
+        const item = byHandle.get(entry.handle);
+        return { key: entry.handle, quantity: item?.quantity ?? 1, colour: item?.colour ?? "inherit",
+          // PROSE
+          label: item?.label ?? "Item",
+          // PROSE
+          location: entry.location === "equipment" ? "Equipment" : entry.location === "quiver" ? "Quiver" : "Pack",
+          eligible: entry.eligible, ...(entry.eligible && entry.price !== null ? { price: entry.price } : {}) };
+      })
+    : (items?.rows ?? []).map((item: ItemRow) => {
+        const quote = quotes.get(item.handle);
+        return { key: item.handle, label: item.label, quantity: item.quantity, colour: item.colour,
+          location: item.location === "pack" ? "Pack" : "Equipment", eligible: quote?.eligible ?? true,
+          ...(quote && quote.eligible && quote.price !== null ? { price: quote.price } : {}) };
+      });
   return { token: snap.token, index, name: store.isHome ? "Home" : store.featName,
     owner: store.isHome ? "" : store.owner.name, home: store.isHome,
     ...(snap.core.player.gold === undefined ? {} : { gold: snap.core.player.gold }),

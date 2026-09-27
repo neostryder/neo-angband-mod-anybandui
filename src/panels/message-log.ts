@@ -46,8 +46,11 @@ export function renderMessageLog(mount: HTMLElement, model: ViewModel, options: 
     for (const [index, message] of recent.entries()) {
       if (!message.text.toLocaleLowerCase().includes(match)) continue;
       const row = node(list, "div", "message", `${message.text}${index === 0 && (message.count ?? 1) > 1 ? ` (x${message.count})` : ""}`);
+      /* A host that publishes per-entry colour wins: it is the CSS colour the
+       * game draws that line in (colorToCss), including message.prf changes.
+       * Without it the older system/group hints pick the ink. */
       const group: keyof typeof ink = message.system ? "system" : message.group === "combat" ? "combat" : message.group === "loot" ? "loot" : "other";
-      row.style.color = ink[group];
+      row.style.color = message.color ?? ink[group];
     }
   };
   search.addEventListener("input", draw);

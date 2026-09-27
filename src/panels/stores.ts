@@ -1,6 +1,6 @@
 import { applyTheme, THEMES } from "../theme.js";
 import { validateSettings } from "../settings.js";
-import type { InputToken, LoadoutSimulation, StoreContext, StoreInspectResult, StorePromptAnswer, StoreQuantityPrompt, StoreReplyResult } from "../seams.js";
+import type { InputToken, LoadoutSimulation, StoreConfirmPrompt, StoreContext, StoreInspectResult, StorePromptAnswer, StoreQuantityPrompt, StoreReplyResult } from "../seams.js";
 import { adaptStore, type StoreModel, type StoreRow } from "../view-model/stores.js";
 import { compareItem } from "../view-model/items.js";
 import { renderItemComparison } from "./item-comparison.js";
@@ -51,7 +51,7 @@ export function storePromptReply(ctx: StoreContext, model: StoreModel, answer: S
     const quantity = snap.prompt as StoreQuantityPrompt;
     if (!cancel && (typeof answer !== "number" || !Number.isInteger(answer) || answer < quantity.min || answer > quantity.max)) return REFUSED;
   } else if (snap.prompt.kind === "confirm") {
-    if (typeof answer !== "boolean") return REFUSED;
+    if (!cancel && typeof answer !== "boolean") return REFUSED;
   } else return REFUSED;
   return outcome(ctx.prompt.reply(snap.prompt.promptId, answer));
 }
@@ -249,10 +249,14 @@ export function installStores(ctx: StoreContext): () => void {
         const valid = Number.isInteger(amount) && amount >= low && amount <= quantity.max;
         confirm.disabled = !valid;
         if (total) {
-          // The game's totalPrice follows the digits typed at its own prompt,
-          // which start at 1, so it is exact only for one item.
-          const sum = amount === 1 && quantity.totalPrice !== undefined ? quantity.totalPrice : quantity.unitPrice! * amount;
-          total.textContent = valid ? `Total: ${amount === 1 ? "" : "about "}${sum} gold` : "";
+          // The engine's totals prices every quantity exactly. Without it,
+          // totalPrice follows the digits typed at the game's own prompt, which
+          // start at 1, so only one item is exact and larger amounts are about.
+          const exact = quantity.totals?.[amount];
+          const hasExact = typeof exact === "number";
+          const sum = hasExact ? exact : amount === 1 && quantity.totalPrice !== undefined ? quantity.totalPrice : quantity.unitPrice! * amount;
+          // PROSE
+          total.textContent = valid ? `Total: ${!hasExact && amount !== 1 ? "about " : ""}${sum} gold` : "";
           total.className = !selling && quantity.gold !== undefined && sum > quantity.gold ? "unaffordable" : "";
         }
       };
@@ -266,14 +270,21 @@ export function installStores(ctx: StoreContext): () => void {
     }
     el(box, "h3", pending && !model.home ? selling ? "Accept this offer?" : "Accept this price?" : "Confirm");
     const text = cleanLabel(prompt.label); if (text) el(box, "p", text);
+    const price = (prompt as StoreConfirmPrompt).price;
     if (pending && !model.home) {
       const row = (pending.side === "stock" ? model.stock : model.pack).find((entry) => entry.key === pending!.key);
       const unit = pending.unitPrice ?? row?.price;
       if (selling && model.noSelling) el(box, "p", "You get no gold for this.");
+      // The engine's own confirm price is exact; without it, the amount times
+      // the unit price is only exact for one item.
+      // PROSE
+      else if (price !== undefined) el(box, "p", `${selling ? "You receive" : "Price"}: ${price} gold`);
       else if (unit !== undefined) el(box, "p", `${selling ? "You receive" : "Price"}: ${pending.amount === 1 ? "" : "about "}${unit * pending.amount} gold`);
     }
     const actions = el(box, "div"); actions.className = "actions";
     button(actions, "Accept", () => reply(true)); button(actions, "Decline", () => reply(false));
+    // PROSE
+    button(actions, "Cancel", () => reply({ action: "cancel" }));
   };
   paint(true);
   const timer = globalThis.setInterval(() => paint(), 200);
