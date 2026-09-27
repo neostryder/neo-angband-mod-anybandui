@@ -107,7 +107,7 @@ export interface Phase4Context { readonly flags?: Readonly<Record<string, boolea
 // appended at the end of this file.
 export interface StoreItemView extends ItemView { readonly index: number; readonly price?: number }
 export interface StoreView { readonly feat: number; readonly featName: string; readonly isHome: boolean; readonly owner: { readonly name: string; readonly purse: number }; readonly stock: readonly StoreItemView[] }
-export interface StoreStatus { readonly token: InputToken; readonly feat: number; readonly ready: boolean; readonly noSelling: boolean; readonly inventory: readonly { readonly handle: number; readonly eligible: boolean; readonly price: number | null }[] }
+export interface StoreStatus { readonly token: InputToken; readonly feat: number; readonly ready: boolean; readonly noSelling: boolean; readonly inventory: readonly { readonly handle: number; readonly location?: "pack" | "quiver" | "equipment"; readonly eligible: boolean; readonly price: number | null }[] }
 export interface StoreContext extends ItemsContext {
   readonly snapshot?: () => StoreSnapshot | null;
   readonly prompt?: StorePromptSeam;
@@ -169,7 +169,8 @@ export interface DriverSeams {
 // InspectResult.sections and LoadoutSlotsResult from packages/core/src/agent/inspect.ts
 // and LoadoutItemRef from packages/core/src/agent/types.ts.
 export interface StoreSnapshot extends InputSnapshot { readonly storeStatus?: StoreStatus | null }
-export type StoreQuantityPrompt = QuantityPrompt & { readonly unitPrice?: number; readonly totalPrice?: number; readonly gold?: number };
+export type StoreQuantityPrompt = QuantityPrompt & { readonly unitPrice?: number; readonly totalPrice?: number; readonly totals?: readonly number[]; readonly gold?: number };
+export type StoreConfirmPrompt = PromptBase & { readonly kind: "confirm"; readonly label: string; readonly price?: number };
 export type StorePromptAnswer = number | boolean | { readonly action: "cancel" };
 export type StoreReplyResult = IntentResult;
 export interface StorePromptSeam { reply(promptId: number, answer: StorePromptAnswer): StoreReplyResult }

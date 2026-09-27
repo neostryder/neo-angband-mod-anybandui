@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { KnownLevel, StoreContext, StoreSnapshot, StoreStatus, MouseSeams, InputToken, PlayerIntent, StorePromptAnswer, StoreReplyResult, LoadoutSimulation, LoadoutSlotRef, LoadoutSlotsResult, StoreItemRef, StoreInspectResult, StoreQuantityPrompt } from "./seams.js";
+import type { KnownLevel, StoreContext, StoreSnapshot, StoreStatus, StoreConfirmPrompt, MouseSeams, InputToken, PlayerIntent, StorePromptAnswer, StoreReplyResult, LoadoutSimulation, LoadoutSlotRef, LoadoutSlotsResult, StoreItemRef, StoreInspectResult, StoreQuantityPrompt } from "./seams.js";
 import { adaptStore } from "./view-model/stores.js";
 import { installStores, storeAction, storeComparisons, storeInspection, storePromptReply, tradeAllowed } from "./panels/stores.js";
 import { clickTile } from "./map-mouse.js";
@@ -7,6 +7,12 @@ import { clickTile } from "./map-mouse.js";
 const token = { epoch: 4, revision: 9 };
 const item = (handle: number) => ({ handle, label: "Long Sword", number: 2, inscription: null, tval: 20, sval: 1, artifact: false, ego: false });
 const status: StoreStatus = { token, feat: 21, ready: true, noSelling: false, inventory: [{ handle: 7, eligible: true, price: 12 }] };
+// A newer engine tags each store row with its location and lists worn gear too.
+const located: StoreStatus = { token, feat: 21, ready: true, noSelling: false, inventory: [
+  { handle: 7, location: "pack", eligible: true, price: 12 },
+  { handle: 8, location: "equipment", eligible: true, price: 30 },
+  { handle: 9, location: "quiver", eligible: true, price: 5 },
+] };
 const snap = (phase: StoreSnapshot["phase"] = "store", prompt: StoreSnapshot["prompt"] = null, storeStatus: StoreStatus | null | "absent" = status): StoreSnapshot => ({
   token, phase, prompt, ...(storeStatus === "absent" ? {} : { storeStatus }),
   core: { player: { grid: { x: 2, y: 3 }, gold: 50 }, inventory: [item(7)], equipment: [],
@@ -58,6 +64,14 @@ describe("store reads", () => {
     const source = snap(); const worn: StoreSnapshot = { ...source, core: { ...source.core, equipment: [item(8)] } };
     const model = adaptStore(worn, null)!;
     expect(model.pack.map((row) => [row.key, row.location, row.eligible, row.price])).toEqual([[7, "Pack", true, 12], [8, "Equipment", true, undefined]]);
+  });
+  it("offers every row the store reports, worn gear under Equipment, when rows carry a location", () => {
+    const base = snap("store", null, located);
+    const source: StoreSnapshot = { ...base, core: { ...base.core, inventory: [item(7), item(9)], equipment: [item(8)] } };
+    const model = adaptStore(source, null)!;
+    expect(model.pack.map((row) => [row.key, row.location, row.eligible, row.price])).toEqual([
+      [7, "Pack", true, 12], [8, "Equipment", true, 30], [9, "Quiver", true, 5],
+    ]);
   });
   it("reports readiness, the no-selling option and the Home", () => {
     const model = adaptStore(homeOf(snap("store", null, { ...status, ready: false, noSelling: true })), null)!;
@@ -152,6 +166,11 @@ describe("store prompts", () => {
     expect(storePromptReply(ctx, model, false).accepted).toBe(true);
     expect(storePromptReply(ctx, model, 1).accepted).toBe(false);
     expect(reply.mock.calls).toEqual([[11, true], [11, false]]);
+  });
+  it("takes the typed cancel reply on the confirmation as well", () => {
+    const c = snap("store", confirm); const { ctx, reply } = context(c); const model = adaptStore(c, null)!;
+    expect(storePromptReply(ctx, model, { action: "cancel" }).accepted).toBe(true);
+    expect(reply).toHaveBeenCalledExactlyOnceWith(11, { action: "cancel" });
   });
   it("ignores a prompt that has already closed or changed", () => {
     const { ctx, reply } = context(snap("store", { ...confirm, promptId: 12 }));
@@ -256,6 +275,15 @@ describe("store window", () => {
     expect(view.reply).toHaveBeenCalledExactlyOnceWith(10, 1);
     view.cleanup();
   });
+  it("shows the engine's exact total for every quantity when it sends totals", () => {
+    const priced: StoreQuantityPrompt = { ...quantity, totals: [0, 20, 40, 60] };
+    const view = open(snap("store", priced));
+    expect(view.root.text()).toContain("Total: 20 gold");
+    view.root.buttons("All")[0]!.fire("click");
+    expect(view.root.text()).toContain("Total: 60 gold");
+    expect(view.root.text()).not.toContain("about 60");
+    view.cleanup();
+  });
   it("shows the price for a trade it started and gives the confirmation its own buttons", () => {
     const view = open(snap());
     const pick = view.root.buttons("Long Sword")[0]!; pick.fire("click");
@@ -268,6 +296,40 @@ describe("store window", () => {
     expect(text).toContain("Price: 20 gold");
     view.root.buttons("Decline")[0]!.fire("click");
     expect(view.reply).toHaveBeenCalledExactlyOnceWith(11, false);
+    view.cleanup();
+  });
+  it("shows the engine's exact price or offer on the confirm step", () => {
+    const buy: StoreConfirmPrompt = { kind: "confirm", promptId: 11, label: "Buy a Long Sword?", price: 40 };
+    const view = open(snap());
+    view.root.buttons("Long Sword")[0]!.fire("click");
+    view.root.buttons("Buy")[0]!.fire("click");
+    view.set(snap("store", buy));
+    view.root.buttons("Long Sword")[0]!.fire("click");
+    expect(view.root.text()).toContain("Price: 40 gold");
+    view.cleanup();
+
+    const sale: StoreConfirmPrompt = { kind: "confirm", promptId: 12, label: "Sell a Long Sword?", price: 15 };
+    const sell = open(snap());
+    sell.root.buttons("Long Sword")[2]!.fire("click");
+    sell.root.buttons("Sell")[0]!.fire("click");
+    sell.set(snap("store", sale));
+    sell.root.buttons("Long Sword")[2]!.fire("click");
+    expect(sell.root.text()).toContain("You receive: 15 gold");
+    sell.cleanup();
+  });
+  it("cancels from the confirm step with the typed reply", () => {
+    const view = open(snap("store", confirm));
+    view.root.buttons("Cancel")[0]!.fire("click");
+    expect(view.reply).toHaveBeenCalledExactlyOnceWith(11, { action: "cancel" });
+    view.cleanup();
+  });
+  it("shows worn gear under Equipment with its quote", () => {
+    const base = snap("store", null, located);
+    const source: StoreSnapshot = { ...base, core: { ...base.core, inventory: [item(7), item(9)], equipment: [item(8)] } };
+    const view = open(source);
+    const text = view.root.text();
+    expect(text).toContain("Equipment");
+    expect(text).toContain("30");
     view.cleanup();
   });
   it("leaves the questions to the keyboard when store questions are off", () => {

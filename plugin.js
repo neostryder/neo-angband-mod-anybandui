@@ -6082,7 +6082,22 @@ function adaptStore(snap, known) {
   const store = snap.core.stores[index];
   const items = adaptItems(snap);
   const quotes = new Map(status?.inventory.map((entry2) => [entry2.handle, entry2]));
-  const pack = (items?.rows ?? []).map((item) => {
+  const located = status !== null && status.inventory.some((entry2) => entry2.location !== void 0);
+  const byHandle = new Map((items?.rows ?? []).map((item) => [item.handle, item]));
+  const pack = located ? status.inventory.map((entry2) => {
+    const item = byHandle.get(entry2.handle);
+    return {
+      key: entry2.handle,
+      quantity: item?.quantity ?? 1,
+      colour: item?.colour ?? "inherit",
+      // PROSE
+      label: item?.label ?? "Item",
+      // PROSE
+      location: entry2.location === "equipment" ? "Equipment" : entry2.location === "quiver" ? "Quiver" : "Pack",
+      eligible: entry2.eligible,
+      ...entry2.eligible && entry2.price !== null ? { price: entry2.price } : {}
+    };
+  }) : (items?.rows ?? []).map((item) => {
     const quote = quotes.get(item.handle);
     return {
       key: item.handle,
@@ -6158,7 +6173,7 @@ function storePromptReply(ctx, model, answer) {
     const quantity = snap.prompt;
     if (!cancel && (typeof answer !== "number" || !Number.isInteger(answer) || answer < quantity.min || answer > quantity.max)) return REFUSED;
   } else if (snap.prompt.kind === "confirm") {
-    if (typeof answer !== "boolean") return REFUSED;
+    if (!cancel && typeof answer !== "boolean") return REFUSED;
   } else return REFUSED;
   return outcome(ctx.prompt.reply(snap.prompt.promptId, answer));
 }
@@ -6410,8 +6425,10 @@ function installStores(ctx) {
         const valid = Number.isInteger(amount) && amount >= low && amount <= quantity.max;
         confirm.disabled = !valid;
         if (total) {
-          const sum = amount === 1 && quantity.totalPrice !== void 0 ? quantity.totalPrice : quantity.unitPrice * amount;
-          total.textContent = valid ? `Total: ${amount === 1 ? "" : "about "}${sum} gold` : "";
+          const exact = quantity.totals?.[amount];
+          const hasExact = typeof exact === "number";
+          const sum = hasExact ? exact : amount === 1 && quantity.totalPrice !== void 0 ? quantity.totalPrice : quantity.unitPrice * amount;
+          total.textContent = valid ? `Total: ${!hasExact && amount !== 1 ? "about " : ""}${sum} gold` : "";
           total.className = !selling && quantity.gold !== void 0 && sum > quantity.gold ? "unaffordable" : "";
         }
       };
@@ -6438,16 +6455,19 @@ function installStores(ctx) {
     el4(box, "h3", pending && !model.home ? selling ? "Accept this offer?" : "Accept this price?" : "Confirm");
     const text = cleanLabel(prompt.label);
     if (text) el4(box, "p", text);
+    const price = prompt.price;
     if (pending && !model.home) {
       const row = (pending.side === "stock" ? model.stock : model.pack).find((entry2) => entry2.key === pending.key);
       const unit = pending.unitPrice ?? row?.price;
       if (selling && model.noSelling) el4(box, "p", "You get no gold for this.");
+      else if (price !== void 0) el4(box, "p", `${selling ? "You receive" : "Price"}: ${price} gold`);
       else if (unit !== void 0) el4(box, "p", `${selling ? "You receive" : "Price"}: ${pending.amount === 1 ? "" : "about "}${unit * pending.amount} gold`);
     }
     const actions = el4(box, "div");
     actions.className = "actions";
     button3(actions, "Accept", () => reply(true));
     button3(actions, "Decline", () => reply(false));
+    button3(actions, "Cancel", () => reply({ action: "cancel" }));
   };
   paint(true);
   const timer2 = globalThis.setInterval(() => paint(), 200);
