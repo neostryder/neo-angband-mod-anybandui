@@ -42,6 +42,7 @@ import { installEffects } from "./src/effects.js";
 import type { DriverEvents, DriverSeams, EffectContext } from "./src/seams.js";
 import { coexistingFlags } from "./src/mod-coexistence.js";
 import { currentDriver } from "./src/input-owner.js";
+import { installChromePaint, type ChromeDisplay } from "./src/paint.js";
 
 /**
  * What this plugin needs from the host's context, structurally.
@@ -100,6 +101,8 @@ export default {
       } catch { /* no driver-changed event or grant on this engine */ }
     }
     displayCleanups.push(installEffects({ flags, ...(ctx.snapshot ? { snapshot: ctx.snapshot as NonNullable<EffectContext["snapshot"]> } : {}), ...(ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {}), ...(ctx.events ? { events: ctx.events } : {}), ...(ctx.display?.snapshot ? { display: ctx.display as NonNullable<EffectContext["display"]> } : {}), ...(ctx.prefs ? { prefs: ctx.prefs } : {}), ...((ctx as unknown as { settings?: EffectContext["settings"] }).settings ? { settings: (ctx as unknown as { settings: NonNullable<EffectContext["settings"]> }).settings } : {}) }));
+    /* The window frames around the cards take the same paint as the cards. */
+    displayCleanups.push(installChromePaint(ctx.display as ChromeDisplay | undefined, flags, THEMES[validateSettings(ctx.prefs?.get()).theme]!, ctx.log));
     displayCleanups.push(installItems(ctx as unknown as ItemsContext));
     displayCleanups.push(installStores(ctx as unknown as StoreContext));
     if (flags["anybandui.highContrast"] || flags["anybandui.colourblind"] || flags["anybandui.crt"]) {

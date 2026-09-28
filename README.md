@@ -10,7 +10,7 @@ Version 1.0.0 brings over the interface itself: panels, the map under the mouse,
 
 ## What it changes, and what it leaves alone
 
-AnybandUI changes how the game looks and how you reach its commands. It does not change the rules: every roll, price, knowledge check and save file stays the game's own, and every panel reads the state the game already shows you. Every command stays reachable from the keyboard with its usual key. Turn the mod off and the standard interface comes back unchanged.
+AnybandUI changes how the game looks and how you reach its commands. The rules stay the game's own: rolls, prices, knowledge checks and save files work exactly as they do without the mod. The panels show only what the game already tells you, with one exception you have to turn on yourself, Glow shows hidden magic, which lights up unidentified artifacts, hidden curses and unknown runes on the floor. Every command still works from the keyboard with its usual key, and turning the mod off brings the standard interface back unchanged.
 
 The effects (CRT scanlines, item glows, sleeping-monster marks, the presence haze around uniques) are each a separate setting, and each can be turned down or off.
 
@@ -29,7 +29,7 @@ The effects (CRT scanlines, item glows, sleeping-monster marks, the presence haz
 
 ## Installing
 
-AnybandUI is on the recommended list on the in-game Mods screen. Install it there, enable it, then open its options to turn on the features you want. It needs Neo Angband 1.19.0 or later.
+AnybandUI is on the recommended list on the in-game Mods screen. Install it there, enable it, then open its options to turn on the features you want. It needs Neo Angband 1.20.0 or later.
 
 ![AnybandUI on the Mods screen](docs/img/anybandui-enable.jpg)
 

@@ -35,7 +35,7 @@ export interface CharacterPane {
  */
 export const PANE_SIDEBAR_EXTENT = { columns: 0, topRows: 0 } as const;
 
-const PANE_CSS = `:host{display:block;height:100%;color:var(--anyband-text);font:12px/1.35 system-ui,sans-serif}${PANEL_CSS}.surface{position:relative}`;
+const PANE_CSS = `:host{display:block;height:100%;color:var(--anyband-text);font:var(--anyband-font-size)/var(--anyband-line) var(--anyband-font)}${PANEL_CSS}.surface{position:relative}`;
 
 let paneOwnsSidebar = false;
 

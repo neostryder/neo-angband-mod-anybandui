@@ -1,3 +1,5 @@
+import { PAINT_CSS, paintProperties } from "./paint.js";
+
 /** Values from AnybandUI .port-notes/theme.json, sourced from ui_theme.h. */
 export interface ThemeTokens {
   background: string;
@@ -25,6 +27,8 @@ export const CHROME = {
   rounding: { child_factor: 0.6, frame_factor: 0.4, popup_factor: 0.8, scrollbar_size: 12 },
 } as const;
 
+const painted = new WeakSet<ShadowRoot>();
+
 export function applyTheme(root: ShadowRoot, theme: Readonly<ThemeTokens> = THEMES["terminal-original"]!): void {
   const style = root.host instanceof HTMLElement ? root.host.style : undefined;
   if (style === undefined) return;
@@ -36,5 +40,15 @@ export function applyTheme(root: ShadowRoot, theme: Readonly<ThemeTokens> = THEM
       style.setProperty(`--anyband-${group}-${key.replaceAll("_", "-")}`,
         Array.isArray(value) ? value.map((part) => `${part}px`).join(" ") : `${value}px`);
     }
+  }
+  for (const [name, value] of Object.entries(paintProperties(theme))) style.setProperty(name, value);
+  /* The paint goes in once per root. Its :host-prefixed selectors outrank the
+   * card's own class rules, whichever style element comes first. */
+  const doc = (root as { ownerDocument?: Document }).ownerDocument;
+  if (!painted.has(root) && doc && typeof root.appendChild === "function") {
+    const paint = doc.createElement("style");
+    paint.textContent = PAINT_CSS;
+    root.appendChild(paint);
+    painted.add(root);
   }
 }

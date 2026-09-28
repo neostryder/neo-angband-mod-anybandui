@@ -53,7 +53,18 @@ export interface InputSnapshot {
 }
 export interface KnownLevel {
   readonly token: InputToken;
-  readonly cells: readonly { readonly x: number; readonly y: number; readonly remembered: { readonly feat: number; readonly objects: readonly unknown[] } }[];
+  readonly cells: readonly { readonly x: number; readonly y: number; readonly remembered: { readonly feat: number; readonly objects: readonly unknown[] }; readonly visible?: boolean; readonly actual?: ActualCell }[];
+}
+/** The true contents of a grid, present only under state:map-actual.read (core known-level.ts ActualCell). */
+export interface ActualCell {
+  readonly monster: number;
+  readonly objects: readonly ActualObject[];
+}
+export interface ActualObject {
+  readonly artifact: boolean; readonly ego: boolean; readonly curses: readonly string[];
+  readonly flags: readonly string[]; readonly modifiers: readonly unknown[]; readonly brands: readonly string[];
+  readonly slays: readonly string[]; readonly resists: readonly unknown[];
+  readonly toH: number; readonly toD: number; readonly toA: number;
 }
 export interface AgentCommand { readonly code: string; readonly dir?: number; readonly args?: Readonly<Record<string, unknown>> }
 export type PlayerIntent =

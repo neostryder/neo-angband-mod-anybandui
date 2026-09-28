@@ -1,4 +1,4 @@
-import type { EffectContext, EffectEventMap, EffectSnapshot, EventActor, Grid } from "./seams.js";
+import type { ActualObject, EffectContext, EffectEventMap, EffectSnapshot, EventActor, Grid } from "./seams.js";
 import { mapProjection } from "./map-overview.js";
 import { validateSettings } from "./settings.js";
 import { elementEdgeColour } from "./blast-preview.js";
@@ -23,7 +23,16 @@ export const AURA_COLOURS: Readonly<Record<Aura, string>> = { cursed: "#ff4f6d",
  * aura) decide where the engine has them; an older engine falls back to the
  * UNIQUE race flag, Morgoth's name, and an artifact field that only shows
  * artifacts. One glow per cell, in the game's own order: cursed, artifact, rune. */
-export function effectGrids(s: EffectSnapshot | null, known: ReturnType<NonNullable<EffectContext["knownLevel"]>>): { asleep: Grid[]; uniques: { grid: Grid; final: boolean }[]; glows: { grid: Grid; aura: Aura }[] } {
+/** The aura an object really has, whatever the player knows: Wurli's ddf05117b
+ * rule, used only when the player turns on the hidden-magic glow. */
+export function actualAura(o: ActualObject): Aura | undefined {
+  if (o.curses.length > 0) return "cursed";
+  if (o.artifact) return "artifact";
+  const magical = o.ego || o.flags.length > 0 || o.modifiers.length > 0 || o.brands.length > 0 || o.slays.length > 0 || o.resists.length > 0 || o.toH !== 0 || o.toD !== 0 || o.toA !== 0;
+  return magical ? "rune" : undefined;
+}
+
+export function effectGrids(s: EffectSnapshot | null, known: ReturnType<NonNullable<EffectContext["knownLevel"]>>, revealHidden = false): { asleep: Grid[]; uniques: { grid: Grid; final: boolean }[]; glows: { grid: Grid; aura: Aura }[] } {
   const asleep: Grid[] = [], uniques: { grid: Grid; final: boolean }[] = [], glows: { grid: Grid; aura: Aura }[] = [];
   for (const m of s?.core.monsters ?? []) if (m.visible) {
     if (m.asleep) asleep.push(m.grid);
@@ -31,6 +40,11 @@ export function effectGrids(s: EffectSnapshot | null, known: ReturnType<NonNulla
   }
   for (const c of known?.cells ?? []) {
     const auras = new Set<Aura>();
+    /* A hidden-magic glow reads the true pile, but only where the player can see
+     * the grid, remembers an object there, and no creature stands on it. */
+    if (revealHidden && c.visible === true && c.actual && c.actual.monster === 0 && c.remembered.objects.length > 0) {
+      for (const o of c.actual.objects) { const aura = actualAura(o); if (aura) auras.add(aura); }
+    }
     for (const o of c.remembered.objects) {
       if (!o || typeof o !== "object") continue;
       const read = o as { aura?: string; artifact?: boolean };
@@ -131,7 +145,7 @@ export function installEffects(ctx: EffectContext): () => void {
     const dead = snap?.phase === "dead" || snap?.core.player?.dead === true;
     if (dead && !wasDead && flags["anybandui.deathEffect"] && intensity("death") > 0) { deadBurstAt=now; const at = snap?.core.player?.grid; if (at) cues.push({ grid: at, kind:"death", started:now, strength:100 }); }
     wasDead = dead;
-    const known = ctx.knownLevel?.() ?? null, grids = effectGrids(snap, known);
+    const known = ctx.knownLevel?.() ?? null, grids = effectGrids(snap, known, flags["anybandui.itemGlowReveals"] === true);
     if (flags["anybandui.itemGlow"]) for (const glow of grids.glows) paint(glow.grid, AURA_COLOURS[glow.aura], intensity("itemGlow"));
     if (flags["anybandui.sleepMarks"]) for (const p of grids.asleep) { const q=cell(p); g.strokeStyle=`rgba(190,220,255,${intensity("sleepMarks")})`; g.lineWidth=1.5; g.beginPath(); g.moveTo(q.x-3,q.y-cellH*.38); g.lineTo(q.x,q.y-cellH*.52); g.lineTo(q.x+3,q.y-cellH*.38); g.stroke(); }
     if (flags["anybandui.presenceHaze"]) for (const u of grids.uniques) paint(u.grid,"#b45cff",intensity("presenceHaze") * (u.final ? 1 : .65));

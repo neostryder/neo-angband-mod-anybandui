@@ -7,7 +7,7 @@ export type PanelRender = (mount: HTMLElement, model: ViewModel) => void;
 
 /** Places the overlay host over its HUD region. A host pane sizes its own slot, so
  * character-pane.ts pairs PANEL_CSS with a :host rule of its own instead. */
-const HOST_CSS = `:host{position:fixed;display:none;z-index:50;box-sizing:border-box;color:var(--anyband-text);font:12px/1.35 system-ui,sans-serif}`;
+const HOST_CSS = `:host{position:fixed;display:none;z-index:50;box-sizing:border-box;color:var(--anyband-text);font:var(--anyband-font-size)/var(--anyband-line) var(--anyband-font)}`;
 
 /** How a card looks inside its surface, shared by the overlay and the host pane. */
 export const PANEL_CSS = `

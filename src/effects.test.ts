@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { actorGrid, blastCues, chooseEffectMotion, eventCue, effectGrids, healthIntensity } from "./effects.js";
+import { actorGrid, blastCues, chooseEffectMotion, eventCue, effectGrids, actualAura, healthIntensity } from "./effects.js";
 import type { EffectSnapshot } from "./seams.js";
 const flags = ["anybandui.crt", "anybandui.lowHealthEffect", "anybandui.deathEffect", "anybandui.itemGlow", "anybandui.sleepMarks", "anybandui.presenceHaze", "anybandui.spellEffects"];
 describe("phase 7 effects", () => {
@@ -91,5 +91,30 @@ describe("effect strength", () => {
     expect(effectStrength(settings, {}, "sleepMarks")).toBe(100);
     expect(effectStrength({ get: () => { throw new Error("gone"); } }, { itemGlow: 30 }, "itemGlow")).toBe(30);
     expect(effectStrength({ get: () => 250 }, {}, "crt")).toBe(100);
+  });
+});
+
+describe("the hidden-magic glow", () => {
+  const plain = { artifact: false, ego: false, curses: [], flags: [], modifiers: [], brands: [], slays: [], resists: [], toH: 0, toD: 0, toA: 0 };
+  const cell = (actual: object, extra: object = {}) => ({ x: 1, y: 1, visible: true, remembered: { feat: 1, objects: [{}] }, actual: { monster: 0, objects: [actual] }, ...extra });
+  const level = (c: object) => ({ token: { epoch: 1, revision: 1 }, cells: [c] }) as never;
+
+  it("reads the true item only when the switch is on", () => {
+    expect(effectGrids(null, level(cell({ ...plain, curses: ["teleportation"] })), false).glows).toEqual([]);
+    expect(effectGrids(null, level(cell({ ...plain, curses: ["teleportation"] })), true).glows).toEqual([{ grid: { x: 1, y: 1 }, aura: "cursed" }]);
+  });
+
+  it("orders curse over artifact over runes, and leaves mundane items dark", () => {
+    expect(actualAura({ ...plain, artifact: true, curses: ["vulnerability"] })).toBe("cursed");
+    expect(actualAura({ ...plain, artifact: true, toH: 5 })).toBe("artifact");
+    expect(actualAura({ ...plain, toD: 3 })).toBe("rune");
+    expect(actualAura(plain)).toBeUndefined();
+  });
+
+  it("stays dark on a grid the player cannot see, does not remember, or a creature covers", () => {
+    const cursed = { ...plain, curses: ["siphoning"] };
+    expect(effectGrids(null, level(cell(cursed, { visible: false })), true).glows).toEqual([]);
+    expect(effectGrids(null, level(cell(cursed, { remembered: { feat: 1, objects: [] } })), true).glows).toEqual([]);
+    expect(effectGrids(null, level({ ...cell(cursed), actual: { monster: 7, objects: [cursed] } }), true).glows).toEqual([]);
   });
 });

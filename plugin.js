@@ -273,281 +273,6 @@ function createSource(ctx) {
   };
 }
 
-// src/theme.ts
-var THEMES = {
-  "terminal-original": { background: "#070b0dff", surface: "#111a1dff", text: "#d9e3dbff", accent: "#80b891ff", rounding: 5, decorations: true, invert_dungeon: false, light_styling: false },
-  "dark-graphite": { background: "#0e0f13ff", surface: "#1f2129ff", text: "#d9e3dbff", accent: "#9cadd9ff", rounding: 5, decorations: true, invert_dungeon: false, light_styling: false },
-  "light-paper": { background: "#e6e8e3ff", surface: "#fafaf2ff", text: "#1f2b2eff", accent: "#215c52ff", rounding: 8, decorations: true, invert_dungeon: false, light_styling: true },
-  "amber-terminal": { background: "#110b06ff", surface: "#241910ff", text: "#f0d9a6ff", accent: "#e89e42ff", rounding: 0, decorations: true, invert_dungeon: false, light_styling: false },
-  "midnight-ice": { background: "#060b17ff", surface: "#0e1b2bff", text: "#cfe6f5ff", accent: "#59c2e0ff", rounding: 7, decorations: true, invert_dungeon: false, light_styling: false }
-};
-var CHROME = {
-  padding: { window: [8, 8], frame: [7, 3], separator_text: [8, 3], cell: [6, 2] },
-  spacing: { item: [7, 4], item_inner: [5, 4] },
-  border: { window: 1, child: 1, frame: 1, tab: 0, separator_text: 1 },
-  rounding: { child_factor: 0.6, frame_factor: 0.4, popup_factor: 0.8, scrollbar_size: 12 }
-};
-function applyTheme(root, theme = THEMES["terminal-original"]) {
-  const style = root.host instanceof HTMLElement ? root.host.style : void 0;
-  if (style === void 0) return;
-  for (const [key, value2] of Object.entries(theme)) {
-    style.setProperty(`--anyband-${key.replaceAll("_", "-")}`, typeof value2 === "boolean" ? Number(value2).toString() : key === "rounding" ? `${value2}px` : String(value2));
-  }
-  for (const [group, fields] of Object.entries(CHROME)) {
-    for (const [key, value2] of Object.entries(fields)) {
-      style.setProperty(
-        `--anyband-${group}-${key.replaceAll("_", "-")}`,
-        Array.isArray(value2) ? value2.map((part) => `${part}px`).join(" ") : `${value2}px`
-      );
-    }
-  }
-}
-
-// src/panels/panel-host.ts
-var HOST_CSS = `:host{position:fixed;display:none;z-index:50;box-sizing:border-box;color:var(--anyband-text);font:12px/1.35 system-ui,sans-serif}`;
-var PANEL_CSS = `
-*{box-sizing:border-box}.surface{width:100%;height:100%;overflow:auto;background:var(--anyband-surface);border:1px solid var(--anyband-accent);border-radius:var(--anyband-rounding);padding:5px}
-.group{min-height:0;overflow:auto}.heading{color:var(--anyband-accent);font-weight:700;border-bottom:1px solid var(--anyband-accent);margin:0 0 4px;padding-bottom:2px}
-.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}.metric-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}
-.metric{text-align:center;border:1px solid var(--anyband-accent);border-radius:3px;padding:2px;min-width:0}.metric b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.bar{height:6px;background:var(--anyband-background);border:1px solid var(--anyband-accent);margin-top:2px}.fill{height:100%}.stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));text-align:center}.drained{opacity:.55}
-.badges{display:flex;flex-wrap:wrap;gap:4px}.badge{border:1px solid currentColor;border-left-width:2px;padding:2px 5px;border-radius:3px}
-.muted{opacity:.55}.messages{overflow:auto}.message{white-space:pre-wrap}.ribbon{color:#f5bc5a;border:1px solid #f5bc5a;padding:2px 5px;pointer-events:none}
-.tip{display:none;position:absolute;z-index:2;max-width:26em;white-space:pre-wrap;pointer-events:none;background:var(--anyband-background);color:var(--anyband-text);border:1px solid var(--anyband-accent);border-radius:3px;padding:6px}
-input{width:100%;background:var(--anyband-background);color:var(--anyband-text);border:1px solid var(--anyband-accent)}
-.compact{display:flex;align-items:center;gap:10px;overflow:hidden;white-space:nowrap;padding:0 5px}.compact .group{display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden}.compact .group:empty{display:none}
-.compact .heading,.compact input{display:none}.compact .badges{flex-wrap:nowrap}.compact .badge{padding:0 4px}.compact .grid,.compact .metric-grid{display:flex;gap:8px}
-.compact .metric{border:0;padding:0;display:flex;gap:3px}.compact .metric b{display:inline}.compact .messages{overflow:hidden;min-width:0}
-.compact .message{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.compact .message~.message{display:none}.compact .ribbon{width:auto!important;flex:none}
-`;
-var COMPACT_ROWS = 3;
-var CSS = `${HOST_CSS}${PANEL_CSS}`;
-var panelHosts = /* @__PURE__ */ new Set();
-var panelVisualFilter = null;
-function setPanelHostVisualFilter(filter) {
-  panelVisualFilter = filter;
-  for (const host of panelHosts) host.style.filter = filter ?? "";
-}
-function node(parent, tag, className = "", value2) {
-  const child = parent.ownerDocument.createElement(tag);
-  child.className = className;
-  if (value2 !== void 0) child.textContent = value2;
-  parent.appendChild(child);
-  return child;
-}
-function fraction(current, maximum) {
-  return maximum > 0 ? Math.max(0, Math.min(1, current / maximum)) : 0;
-}
-function meter(parent, label2, value2, amount, colour, tip2) {
-  const cell = node(parent, "div", "meter");
-  node(cell, "span", "", label2);
-  node(cell, "span", "", ` ${value2}`);
-  const track = node(cell, "div", "bar");
-  const fill = node(track, "div", "fill");
-  fill.style.width = `${Math.round(amount * 100)}%`;
-  fill.style.backgroundColor = colour;
-  if (tip2) cell.dataset.tip = tip2;
-}
-function intersects(a, b) {
-  return a.col < b.col + b.cols && b.col < a.col + a.cols && a.row < b.row + b.rows && b.row < a.row + a.rows;
-}
-function createPanelContent(surface, panels) {
-  const mounts = panels.map(() => node(surface, "div", "group"));
-  const tip2 = node(surface, "div", "tip");
-  const signatures = [];
-  surface.addEventListener("mouseover", (event) => {
-    const target = event.target;
-    const subject = target instanceof HTMLElement ? target.closest("[data-tip]") : null;
-    tip2.textContent = subject?.dataset.tip ?? "";
-    tip2.style.display = subject ? "block" : "none";
-    if (subject) {
-      tip2.style.left = `${Math.min(subject.offsetLeft, Math.max(0, surface.clientWidth - tip2.offsetWidth))}px`;
-      tip2.style.top = `${Math.min(subject.offsetTop + subject.offsetHeight, Math.max(0, surface.clientHeight - tip2.offsetHeight))}px`;
-    }
-  });
-  surface.addEventListener("mouseleave", () => {
-    tip2.style.display = "none";
-  });
-  return {
-    render(model) {
-      panels.forEach((panel, index) => {
-        const signature = JSON.stringify(panel.select(model));
-        if (signatures[index] === signature) return;
-        signatures[index] = signature;
-        panel.render(mounts[index], model);
-      });
-    }
-  };
-}
-function createPanelHost(doc, panels, theme) {
-  const element = doc.createElement("div");
-  element.className = "anyband-panel";
-  panelHosts.add(element);
-  element.style.filter = panelVisualFilter ?? "";
-  const shadow = element.attachShadow({ mode: "open" });
-  if (theme) applyTheme(shadow, theme);
-  else applyTheme(shadow);
-  node(shadow, "style", "", CSS);
-  const surface = node(shadow, "div", "surface");
-  const content = createPanelContent(surface, panels);
-  doc.body.appendChild(element);
-  return {
-    element,
-    present(section2, frame, model) {
-      const region = section2.region;
-      const box = region?.pixels;
-      const at = frame.stack?.findIndex((item) => item.id === region?.name) ?? -1;
-      const covered = at >= 0 && frame.stack.slice(at + 1).some((item) => intersects(item.cells, region.cells));
-      if (!box || box.width <= 0 || box.height <= 0 || covered || frame.stack && at < 0) {
-        element.style.display = "none";
-        return;
-      }
-      element.style.display = "block";
-      element.style.left = `${box.x}px`;
-      element.style.top = `${box.y}px`;
-      element.style.width = `${box.width}px`;
-      element.style.height = `${box.height}px`;
-      surface.className = region.cells.rows < COMPACT_ROWS ? "surface compact" : "surface";
-      content.render(model);
-    }
-  };
-}
-
-// src/preferences.ts
-var DEFAULT_DISPLAY_PREFERENCE = {
-  v: 2,
-  /* 28px was rung 3 in the former 16-48px ladder.  Keep that familiar
-   * default after adding smaller and larger manual zoom steps. */
-  zoomIndex: 7,
-  interfaceZoomIndex: 1,
-  mapDetail: 0
-};
-function finiteInteger(value2, fallback, min, max) {
-  return typeof value2 === "number" && Number.isInteger(value2) ? Math.max(min, Math.min(max, value2)) : fallback;
-}
-function isRecord(value2) {
-  return !!value2 && typeof value2 === "object";
-}
-var LEGACY_PLAY_ZOOM_INDEX_TO_CURRENT = [4, 5, 6, 7, 8, 9, 10, 11];
-function storedDisplayPreference(raw) {
-  if (!isRecord(raw) || raw.v !== 2 || !isRecord(raw.display)) return null;
-  const candidate = raw.display;
-  const legacy = candidate.v === 1;
-  if (!legacy && candidate.v !== 2) return null;
-  const legacyIndex = finiteInteger(candidate.zoomIndex, 3, 0, 7);
-  return {
-    v: 2,
-    zoomIndex: legacy ? LEGACY_PLAY_ZOOM_INDEX_TO_CURRENT[legacyIndex] ?? DEFAULT_DISPLAY_PREFERENCE.zoomIndex : finiteInteger(candidate.zoomIndex, DEFAULT_DISPLAY_PREFERENCE.zoomIndex, 0, 18),
-    interfaceZoomIndex: finiteInteger(
-      candidate.interfaceZoomIndex,
-      DEFAULT_DISPLAY_PREFERENCE.interfaceZoomIndex,
-      0,
-      3
-    ),
-    mapDetail: finiteInteger(candidate.mapDetail, DEFAULT_DISPLAY_PREFERENCE.mapDetail, 0, 3)
-  };
-}
-function storedRememberedSettings(raw) {
-  if (!isRecord(raw)) return null;
-  const candidate = raw.v === 2 ? raw.options : raw.v === 1 ? raw : void 0;
-  return isRecord(candidate) && candidate.v === 1 && isRecord(candidate.values) ? candidate : null;
-}
-function readFirstEncounterPreference(raw) {
-  if (!isRecord(raw)) return null;
-  const candidate = raw.v === 2 ? raw.firstEncounter : raw.v === 1 ? raw : void 0;
-  if (!isRecord(candidate) || typeof candidate.characterKey !== "string" || !Array.isArray(candidate.monsters) || !Array.isArray(candidate.artifacts)) {
-    return null;
-  }
-  return {
-    characterKey: candidate.characterKey,
-    monsters: candidate.monsters.filter((value2) => typeof value2 === "number"),
-    artifacts: candidate.artifacts.filter((value2) => typeof value2 === "number")
-  };
-}
-function readSubwindowZoomPreference(raw) {
-  if (!isRecord(raw) || raw.v !== 2 || !isRecord(raw.subwindowZoom)) return {};
-  const steps = {};
-  for (const [id, value2] of Object.entries(raw.subwindowZoom)) {
-    if (typeof value2 === "number") {
-      if (Number.isInteger(value2) && value2 >= 0) steps[id] = { step: value2, manual: true };
-      continue;
-    }
-    if (isRecord(value2) && typeof value2.step === "number" && Number.isInteger(value2.step) && value2.step >= 0 && typeof value2.manual === "boolean") {
-      steps[id] = { step: value2.step, manual: value2.manual };
-    }
-  }
-  return steps;
-}
-function preservedPreferences(raw) {
-  const options = storedRememberedSettings(raw);
-  const display = storedDisplayPreference(raw);
-  const firstEncounter = readFirstEncounterPreference(raw);
-  const hideRepeatShortcuts = isRecord(raw) && raw.v === 2 && raw.hideRepeatShortcuts === true;
-  const subwindowZoom = readSubwindowZoomPreference(raw);
-  return {
-    ...options ? { options } : {},
-    ...display ? { display } : {},
-    ...hideRepeatShortcuts ? { hideRepeatShortcuts } : {},
-    ...firstEncounter ? { firstEncounter } : {},
-    ...Object.keys(subwindowZoom).length > 0 ? { subwindowZoom } : {}
-  };
-}
-function readDisplayPreference(raw) {
-  return storedDisplayPreference(raw) ?? DEFAULT_DISPLAY_PREFERENCE;
-}
-function withDisplayPreference(raw, display) {
-  return { ...isRecord(raw) ? raw : {}, v: 2, ...preservedPreferences(raw), display };
-}
-function withSubwindowZoomPreference(raw, subwindowZoom) {
-  return { ...isRecord(raw) ? raw : {}, v: 2, ...preservedPreferences(raw), subwindowZoom };
-}
-
-// src/fonts.ts
-var FONT_FILES = [
-  "Cousine-Regular.ttf",
-  "ConsolaMono-Book.ttf",
-  "Erika Type.ttf",
-  "F25_Bank_Printer.ttf",
-  "Flexi_IBM_VGA_True.ttf",
-  "Hack-Regular.ttf",
-  "LiberationMono-Regular.ttf",
-  "MonospaceTypewriter.ttf",
-  "Nouveau_IBM.ttf",
-  "RetraConsole.ttf",
-  "Sono-Regular.ttf",
-  "SVBasicManual.ttf",
-  "Terminal F4.ttf",
-  "Xanmono-Regular.ttf",
-  "Zector.ttf"
-];
-
-// src/settings.ts
-var DEFAULT_SETTINGS = {
-  theme: "terminal-original",
-  interfaceFont: "Nouveau_IBM.ttf",
-  dungeonFont: "",
-  showHeadings: true,
-  hoverDelayMs: 550,
-  zoomIndex: 7,
-  panelZoom: {},
-  effects: {}
-};
-var themes = /* @__PURE__ */ new Set(["terminal-original", "dark-graphite", "light-paper", "amber-terminal", "midnight-ice"]);
-var fonts = new Set(FONT_FILES);
-function validateSettings(value2) {
-  const record2 = value2 !== null && typeof value2 === "object" && !Array.isArray(value2) ? value2 : {};
-  return {
-    theme: typeof record2["theme"] === "string" && themes.has(record2["theme"]) ? record2["theme"] : DEFAULT_SETTINGS.theme,
-    interfaceFont: typeof record2["interfaceFont"] === "string" && fonts.has(record2["interfaceFont"]) ? record2["interfaceFont"] : DEFAULT_SETTINGS.interfaceFont,
-    dungeonFont: typeof record2["dungeonFont"] === "string" && (record2["dungeonFont"] === "" || fonts.has(record2["dungeonFont"])) ? record2["dungeonFont"] : DEFAULT_SETTINGS.dungeonFont,
-    showHeadings: typeof record2["showHeadings"] === "boolean" ? record2["showHeadings"] : DEFAULT_SETTINGS.showHeadings,
-    hoverDelayMs: typeof record2["hoverDelayMs"] === "number" && Number.isInteger(record2["hoverDelayMs"]) ? Math.max(0, Math.min(5e3, record2["hoverDelayMs"])) : DEFAULT_SETTINGS.hoverDelayMs,
-    zoomIndex: typeof record2["zoomIndex"] === "number" && Number.isInteger(record2["zoomIndex"]) ? Math.max(0, Math.min(18, record2["zoomIndex"])) : DEFAULT_SETTINGS.zoomIndex,
-    panelZoom: record2["panelZoom"] && typeof record2["panelZoom"] === "object" && !Array.isArray(record2["panelZoom"]) ? Object.fromEntries(Object.entries(record2["panelZoom"]).filter(([id, step]) => id.length > 0 && typeof step === "number" && Number.isInteger(step) && step >= 0 && step <= 6)) : DEFAULT_SETTINGS.panelZoom,
-    effects: record2["effects"] && typeof record2["effects"] === "object" && !Array.isArray(record2["effects"]) ? Object.fromEntries(Object.entries(record2["effects"]).filter(([id, value3]) => id.length > 0 && typeof value3 === "number" && Number.isFinite(value3)).map(([id, value3]) => [id, Math.max(0, Math.min(100, Math.round(value3)))])) : DEFAULT_SETTINGS.effects
-  };
-}
-
 // src/bitmap-font.ts
 var FONT_16X24 = {
   w: 16,
@@ -1073,19 +798,19 @@ var BITMAP_FALLBACK_STACK = '"Cascadia Mono", "JetBrains Mono", Consolas, "DejaV
 var glyphCache = /* @__PURE__ */ new Map();
 function parseRgb(css) {
   if (css.startsWith("#")) {
-    const hex = css.slice(1);
-    if (hex.length === 3) {
+    const hex2 = css.slice(1);
+    if (hex2.length === 3) {
       return [
-        parseInt(hex[0] + hex[0], 16),
-        parseInt(hex[1] + hex[1], 16),
-        parseInt(hex[2] + hex[2], 16)
+        parseInt(hex2[0] + hex2[0], 16),
+        parseInt(hex2[1] + hex2[1], 16),
+        parseInt(hex2[2] + hex2[2], 16)
       ];
     }
-    if (hex.length === 6) {
+    if (hex2.length === 6) {
       return [
-        parseInt(hex.slice(0, 2), 16),
-        parseInt(hex.slice(2, 4), 16),
-        parseInt(hex.slice(4, 6), 16)
+        parseInt(hex2.slice(0, 2), 16),
+        parseInt(hex2.slice(2, 4), 16),
+        parseInt(hex2.slice(4, 6), 16)
       ];
     }
     return null;
@@ -1099,8 +824,8 @@ function tintedGlyph(code, fg) {
   const cached = glyphCache.get(key);
   if (cached !== void 0) return cached;
   const rows = FONT_16X24.glyphs[code];
-  const rgb = rows ? parseRgb(fg) : null;
-  if (!rows || !rgb || rows.every((bits) => bits === 0)) {
+  const rgb2 = rows ? parseRgb(fg) : null;
+  if (!rows || !rgb2 || rows.every((bits) => bits === 0)) {
     glyphCache.set(key, null);
     return null;
   }
@@ -1114,7 +839,7 @@ function tintedGlyph(code, fg) {
     return null;
   }
   const img = gctx.createImageData(w, h);
-  const [r, g, b] = rgb;
+  const [r, g, b] = rgb2;
   for (let ry = 0; ry < h; ry++) {
     const mask = rows[ry] ?? 0;
     for (let rx = 0; rx < w; rx++) {
@@ -1219,6 +944,419 @@ function paintBitmapButtonLabel(button4, text, css, cellWidth, cellHeight, dpr) 
   canvas.style.display = "block";
   paintBitmapLine(canvas, [{ text, css }], cellWidth, cellHeight, dpr);
   button4.appendChild(canvas);
+}
+
+// src/paint.ts
+var PAINT_FONT = `"Angband 8x13", ${BITMAP_FALLBACK_STACK}`;
+var PAINT_FONT_SIZE = 13;
+var PAINT_LINE_HEIGHT = 16;
+function rgb(hex2) {
+  const h = hex2.replace("#", "");
+  return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16));
+}
+function hex([r, g, b]) {
+  return `#${[r, g, b].map((v) => Math.round(Math.min(255, Math.max(0, v))).toString(16).padStart(2, "0")).join("")}`;
+}
+function mix(a, b, t) {
+  const x = rgb(a), y = rgb(b);
+  return hex(x.map((v, i) => v + (y[i] - v) * t));
+}
+function tint(colour, alpha) {
+  return `${hex(rgb(colour))}${Math.round(alpha * 255).toString(16).padStart(2, "0")}`;
+}
+function paintColours(theme) {
+  const off = "#00000000";
+  const strong = theme.light_styling ? mix(theme.text, "#000000", 0.5) : mix(theme.text, "#ffffff", 0.5);
+  return {
+    border: mix(theme.surface, theme.text, 0.28),
+    muted: mix(theme.surface, theme.text, 0.55),
+    textStrong: strong,
+    floatBorder: mix(theme.surface, theme.text, 0.45),
+    tick: theme.decorations ? tint(theme.accent, 0.35) : off,
+    wash: theme.decorations ? tint(theme.accent, 0.06) : off,
+    band: theme.decorations ? tint(theme.accent, 0.12) : off,
+    hover: tint(theme.accent, 0.12),
+    press: tint(theme.accent, 0.25)
+  };
+}
+function paintProperties(theme) {
+  const c = paintColours(theme);
+  return {
+    "--anyband-font": PAINT_FONT,
+    "--anyband-font-size": `${PAINT_FONT_SIZE}px`,
+    "--anyband-line": `${PAINT_LINE_HEIGHT}px`,
+    "--anyband-border": c.border,
+    "--anyband-muted": c.muted,
+    "--anyband-text-strong": c.textStrong,
+    "--anyband-tick": c.tick,
+    "--anyband-wash": c.wash,
+    "--anyband-band": c.band,
+    "--anyband-hover": c.hover,
+    "--anyband-press": c.press,
+    "--anyband-rounding-child": `${Math.round(theme.rounding * 0.6)}px`,
+    "--anyband-rounding-frame": `${Math.round(theme.rounding * 0.4)}px`
+  };
+}
+var FRAMES = [".surface", ".items", ".phase4", ".store"].map((s) => `:host ${s}`).join(",");
+var TICK = "linear-gradient(var(--anyband-tick),var(--anyband-tick))";
+var CORNERS = ["left 2px top 2px", "right 2px top 2px", "left 2px bottom 2px", "right 2px bottom 2px"];
+var PAINT_CSS = [
+  ":host{font:var(--anyband-font-size)/var(--anyband-line) var(--anyband-font);font-synthesis:none;-webkit-font-smoothing:none}",
+  ":host b,:host strong,:host th,:host summary,:host .heading,:host h2,:host h3,:host h4{font-weight:normal}",
+  ":host b,:host strong{color:var(--anyband-text-strong)}",
+  ":host h2,:host h3,:host h4,:host .hint{font-size:inherit}",
+  ":host .muted,:host .hint{opacity:1;color:var(--anyband-muted)}",
+  `${FRAMES}{border-color:var(--anyband-border);border-radius:var(--anyband-rounding-child);background-color:var(--anyband-surface);background-image:${Array(8).fill(TICK).join(",")},linear-gradient(to bottom,var(--anyband-wash),transparent);background-position:${CORNERS.flatMap((p) => [p, p]).join(",")},0 0;background-size:${Array(4).fill("9px 1px,1px 9px").join(",")},100% 7em;background-repeat:no-repeat}`,
+  ":host .heading,:host h2,:host h3{color:var(--anyband-accent);background:linear-gradient(to right,var(--anyband-band),transparent);border-bottom:1px solid var(--anyband-border);padding:2px 6px;margin:0 0 4px}",
+  ":host summary{color:var(--anyband-accent)}",
+  ":host button:not(.row),:host input:not([type=checkbox]):not([type=radio]),:host select{font:inherit;color:var(--anyband-text);background:var(--anyband-background);border:1px solid var(--anyband-border);border-radius:var(--anyband-rounding-frame);padding:1px 6px}",
+  ":host input[type=checkbox],:host input[type=radio]{accent-color:var(--anyband-accent)}",
+  ":host button:not(.row):hover:not(:disabled),:host select:hover{border-color:var(--anyband-accent);color:var(--anyband-text-strong)}",
+  ":host button:not(.row):active:not(:disabled),:host button:not(.row)[aria-pressed=true]{background:var(--anyband-press)}",
+  ":host .row:hover:not([aria-pressed=true]):not(:disabled){background:var(--anyband-hover)}",
+  ":host button:disabled{opacity:.45}",
+  ":host :focus-visible{outline:1px solid var(--anyband-accent);outline-offset:1px}",
+  ":host td,:host th{border-bottom-color:var(--anyband-border)}",
+  ":host th{color:var(--anyband-muted)}",
+  ":host .metric,:host .tip,:host .prompt,:host .menu,:host .rule,:host .bar{border-color:var(--anyband-border)}",
+  ":host .metric,:host .badge,:host .tip{border-radius:var(--anyband-rounding-frame)}",
+  ":host .bar{border-radius:0}",
+  ":host *{scrollbar-width:thin;scrollbar-color:var(--anyband-border) transparent}"
+].join("\n");
+function chromeThemeFor(theme) {
+  const c = paintColours(theme);
+  return {
+    font: "Angband 8x13",
+    fontSize: PAINT_FONT_SIZE,
+    page: hex(rgb(theme.background)),
+    titleBackground: hex(rgb(theme.surface)),
+    text: hex(rgb(theme.text)),
+    textStrong: c.textStrong,
+    muted: c.muted,
+    border: c.border,
+    divider: c.border,
+    dividerHover: hex(rgb(theme.accent)),
+    accent: hex(rgb(theme.accent)),
+    floatBorder: c.floatBorder,
+    radius: Math.round(theme.rounding * 0.6),
+    shadow: false
+  };
+}
+var PAINTED_FEATURES = [
+  "anybandui.sidebar",
+  "anybandui.status",
+  "anybandui.messages",
+  "anybandui.itemsLists",
+  "anybandui.spells",
+  "anybandui.quickbar",
+  "anybandui.restDialog",
+  "anybandui.storeWindow"
+];
+function installChromePaint(display, flags, theme, log) {
+  if (!PAINTED_FEATURES.some((flag) => flags[flag] === true)) return () => {
+  };
+  if (!display?.setChromeTheme) {
+    log("This version of the game cannot repaint its window frames, so they keep their usual look.");
+    return () => {
+    };
+  }
+  try {
+    display.setChromeTheme(chromeThemeFor(theme));
+  } catch (err) {
+    log(`Could not repaint the window frames: ${err instanceof Error ? err.message : String(err)}`);
+    return () => {
+    };
+  }
+  return () => {
+    try {
+      display.setChromeTheme?.(null);
+    } catch {
+    }
+  };
+}
+
+// src/theme.ts
+var THEMES = {
+  "terminal-original": { background: "#070b0dff", surface: "#111a1dff", text: "#d9e3dbff", accent: "#80b891ff", rounding: 5, decorations: true, invert_dungeon: false, light_styling: false },
+  "dark-graphite": { background: "#0e0f13ff", surface: "#1f2129ff", text: "#d9e3dbff", accent: "#9cadd9ff", rounding: 5, decorations: true, invert_dungeon: false, light_styling: false },
+  "light-paper": { background: "#e6e8e3ff", surface: "#fafaf2ff", text: "#1f2b2eff", accent: "#215c52ff", rounding: 8, decorations: true, invert_dungeon: false, light_styling: true },
+  "amber-terminal": { background: "#110b06ff", surface: "#241910ff", text: "#f0d9a6ff", accent: "#e89e42ff", rounding: 0, decorations: true, invert_dungeon: false, light_styling: false },
+  "midnight-ice": { background: "#060b17ff", surface: "#0e1b2bff", text: "#cfe6f5ff", accent: "#59c2e0ff", rounding: 7, decorations: true, invert_dungeon: false, light_styling: false }
+};
+var CHROME = {
+  padding: { window: [8, 8], frame: [7, 3], separator_text: [8, 3], cell: [6, 2] },
+  spacing: { item: [7, 4], item_inner: [5, 4] },
+  border: { window: 1, child: 1, frame: 1, tab: 0, separator_text: 1 },
+  rounding: { child_factor: 0.6, frame_factor: 0.4, popup_factor: 0.8, scrollbar_size: 12 }
+};
+var painted = /* @__PURE__ */ new WeakSet();
+function applyTheme(root, theme = THEMES["terminal-original"]) {
+  const style = root.host instanceof HTMLElement ? root.host.style : void 0;
+  if (style === void 0) return;
+  for (const [key, value2] of Object.entries(theme)) {
+    style.setProperty(`--anyband-${key.replaceAll("_", "-")}`, typeof value2 === "boolean" ? Number(value2).toString() : key === "rounding" ? `${value2}px` : String(value2));
+  }
+  for (const [group, fields] of Object.entries(CHROME)) {
+    for (const [key, value2] of Object.entries(fields)) {
+      style.setProperty(
+        `--anyband-${group}-${key.replaceAll("_", "-")}`,
+        Array.isArray(value2) ? value2.map((part) => `${part}px`).join(" ") : `${value2}px`
+      );
+    }
+  }
+  for (const [name, value2] of Object.entries(paintProperties(theme))) style.setProperty(name, value2);
+  const doc = root.ownerDocument;
+  if (!painted.has(root) && doc && typeof root.appendChild === "function") {
+    const paint = doc.createElement("style");
+    paint.textContent = PAINT_CSS;
+    root.appendChild(paint);
+    painted.add(root);
+  }
+}
+
+// src/panels/panel-host.ts
+var HOST_CSS = `:host{position:fixed;display:none;z-index:50;box-sizing:border-box;color:var(--anyband-text);font:var(--anyband-font-size)/var(--anyband-line) var(--anyband-font)}`;
+var PANEL_CSS = `
+*{box-sizing:border-box}.surface{width:100%;height:100%;overflow:auto;background:var(--anyband-surface);border:1px solid var(--anyband-accent);border-radius:var(--anyband-rounding);padding:5px}
+.group{min-height:0;overflow:auto}.heading{color:var(--anyband-accent);font-weight:700;border-bottom:1px solid var(--anyband-accent);margin:0 0 4px;padding-bottom:2px}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}.metric-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}
+.metric{text-align:center;border:1px solid var(--anyband-accent);border-radius:3px;padding:2px;min-width:0}.metric b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar{height:6px;background:var(--anyband-background);border:1px solid var(--anyband-accent);margin-top:2px}.fill{height:100%}.stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));text-align:center}.drained{opacity:.55}
+.badges{display:flex;flex-wrap:wrap;gap:4px}.badge{border:1px solid currentColor;border-left-width:2px;padding:2px 5px;border-radius:3px}
+.muted{opacity:.55}.messages{overflow:auto}.message{white-space:pre-wrap}.ribbon{color:#f5bc5a;border:1px solid #f5bc5a;padding:2px 5px;pointer-events:none}
+.tip{display:none;position:absolute;z-index:2;max-width:26em;white-space:pre-wrap;pointer-events:none;background:var(--anyband-background);color:var(--anyband-text);border:1px solid var(--anyband-accent);border-radius:3px;padding:6px}
+input{width:100%;background:var(--anyband-background);color:var(--anyband-text);border:1px solid var(--anyband-accent)}
+.compact{display:flex;align-items:center;gap:10px;overflow:hidden;white-space:nowrap;padding:0 5px}.compact .group{display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden}.compact .group:empty{display:none}
+.compact .heading,.compact input{display:none}.compact .badges{flex-wrap:nowrap}.compact .badge{padding:0 4px}.compact .grid,.compact .metric-grid{display:flex;gap:8px}
+.compact .metric{border:0;padding:0;display:flex;gap:3px}.compact .metric b{display:inline}.compact .messages{overflow:hidden;min-width:0}
+.compact .message{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.compact .message~.message{display:none}.compact .ribbon{width:auto!important;flex:none}
+`;
+var COMPACT_ROWS = 3;
+var CSS = `${HOST_CSS}${PANEL_CSS}`;
+var panelHosts = /* @__PURE__ */ new Set();
+var panelVisualFilter = null;
+function setPanelHostVisualFilter(filter) {
+  panelVisualFilter = filter;
+  for (const host of panelHosts) host.style.filter = filter ?? "";
+}
+function node(parent, tag, className = "", value2) {
+  const child = parent.ownerDocument.createElement(tag);
+  child.className = className;
+  if (value2 !== void 0) child.textContent = value2;
+  parent.appendChild(child);
+  return child;
+}
+function fraction(current, maximum) {
+  return maximum > 0 ? Math.max(0, Math.min(1, current / maximum)) : 0;
+}
+function meter(parent, label2, value2, amount, colour, tip2) {
+  const cell = node(parent, "div", "meter");
+  node(cell, "span", "", label2);
+  node(cell, "span", "", ` ${value2}`);
+  const track = node(cell, "div", "bar");
+  const fill = node(track, "div", "fill");
+  fill.style.width = `${Math.round(amount * 100)}%`;
+  fill.style.backgroundColor = colour;
+  if (tip2) cell.dataset.tip = tip2;
+}
+function intersects(a, b) {
+  return a.col < b.col + b.cols && b.col < a.col + a.cols && a.row < b.row + b.rows && b.row < a.row + a.rows;
+}
+function createPanelContent(surface, panels) {
+  const mounts = panels.map(() => node(surface, "div", "group"));
+  const tip2 = node(surface, "div", "tip");
+  const signatures = [];
+  surface.addEventListener("mouseover", (event) => {
+    const target = event.target;
+    const subject = target instanceof HTMLElement ? target.closest("[data-tip]") : null;
+    tip2.textContent = subject?.dataset.tip ?? "";
+    tip2.style.display = subject ? "block" : "none";
+    if (subject) {
+      tip2.style.left = `${Math.min(subject.offsetLeft, Math.max(0, surface.clientWidth - tip2.offsetWidth))}px`;
+      tip2.style.top = `${Math.min(subject.offsetTop + subject.offsetHeight, Math.max(0, surface.clientHeight - tip2.offsetHeight))}px`;
+    }
+  });
+  surface.addEventListener("mouseleave", () => {
+    tip2.style.display = "none";
+  });
+  return {
+    render(model) {
+      panels.forEach((panel, index) => {
+        const signature = JSON.stringify(panel.select(model));
+        if (signatures[index] === signature) return;
+        signatures[index] = signature;
+        panel.render(mounts[index], model);
+      });
+    }
+  };
+}
+function createPanelHost(doc, panels, theme) {
+  const element = doc.createElement("div");
+  element.className = "anyband-panel";
+  panelHosts.add(element);
+  element.style.filter = panelVisualFilter ?? "";
+  const shadow = element.attachShadow({ mode: "open" });
+  if (theme) applyTheme(shadow, theme);
+  else applyTheme(shadow);
+  node(shadow, "style", "", CSS);
+  const surface = node(shadow, "div", "surface");
+  const content = createPanelContent(surface, panels);
+  doc.body.appendChild(element);
+  return {
+    element,
+    present(section2, frame, model) {
+      const region = section2.region;
+      const box = region?.pixels;
+      const at = frame.stack?.findIndex((item) => item.id === region?.name) ?? -1;
+      const covered = at >= 0 && frame.stack.slice(at + 1).some((item) => intersects(item.cells, region.cells));
+      if (!box || box.width <= 0 || box.height <= 0 || covered || frame.stack && at < 0) {
+        element.style.display = "none";
+        return;
+      }
+      element.style.display = "block";
+      element.style.left = `${box.x}px`;
+      element.style.top = `${box.y}px`;
+      element.style.width = `${box.width}px`;
+      element.style.height = `${box.height}px`;
+      surface.className = region.cells.rows < COMPACT_ROWS ? "surface compact" : "surface";
+      content.render(model);
+    }
+  };
+}
+
+// src/preferences.ts
+var DEFAULT_DISPLAY_PREFERENCE = {
+  v: 2,
+  /* 28px was rung 3 in the former 16-48px ladder.  Keep that familiar
+   * default after adding smaller and larger manual zoom steps. */
+  zoomIndex: 7,
+  interfaceZoomIndex: 1,
+  mapDetail: 0
+};
+function finiteInteger(value2, fallback, min, max) {
+  return typeof value2 === "number" && Number.isInteger(value2) ? Math.max(min, Math.min(max, value2)) : fallback;
+}
+function isRecord(value2) {
+  return !!value2 && typeof value2 === "object";
+}
+var LEGACY_PLAY_ZOOM_INDEX_TO_CURRENT = [4, 5, 6, 7, 8, 9, 10, 11];
+function storedDisplayPreference(raw) {
+  if (!isRecord(raw) || raw.v !== 2 || !isRecord(raw.display)) return null;
+  const candidate = raw.display;
+  const legacy = candidate.v === 1;
+  if (!legacy && candidate.v !== 2) return null;
+  const legacyIndex = finiteInteger(candidate.zoomIndex, 3, 0, 7);
+  return {
+    v: 2,
+    zoomIndex: legacy ? LEGACY_PLAY_ZOOM_INDEX_TO_CURRENT[legacyIndex] ?? DEFAULT_DISPLAY_PREFERENCE.zoomIndex : finiteInteger(candidate.zoomIndex, DEFAULT_DISPLAY_PREFERENCE.zoomIndex, 0, 18),
+    interfaceZoomIndex: finiteInteger(
+      candidate.interfaceZoomIndex,
+      DEFAULT_DISPLAY_PREFERENCE.interfaceZoomIndex,
+      0,
+      3
+    ),
+    mapDetail: finiteInteger(candidate.mapDetail, DEFAULT_DISPLAY_PREFERENCE.mapDetail, 0, 3)
+  };
+}
+function storedRememberedSettings(raw) {
+  if (!isRecord(raw)) return null;
+  const candidate = raw.v === 2 ? raw.options : raw.v === 1 ? raw : void 0;
+  return isRecord(candidate) && candidate.v === 1 && isRecord(candidate.values) ? candidate : null;
+}
+function readFirstEncounterPreference(raw) {
+  if (!isRecord(raw)) return null;
+  const candidate = raw.v === 2 ? raw.firstEncounter : raw.v === 1 ? raw : void 0;
+  if (!isRecord(candidate) || typeof candidate.characterKey !== "string" || !Array.isArray(candidate.monsters) || !Array.isArray(candidate.artifacts)) {
+    return null;
+  }
+  return {
+    characterKey: candidate.characterKey,
+    monsters: candidate.monsters.filter((value2) => typeof value2 === "number"),
+    artifacts: candidate.artifacts.filter((value2) => typeof value2 === "number")
+  };
+}
+function readSubwindowZoomPreference(raw) {
+  if (!isRecord(raw) || raw.v !== 2 || !isRecord(raw.subwindowZoom)) return {};
+  const steps = {};
+  for (const [id, value2] of Object.entries(raw.subwindowZoom)) {
+    if (typeof value2 === "number") {
+      if (Number.isInteger(value2) && value2 >= 0) steps[id] = { step: value2, manual: true };
+      continue;
+    }
+    if (isRecord(value2) && typeof value2.step === "number" && Number.isInteger(value2.step) && value2.step >= 0 && typeof value2.manual === "boolean") {
+      steps[id] = { step: value2.step, manual: value2.manual };
+    }
+  }
+  return steps;
+}
+function preservedPreferences(raw) {
+  const options = storedRememberedSettings(raw);
+  const display = storedDisplayPreference(raw);
+  const firstEncounter = readFirstEncounterPreference(raw);
+  const hideRepeatShortcuts = isRecord(raw) && raw.v === 2 && raw.hideRepeatShortcuts === true;
+  const subwindowZoom = readSubwindowZoomPreference(raw);
+  return {
+    ...options ? { options } : {},
+    ...display ? { display } : {},
+    ...hideRepeatShortcuts ? { hideRepeatShortcuts } : {},
+    ...firstEncounter ? { firstEncounter } : {},
+    ...Object.keys(subwindowZoom).length > 0 ? { subwindowZoom } : {}
+  };
+}
+function readDisplayPreference(raw) {
+  return storedDisplayPreference(raw) ?? DEFAULT_DISPLAY_PREFERENCE;
+}
+function withDisplayPreference(raw, display) {
+  return { ...isRecord(raw) ? raw : {}, v: 2, ...preservedPreferences(raw), display };
+}
+function withSubwindowZoomPreference(raw, subwindowZoom) {
+  return { ...isRecord(raw) ? raw : {}, v: 2, ...preservedPreferences(raw), subwindowZoom };
+}
+
+// src/fonts.ts
+var FONT_FILES = [
+  "Cousine-Regular.ttf",
+  "ConsolaMono-Book.ttf",
+  "Erika Type.ttf",
+  "F25_Bank_Printer.ttf",
+  "Flexi_IBM_VGA_True.ttf",
+  "Hack-Regular.ttf",
+  "LiberationMono-Regular.ttf",
+  "MonospaceTypewriter.ttf",
+  "Nouveau_IBM.ttf",
+  "RetraConsole.ttf",
+  "Sono-Regular.ttf",
+  "SVBasicManual.ttf",
+  "Terminal F4.ttf",
+  "Xanmono-Regular.ttf",
+  "Zector.ttf"
+];
+
+// src/settings.ts
+var DEFAULT_SETTINGS = {
+  theme: "terminal-original",
+  interfaceFont: "Nouveau_IBM.ttf",
+  dungeonFont: "",
+  showHeadings: true,
+  hoverDelayMs: 550,
+  zoomIndex: 7,
+  panelZoom: {},
+  effects: {}
+};
+var themes = /* @__PURE__ */ new Set(["terminal-original", "dark-graphite", "light-paper", "amber-terminal", "midnight-ice"]);
+var fonts = new Set(FONT_FILES);
+function validateSettings(value2) {
+  const record2 = value2 !== null && typeof value2 === "object" && !Array.isArray(value2) ? value2 : {};
+  return {
+    theme: typeof record2["theme"] === "string" && themes.has(record2["theme"]) ? record2["theme"] : DEFAULT_SETTINGS.theme,
+    interfaceFont: typeof record2["interfaceFont"] === "string" && fonts.has(record2["interfaceFont"]) ? record2["interfaceFont"] : DEFAULT_SETTINGS.interfaceFont,
+    dungeonFont: typeof record2["dungeonFont"] === "string" && (record2["dungeonFont"] === "" || fonts.has(record2["dungeonFont"])) ? record2["dungeonFont"] : DEFAULT_SETTINGS.dungeonFont,
+    showHeadings: typeof record2["showHeadings"] === "boolean" ? record2["showHeadings"] : DEFAULT_SETTINGS.showHeadings,
+    hoverDelayMs: typeof record2["hoverDelayMs"] === "number" && Number.isInteger(record2["hoverDelayMs"]) ? Math.max(0, Math.min(5e3, record2["hoverDelayMs"])) : DEFAULT_SETTINGS.hoverDelayMs,
+    zoomIndex: typeof record2["zoomIndex"] === "number" && Number.isInteger(record2["zoomIndex"]) ? Math.max(0, Math.min(18, record2["zoomIndex"])) : DEFAULT_SETTINGS.zoomIndex,
+    panelZoom: record2["panelZoom"] && typeof record2["panelZoom"] === "object" && !Array.isArray(record2["panelZoom"]) ? Object.fromEntries(Object.entries(record2["panelZoom"]).filter(([id, step]) => id.length > 0 && typeof step === "number" && Number.isInteger(step) && step >= 0 && step <= 6)) : DEFAULT_SETTINGS.panelZoom,
+    effects: record2["effects"] && typeof record2["effects"] === "object" && !Array.isArray(record2["effects"]) ? Object.fromEntries(Object.entries(record2["effects"]).filter(([id, value3]) => id.length > 0 && typeof value3 === "number" && Number.isFinite(value3)).map(([id, value3]) => [id, Math.max(0, Math.min(100, Math.round(value3)))])) : DEFAULT_SETTINGS.effects
+  };
 }
 
 // src/zoom.ts
@@ -2454,7 +2592,7 @@ function openSurfaces(ctx, specs, overlay, css, onChange) {
 
 // src/panels/character-pane.ts
 var PANE_SIDEBAR_EXTENT = { columns: 0, topRows: 0 };
-var PANE_CSS = `:host{display:block;height:100%;color:var(--anyband-text);font:12px/1.35 system-ui,sans-serif}${PANEL_CSS}.surface{position:relative}`;
+var PANE_CSS = `:host{display:block;height:100%;color:var(--anyband-text);font:var(--anyband-font-size)/var(--anyband-line) var(--anyband-font)}${PANEL_CSS}.surface{position:relative}`;
 var paneOwnsSidebar = false;
 function gateSidebarExtent(display) {
   return new Proxy({}, {
@@ -2573,7 +2711,7 @@ function renderDungeonCard(mount, model) {
   const p = model.player;
   const d = model.dungeon;
   const grid = node(mount, "div", "grid");
-  for (const [label2, value2, tip2] of [["Depth", String(d.depth), `Depth: ${d.depth_feet} feet`], ["Light", String(d.light), ""], ["Feel", d.feeling || "?", d.feeling_description ?? ""], ["", d.floor ?? "", ""]]) {
+  for (const [label2, value2, tip2] of [["Depth", String(d.depth), `Depth: ${d.depth_feet} feet`], ["Light", String(d.light), ""], ["Feel", d.feeling || "-", d.feeling_description ?? ""], ["", d.floor ?? "", ""]]) {
     const tile = node(grid, "div", "metric", label2);
     node(tile, "b", "", value2);
     if (tip2) tile.dataset.tip = tip2;
@@ -3164,12 +3302,13 @@ function installMapOverview(ctx) {
   }
   const theme = THEMES[validateSettings(ctx.prefs?.get()).theme];
   const strip = document.createElement("div");
-  strip.style.cssText = `position:fixed;z-index:900;display:none;height:24px;align-items:center;gap:8px;padding:0 6px;background:${theme.surface};color:${theme.text};font:12px sans-serif`;
+  strip.style.cssText = `position:fixed;z-index:900;display:none;height:24px;align-items:center;gap:8px;padding:0 6px;background:${theme.surface};color:${theme.text};font:${PAINT_FONT_SIZE}px/${PAINT_LINE_HEIGHT}px ${PAINT_FONT};border-bottom:1px solid ${paintColours(theme).border}`;
   const fit = document.createElement("button");
   fit.textContent = "Fit floor";
   const center = document.createElement("button");
   center.textContent = "Centre on player";
   const readout = document.createElement("span");
+  for (const control of [fit, center]) control.style.cssText = `font:inherit;color:inherit;background:${theme.background};border:1px solid ${paintColours(theme).border};border-radius:${Math.round(theme.rounding * 0.4)}px;padding:1px 6px;cursor:pointer`;
   strip.append(fit, center, readout);
   const legend = document.createElement("span");
   legend.style.cssText = "display:inline-flex;align-items:center;gap:8px";
@@ -3463,7 +3602,7 @@ function installHoverCards(ctx) {
   const theme = THEMES[settings.theme];
   const card = document.createElement("div");
   card.setAttribute("role", "tooltip");
-  card.style.cssText = `position:fixed;z-index:1000;display:none;pointer-events:none;white-space:pre-wrap;max-width:320px;padding:8px 10px;border:1px solid ${theme.accent};border-radius:${theme.rounding}px;background:${theme.surface};color:${theme.text};font:13px/1.35 sans-serif;box-shadow:0 4px 16px #0008`;
+  card.style.cssText = `position:fixed;z-index:1000;display:none;pointer-events:none;white-space:pre-wrap;max-width:320px;padding:8px 10px;border:1px solid ${paintColours(theme).border};border-radius:${Math.round(theme.rounding * 0.6)}px;background:${theme.surface};color:${theme.text};font:${PAINT_FONT_SIZE}px/${PAINT_LINE_HEIGHT}px ${PAINT_FONT};box-shadow:0 4px 16px #0008`;
   const preview = document.createElement("canvas");
   preview.width = 64;
   preview.height = 64;
@@ -3950,14 +4089,14 @@ function installMapHoverCards(ctx) {
     if (!content) return false;
     paintHoverCardText(card.title, content.title, "#f0d878", HOVER_CARD_TITLE_MAX_CHARS, false);
     paintHoverCardText(card.body, content.text, "#e8e8e8", HOVER_CARD_BODY_MAX_CHARS, true);
-    const painted = paintTilePreview(
+    const painted2 = paintTilePreview(
       card.img,
       resolved.grid,
       resolved.cell,
       resolved.view,
       resolved.termSize
     );
-    card.img.style.display = painted ? "block" : "none";
+    card.img.style.display = painted2 ? "block" : "none";
     card.root.style.display = "block";
     positionHoverCard(card.root, clientX, clientY);
     shownGridKey = gridKey(resolved.grid);
@@ -4493,7 +4632,7 @@ function renderItemComparison(parent, sim, unchanged, toggle, choice) {
 }
 
 // src/panels/items.ts
-var CSS2 = `:host{color:var(--anyband-text);font:13px/1.4 system-ui,sans-serif}.items{position:absolute;right:12px;top:12px;width:min(440px,44vw);max-height:calc(100vh - 24px);overflow:auto;padding:10px;background:var(--anyband-surface);border:1px solid var(--anyband-accent);border-radius:var(--anyband-rounding);pointer-events:auto}button,input,select{font:inherit;color:var(--anyband-text);background:var(--anyband-background);border:1px solid var(--anyband-accent);border-radius:3px;padding:3px 5px}button{cursor:pointer}button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--anyband-accent)}input[type=search]{width:100%}.tabs,.actions,.quick{display:flex;gap:5px;flex-wrap:wrap;margin:6px 0}table{width:100%;border-collapse:collapse}th{text-align:left;position:sticky;top:0;background:var(--anyband-surface)}td,th{padding:3px;border-bottom:1px solid var(--anyband-accent)}tr.new{background:#437d5541}tr.chosen{outline:1px solid var(--anyband-accent)}.row{width:100%;text-align:left;border:0;background:transparent}details{margin:8px 0}summary{color:var(--anyband-accent);cursor:pointer;font-weight:bold}.muted{opacity:.65}.gain{color:#80b891}.loss{color:#ff7559}.error{color:#ff7559}.prompt{border:1px solid var(--anyband-accent);padding:8px;margin:8px 0}.rule{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;padding:3px 0;border-bottom:1px solid var(--anyband-accent)}.rule .name{flex:1 1 12em}.rule input[type=text]{width:9em}.info{white-space:pre-wrap;margin:4px 0}summary.lead{font-weight:normal;color:inherit}`;
+var CSS2 = `:host{color:var(--anyband-text);font:var(--anyband-font-size)/var(--anyband-line) var(--anyband-font)}.items{position:absolute;right:12px;top:12px;width:min(440px,44vw);max-height:calc(100vh - 24px);overflow:auto;padding:10px;background:var(--anyband-surface);border:1px solid var(--anyband-accent);border-radius:var(--anyband-rounding);pointer-events:auto}button,input,select{font:inherit;color:var(--anyband-text);background:var(--anyband-background);border:1px solid var(--anyband-accent);border-radius:3px;padding:3px 5px}button{cursor:pointer}button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--anyband-accent)}input[type=search]{width:100%}.tabs,.actions,.quick{display:flex;gap:5px;flex-wrap:wrap;margin:6px 0}table{width:100%;border-collapse:collapse}th{text-align:left;position:sticky;top:0;background:var(--anyband-surface)}td,th{padding:3px;border-bottom:1px solid var(--anyband-accent)}tr.new{background:#437d5541}tr.chosen{outline:1px solid var(--anyband-accent)}.row{width:100%;text-align:left;border:0;background:transparent}details{margin:8px 0}summary{color:var(--anyband-accent);cursor:pointer;font-weight:bold}.muted{opacity:.65}.gain{color:#80b891}.loss{color:#ff7559}.error{color:#ff7559}.prompt{border:1px solid var(--anyband-accent);padding:8px;margin:8px 0}.rule{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;padding:3px 0;border-bottom:1px solid var(--anyband-accent)}.rule .name{flex:1 1 12em}.rule input[type=text]{width:9em}.info{white-space:pre-wrap;margin:4px 0}summary.lead{font-weight:normal;color:inherit}`;
 var ACTIONS = ["wield", "takeoff", "drop", "inscribe", "use"];
 var ACTION_LABELS = { wield: "Wield", takeoff: "Take off", drop: "Drop", inscribe: "Inscribe", use: "Use" };
 var USE_CODES = ["activate", "use-staff", "aim-wand", "zap-rod", "eat", "quaff", "read"];
@@ -5158,7 +5297,7 @@ function installMapMouse(ctx) {
   const menu = document.createElement("div");
   menu.setAttribute("role", "menu");
   menu.setAttribute("aria-label", "Dungeon actions");
-  menu.style.cssText = `display:none;position:fixed;z-index:1002;background:${theme.surface};color:${theme.text};border:1px solid ${theme.accent};border-radius:${theme.rounding}px;padding:4px`;
+  menu.style.cssText = `display:none;position:fixed;z-index:1002;background:${theme.surface};color:${theme.text};border:1px solid ${paintColours(theme).border};border-radius:${Math.round(theme.rounding * 0.6)}px;padding:4px;font:${PAINT_FONT_SIZE}px/${PAINT_LINE_HEIGHT}px ${PAINT_FONT}`;
   const canvas = document.createElement("canvas");
   canvas.setAttribute("aria-hidden", "true");
   canvas.style.cssText = "position:fixed;inset:0;pointer-events:none;z-index:49";
@@ -5216,7 +5355,13 @@ function installMapMouse(ctx) {
       button4.type = "button";
       button4.setAttribute("role", "menuitem");
       button4.textContent = action.label;
-      button4.style.cssText = `display:block;width:100%;text-align:left;background:${theme.surface};color:${theme.text};border:0;padding:5px 9px;cursor:pointer`;
+      button4.style.cssText = `display:block;width:100%;text-align:left;background:${theme.surface};color:${theme.text};border:0;padding:3px 9px;cursor:pointer;font:inherit`;
+      button4.addEventListener("pointerenter", () => {
+        button4.style.background = paintColours(theme).hover;
+      });
+      button4.addEventListener("pointerleave", () => {
+        button4.style.background = theme.surface;
+      });
       button4.addEventListener("click", () => {
         const current = ctx.snapshot?.() ?? null;
         if (!menuAt || !current || !menuToken || !sameToken(menuToken, current.token) || menuPromptId !== (current.prompt?.promptId ?? null)) {
@@ -5636,7 +5781,7 @@ function installBlastPreview(ctx) {
 }
 
 // src/phase4.ts
-var CSS3 = `:host{color:var(--anyband-text);font:13px/1.4 system-ui,sans-serif}.phase4{position:fixed;left:12px;bottom:12px;width:min(680px,calc(100vw - 24px));max-height:55vh;overflow:auto;padding:10px;background:var(--anyband-surface);border:1px solid var(--anyband-accent);border-radius:var(--anyband-rounding);pointer-events:auto}button,select,input{font:inherit;color:var(--anyband-text);background:var(--anyband-background);border:1px solid var(--anyband-accent);border-radius:3px;padding:4px}button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--anyband-accent)}button:disabled{opacity:.45}table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:3px;border-bottom:1px solid var(--anyband-accent)}.slots{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:3px}.slot{min-height:42px;overflow:hidden;word-break:break-word}.muted{opacity:.55}.row{width:100%;text-align:left;border:0;background:transparent}.menu{margin:6px 0;padding:6px;border:1px solid var(--anyband-accent)}.menu button{margin:2px}.hint{font-size:12px}`;
+var CSS3 = `:host{color:var(--anyband-text);font:var(--anyband-font-size)/var(--anyband-line) var(--anyband-font)}.phase4{position:fixed;left:12px;bottom:12px;width:min(680px,calc(100vw - 24px));max-height:55vh;overflow:auto;padding:10px;background:var(--anyband-surface);border:1px solid var(--anyband-accent);border-radius:var(--anyband-rounding);pointer-events:auto}button,select,input{font:inherit;color:var(--anyband-text);background:var(--anyband-background);border:1px solid var(--anyband-accent);border-radius:3px;padding:4px}button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--anyband-accent)}button:disabled{opacity:.45}table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:3px;border-bottom:1px solid var(--anyband-accent)}.slots{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:3px}.slot{min-height:42px;overflow:hidden;word-break:break-word}.muted{opacity:.55}.row{width:100%;text-align:left;border:0;background:transparent}.menu{margin:6px 0;padding:6px;border:1px solid var(--anyband-accent)}.menu button{margin:2px}.hint{font-size:12px}`;
 function el3(parent, tag, content) {
   const node2 = parent.ownerDocument.createElement(tag);
   if (content !== void 0) node2.textContent = content;
@@ -6168,7 +6313,7 @@ function adaptStore(snap, known) {
 }
 
 // src/panels/stores.ts
-var CSS4 = `:host{color:var(--anyband-text);font:13px/1.4 system-ui,sans-serif}.store{position:absolute;inset:12px;overflow:auto;padding:10px;background:var(--anyband-surface);border:1px solid var(--anyband-accent);border-radius:var(--anyband-rounding);pointer-events:auto}.sides{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.side{min-width:0;overflow:auto}h2,h3{color:var(--anyband-accent);border-bottom:1px solid var(--anyband-accent)}table{width:100%;border-collapse:collapse}th{text-align:left}td,th{padding:3px;border-bottom:1px solid var(--anyband-accent)}button,input{font:inherit;color:var(--anyband-text);background:var(--anyband-background);border:1px solid var(--anyband-accent);border-radius:3px;padding:3px 6px}button{cursor:pointer}button:disabled{cursor:default;opacity:.5}button:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid var(--anyband-accent)}.row{width:100%;text-align:left;border:0;background:transparent}.row[aria-pressed=true]{background:var(--anyband-accent);color:var(--anyband-background)!important}.actions{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}.prompt{border:1px solid var(--anyband-accent);padding:8px;max-width:30em}.prompt input{width:100%}.muted{opacity:.65}.gain{color:#80b891}.loss,.error,.unaffordable{color:#ff7559}details{margin:8px 0}summary{color:var(--anyband-accent);cursor:pointer}@media(max-width:650px){.sides{grid-template-columns:1fr}}`;
+var CSS4 = `:host{color:var(--anyband-text);font:var(--anyband-font-size)/var(--anyband-line) var(--anyband-font)}.store{position:absolute;inset:12px;overflow:auto;padding:10px;background:var(--anyband-surface);border:1px solid var(--anyband-accent);border-radius:var(--anyband-rounding);pointer-events:auto}.sides{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.side{min-width:0;overflow:auto}h2,h3{color:var(--anyband-accent);border-bottom:1px solid var(--anyband-accent)}table{width:100%;border-collapse:collapse}th{text-align:left}td,th{padding:3px;border-bottom:1px solid var(--anyband-accent)}button,input{font:inherit;color:var(--anyband-text);background:var(--anyband-background);border:1px solid var(--anyband-accent);border-radius:3px;padding:3px 6px}button{cursor:pointer}button:disabled{cursor:default;opacity:.5}button:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid var(--anyband-accent)}.row{width:100%;text-align:left;border:0;background:transparent}.row[aria-pressed=true]{background:var(--anyband-accent);color:var(--anyband-background)!important}.actions{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}.prompt{border:1px solid var(--anyband-accent);padding:8px;max-width:30em}.prompt input{width:100%}.muted{opacity:.65}.gain{color:#80b891}.loss,.error,.unaffordable{color:#ff7559}details{margin:8px 0}summary{color:var(--anyband-accent);cursor:pointer}@media(max-width:650px){.sides{grid-template-columns:1fr}}`;
 var same3 = (a, b) => a.epoch === b.epoch && a.revision === b.revision;
 function el4(parent, tag, value2) {
   const node2 = parent.ownerDocument.createElement(tag);
@@ -6524,7 +6669,13 @@ function chooseEffectMotion(reduced) {
 }
 var AURA_ORDER = ["cursed", "artifact", "rune"];
 var AURA_COLOURS = { cursed: "#ff4f6d", artifact: "#ffd36a", rune: "#7fd8ff" };
-function effectGrids(s, known) {
+function actualAura(o) {
+  if (o.curses.length > 0) return "cursed";
+  if (o.artifact) return "artifact";
+  const magical = o.ego || o.flags.length > 0 || o.modifiers.length > 0 || o.brands.length > 0 || o.slays.length > 0 || o.resists.length > 0 || o.toH !== 0 || o.toD !== 0 || o.toA !== 0;
+  return magical ? "rune" : void 0;
+}
+function effectGrids(s, known, revealHidden = false) {
   const asleep = [], uniques = [], glows = [];
   for (const m of s?.core.monsters ?? []) if (m.visible) {
     if (m.asleep) asleep.push(m.grid);
@@ -6532,6 +6683,12 @@ function effectGrids(s, known) {
   }
   for (const c of known?.cells ?? []) {
     const auras = /* @__PURE__ */ new Set();
+    if (revealHidden && c.visible === true && c.actual && c.actual.monster === 0 && c.remembered.objects.length > 0) {
+      for (const o of c.actual.objects) {
+        const aura2 = actualAura(o);
+        if (aura2) auras.add(aura2);
+      }
+    }
     for (const o of c.remembered.objects) {
       if (!o || typeof o !== "object") continue;
       const read = o;
@@ -6684,7 +6841,7 @@ function installEffects(ctx) {
       if (at) cues.push({ grid: at, kind: "death", started: now, strength: 100 });
     }
     wasDead = dead;
-    const known = ctx.knownLevel?.() ?? null, grids = effectGrids(snap, known);
+    const known = ctx.knownLevel?.() ?? null, grids = effectGrids(snap, known, flags["anybandui.itemGlowReveals"] === true);
     if (flags["anybandui.itemGlow"]) for (const glow of grids.glows) paint(glow.grid, AURA_COLOURS[glow.aura], intensity("itemGlow"));
     if (flags["anybandui.sleepMarks"]) for (const p of grids.asleep) {
       const q = cell(p);
@@ -6806,6 +6963,7 @@ var plugin_default = {
       }
     }
     displayCleanups.push(installEffects({ flags, ...ctx.snapshot ? { snapshot: ctx.snapshot } : {}, ...ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {}, ...ctx.events ? { events: ctx.events } : {}, ...ctx.display?.snapshot ? { display: ctx.display } : {}, ...ctx.prefs ? { prefs: ctx.prefs } : {}, ...ctx.settings ? { settings: ctx.settings } : {} }));
+    displayCleanups.push(installChromePaint(ctx.display, flags, THEMES[validateSettings(ctx.prefs?.get()).theme], ctx.log));
     displayCleanups.push(installItems(ctx));
     displayCleanups.push(installStores(ctx));
     if (flags["anybandui.highContrast"] || flags["anybandui.colourblind"] || flags["anybandui.crt"]) {

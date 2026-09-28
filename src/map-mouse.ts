@@ -2,6 +2,7 @@ import { hoverGrid } from "./hover-cards.js";
 import { mapProjection } from "./map-overview.js";
 import { validateSettings } from "./settings.js";
 import { THEMES } from "./theme.js";
+import { PAINT_FONT, PAINT_FONT_SIZE, PAINT_LINE_HEIGHT, paintColours } from "./paint.js";
 import type { Grid, InputSnapshot, MouseSeams, PlayerIntent } from "./seams.js";
 import type { ZoomDisplay } from "./zoom.js";
 import { playerIsDriving } from "./input-owner.js";
@@ -162,7 +163,7 @@ export function installMapMouse(ctx: MapMouseContext): () => void {
   const menu = document.createElement("div");
   menu.setAttribute("role", "menu");
   menu.setAttribute("aria-label", "Dungeon actions");
-  menu.style.cssText = `display:none;position:fixed;z-index:1002;background:${theme.surface};color:${theme.text};border:1px solid ${theme.accent};border-radius:${theme.rounding}px;padding:4px`;
+  menu.style.cssText = `display:none;position:fixed;z-index:1002;background:${theme.surface};color:${theme.text};border:1px solid ${paintColours(theme).border};border-radius:${Math.round(theme.rounding * 0.6)}px;padding:4px;font:${PAINT_FONT_SIZE}px/${PAINT_LINE_HEIGHT}px ${PAINT_FONT}`;
   const canvas = document.createElement("canvas");
   canvas.setAttribute("aria-hidden", "true");
   canvas.style.cssText = "position:fixed;inset:0;pointer-events:none;z-index:49";
@@ -209,7 +210,9 @@ export function installMapMouse(ctx: MapMouseContext): () => void {
     for (const action of actions) {
       const button = document.createElement("button");
       button.type = "button"; button.setAttribute("role", "menuitem"); button.textContent = action.label;
-      button.style.cssText = `display:block;width:100%;text-align:left;background:${theme.surface};color:${theme.text};border:0;padding:5px 9px;cursor:pointer`;
+      button.style.cssText = `display:block;width:100%;text-align:left;background:${theme.surface};color:${theme.text};border:0;padding:3px 9px;cursor:pointer;font:inherit`;
+      button.addEventListener("pointerenter", () => { button.style.background = paintColours(theme).hover; });
+      button.addEventListener("pointerleave", () => { button.style.background = theme.surface; });
       button.addEventListener("click", () => {
         const current = ctx.snapshot?.() ?? null;
         if (!menuAt || !current || !menuToken || !sameToken(menuToken, current.token) || menuPromptId !== (current.prompt?.promptId ?? null)) { hide(); return; }

@@ -1,5 +1,6 @@
 import { validateSettings } from "./settings.js";
 import { THEMES } from "./theme.js";
+import { PAINT_FONT, PAINT_FONT_SIZE, PAINT_LINE_HEIGHT, paintColours } from "./paint.js";
 import type { DisplaySnapshot, Point, ZoomDisplay } from "./zoom.js";
 import { pointInRect } from "./zoom.js";
 import { featureCode, landmarkKind, mapProjection } from "./map-overview.js";
@@ -134,7 +135,7 @@ export function installHoverCards(ctx: HoverContext): () => void {
   const theme = THEMES[settings.theme]!;
   const card = document.createElement("div");
   card.setAttribute("role", "tooltip");
-  card.style.cssText = `position:fixed;z-index:1000;display:none;pointer-events:none;white-space:pre-wrap;max-width:320px;padding:8px 10px;border:1px solid ${theme.accent};border-radius:${theme.rounding}px;background:${theme.surface};color:${theme.text};font:13px/1.35 sans-serif;box-shadow:0 4px 16px #0008`;
+  card.style.cssText = `position:fixed;z-index:1000;display:none;pointer-events:none;white-space:pre-wrap;max-width:320px;padding:8px 10px;border:1px solid ${paintColours(theme).border};border-radius:${Math.round(theme.rounding * 0.6)}px;background:${theme.surface};color:${theme.text};font:${PAINT_FONT_SIZE}px/${PAINT_LINE_HEIGHT}px ${PAINT_FONT};box-shadow:0 4px 16px #0008`;
   const preview = document.createElement("canvas");
   preview.width = 64; preview.height = 64;
   preview.style.cssText = "display:none;width:64px;height:64px;float:right;margin:0 0 4px 8px;image-rendering:pixelated";

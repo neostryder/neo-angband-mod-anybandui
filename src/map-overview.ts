@@ -1,4 +1,5 @@
 import { THEMES } from "./theme.js";
+import { PAINT_FONT, PAINT_FONT_SIZE, PAINT_LINE_HEIGHT, paintColours } from "./paint.js";
 import { validateSettings } from "./settings.js";
 import type { DisplaySnapshot, Point, ZoomDisplay } from "./zoom.js";
 import { clampOrigin, keepsDisplayRequestsPerMod, pointInRect } from "./zoom.js";
@@ -108,10 +109,11 @@ export function installMapOverview(ctx: Context): () => void {
   }
   const theme = THEMES[validateSettings(ctx.prefs?.get()).theme]!;
   const strip = document.createElement("div");
-  strip.style.cssText = `position:fixed;z-index:900;display:none;height:24px;align-items:center;gap:8px;padding:0 6px;background:${theme.surface};color:${theme.text};font:12px sans-serif`;
+  strip.style.cssText = `position:fixed;z-index:900;display:none;height:24px;align-items:center;gap:8px;padding:0 6px;background:${theme.surface};color:${theme.text};font:${PAINT_FONT_SIZE}px/${PAINT_LINE_HEIGHT}px ${PAINT_FONT};border-bottom:1px solid ${paintColours(theme).border}`;
   const fit = document.createElement("button"); fit.textContent = "Fit floor";
   const center = document.createElement("button"); center.textContent = "Centre on player";
   const readout = document.createElement("span");
+  for (const control of [fit, center]) control.style.cssText = `font:inherit;color:inherit;background:${theme.background};border:1px solid ${paintColours(theme).border};border-radius:${Math.round(theme.rounding * 0.4)}px;padding:1px 6px;cursor:pointer`;
   strip.append(fit, center, readout);
   const legend = document.createElement("span");
   legend.style.cssText = "display:inline-flex;align-items:center;gap:8px";

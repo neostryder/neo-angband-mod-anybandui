@@ -8,6 +8,16 @@ An entry opens with one or more bracketed tags. `[Visible]` marks a change a pla
 
 ## [Unreleased]
 
+### Added
+
+- [Visible] [UI] **Glow shows hidden magic, a new switch that works with the floor item glow.** Turn it on and a cursed item, an artifact or an item with runes glows on the floor before you have identified it, matching the native AnybandUI. It starts off because it gives away what the game hides.
+
+### Changed
+
+- [Visible] [UI] **The cards, the map menus and the window frames around them take on Angband's own look.** They use the game's 8x13 dialog font and a palette close to its terminal, with thin borders, a coloured band under each heading and small marks in each card's corners. While any card is on, the frames around every pane change to the same colours, so the game's own subwindows and the cards read as one screen. Turning every card off gives the frames the game's usual look back.
+- [Visible] [UI] **The dungeon card shows a dash instead of a question mark while the level feeling is not known yet.**
+- [Visible] [Compatibility] **AnybandUI now needs Neo Angband 1.20.0 or later**, the first version that can repaint the window frames and ships the 8x13 dialog font.
+
 ### Removed
 
 - [Internal] **Removed this repo's own Discord release announcer.** Its workflow, script and test are gone. The releases site at releases.rpgm.tools now posts each new release to the Neo Angband announcements forum.

@@ -7,7 +7,7 @@ export function renderDungeonCard(mount: HTMLElement, model: ViewModel): void {
   const p = model.player;
   const d = model.dungeon;
   const grid = node(mount, "div", "grid");
-  for (const [label, value, tip] of [["Depth", String(d.depth), `Depth: ${d.depth_feet} feet`], ["Light", String(d.light), ""], ["Feel", d.feeling || "?", d.feeling_description ?? ""], ["", d.floor ?? "", ""]]) {
+  for (const [label, value, tip] of [["Depth", String(d.depth), `Depth: ${d.depth_feet} feet`], ["Light", String(d.light), ""], ["Feel", d.feeling || "-", d.feeling_description ?? ""], ["", d.floor ?? "", ""]]) {
     const tile = node(grid, "div", "metric", label);
     node(tile, "b", "", value);
     if (tip) tile.dataset.tip = tip;
