@@ -8,6 +8,10 @@ An entry opens with one or more bracketed tags. `[Visible]` marks a change a pla
 
 ## [Unreleased]
 
+### Removed
+
+- [Internal] **Removed this repo's own Discord release announcer.** Its workflow, script and test are gone. The releases site at releases.rpgm.tools now posts each new release to the Neo Angband announcements forum.
+
 ## 1.0.0 - 2026-09-27
 
 ### Added
