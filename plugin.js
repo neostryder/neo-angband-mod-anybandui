@@ -2903,7 +2903,7 @@ function withFirstEncounterPreference(raw, firstEncounter) {
 // src/first-encounter.ts
 var DEADLY_OUT_OF_DEPTH_LEVELS = 5;
 function classifyMonsterThreat(race, currentDepth) {
-  if (race.unique) return "unique";
+  if (race.unique ?? race.maxNum === 1) return "unique";
   const over = race.level - currentDepth;
   if (over >= DEADLY_OUT_OF_DEPTH_LEVELS) return "deadly";
   if (over >= 1) return "outOfDepth";
@@ -5273,8 +5273,8 @@ function finishPickup(ctx, at, previous) {
 }
 function aimingPath(ctx, snap, hovered) {
   if (snap?.prompt?.kind !== "target" && snap?.prompt?.kind !== "direction") return [];
-  if (snap.prompt.path) return snap.prompt.path;
-  const cursor = snap.prompt.cursor ?? hovered;
+  if (snap.prompt.kind === "target") return snap.prompt.path;
+  const cursor = hovered;
   const path = cursor ? ctx.inspect?.projectionPath?.(cursor) : null;
   return path && sameToken(path.token, snap.token) ? path.grids : [];
 }
@@ -5844,8 +5844,7 @@ function restingText(resting) {
     if (resting.mode === "all-points") return "Resting until hit points and mana are full.";
     if (resting.mode === "some-points") return "Resting until hit points or mana are full.";
   }
-  if (resting.turnsRemaining !== null && resting.turnsRemaining > 0) return `Resting: ${resting.turnsRemaining} ${resting.turnsRemaining === 1 ? "turn" : "turns"} left.`;
-  return resting.mode === -2 ? "Resting until fully recovered." : resting.mode === -1 ? "Resting until hit points and mana are full." : resting.mode === -3 ? "Resting until hit points or mana are full." : "Resting.";
+  return "Resting.";
 }
 function installPhase4(ctx) {
   const flags = ctx.flags ?? {};
@@ -6962,10 +6961,22 @@ var plugin_default = {
       } catch {
       }
     }
-    displayCleanups.push(installEffects({ flags, ...ctx.snapshot ? { snapshot: ctx.snapshot } : {}, ...ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {}, ...ctx.events ? { events: ctx.events } : {}, ...ctx.display?.snapshot ? { display: ctx.display } : {}, ...ctx.prefs ? { prefs: ctx.prefs } : {}, ...ctx.settings ? { settings: ctx.settings } : {} }));
+    displayCleanups.push(installEffects({ flags, ...ctx.snapshot ? { snapshot: ctx.snapshot } : {}, ...ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {}, ...ctx.events ? { events: ctx.events } : {}, ...ctx.display?.snapshot ? { display: { snapshot: ctx.display.snapshot.bind(ctx.display) } } : {}, ...ctx.prefs ? { prefs: ctx.prefs } : {}, ...ctx.settings ? { settings: ctx.settings } : {} }));
     displayCleanups.push(installChromePaint(ctx.display, flags, THEMES[validateSettings(ctx.prefs?.get()).theme], ctx.log));
-    displayCleanups.push(installItems(ctx));
-    displayCleanups.push(installStores(ctx));
+    const liveCore = ctx.core, liveState = ctx.state;
+    const itemContext = {
+      flags,
+      log: ctx.log,
+      ...ctx.snapshot ? { snapshot: ctx.snapshot } : {},
+      ...ctx.inspect ? { inspect: ctx.inspect } : {},
+      ...ctx.intent ? { intent: ctx.intent } : {},
+      ...ctx.prompt ? { prompt: ctx.prompt } : {},
+      ...ctx.ui ? { ui: ctx.ui } : {},
+      ...ctx.prefs ? { prefs: ctx.prefs } : {},
+      ...liveCore && liveState ? { state: liveState, core: { createAgentView: () => liveCore.createAgentView(liveState), createAgentActions: () => liveCore.createAgentActions(liveState) } } : {}
+    };
+    displayCleanups.push(installItems(itemContext));
+    displayCleanups.push(installStores({ ...itemContext, ...ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {}, ...ctx.driver ? { driver: ctx.driver } : {} }));
     if (flags["anybandui.highContrast"] || flags["anybandui.colourblind"] || flags["anybandui.crt"]) {
       installAccessibilityAccommodations({ flags, ...ctx.display ? { display: ctx.display } : {}, log: ctx.log });
     }
@@ -7045,7 +7056,20 @@ var plugin_default = {
       ...ctx.prefs ? { prefs: ctx.prefs } : {},
       log: ctx.log
     }));
-    displayCleanups.push(installPhase4(ctx));
+    displayCleanups.push(installPhase4({
+      flags,
+      log: ctx.log,
+      ...ctx.snapshot ? { snapshot: ctx.snapshot } : {},
+      ...ctx.intent ? { intent: ctx.intent } : {},
+      ...ctx.prompt ? { prompt: ctx.prompt } : {},
+      ...ctx.inspect ? { inspect: ctx.inspect } : {},
+      ...ctx.ui ? { ui: ctx.ui } : {},
+      ...ctx.prefs ? { prefs: ctx.prefs } : {},
+      ...ctx.display?.snapshot ? { display: { snapshot: ctx.display.snapshot.bind(ctx.display) } } : {},
+      ...ctx.driver ? { driver: ctx.driver } : {},
+      ...ctx.character ? { character: ctx.character } : {},
+      ...ctx.state ? { state: ctx.state } : {}
+    }));
     if (flags["anybandui.firstEncounter"]) {
       if (ctx.core && ctx.state) {
         const theme = THEMES[validateSettings(ctx.prefs?.get()).theme];

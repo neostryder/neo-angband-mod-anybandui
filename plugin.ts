@@ -16,9 +16,10 @@
  * consent list a player reads matches what the mod does.
  */
 import type { HudFrame, HudOwnership, HudSection } from "@rpgm-tools/neo-angband-mod-sdk";
+import type { ModDisplay, ModPluginContext } from "@rpgm-tools/neo-angband-core";
 import { createSource } from "./src/view-model/source.js";
 import { createPanelHost, type PanelSpec } from "./src/panels/panel-host.js";
-import { gateSidebarExtent, installCharacterPane, type CharacterPane, type CharacterPaneContext, type SidebarExtentDisplay } from "./src/panels/character-pane.js";
+import { gateSidebarExtent, installCharacterPane, type CharacterPane } from "./src/panels/character-pane.js";
 import { renderCharacterCard } from "./src/panels/character-card.js";
 import { renderDungeonCard } from "./src/panels/dungeon-card.js";
 import { renderDriverBadge, renderStatusBadges } from "./src/panels/status-badges.js";
@@ -27,49 +28,23 @@ import { renderMessageLog } from "./src/panels/message-log.js";
 import { validateSettings } from "./src/settings.js";
 import { THEMES } from "./src/theme.js";
 import { installAccessibilityAccommodations, uninstallAccessibilityAccommodations } from "./src/accessibility.js";
-import { installFirstEncounter, uninstallFirstEncounter, type FirstEncounterContext } from "./src/first-encounter.js";
+import { installFirstEncounter, uninstallFirstEncounter } from "./src/first-encounter.js";
 import { installZoomPan, releaseTileSettings, uninstallZoomPan, zoomPanHud, type ZoomPanContext } from "./src/zoom.js";
 import { installHoverCards } from "./src/hover-cards.js";
 import { installMapHoverCards } from "./src/qol-map-hover.js";
 import { installMapOverview } from "./src/map-overview.js";
 import { installItems } from "./src/panels/items.js";
-import type { ItemsContext, MouseSeams } from "./src/seams.js";
+import type { ItemsContext } from "./src/seams.js";
 import { installMapMouse } from "./src/map-mouse.js";
 import { installPhase4 } from "./src/phase4.js";
-import type { Phase4Context, StoreContext } from "./src/seams.js";
 import { installStores } from "./src/panels/stores.js";
 import { installEffects } from "./src/effects.js";
-import type { DriverEvents, DriverSeams, EffectContext } from "./src/seams.js";
 import { coexistingFlags } from "./src/mod-coexistence.js";
 import { currentDriver } from "./src/input-owner.js";
-import { installChromePaint, type ChromeDisplay } from "./src/paint.js";
+import { installChromePaint } from "./src/paint.js";
 
-/**
- * What this plugin needs from the host's context, structurally.
- *
- * Declared here rather than imported from the host's mod-plugin.ts, because this
- * file compiles in a standalone repository that holds no copy of the host.
- */
-interface RegisterCtx extends MouseSeams, Omit<DriverSeams, "events"> {
-  readonly id: string;
-  readonly engine: string;
-  readonly log: (msg: string) => void;
-  readonly flags?: Readonly<Record<string, boolean>>;
-  readonly display?: {
-    setVisualFilter(filter: string | null, options?: { scope: "game" }): void;
-    setQuiverItemization?(enabled: boolean): void;
-    setTileScaling?(mode: "auto" | "crisp"): void;
-    setMapView?(view: { origin: { x: number; y: number }; size: { width: number; height: number } } | null): void;
-    setFullMapOverview?(enabled: boolean): void;
-  } & Partial<NonNullable<ZoomPanContext["display"]>>;
-  readonly core?: FirstEncounterContext["core"];
-  readonly state?: FirstEncounterContext["state"];
-  readonly ui?: FirstEncounterContext["ui"];
-  readonly tiles?: FirstEncounterContext["tiles"];
-  readonly prefs?: FirstEncounterContext["prefs"];
-  readonly subwindows?: ZoomPanContext["subwindows"];
-  readonly events?: EffectContext["events"];
-}
+/** The register callback reads a subset of the published plugin context. */
+type RegisterCtx = Pick<ModPluginContext, "id" | "engine" | "log"> & Partial<Omit<ModPluginContext, "id" | "engine" | "log" | "display">> & { readonly display?: Pick<ModDisplay, "setVisualFilter"> & Partial<Omit<ModDisplay, "setVisualFilter">> };
 
 let quiverDisplay: RegisterCtx["display"];
 let tileDisplay: RegisterCtx["display"];
@@ -79,8 +54,7 @@ let characterPane: CharacterPane | null = null;
 /** Redraws the status panel with its last frame; set by hud(), called on driver-changed. */
 let statusRepaint: (() => void) | null = null;
 
-type HudCtx = Parameters<typeof createSource>[0] & { readonly flags: Readonly<Record<string, boolean>>; readonly prefs?: { get(): unknown };
-  readonly ui?: CharacterPaneContext["ui"]; readonly display?: SidebarExtentDisplay; readonly log?: (message: string) => void };
+type HudCtx = Parameters<typeof createSource>[0] & Pick<ModPluginContext, "flags"> & Partial<Pick<ModPluginContext, "prefs" | "ui" | "display" | "log">>;
 
 export default {
   api: 1,
@@ -93,18 +67,24 @@ export default {
      * it. An engine without the event still redraws the badge on the next HUD
      * frame, because the badge's select reads the driver on every frame. */
     if (ctx.events) {
-      const events = ctx.events as unknown as DriverEvents;
+      const events = ctx.events;
       const repaint = (): void => statusRepaint?.();
       try {
         events.on("driver-changed", repaint);
         displayCleanups.push(() => events.off("driver-changed", repaint));
       } catch { /* no driver-changed event or grant on this engine */ }
     }
-    displayCleanups.push(installEffects({ flags, ...(ctx.snapshot ? { snapshot: ctx.snapshot as NonNullable<EffectContext["snapshot"]> } : {}), ...(ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {}), ...(ctx.events ? { events: ctx.events } : {}), ...(ctx.display?.snapshot ? { display: ctx.display as NonNullable<EffectContext["display"]> } : {}), ...(ctx.prefs ? { prefs: ctx.prefs } : {}), ...((ctx as unknown as { settings?: EffectContext["settings"] }).settings ? { settings: (ctx as unknown as { settings: NonNullable<EffectContext["settings"]> }).settings } : {}) }));
+    displayCleanups.push(installEffects({ flags, ...(ctx.snapshot ? { snapshot: ctx.snapshot } : {}), ...(ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {}), ...(ctx.events ? { events: ctx.events } : {}), ...(ctx.display?.snapshot ? { display: { snapshot: ctx.display.snapshot.bind(ctx.display) } } : {}), ...(ctx.prefs ? { prefs: ctx.prefs } : {}), ...(ctx.settings ? { settings: ctx.settings } : {}) }));
     /* The window frames around the cards take the same paint as the cards. */
-    displayCleanups.push(installChromePaint(ctx.display as ChromeDisplay | undefined, flags, THEMES[validateSettings(ctx.prefs?.get()).theme]!, ctx.log));
-    displayCleanups.push(installItems(ctx as unknown as ItemsContext));
-    displayCleanups.push(installStores(ctx as unknown as StoreContext));
+    displayCleanups.push(installChromePaint(ctx.display, flags, THEMES[validateSettings(ctx.prefs?.get()).theme]!, ctx.log));
+    const liveCore = ctx.core, liveState = ctx.state;
+    const itemContext: ItemsContext = { flags, log: ctx.log,
+      ...(ctx.snapshot ? { snapshot: ctx.snapshot } : {}), ...(ctx.inspect ? { inspect: ctx.inspect } : {}),
+      ...(ctx.intent ? { intent: ctx.intent } : {}), ...(ctx.prompt ? { prompt: ctx.prompt } : {}),
+      ...(ctx.ui ? { ui: ctx.ui } : {}), ...(ctx.prefs ? { prefs: ctx.prefs } : {}),
+      ...(liveCore && liveState ? { state: liveState, core: { createAgentView: () => liveCore.createAgentView(liveState), createAgentActions: () => liveCore.createAgentActions(liveState) } } : {}) };
+    displayCleanups.push(installItems(itemContext));
+    displayCleanups.push(installStores({ ...itemContext, ...(ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {}), ...(ctx.driver ? { driver: ctx.driver } : {}) }));
     if (flags["anybandui.highContrast"] || flags["anybandui.colourblind"] || flags["anybandui.crt"]) {
       installAccessibilityAccommodations({ flags, ...(ctx.display ? { display: ctx.display } : {}), log: ctx.log });
     }
@@ -163,7 +143,13 @@ export default {
       ...(ctx.prompt ? { prompt: ctx.prompt } : {}),
       ...(ctx.inspect ? { inspect: ctx.inspect } : {}),
       ...(ctx.prefs ? { prefs: ctx.prefs } : {}), log: ctx.log }));
-    displayCleanups.push(installPhase4(ctx as unknown as Phase4Context));
+    displayCleanups.push(installPhase4({ flags, log: ctx.log,
+      ...(ctx.snapshot ? { snapshot: ctx.snapshot } : {}), ...(ctx.intent ? { intent: ctx.intent } : {}),
+      ...(ctx.prompt ? { prompt: ctx.prompt } : {}), ...(ctx.inspect ? { inspect: ctx.inspect } : {}),
+      ...(ctx.ui ? { ui: ctx.ui } : {}), ...(ctx.prefs ? { prefs: ctx.prefs } : {}),
+      ...(ctx.display?.snapshot ? { display: { snapshot: ctx.display.snapshot.bind(ctx.display) } } : {}),
+      ...(ctx.driver ? { driver: ctx.driver } : {}), ...(ctx.character ? { character: ctx.character } : {}),
+      ...(ctx.state ? { state: ctx.state } : {}) }));
     /* The live state is available at register time. See first-encounter.ts
      * for why sightings are polled and stored in prefs by character. */
     if (flags["anybandui.firstEncounter"]) {

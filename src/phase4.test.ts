@@ -7,6 +7,9 @@ import { blastGrids } from "./blast-preview.js";
 import { adoptLineage, characterFor, restingText } from "./phase4.js";
 
 const token = { epoch: 2, revision: 4 };
+const targetPrompt = (cursor = { x: 9, y: 4 }): NonNullable<Phase4Snapshot["prompt"]> => ({ kind: "target", promptId: 3, label: "Target", mode: "free", cursor, candidates: [], path: [] });
+const directionPrompt = (): NonNullable<Phase4Snapshot["prompt"]> => ({ kind: "direction", promptId: 4, label: "Direction", targetAllowed: true });
+const itemPrompt = (): NonNullable<Phase4Snapshot["prompt"]> => ({ kind: "item", promptId: 5, label: "Item", choices: [], tabs: { floor: false, quiver: false, equipment: false } });
 const item = (handle: number, label: string, number: number, kindId: string, tval: number, sval: number) => ({ handle, kindKey: `kind:${kindId}`, nameColor: "white", label, number, inscription: null, kindId, tval, sval, pval: 0, weight: 0, ac: 0, toA: 0, toH: 0, toD: 0, dd: 0, ds: 0, artifact: false, ego: false, flags: [] as string[], modifiers: [] as { code: string; value: number }[], brands: [] as string[], slays: [] as string[], resists: [] as { element: string; level: number }[], curses: [] as string[], egoName: null, artifactName: null, activation: false, timeout: 0 });
 const bookItem = item(7, "Book of Magic", 1, "book:magic", 90, 0);
 const potion = item(11, "Potion of Healing", 2, "potion:healing", 75, 1);
@@ -54,7 +57,7 @@ describe("phase 4 spells and quickbar", () => {
   it("owns each number key only during ordinary play across other enabled flags", () => { const flags = { "anybandui.quickbar": true, "anybandui.clickToWalk": true, "anybandui.dungeonActions": true, "anybandui.aimPath": true, "anybandui.itemsChoice": true, "anybandui.zoom": true };
     expect(quickbarOwnsKey(flags["anybandui.quickbar"], snap(), "Digit1", false, false, false)).toBe(true);
     expect(quickbarOwnsKey(false, snap(), "Digit1", false, false, false)).toBe(false);
-    expect(quickbarOwnsKey(true, { ...snap(), prompt: { kind: "item", promptId: 5 } }, "Digit1", false, false, false)).toBe(false);
+    expect(quickbarOwnsKey(true, { ...snap(), prompt: itemPrompt() }, "Digit1", false, false, false)).toBe(false);
     expect(quickbarOwnsKey(true, snap(), "Digit1", false, false, true)).toBe(false);
     expect(quickbarOwnsKey(true, snap(), "Numpad1", false, false, false)).toBe(false); });
   it("resolves an item after its handle changes and submits its current handle", () => { const ctx = context(); const binding = itemBindings(snap(), ctx).find((b) => b.code === "quaff")!;
@@ -67,7 +70,7 @@ describe("phase 4 spells and quickbar", () => {
     const written = prefs.set.mock.calls[0]?.[0] as Record<string, unknown>; expect(written.theme).toBe("dark-graphite"); expect(readSlots(written, "B")[0]).toEqual(slots[0]); expect(readSlots(written, "A")[0]).toBeNull(); });
   it("resolves the rest command binding", () => { const ctx = context(); const binding = { type: "command" as const, code: "rest" as const, name: "Rest" }; expect(activate(ctx, snap(), binding)).toBe(true); expect(ctx.intent.submit).toHaveBeenCalledWith(token, { kind: "command", command: { code: "rest", args: { count: -2 } } }); });
   it("leaves other phase controls untouched during prompts and blocked phases", () => { const ctx = context();
-    for (const prompt of [null, { kind: "item", promptId: 5 }]) { const current = { ...snap(), prompt, phase: prompt ? "modal" as const : "store" as const }; expect(actionReady({ ...ctx, snapshot: () => current }, current)).toBe(false); }
+    for (const prompt of [null, itemPrompt()]) { const current = { ...snap(), prompt, phase: prompt ? "modal" as const : "store" as const }; expect(actionReady({ ...ctx, snapshot: () => current }, current)).toBe(false); }
     expect(actionReady({ ...ctx, snapshot: () => ({ ...snap(), messagePending: true }) }, snap())).toBe(false); });
 });
 
@@ -138,16 +141,12 @@ describe("adopted core seams: rest", () => {
     expect(quickbarOwnsKey(true, { ...snap(), prompt: restQuestion }, "Digit5", false, false, false)).toBe(false);
   });
   it("stops a rest from the rest modal with the token current at the click", () => {
-    const resting: Phase4Snapshot = { ...snap(), phase: "modal", token: { epoch: 2, revision: 9 }, resting: { active: true, mode: 30, turnsRemaining: 12 } };
+    const resting: Phase4Snapshot = { ...snap(), phase: "modal", token: { epoch: 2, revision: 9 }, resting: { active: true, mode: "turns", turnsRequested: 30, turnsRemaining: 12, turnsRested: 18 } };
     const ctx = context(() => resting);
     expect(stopResting(ctx)).toBe(true); expect(ctx.intent.submit).toHaveBeenCalledWith({ epoch: 2, revision: 9 }, { kind: "stop-resting" });
     expect(stopResting(context())).toBe(false);
     const driven = { ...ctx, driver: () => ({ kind: "controller" as const, owner: "core:borg" }) };
     expect(stopResting(driven)).toBe(false);
-  });
-  it("describes each rest mode and the turns left", () => {
-    expect([{ active: true, mode: 30, turnsRemaining: 12 }, { active: true, mode: 1, turnsRemaining: 1 }, { active: true, mode: -2, turnsRemaining: null }, { active: true, mode: -1, turnsRemaining: null }, { active: true, mode: -3, turnsRemaining: null }].map(restingText))
-      .toEqual(["Resting: 12 turns left.", "Resting: 1 turn left.", "Resting until fully recovered.", "Resting until hit points and mana are full.", "Resting until hit points or mana are full."]);
   });
   it("describes the named rest modes and a timed rest with both counts", () => {
     expect([
@@ -181,18 +180,18 @@ describe("adopted core seams: blast preview", () => {
   const ball = { token, radius: 2, element: "FIRE", wallsStop: true };
   const breath = { token, radius: 2, arc: 60, element: "FIRE", wallsStop: true };
   it("draws the game's blast area at the target cursor with the pending radius", () => {
-    const aiming: Phase4Snapshot = { ...snap(), phase: "modal", activeBlast: ball, prompt: { kind: "target", promptId: 3, cursor: { x: 9, y: 4 } } };
+    const aiming: Phase4Snapshot = { ...snap(), phase: "modal", activeBlast: ball, prompt: targetPrompt() };
     const result = blastGrids({ ...context(), inspect: { blastArea: area } }, aiming, { x: 1, y: 1 });
     // A ball carries no arc; the third argument is undefined for the older engine and a numeric breath for the newer one.
     expect(area).toHaveBeenLastCalledWith({ x: 9, y: 4 }, 2, undefined); expect(result).toEqual({ grids: [{ x: 9, y: 4 }, { x: 11, y: 4 }], element: "FIRE" });
   });
   it("forwards a breath's arc to the blast area preview", () => {
-    const aiming: Phase4Snapshot = { ...snap(), phase: "modal", activeBlast: breath, prompt: { kind: "target", promptId: 3, cursor: { x: 9, y: 4 } } };
+    const aiming: Phase4Snapshot = { ...snap(), phase: "modal", activeBlast: breath, prompt: targetPrompt() };
     blastGrids({ ...context(), inspect: { blastArea: area } }, aiming, { x: 1, y: 1 });
     expect(area).toHaveBeenLastCalledWith({ x: 9, y: 4 }, 2, 60);
   });
   it("uses the hovered grid for a direction question and draws nothing without a pending blast", () => {
-    const direction: Phase4Snapshot = { ...snap(), phase: "modal", activeBlast: ball, prompt: { kind: "direction", promptId: 4 } };
+    const direction: Phase4Snapshot = { ...snap(), phase: "modal", activeBlast: ball, prompt: directionPrompt() };
     const ctx = { ...context(), inspect: { blastArea: area } };
     expect(blastGrids(ctx, direction, { x: 5, y: 6 })?.grids[0]).toEqual({ x: 5, y: 6 });
     expect(blastGrids(ctx, direction, null)).toBeNull();
@@ -207,14 +206,14 @@ describe("adopted core seams: quickbar commands and identity", () => {
     const base = { walk: null, hold: null, descend: null, look: null, rest: null, quaff: null, "shop-exit": null, "mymod-dance": null } as Record<string, string | null>;
     for (const [code, value] of Object.entries(overrides)) base[code] = value.verb ?? null;
     return { token, intents: [{ kind: "stop-resting", args: "none" }], commands: [
-      { code: "walk", verb: base.walk, phase: "play", args: "dir: 1..9" },
-      { code: "hold", verb: base.hold, phase: "play", args: "args?: plain object" },
-      { code: "descend", verb: base.descend, phase: "play", args: "args?: plain object" },
-      { code: "look", verb: base.look, phase: "play", args: "args?: {x: integer, y: integer}" },
-      { code: "rest", verb: base.rest, phase: "play", args: "args?: {count: integer}" },
-      { code: "quaff", verb: base.quaff, phase: "play", args: "args: {handle: integer, quantity?: positive integer}" },
-      { code: "shop-exit", verb: base["shop-exit"], phase: "store", args: "args?: plain object" },
-      { code: "mymod-dance", verb: base["mymod-dance"], phase: "play", args: "args?: plain object" },
+      { code: "walk", verb: base.walk ?? null, phase: "play", args: "dir: 1..9" },
+      { code: "hold", verb: base.hold ?? null, phase: "play", args: "args?: plain object" },
+      { code: "descend", verb: base.descend ?? null, phase: "play", args: "args?: plain object" },
+      { code: "look", verb: base.look ?? null, phase: "play", args: "args?: {x: integer, y: integer}" },
+      { code: "rest", verb: base.rest ?? null, phase: "play", args: "args?: {count: integer}" },
+      { code: "quaff", verb: base.quaff ?? null, phase: "play", args: "args: {handle: integer, quantity?: positive integer}" },
+      { code: "shop-exit", verb: base["shop-exit"] ?? null, phase: "store", args: "args?: plain object" },
+      { code: "mymod-dance", verb: base["mymod-dance"] ?? null, phase: "play", args: "args?: plain object" },
     ] };
   };
   it("offers argument-free play commands by a readable name and never a raw code", () => {

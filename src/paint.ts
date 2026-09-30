@@ -9,6 +9,7 @@
  * frame and the game's own subwindows read as one program.
  */
 import { BITMAP_FALLBACK_STACK } from "./bitmap-text.js";
+import type { ChromeThemeRequest, ModDisplay } from "@rpgm-tools/neo-angband-core";
 import type { ThemeTokens } from "./theme.js";
 
 /** The host ships Angband's 8x13 dialog font under this family name. An engine
@@ -112,15 +113,6 @@ export const PAINT_CSS = [
 ].join("\n");
 
 /** The host's window chrome, repainted to match the cards. */
-export interface ChromeThemeRequest {
-  readonly font: string; readonly fontSize: number;
-  readonly page: string; readonly titleBackground: string;
-  readonly text: string; readonly textStrong: string; readonly muted: string;
-  readonly border: string; readonly divider: string; readonly dividerHover: string;
-  readonly accent: string; readonly floatBorder: string;
-  readonly radius: number; readonly shadow: boolean;
-}
-
 export function chromeThemeFor(theme: Readonly<ThemeTokens>): ChromeThemeRequest {
   const c = paintColours(theme);
   return {
@@ -140,7 +132,7 @@ export const PAINTED_FEATURES = [
   "anybandui.spells", "anybandui.quickbar", "anybandui.restDialog", "anybandui.storeWindow",
 ] as const;
 
-export interface ChromeDisplay { setChromeTheme?(theme: ChromeThemeRequest | null): void }
+export type ChromeDisplay = Pick<ModDisplay, "setChromeTheme">;
 
 /** Repaint the chrome while any card is on, and give the game its own look back
  * on teardown. An engine without the seam keeps its chrome, and says so once. */

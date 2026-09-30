@@ -38,7 +38,7 @@
  */
 
 import { bitmapTextBlock, paintBitmapButtonLabel, wrapBitmapText } from "./bitmap-text.js";
-import type { GameState } from "@rpgm-tools/neo-angband-core";
+import type { GameState, ModPanel, ModPluginContext, ModUi } from "@rpgm-tools/neo-angband-core";
 import { applyTheme, THEMES, type ThemeTokens } from "./theme.js";
 import {
   readFirstEncounterPreference,
@@ -53,7 +53,8 @@ export interface MonsterRaceLike {
   readonly level: number;
   readonly dChar: string;
   readonly dAttr: number;
-  readonly unique: boolean;
+  readonly unique?: boolean;
+  readonly maxNum?: number;
 }
 
 /** The shape of an artifact this feature needs, already resolved to plain data. */
@@ -76,7 +77,7 @@ const DEADLY_OUT_OF_DEPTH_LEVELS = 5;
 
 /** A unique is always notable regardless of depth; otherwise compare native level to here. */
 export function classifyMonsterThreat(race: MonsterRaceLike, currentDepth: number): ThreatTier {
-  if (race.unique) return "unique";
+  if (race.unique ?? (race.maxNum === 1)) return "unique";
   const over = race.level - currentDepth;
   if (over >= DEADLY_OUT_OF_DEPTH_LEVELS) return "deadly";
   if (over >= 1) return "outOfDepth";
@@ -265,27 +266,14 @@ export function artifactCardContent(
 /* Live wiring: the poll, the notebook, and the non-modal card itself. */
 /* ------------------------------------------------------------------ */
 
-interface PanelLike {
-  readonly root: ShadowRoot;
-  readonly closed: Promise<void>;
-  close(): void;
-}
+type PanelLike = Pick<ModPanel, "root" | "closed" | "close">;
+type UiLike = { openPanel(spec: Parameters<ModUi["openPanel"]>[0]): PanelLike };
+type PrefsLike = Pick<ModPluginContext["prefs"], "get" | "set">;
 
-interface UiLike {
-  openPanel(spec: { id: string; modal: boolean; label: string }): PanelLike;
-}
-
-interface PrefsLike {
-  get(): unknown;
-  set(value: unknown): void;
-}
-
-interface CoreLike {
+type CoreLike = Pick<ModPluginContext["core"], "fmtDepth" | "colorToCss"> & {
   monsterListCollect(state: unknown): { entries: readonly { race: MonsterRaceLike }[] };
   liveObjectIsKnownArtifact(obj: GameObjectLike): boolean;
-  fmtDepth(depth: number): string;
-  colorToCss(attr: number): string;
-}
+};
 
 type PlayerLike = Pick<GameState["actor"]["player"], "auBirth" | "htBirth" | "wtBirth"> & {
   readonly race: Pick<GameState["actor"]["player"]["race"], "name">;

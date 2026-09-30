@@ -14,7 +14,7 @@ const rules: ItemRulesResult = {
   ],
   egos: [{ eidx: 1, name: "of Slay Animal", itype: 1, ignored: true }, { eidx: 2, name: "of Westernesse", itype: 1, ignored: false }],
 };
-const catalogue = (kinds: string[]) => () => ({ token, intents: kinds.map((kind) => ({ kind, args: "" })) });
+const catalogue = (kinds: string[]) => () => ({ token, commands: [], intents: kinds.map((kind) => ({ kind, args: "" })) });
 
 describe("item rule lines", () => {
   it("lists only the rules the player has set", () => {

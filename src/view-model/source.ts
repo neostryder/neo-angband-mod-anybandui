@@ -1,14 +1,11 @@
-import type { AgentView, GameState } from "@rpgm-tools/neo-angband-core";
+import type { GameState, InputSnapshot, ModPluginContext } from "@rpgm-tools/neo-angband-core";
 import type { HudFrame, HudOwnership } from "@rpgm-tools/neo-angband-mod-sdk";
 import { adapt } from "./adapter.js";
 import type { ViewModel } from "./protocol.js";
 import type { MessageSeams, MessageSnapshot } from "../seams.js";
 import { playerIsDriving } from "../input-owner.js";
 
-interface SourceCtx extends MessageSeams {
-  readonly state?: GameState;
-  readonly core: { readonly createAgentView: (state: GameState) => AgentView };
-}
+type SourceCtx = MessageSeams & Pick<ModPluginContext, "state"> & { readonly core: Pick<ModPluginContext["core"], "createAgentView"> };
 
 /** The core message log's read side, newest at age 0 (GameState.messages). */
 type CoreLog = Pick<NonNullable<GameState["messages"]>, "num" | "str" | "count" | "type">;
@@ -16,7 +13,7 @@ type CoreLog = Pick<NonNullable<GameState["messages"]>, "num" | "str" | "count" 
  * InputSnapshot.messages.log). Each entry carries its repeat count and the
  * colour the engine drew it in, so the source no longer has to match against
  * the core log to recover a count or guess a category. */
-interface SnapshotLogEntry { readonly text: string; readonly count: number; readonly color?: string }
+type SnapshotLogEntry = NonNullable<InputSnapshot["messages"]>["log"][number];
 export interface HistoryEntry { readonly text: string; readonly count: number | undefined; readonly category: number | undefined; readonly color: string | undefined }
 
 /* How far ahead in the core log a snapshot entry is looked for. The host's

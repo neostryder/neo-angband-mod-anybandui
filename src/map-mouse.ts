@@ -142,8 +142,8 @@ export function finishPickup(ctx: MouseSeams, at: Grid, previous: InputSnapshot)
 
 export function aimingPath(ctx: MouseSeams, snap: InputSnapshot | null, hovered?: Grid | null): readonly Grid[] {
   if (snap?.prompt?.kind !== "target" && snap?.prompt?.kind !== "direction") return [];
-  if (snap.prompt.path) return snap.prompt.path;
-  const cursor = snap.prompt.cursor ?? hovered;
+  if (snap.prompt.kind === "target") return snap.prompt.path;
+  const cursor = hovered;
   const path = cursor ? ctx.inspect?.projectionPath?.(cursor) : null;
   return path && sameToken(path.token, snap.token) ? path.grids : [];
 }

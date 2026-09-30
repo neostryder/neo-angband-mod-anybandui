@@ -50,8 +50,7 @@ export function adoptLineage(ctx: Phase4Context, snap: Phase4Snapshot | null | u
 /** The quickbar's readable name for a command binding in the Assign menu. */
 const assignLabel = (binding: Binding): string => binding.type === "command" ? binding.name : binding.type === "spell" ? `Cast: ${binding.name}` :
   `${binding.code === "quaff" ? "Drink" : binding.code === "read" ? "Read" : binding.code === "aim-wand" ? "Aim" : "Activate"}: ${binding.name}`;
-/** What the resting indicator says for the game's rest count or special mode.
- * An older engine still sends a number in `mode`; a newer engine sends a name. */
+/** What the resting indicator says for the game's rest count or special mode. */
 export function restingText(resting: NonNullable<Phase4Snapshot["resting"]>): string {
   if (typeof resting.mode === "string") {
     if (resting.mode === "turns") {
@@ -64,9 +63,7 @@ export function restingText(resting: NonNullable<Phase4Snapshot["resting"]>): st
     if (resting.mode === "all-points") return "Resting until hit points and mana are full.";
     if (resting.mode === "some-points") return "Resting until hit points or mana are full.";
   }
-  if (resting.turnsRemaining !== null && resting.turnsRemaining > 0) return `Resting: ${resting.turnsRemaining} ${resting.turnsRemaining === 1 ? "turn" : "turns"} left.`;
-  return resting.mode === -2 ? "Resting until fully recovered." : resting.mode === -1 ? "Resting until hit points and mana are full." :
-    resting.mode === -3 ? "Resting until hit points or mana are full." : "Resting.";
+  return "Resting.";
 }
 
 export function installPhase4(ctx: Phase4Context): () => void {

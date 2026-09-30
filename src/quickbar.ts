@@ -22,7 +22,7 @@ const verbLabel = (verb: string): string => verb.charAt(0).toUpperCase() + verb.
 /** The argument-free play commands the engine's catalogue offers, by name.
  * Rest keeps its own binding with a duration, and cast needs a spell. */
 export function catalogueCommands(ctx: Phase4Context): Extract<Binding, { type: "command" }>[] {
-  let catalogue: ReturnType<NonNullable<NonNullable<Phase4Context["intent"]>["catalogue"]>> = null;
+  let catalogue: ReturnType<NonNullable<NonNullable<Phase4Context["intent"]>["catalogue"]>> | null = null;
   try { catalogue = ctx.intent?.catalogue?.() ?? null; } catch { catalogue = null; }
   return (catalogue?.commands ?? []).filter((entry) => entry.phase === "play" && entry.args.startsWith("args?") && entry.code !== "rest")
     .flatMap((entry) => {

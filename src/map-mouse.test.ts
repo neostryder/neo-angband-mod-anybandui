@@ -3,6 +3,8 @@ import { aimingPath, clickIntent, clickTile, finishPickup, runMenuAction, tileMe
 import type { InputSnapshot, KnownLevel, MouseSeams, PlayerIntent } from "./seams.js";
 
 const token = (revision: number) => ({ epoch: 1, revision });
+const targetPrompt = (cursor = { x: 8, y: 8 }, path: readonly { x: number; y: number }[] = []): NonNullable<InputSnapshot["prompt"]> => ({ kind: "target", promptId: 7, label: "Target", mode: "free", cursor, candidates: [], path });
+const directionPrompt = (): NonNullable<InputSnapshot["prompt"]> => ({ kind: "direction", promptId: 3, label: "Direction", targetAllowed: true });
 const snap = (revision = 1, grid = { x: 5, y: 5 }): InputSnapshot => ({
   token: token(revision), phase: "play", messagePending: false, prompt: null, core: { player: { grid } },
 });
@@ -48,14 +50,14 @@ describe("map mouse intents", () => {
 
   it("moves a target prompt through its typed reply", () => {
     const reply = vi.fn(() => ({ accepted: true }));
-    const ctx = { driver: () => ({ kind: "player" as const }), snapshot: () => ({ ...snap(), prompt: { kind: "target", promptId: 7 } }), prompt: { reply } };
+    const ctx = { driver: () => ({ kind: "player" as const }), snapshot: () => ({ ...snap(), prompt: targetPrompt() }), prompt: { reply } };
     expect(clickTile(ctx, { x: 8, y: 8 })).toBe(true);
     expect(reply).toHaveBeenCalledWith(7, { action: "move", x: 8, y: 8 });
   });
 
   it("offers target prompt selection and cancellation", () => {
     const reply = vi.fn(() => ({ accepted: true }));
-    const active = { ...snap(), prompt: { kind: "target", promptId: 7, cursor: { x: 8, y: 8 } } };
+    const active = { ...snap(), prompt: targetPrompt() };
     const ctx = { driver: () => ({ kind: "player" as const }), snapshot: () => active, prompt: { reply } };
     expect(tileMenuActions(ctx, active, { x: 8, y: 8 }).map((a) => a.label)).toEqual(["Select tile", "Cancel"]);
     expect(runMenuAction(ctx, { x: 8, y: 8 }, "Cancel")).toBe(true);
@@ -110,11 +112,11 @@ describe("map mouse intents", () => {
   });
 
   it("uses prompt projection grids or an inspected path with the same token", () => {
-    const prompt = { kind: "target", promptId: 3, cursor: { x: 8, y: 8 }, path: [{ x: 6, y: 6 }] };
+    const prompt = targetPrompt({ x: 8, y: 8 }, [{ x: 6, y: 6 }]);
     expect(aimingPath({}, { ...snap(), prompt })).toEqual([{ x: 6, y: 6 }]);
     const inspected: MouseSeams = { inspect: { projectionPath: () => ({ token: token(1), grids: [{ x: 7, y: 7 }] }) } };
-    expect(aimingPath(inspected, { ...snap(), prompt: { kind: "target", promptId: 3, cursor: { x: 8, y: 8 } } })).toEqual([{ x: 7, y: 7 }]);
-    expect(aimingPath(inspected, { ...snap(), prompt: { kind: "direction", promptId: 3 } }, { x: 8, y: 8 })).toEqual([{ x: 7, y: 7 }]);
+    expect(aimingPath(inspected, { ...snap(), prompt: targetPrompt() })).toEqual([]);
+    expect(aimingPath(inspected, { ...snap(), prompt: directionPrompt() }, { x: 8, y: 8 })).toEqual([{ x: 7, y: 7 }]);
     expect(aimingPath(inspected, snap())).toEqual([]);
   });
 
@@ -151,7 +153,7 @@ describe("map mouse intents", () => {
 
   it("falls back to a plain click only on an engine without travel modifiers", () => {
     const seen: PlayerIntent[] = [];
-    const engine = (reason: string, code?: string): MouseSeams => ({
+    const engine = (reason: string, code?: "controller-owned"): MouseSeams => ({
       snapshot: () => snap(),
       intent: { submit(_wait, intent) { seen.push(intent); return intent.kind === "travel" && intent.modifiers ? { accepted: false, reason, ...(code ? { code } : {}) } : { accepted: true }; } },
     });
@@ -185,7 +187,7 @@ describe("map mouse intents", () => {
   it("lets an open target prompt own a modified click", () => {
     const reply = vi.fn(() => ({ accepted: true }));
     const submit = vi.fn(() => ({ accepted: true }));
-    const ctx: MouseSeams = { snapshot: () => ({ ...snap(), prompt: { kind: "target", promptId: 4 } }), prompt: { reply }, intent: { submit } };
+    const ctx: MouseSeams = { snapshot: () => ({ ...snap(), prompt: { ...targetPrompt(), promptId: 4 } }), prompt: { reply }, intent: { submit } };
     expect(clickTile(ctx, { x: 6, y: 5 }, { shift: true })).toBe(true);
     expect(reply).toHaveBeenCalledWith(4, { action: "move", x: 6, y: 5 });
     expect(submit).not.toHaveBeenCalled();

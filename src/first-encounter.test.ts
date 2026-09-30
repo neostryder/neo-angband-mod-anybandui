@@ -33,6 +33,7 @@ function artifact(overrides: Partial<ArtifactLike> = {}): ArtifactLike {
 describe("classifyMonsterThreat", () => {
   it("marks a unique as unique regardless of depth", () => {
     expect(classifyMonsterThreat(race({ unique: true, level: 2 }), 40)).toBe("unique");
+    expect(classifyMonsterThreat({ ridx: 1, name: "Unique", level: 2, dChar: "U", dAttr: 4, maxNum: 1 }, 40)).toBe("unique");
   });
 
   it("marks a non-unique well below the surface as deadly", () => {
