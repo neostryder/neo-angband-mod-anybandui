@@ -7,12 +7,14 @@ import { blastGrids } from "./blast-preview.js";
 import { adoptLineage, characterFor, restingText } from "./phase4.js";
 
 const token = { epoch: 2, revision: 4 };
-const bookItem = { handle: 7, label: "Book of Magic", number: 1, inscription: null, kindId: "book:magic", tval: 90, sval: 0, artifact: false, ego: false };
-const potion = { handle: 11, label: "Potion of Healing", number: 2, inscription: null, kindId: "potion:healing", tval: 75, sval: 1, artifact: false, ego: false };
+const item = (handle: number, label: string, number: number, kindId: string, tval: number, sval: number) => ({ handle, kindKey: `kind:${kindId}`, nameColor: "white", label, number, inscription: null, kindId, tval, sval, pval: 0, weight: 0, ac: 0, toA: 0, toH: 0, toD: 0, dd: 0, ds: 0, artifact: false, ego: false, flags: [] as string[], modifiers: [] as { code: string; value: number }[], brands: [] as string[], slays: [] as string[], resists: [] as { element: string; level: number }[], curses: [] as string[], egoName: null, artifactName: null, activation: false, timeout: 0 });
+const bookItem = item(7, "Book of Magic", 1, "book:magic", 90, 0);
+const potion = item(11, "Potion of Healing", 2, "potion:healing", 75, 1);
 const snap = (): Phase4Snapshot => ({ token, phase: "play", messagePending: false, prompt: null, core: {
   player: { grid: { x: 2, y: 3 }, level: 10, sp: 15, classFlags: ["CHOOSE_SPELLS"] }, inventory: [bookItem, potion], equipment: [],
-  spellbooks: [{ name: "Magic", tval: 90, realm: "arcane", spells: [{ name: "Magic Missile", sidx: 3, bidx: 0, level: 1, mana: 2, fail: 20, learned: true, worked: true, forgotten: false }, { name: "Light", sidx: 4, bidx: 0, level: 2, mana: 3, fail: 25, learned: false, worked: false, forgotten: false }] }],
+  spellbooks: [{ name: "Magic", tval: 90, realm: "arcane", spells: [{ name: "Magic Missile", sidx: 3, bidx: 0, level: 1, mana: 2, fail: 20, learned: true, worked: true, forgotten: false, studyEligible: false, infoLine: "" }, { name: "Light", sidx: 4, bidx: 0, level: 2, mana: 3, fail: 25, learned: false, worked: false, forgotten: false, studyEligible: true, infoLine: "" }] }],
 } });
+const withSpellSlots = (): Phase4Snapshot => { const source = snap(); return { ...source, core: { ...source.core, player: { ...source.core.player!, learnableSpells: 2 } } }; };
 const context = (snapshot = snap): Phase4Context & { intent: NonNullable<Phase4Context["intent"]> } => ({ snapshot, driver: () => ({ kind: "player" }), intent: { submit: vi.fn(() => ({ accepted: true })) },
   inspect: { spellInfo: (index) => ({ token, name: index === 3 ? "Magic Missile" : "Light", description: "A simple spell.", level: 1, mana: 2, failChance: 12, canCastNow: index === 3 }),
     itemTester: (code) => ({ token, items: code === "quaff" ? [{ handle: 11 }] : [] }) }, log: vi.fn() });
@@ -24,10 +26,10 @@ describe("phase 4 spells and quickbar", () => {
     const ambiguous: Phase4Snapshot = { ...source, core: { ...source.core, spellbooks: [...source.core.spellbooks!, extra] } };
     expect(adaptSpells(ambiguous, context().inspect)?.books).toHaveLength(0);
     expect(adaptSpells(ambiguous, { ...context().inspect, bookForItem: () => ({ token, bookIndex: 0, spells: [3, 4] }) })?.books.map((b) => b.spells.map((s) => s.index))).toEqual([[3, 4]]); });
-  it("submits cast and study using current tokens; random study omits the spell", () => { const ctx = context(); const book = adaptSpells(snap(), ctx.inspect)!.books[0]!;
-    expect(castSpell(ctx, snap(), book.spells[0]!)).toBe(true); expect(ctx.intent.submit).toHaveBeenCalledWith(token, { kind: "command", command: { code: "cast", args: { spell: 3 } } });
-    expect(studySpell(ctx, snap(), book, book.spells[1]!)).toBe(true); expect(ctx.intent.submit).toHaveBeenCalledWith(token, { kind: "command", command: { code: "study", args: { handle: 7, spell: 4 } } });
-    expect(studySpell(ctx, snap(), { ...book, chooseSpells: false }, book.spells[0]!)).toBe(true); expect(ctx.intent.submit).toHaveBeenCalledWith(token, { kind: "command", command: { code: "study", args: { handle: 7 } } });
+  it("submits cast and study using current tokens; random study omits the spell", () => { const ctx = context(); const current = withSpellSlots(); const book = adaptSpells(current, ctx.inspect)!.books[0]!;
+    expect(castSpell(ctx, current, book.spells[0]!)).toBe(true); expect(ctx.intent.submit).toHaveBeenCalledWith(token, { kind: "command", command: { code: "cast", args: { spell: 3 } } });
+    expect(studySpell(ctx, current, book, book.spells[1]!)).toBe(true); expect(ctx.intent.submit).toHaveBeenCalledWith(token, { kind: "command", command: { code: "study", args: { handle: 7, spell: 4 } } });
+    expect(studySpell(ctx, current, { ...book, chooseSpells: false }, book.spells[0]!)).toBe(true); expect(ctx.intent.submit).toHaveBeenCalledWith(token, { kind: "command", command: { code: "study", args: { handle: 7 } } });
     expect(castSpell(ctx, { ...snap(), token: { epoch: 2, revision: 3 } }, book.spells[0]!)).toBe(false); });
   it("answers only the live spell prompt", () => { const prompt: SpellPrompt = { kind: "spell", promptId: 14, label: "Choose a spell", choices: [{ index: 3, name: "Magic Missile", level: 1, mana: 2, fail: 12, castable: true }] };
     const current = { ...snap(), prompt }; const reply = vi.fn(() => ({ accepted: true })); const ctx = { ...context(() => current), prompt: { reply } };
@@ -82,7 +84,7 @@ describe("quickbar character identity", () => {
 });
 
 describe("adopted core seams: spells", () => {
-  const twoBooks = (): Phase4Snapshot => { const source = snap(); const advanced = { handle: 8, label: "Conjurings and Tricks", number: 1, inscription: null, kindId: "book:conjurings", tval: 90, sval: 1, artifact: false, ego: false };
+  const twoBooks = (): Phase4Snapshot => { const source = snap(); const advanced = item(8, "Conjurings and Tricks", 1, "book:conjurings", 90, 1);
     return { ...source, core: { ...source.core, inventory: [bookItem, advanced, potion],
       player: { ...source.core.player!, learnableSpells: 2 },
       spellbooks: [{ ...source.core.spellbooks![0]!, spells: source.core.spellbooks![0]!.spells.map((s) => ({ ...s, studyEligible: !s.learned, infoLine: s.learned ? " dam 3d4" : "" })) },
@@ -175,7 +177,7 @@ describe("adopted core seams: rest", () => {
 });
 
 describe("adopted core seams: blast preview", () => {
-  const area = vi.fn((to: { x: number; y: number }, radius: number) => ({ token, grids: [to, { x: to.x + radius, y: to.y }], radius, element: "FIRE", wallsStop: true }));
+  const area = vi.fn((to: { x: number; y: number }, radius: number) => ({ token, grids: [to, { x: to.x + radius, y: to.y }], radius, arc: null, element: "FIRE", wallsStop: true }));
   const ball = { token, radius: 2, element: "FIRE", wallsStop: true };
   const breath = { token, radius: 2, arc: 60, element: "FIRE", wallsStop: true };
   it("draws the game's blast area at the target cursor with the pending radius", () => {

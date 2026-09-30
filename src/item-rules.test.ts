@@ -5,7 +5,7 @@ import type { InputToken, ItemIntentResult, ItemRulesResult } from "./seams.js";
 const token = { epoch: 1, revision: 1 };
 const rules: ItemRulesResult = {
   token,
-  quality: [{ itype: 1, name: "Sharp Melee Weapons", threshold: 2, thresholdName: "average" }, { itype: 24, name: "Rings", threshold: 0, thresholdName: "no ignore" }],
+  quality: [{ itype: 1, name: "Sharp Melee Weapons", threshold: 2, thresholdName: "average", levels: ["none", "bad", "average", "good"] }, { itype: 24, name: "Rings", threshold: 0, thresholdName: "no ignore", levels: ["no ignore"] }],
   kinds: [
     { kidx: 1, name: "Potion of Salt Water", ignoreAware: true, ignoreUnaware: false, noteAware: null, noteUnaware: null },
     { kidx: 2, name: "Flask of Oil", ignoreAware: false, ignoreUnaware: false, noteAware: "@v1", noteUnaware: null },
@@ -20,7 +20,7 @@ describe("item rule lines", () => {
   it("lists only the rules the player has set", () => {
     expect(itemRuleLines({
       token,
-      quality: [{ itype: 1, name: "Swords", threshold: 2, thresholdName: "average" }, { itype: 2, name: "Bows", threshold: 0, thresholdName: "no ignore" }],
+      quality: [{ itype: 1, name: "Swords", threshold: 2, thresholdName: "average", levels: ["bad", "average"] }, { itype: 2, name: "Bows", threshold: 0, thresholdName: "no ignore", levels: ["no ignore"] }],
       kinds: [
         { kidx: 1, name: "Potion of Salt Water", ignoreAware: true, ignoreUnaware: false, noteAware: null, noteUnaware: null },
         { kidx: 2, name: "Flask of Oil", ignoreAware: false, ignoreUnaware: false, noteAware: "@v1", noteUnaware: null },

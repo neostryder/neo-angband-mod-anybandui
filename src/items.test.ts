@@ -6,13 +6,15 @@ import { inspectionBlocks } from "./item-inspection.js";
 import { slotOptionLabel } from "./panels/item-comparison.js";
 
 const token = { epoch: 1, revision: 3 };
-const item = (handle: number, number = 1) => ({ handle, label: "Sword", number, inscription: null, kindId: "sword", tval: 1, sval: 2, artifact: false, ego: true });
+const item = (handle: number, number = 1) => ({ handle, kindKey: "kind:sword", nameColor: "light green", label: "Sword", number, inscription: null, kindId: "sword", tval: 1, sval: 2, pval: 0, weight: 0, ac: 0, toA: 0, toH: 0, toD: 0, dd: 0, ds: 0, artifact: false, ego: true, flags: [], modifiers: [], brands: [], slays: [], resists: [], curses: [], egoName: null, artifactName: null, activation: false, timeout: 0 });
+const loadoutStats = (ac = 0) => ({ speed: 110, baseAc: 0, toA: ac, ac, toH: 0, toD: 0, blows: 100, shots: 10, moves: 0, ammoMult: 0, ammoTval: 0, damRed: 0, percDamRed: 0, seeInfra: 0, light: 0, hold: 0, heavyWield: false, heavyShoot: false, blessWield: false, cumberArmor: false, statAdd: [], statUse: [], statTop: [], statInd: [], skills: [], resists: [], resistElements: [], objectFlags: [], playerFlags: [], maxHp: 10, maxSp: 0, totalWeight: 0, weightLimit: 0 });
+const zeroPlayer = { race: "Human", cls: "Warrior", level: 1, maxLevel: 1, exp: 0, maxExp: 0, gold: 0, learnableSpells: 0, depth: 0, maxDepth: 0, hp: 10, maxHp: 10, sp: 0, maxSp: 0, speed: 110, ac: 0, toHit: 0, toDam: 0, stats: [], light: 0, grid: { x: 0, y: 0 }, status: { blind: 0, confused: 0, afraid: 0, poisoned: 0, cut: 0, stun: 0, paralyzed: 0, food: 0, fast: 0, sprint: 0, protEvil: 0, hero: 0, shero: 0, shield: 0, stoneskin: 0, blessed: 0, fastcast: 0, resAcid: 0, resElec: 0, resFire: 0, resCold: 0, resPois: 0 }, dead: false, winner: false, hpWarning: 0, recall: 0, descent: 0, skills: [], shape: null, objectFlags: [], classFlags: [], seeInfra: 0, blows: 100, shots: 10 };
 const snapshot = (inventory = [item(7)], equipment = [item(8)]): InputSnapshot => ({ token, phase: "play", prompt: null, core: { inventory, equipment } });
 
 describe("phase 3 item reads", () => {
   it("adapts pack and equipped items without returning engine objects", () => {
     const source = snapshot(); const model = adaptItems(source)!;
-    expect(model.rows.map((row) => [row.location, row.handle, row.slot, row.colour])).toEqual([["pack", 7, undefined, "#80b891"], ["equipment", 8, 0, "#80b891"]]);
+    expect(model.rows.map((row) => [row.location, row.handle, row.slot, row.colour])).toEqual([["pack", 7, undefined, "#00ff00"], ["equipment", 8, 0, "#00ff00"]]);
     expect(model.rows[0]).not.toBe(source.core.inventory?.[0]);
     expect(adaptItems({ ...source, core: { inventory: null, equipment: [] } })).toBeNull();
   });
@@ -68,7 +70,7 @@ describe("phase 3 interactions", () => {
 describe("item panel seam adoption", () => {
   const gear = (handle: number, extra: Partial<PanelItemView> = {}): PanelItemView => ({ ...item(handle), kindKey: `kind:${handle}`, itemKey: `gear:${handle}`, nameColor: "light umber", ...extra });
   const panelSnap = (core: Partial<ItemPanelSnapshot["core"]>): ItemPanelSnapshot => ({ token, phase: "play", prompt: null, core: { inventory: [], equipment: [], ...core } });
-  const sim = (slot: number, displaced: ItemView | null): LoadoutSimulation => ({ before: { stats: {} as never }, after: { stats: {} as never }, placements: [{ slot, displaced }], unresolved: [] });
+  const sim = (slot: number, displaced: ItemView | null): LoadoutSimulation => ({ before: { player: zeroPlayer, equipment: [], inventory: [], stats: loadoutStats() }, after: { player: zeroPlayer, equipment: [], inventory: [], stats: loadoutStats() }, delta: { speed: 0, baseAc: 0, toA: 0, ac: 0, toH: 0, toD: 0, blows: 0, shots: 0, moves: 0, ammoMult: 0, damRed: 0, percDamRed: 0, seeInfra: 0, light: 0, hold: 0, maxHp: 0, maxSp: 0, totalWeight: 0, weightLimit: 0, statAdd: [], statUse: [], statTop: [], statInd: [], skills: [], resists: [], objectFlagsGained: [], objectFlagsLost: [], playerFlagsGained: [], playerFlagsLost: [], changed: false }, placements: [{ slot, worn: item(slot), displaced }], unresolved: [] });
   it("reads the quiver, the floor pile and real slot names, coloured by nameColor", () => {
     const model = adaptItems(panelSnap({
       inventory: [gear(7)], equipment: [null, null, gear(8, { nameColor: "w" }), gear(9, { nameColor: "Light-Blue" })],
@@ -85,7 +87,7 @@ describe("item panel seam adoption", () => {
   it("keeps the older engine's shape when the new parts are absent", () => {
     const model = adaptItems(snapshot())!;
     expect(model.quiver).toBeNull(); expect(model.floor).toBeNull();
-    expect(model.rows[1]).toMatchObject({ key: "gear:8", slot: 0, colour: "#80b891" });
+    expect(model.rows[1]).toMatchObject({ key: "gear:8", slot: 0, colour: "#00ff00" });
     expect(model.rows[1]!.slotName).toBeUndefined();
     expect(itemColour({ ...item(1), nameColor: "no such colour", artifact: true })).toBe("#e89e42");
   });
@@ -157,7 +159,7 @@ describe("item panel new-engine reads", () => {
 
   it("prefers ItemView.name over the kind label in rows", () => {
     const model = adaptItems(panelSnap({
-      inventory: [{ ...item(7), name: "a Long Sword (+1, +2)" }, { handle: 8, label: "Dagger", number: 1, inscription: null, kindId: "dagger", tval: 1, sval: 4, artifact: false, ego: false }],
+      inventory: [{ ...item(7), name: "a Long Sword (+1, +2)" }, { ...item(8), kindKey: "kind:dagger", label: "Dagger", kindId: "dagger", sval: 4, ego: false }],
       equipment: [], player: { grid: { x: 0, y: 0 } },
     }))!;
     expect(model.rows.map((row) => row.label)).toEqual(["a Long Sword (+1, +2)", "Dagger"]);

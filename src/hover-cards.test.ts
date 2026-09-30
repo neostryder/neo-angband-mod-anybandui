@@ -5,7 +5,8 @@ import type { EffectMonsterView, RecallSnapshot } from "./seams.js";
 const token = { epoch: 1, revision: 2 };
 const monster = (over: Partial<EffectMonsterView> = {}): EffectMonsterView => ({
   id: 3, race: "cave spider", raceIndex: 41, grid: { x: 4, y: 4 }, visible: true, hp: 2, maxHp: 4,
-  asleep: false, level: 2, raceFlags: [], ...over,
+  speed: 110, asleep: false, afraid: false, confused: false, stunned: false, poisoned: false, level: 2,
+  raceFlags: [], unique: false, questGuardian: false, finalGuardian: false, spellFlags: [], ...over,
 });
 const snap = (monsters: readonly EffectMonsterView[] | null): RecallSnapshot => ({
   token, phase: "play", messagePending: false, prompt: null, core: { monsters },

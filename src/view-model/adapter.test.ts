@@ -13,18 +13,19 @@ function freeze<T>(value: T): T {
 
 const player = freeze({
   race: "Elf", cls: "Mage", level: 8, maxLevel: 8, exp: 900, maxExp: 900,
-  gold: 321, depth: 4, maxDepth: 4, hp: 25, maxHp: 40, sp: 18, maxSp: 22,
+  gold: 321, learnableSpells: 0, depth: 4, maxDepth: 4, hp: 25, maxHp: 40, hpWarning: 0, sp: 18, maxSp: 22,
   speed: 112, ac: 17, toHit: 0, toDam: 0, stats: [18, 17, 16, 15, 14],
   light: 3, grid: { x: 2, y: 3 },
   status: { blind: 0, confused: 0, afraid: 0, poisoned: 4, cut: 0, stun: 0, paralyzed: 0, food: 5000,
     fast: 0, sprint: 0, protEvil: 9, hero: 0, shero: 0, shield: 0, stoneskin: 0, blessed: 0,
     fastcast: 0, resAcid: 0, resElec: 0, resFire: 0, resCold: 0, resPois: 0 },
-  dead: false, winner: false, skills: [], shape: null, objectFlags: [], classFlags: [],
+  dead: false, winner: false, recall: 0, descent: 0, skills: [], shape: null, objectFlags: [], classFlags: [],
   seeInfra: 0, blows: 1, shots: 1,
 }) satisfies PlayerView;
 const monster = freeze({ id: 7, race: "orc", raceIndex: 1, grid: { x: 3, y: 3 },
   visible: true, hp: 12, maxHp: 20, speed: 110, asleep: false, afraid: false,
-  confused: false, stunned: false, poisoned: false, level: 4, raceFlags: [], spellFlags: [] }) satisfies MonsterView;
+  confused: false, stunned: false, poisoned: false, level: 4, raceFlags: [], unique: false,
+  questGuardian: false, finalGuardian: false, spellFlags: [] }) satisfies MonsterView;
 const target = freeze({ midx: 7, grid: { x: 3, y: 3 } }) satisfies TargetView;
 const view: AgentView = {
   apiVersion: "1.18.0", turn: () => 2, player: () => player, monsters: () => [monster],

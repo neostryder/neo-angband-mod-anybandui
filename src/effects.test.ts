@@ -1,22 +1,22 @@
 import { describe, expect, it } from "vitest";
 import { actorGrid, blastCues, chooseEffectMotion, eventCue, effectGrids, actualAura, healthIntensity } from "./effects.js";
-import type { EffectSnapshot } from "./seams.js";
+import type { EffectSnapshot, KnownLevel } from "./seams.js";
 const flags = ["anybandui.crt", "anybandui.lowHealthEffect", "anybandui.deathEffect", "anybandui.itemGlow", "anybandui.sleepMarks", "anybandui.presenceHaze", "anybandui.spellEffects"];
 describe("phase 7 effects", () => {
   it("selects visible sleeping, unique and known artifact grids", () => {
     const s = { core: { monsters: [{ id: 1, race: "Morgoth, Lord of Darkness", raceIndex: 1, grid: {x:2,y:3}, visible: true, hp: 4, maxHp: 4, asleep: true, level: 100, raceFlags: ["UNIQUE"] }] } } as unknown as EffectSnapshot;
     // An older engine: no unique or finalGuardian flags and no aura, so the race flag, the name and the artifact field decide.
-    expect(effectGrids(s, { token: {epoch:1,revision:1}, cells: [{x:4,y:5,remembered:{feat:1,objects:[{artifact:true}]}}] })).toEqual({ asleep:[{x:2,y:3}], uniques:[{ grid:{x:2,y:3}, final:true }], glows:[{ grid:{x:4,y:5}, aura:"artifact" }] });
+    expect(effectGrids(s, { token: {epoch:1,revision:1}, levelId: 1, depth: 1, width: 10, height: 10, cells: [{x:4,y:5,visible:true,remembered:{feat:1,traps:[],objects:[{sensed:false,aware:true,kindIndex:1,aura:"artifact"}]}}] })).toEqual({ asleep:[{x:2,y:3}], uniques:[{ grid:{x:2,y:3}, final:true }], glows:[{ grid:{x:4,y:5}, aura:"artifact" }] });
   });
   it("reads unique, finalGuardian and aura where the engine has them", () => {
     const monster = (id: number, x: number, extra: object) => ({ id, race: "Grip, Farmer Maggot's Dog", raceIndex: id, grid: {x,y:1}, visible: true, hp: 5, maxHp: 5, asleep: false, level: 2, raceFlags: [], ...extra });
     const s = { core: { monsters: [monster(1, 1, { unique: true, finalGuardian: false }), monster(2, 2, { unique: true, finalGuardian: true }), monster(3, 3, { unique: false, raceFlags: ["UNIQUE"] })] } } as unknown as EffectSnapshot;
-    const cells = [
-      { x: 7, y: 7, remembered: { feat: 1, objects: [{ sensed: false, aware: true, kindIndex: 1, aura: "rune" }, { sensed: false, aware: true, kindIndex: 2, aura: "cursed" }] } },
-      { x: 8, y: 7, remembered: { feat: 1, objects: [{ sensed: false, aware: true, kindIndex: 3, aura: "rune" }, { sensed: true, money: false }] } },
-      { x: 9, y: 7, remembered: { feat: 1, objects: [{ sensed: false, aware: true, kindIndex: 4 }] } },
+    const cells: KnownLevel["cells"] = [
+      { x: 7, y: 7, visible: true, remembered: { feat: 1, traps: [], objects: [{ sensed: false, aware: true, kindIndex: 1, aura: "rune" }, { sensed: false, aware: true, kindIndex: 2, aura: "cursed" }] } },
+      { x: 8, y: 7, visible: true, remembered: { feat: 1, traps: [], objects: [{ sensed: false, aware: true, kindIndex: 3, aura: "rune" }, { sensed: true, money: false }] } },
+      { x: 9, y: 7, visible: true, remembered: { feat: 1, traps: [], objects: [{ sensed: false, aware: true, kindIndex: 4 }] } },
     ];
-    const grids = effectGrids(s, { token: {epoch:1,revision:1}, cells });
+    const grids = effectGrids(s, { token: {epoch:1,revision:1}, levelId: 1, depth: 1, width: 10, height: 10, cells });
     // The engine's flag wins over the race flag list, in both directions.
     expect(grids.uniques).toEqual([{ grid:{x:1,y:1}, final:false }, { grid:{x:2,y:1}, final:true }]);
     // One glow per cell, cursed before artifact before rune, and no glow without an aura.
@@ -29,11 +29,11 @@ describe("phase 7 effects", () => {
     expect(healthIntensity(10,100,30)).toBeGreaterThan(healthIntensity(20,100,30)); expect(healthIntensity(1,100,30)).toBeLessThanOrEqual(1);
   });
   it("flashes only the blast grids the player can see, in the element's colour", () => {
-    const cues = blastCues({ element: "FIRE", blastGrid: [{x:1,y:1},{x:2,y:1},{x:3,y:1}], playerSeesGrid: [true,false,true] });
+    const cues = blastCues({ projType: 0, element: "FIRE", arc: false, radius: 1, numGrids: 3, distanceToGrid: [1, 1, 1], drawing: true, blastGrid: [{x:1,y:1},{x:2,y:1},{x:3,y:1}], playerSeesGrid: [true,false,true], centre: {x:1,y:1} });
     expect(cues.map((c) => c.grid)).toEqual([{x:1,y:1},{x:3,y:1}]);
     expect(new Set(cues.map((c) => c.colour)).size).toBe(1);
-    expect(cues[0]!.colour).not.toBe(blastCues({ element: "COLD", blastGrid: [{x:1,y:1}], playerSeesGrid: [true] })[0]!.colour);
-    expect(blastCues({ blastGrid: Array.from({ length: 500 }, (_, x) => ({ x, y: 0 })), playerSeesGrid: Array(500).fill(true) })).toHaveLength(200);
+    expect(cues[0]!.colour).not.toBe(blastCues({ projType: 0, element: "COLD", arc: false, radius: 1, numGrids: 1, distanceToGrid: [1], drawing: true, blastGrid: [{x:1,y:1}], playerSeesGrid: [true], centre: {x:1,y:1} })[0]!.colour);
+    expect(blastCues({ projType: 0, element: "FIRE", arc: false, radius: 1, numGrids: 500, distanceToGrid: Array(500).fill(1), drawing: true, blastGrid: Array.from({ length: 500 }, (_, x) => ({ x, y: 0 })), playerSeesGrid: Array(500).fill(true), centre: {x:0,y:0} })).toHaveLength(200);
   });
   it("maps seen combat, heal and teleport events, and ignores unseen events", () => {
     const here = () => ({ x: 0, y: 2 });

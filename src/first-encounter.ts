@@ -38,6 +38,7 @@
  */
 
 import { bitmapTextBlock, paintBitmapButtonLabel, wrapBitmapText } from "./bitmap-text.js";
+import type { GameState } from "@rpgm-tools/neo-angband-core";
 import { applyTheme, THEMES, type ThemeTokens } from "./theme.js";
 import {
   readFirstEncounterPreference,
@@ -286,21 +287,15 @@ interface CoreLike {
   colorToCss(attr: number): string;
 }
 
-interface PlayerLike {
-  readonly race: { readonly name: string };
-  readonly cls: { readonly name: string };
-  readonly auBirth: number;
-  readonly htBirth: number;
-  readonly wtBirth: number;
-}
-
-interface StateLike {
-  readonly chunk: { readonly depth: number };
-  readonly gear: { readonly store: ReadonlyMap<number, GameObjectLike> };
-  /* The player lives at state.actor.player (GameState.actor: PlayerActor,
-   * PlayerActor.player: Player), not state.player directly. */
+type PlayerLike = Pick<GameState["actor"]["player"], "auBirth" | "htBirth" | "wtBirth"> & {
+  readonly race: Pick<GameState["actor"]["player"]["race"], "name">;
+  readonly cls: Pick<GameState["actor"]["player"]["cls"], "name">;
+};
+type StateLike = {
+  readonly chunk: Pick<GameState["chunk"], "depth">;
+  readonly gear: Pick<GameState["gear"], "store">;
   readonly actor: { readonly player: PlayerLike };
-}
+};
 
 export interface FirstEncounterContext {
   readonly core: CoreLike;

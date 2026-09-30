@@ -1,20 +1,14 @@
 /** Structural slices of neo-angband's optional host contracts.
- * These shapes keep the mod buildable against npm core 1.18.0, which predates the seams.
+ * Core types are imported where Core publishes them; web-only contracts stay local.
  * InputSnapshot mirrors packages/web/src/input-snapshot.ts and core agent/boundary.ts.
  * Intent and prompt mirror packages/web/src/intent-gate.ts and prompt-view.ts.
  * KnownLevel and inspect mirror packages/core/src/agent/known-level.ts and inspect.ts.
  * ItemsContext mirrors packages/web/src/mod-plugin.ts ModUi and core agent/types.ts AgentView.
  */
-export interface Grid { readonly x: number; readonly y: number }
-export interface InputToken { readonly epoch: number; readonly revision: number }
-export interface ItemView { readonly handle: number; readonly label: string; readonly number: number; readonly inscription: string | null; readonly kindId?: string; readonly tval: number; readonly sval: number; readonly pval?: number; readonly timeout?: number; readonly artifact: boolean; readonly ego: boolean;
-  // MOD_SEAMS (packages/core/src/agent/types.ts ItemView); absent on older engines.
-  /** The inventory name with its article and every detail the player knows. */
-  readonly name?: string;
-  /** Whether the game ignores this object now; absent on older engines. */
-  readonly ignored?: boolean;
-  /** A floor object's place in the pile under its grid, as a command's args.floor takes it. */
-  readonly floorIndex?: number }
+import type { ActualCell as CoreActualCell, AgentActions, DerivedStatsView, GameEventMap, InputToken as CoreInputToken, ItemRulesResult as CoreItemRulesResult, ItemTesterResult as CoreItemTesterResult, ItemView as CoreItemView, KnownLevelView, LoadoutItemRef, MonsterView, PlayerView, SpellInspectResult as CoreSpellInspectResult, SpellView as CoreSpellView, SpellbookView as CoreSpellbookView, StoreItemView as CoreStoreItemView, StoreView as CoreStoreView } from "@rpgm-tools/neo-angband-core";
+export type Grid = import("@rpgm-tools/neo-angband-core").Loc;
+export type InputToken = CoreInputToken;
+export type ItemView = CoreItemView;
 export interface CoreSnapshot {
   readonly player?: { readonly grid: Grid; readonly gold?: number } | null;
   readonly inventory?: readonly ItemView[] | null;
@@ -22,19 +16,11 @@ export interface CoreSnapshot {
   readonly stores?: readonly StoreView[] | null;
 }
 // Phase 7 mirrors packages/core/src/agent/boundary.ts and packages/web/src/mod-plugin.ts.
-export interface EffectMonsterView { readonly id: number; readonly race: string; readonly raceIndex: number; readonly grid: Grid; readonly visible: boolean; readonly hp: number; readonly maxHp: number; readonly asleep: boolean; readonly level: number; readonly raceFlags: readonly string[];
-  // MOD_SEAMS 4t (packages/core/src/agent/types.ts MonsterView); absent on older engines.
-  readonly unique?: boolean; readonly questGuardian?: boolean; readonly finalGuardian?: boolean }
-export interface EffectSnapshot extends Omit<InputSnapshot, "core"> { readonly phase: InputSnapshot["phase"] | "dead"; readonly core: CoreSnapshot & { readonly player?: (NonNullable<CoreSnapshot["player"]> & { readonly hp?: number; readonly maxHp?: number; readonly hpWarning?: number; readonly dead?: boolean }) | null; readonly monsters?: readonly EffectMonsterView[] | null } }
+export type EffectMonsterView = MonsterView;
+export interface EffectSnapshot extends Omit<InputSnapshot, "core"> { readonly phase: InputSnapshot["phase"] | "dead"; readonly core: CoreSnapshot & { readonly player?: PlayerView | null; readonly monsters?: readonly EffectMonsterView[] | null } }
 // Mirrors packages/core/src/agent/events.ts: a creature is "player" or a monster index.
-export type EventActor = "player" | number;
-export interface EffectEventMap {
-  "combat-outcome": { readonly attacker: EventActor | null; readonly target: EventActor; readonly kind: "melee" | "ranged" | "spell" | "effect" | "trap"; readonly hit: boolean; readonly damage: number; readonly died: boolean; readonly grid: Grid; readonly seen: boolean };
-  heal: { readonly who: EventActor; readonly amount: number; readonly grid: Grid; readonly seen: boolean };
-  motion: { readonly who: EventActor; readonly from: Grid; readonly to: Grid; readonly kind: "walk" | "teleport"; readonly seen: boolean };
-  // Mirrors ExplosionEventData in packages/core/src/events.ts (MOD_SEAMS 4t).
-  explosion: { readonly element?: string; readonly arc?: boolean; readonly radius?: number; readonly blastGrid: readonly Grid[]; readonly playerSeesGrid: readonly boolean[] };
-}
+export type EventActor = GameEventMap["combat-outcome"]["target"];
+export type EffectEventMap = Pick<GameEventMap, "combat-outcome" | "heal" | "motion" | "explosion">;
 export interface EffectContext { readonly flags?: Readonly<Record<string, boolean>>; readonly snapshot?: () => EffectSnapshot | null; readonly knownLevel?: () => KnownLevel | null; readonly events?: { on<K extends keyof EffectEventMap>(name: K, handler: (type: K, event: EffectEventMap[K]) => void): void; off<K extends keyof EffectEventMap>(name: K, handler: (type: K, event: EffectEventMap[K]) => void): void }; readonly display?: { snapshot(): import("./zoom.js").DisplaySnapshot }; readonly prefs?: { get(): unknown }; readonly settings?: ModSettings }
 // MOD_SEAMS 4y, ctx.settings (packages/web/src/mod-plugin.ts): the manifest's numeric settings, clamped and stepped by the host.
 export interface ModSettings { get(id: string): number | undefined; all?(): Readonly<Record<string, number>>; onChange?(listener: (id: string, value: number) => void): () => void }
@@ -51,22 +37,10 @@ export interface InputSnapshot {
   readonly prompt: ItemPrompt | QuantityPrompt | OtherPrompt | null;
   readonly core: CoreSnapshot;
 }
-export interface KnownLevel {
-  readonly token: InputToken;
-  readonly cells: readonly { readonly x: number; readonly y: number; readonly remembered: { readonly feat: number; readonly objects: readonly unknown[] }; readonly visible?: boolean; readonly actual?: ActualCell }[];
-}
-/** The true contents of a grid, present only under state:map-actual.read (core known-level.ts ActualCell). */
-export interface ActualCell {
-  readonly monster: number;
-  readonly objects: readonly ActualObject[];
-}
-export interface ActualObject {
-  readonly artifact: boolean; readonly ego: boolean; readonly curses: readonly string[];
-  readonly flags: readonly string[]; readonly modifiers: readonly unknown[]; readonly brands: readonly string[];
-  readonly slays: readonly string[]; readonly resists: readonly unknown[];
-  readonly toH: number; readonly toD: number; readonly toA: number;
-}
-export interface AgentCommand { readonly code: string; readonly dir?: number; readonly args?: Readonly<Record<string, unknown>> }
+export type KnownLevel = KnownLevelView;
+export type ActualCell = CoreActualCell;
+export type ActualObject = Pick<CoreItemView, "artifact" | "ego" | "curses" | "flags" | "modifiers" | "brands" | "slays" | "resists" | "toH" | "toD" | "toA">;
+export type AgentCommand = import("@rpgm-tools/neo-angband-core").AgentCommand;
 export type PlayerIntent =
   | { readonly kind: "travel"; readonly x: number; readonly y: number; readonly modifiers?: Readonly<{ shift?: boolean; ctrl?: boolean }> }
   | { readonly kind: "target"; readonly x: number; readonly y: number }
@@ -75,22 +49,14 @@ export interface IntentResult { readonly accepted: boolean; readonly reason?: st
 export interface IntentSeam { submit(token: InputToken, intent: PlayerIntent): IntentResult }
 
 // Item panels: the item-facing slice of the same seams.
-export interface InspectResult { readonly token: InputToken; readonly title: string; readonly text: string }
-export interface ItemTesterResult { readonly token: InputToken; readonly items: readonly ({ readonly handle: number } | { readonly floor: { readonly x: number; readonly y: number; readonly index: number } })[] }
-export interface ItemRulesResult {
-  readonly token: InputToken;
-  readonly kinds: readonly { readonly kidx: number; readonly name: string; readonly ignoreAware: boolean; readonly ignoreUnaware: boolean; readonly noteAware: string | null; readonly noteUnaware: string | null }[];
-  readonly quality: readonly { readonly itype: number; readonly name: string; readonly threshold: number; readonly thresholdName: string;
-    // MOD_SEAMS (packages/core/src/agent/inspect.ts ItemRulesResult); absent on older engines.
-    /** Threshold names the game's quality menu allows for this item type, in order. */
-    readonly levels?: readonly string[] }[];
-  readonly egos: readonly { readonly eidx: number; readonly name: string; readonly itype: number; readonly ignored: boolean }[];
-}
+export type InspectResult = import("@rpgm-tools/neo-angband-core").InspectResult;
+export type ItemTesterResult = CoreItemTesterResult;
+export type ItemRulesResult = CoreItemRulesResult;
 export interface InspectSeam { inspectItem(ref: number): InspectResult | null; itemTester(code: string): ItemTesterResult | null; itemRules?(): ItemRulesResult | null }
 export interface PromptSeam { reply(promptId: number, answer: number | boolean): IntentResult }
-export interface LoadoutStats { readonly speed: number; readonly ac: number; readonly toH: number; readonly toD: number; readonly blows: number; readonly shots: number; readonly maxHp: number; readonly maxSp: number; readonly totalWeight: number; readonly statUse: readonly number[]; readonly resists: readonly number[]; readonly resistElements: readonly string[]; readonly objectFlags: readonly string[] }
-export interface LoadoutSimulation { readonly before: { readonly stats: LoadoutStats }; readonly after: { readonly stats: LoadoutStats }; readonly placements: readonly { readonly slot: number; readonly displaced: ItemView | null }[]; readonly unresolved: readonly unknown[] }
-export interface ActionBuilders { wear(handle: number): AgentCommand; takeoff(handle: number): AgentCommand; drop(handle: number, quantity?: number): AgentCommand; raw(code: string, args?: Record<string, unknown>): AgentCommand }
+export type LoadoutSimulation = import("@rpgm-tools/neo-angband-core").LoadoutSimulation;
+export type LoadoutStats = Pick<DerivedStatsView, "speed" | "ac" | "toH" | "toD" | "blows" | "shots" | "maxHp" | "maxSp" | "totalWeight" | "statUse" | "resists" | "resistElements" | "objectFlags">;
+export type ActionBuilders = Pick<AgentActions, "wear" | "takeoff" | "drop" | "raw">;
 export interface ItemsContext { readonly flags?: Readonly<Record<string, boolean>>; readonly snapshot?: () => InputSnapshot | null; readonly inspect?: InspectSeam; readonly intent?: IntentSeam; readonly prompt?: PromptSeam; readonly ui?: { openPanel(spec: { id: string; modal: boolean; label: string }): { readonly root: ShadowRoot; readonly closed: Promise<void>; close(): void }; registerPanelKind?(spec: PanelKindSpec): () => void }; readonly core?: { createAgentView?(state: unknown): { simulateLoadout?(change: { wield: readonly ({ from: "gear"; handle: number } | { from: "store"; store: number; index: number })[] }): LoadoutSimulation | null }; createAgentActions?(state: unknown): ActionBuilders }; readonly state?: unknown; readonly prefs?: { get(): unknown }; readonly log: (message: string) => void }
 
 // Map mouse: the map-facing slice of the same seams.
@@ -100,16 +66,16 @@ export interface MouseSeams {
   readonly intent?: IntentSeam;
   readonly prompt?: { reply(promptId: number, answer: { action: "move"; x: number; y: number } | { action: "select" | "cancel" }): IntentResult };
   readonly inspect?: {
-    projectionPath?(to: Grid): { readonly token: InputToken; readonly grids: readonly Grid[] } | null;
-    tileActions?(at: Grid): { readonly token: InputToken; readonly codes: readonly string[] } | null;
-    travelPath?(to: Grid): { readonly token: InputToken; readonly grids: readonly Grid[] } | null;
+    projectionPath?(to: Grid): import("@rpgm-tools/neo-angband-core").GridInspectResult | null;
+    tileActions?(at: Grid): import("@rpgm-tools/neo-angband-core").TileActionsResult | null;
+    travelPath?(to: Grid): import("@rpgm-tools/neo-angband-core").TravelPathResult | null;
   };
 }
 
 // Phase 4 mirrors packages/core/src/agent/types.ts and inspect.ts, packages/web/src/input-snapshot.ts, prompt-view.ts and mod-plugin.ts.
-export interface SpellView { readonly name: string; readonly sidx: number; readonly bidx: number; readonly level: number; readonly mana: number; readonly fail: number; readonly chance?: number; readonly learned: boolean; readonly worked: boolean; readonly forgotten: boolean; readonly studyEligible?: boolean; readonly infoLine?: string }
-export interface SpellbookView { readonly tval: number; readonly name: string; readonly realm: string; readonly spells: readonly SpellView[] }
-export interface SpellInspectResult { readonly token: InputToken; readonly name: string; readonly description: string; readonly level: number; readonly mana: number; readonly failChance: number; readonly canCastNow: boolean }
+export type SpellView = CoreSpellView;
+export type SpellbookView = CoreSpellbookView;
+export type SpellInspectResult = CoreSpellInspectResult;
 export interface SpellPrompt { readonly kind: "spell"; readonly promptId: number; readonly label: string; readonly choices: readonly { readonly index: number; readonly name: string; readonly level: number; readonly mana: number; readonly fail: number; readonly castable: boolean }[] }
 export interface Phase4Snapshot extends Omit<InputSnapshot, "core" | "prompt"> { readonly core: CoreSnapshot & { readonly spellbooks?: readonly SpellbookView[] | null; readonly player?: (NonNullable<CoreSnapshot["player"]> & { readonly level?: number; readonly sp?: number; readonly hp?: number; readonly maxHp?: number; readonly maxSp?: number; readonly classFlags?: readonly string[]; readonly learnableSpells?: number; readonly race?: string; readonly cls?: string }) | null }; readonly prompt: InputSnapshot["prompt"] | SpellPrompt | TextPrompt; readonly resting?: RestingView | null; readonly activeBlast?: ActiveBlastView | null }
 export interface Phase4Context { readonly flags?: Readonly<Record<string, boolean>>; readonly snapshot?: () => Phase4Snapshot | null; readonly intent?: { submit(token: InputToken, intent: PlayerIntent | StopRestingIntent): IntentResult; catalogue?(): CommandCatalogue | null }; readonly prompt?: { reply(promptId: number, answer: number | string | { readonly action: "cancel" }): IntentResult }; readonly inspect?: { spellInfo?(index: number): SpellInspectResult | null; bookForItem?(handle: number): BookItemResult | null; itemTester?(code: string): ItemTesterResult | null; inspectItem?(handle: number): InspectResult | null; blastArea?(to: Grid, radius: number, arc?: number): BlastAreaResult | null; tileActions?(at: Grid): { readonly token: InputToken; readonly codes: readonly string[] } | null }; readonly ui?: ItemsContext["ui"]; readonly prefs?: { get(): unknown; set(value: unknown): void }; readonly display?: { snapshot(): import("./zoom.js").DisplaySnapshot }; readonly driver?: () => InputDriver; readonly character?: { key(): string | null }; readonly state?: unknown; readonly log: (message: string) => void }
@@ -118,8 +84,8 @@ export interface Phase4Context { readonly flags?: Readonly<Record<string, boolea
 // mirrors InputSnapshot.storeStatus in packages/web/src/input-snapshot.ts, and
 // StoreContext combines packages/web/src/mod-plugin.ts with the store section
 // appended at the end of this file.
-export interface StoreItemView extends ItemView { readonly index: number; readonly price?: number }
-export interface StoreView { readonly feat: number; readonly featName: string; readonly isHome: boolean; readonly owner: { readonly name: string; readonly purse: number }; readonly stock: readonly StoreItemView[] }
+export type StoreItemView = CoreStoreItemView;
+export type StoreView = CoreStoreView;
 export interface StoreStatus { readonly token: InputToken; readonly feat: number; readonly ready: boolean; readonly noSelling: boolean; readonly inventory: readonly { readonly handle: number; readonly location?: "pack" | "quiver" | "equipment"; readonly eligible: boolean; readonly price: number | null }[] }
 export interface StoreContext extends ItemsContext {
   readonly snapshot?: () => StoreSnapshot | null;
@@ -160,9 +126,7 @@ export interface PanelKindSeam { registerPanelKind?(spec: PanelKindSpec): () => 
 // PublicMod mirrors ModPluginContext.mods in packages/web/src/mod-plugin.ts.
 // The event handler receives (type, data), as GameEventHandler does in
 // packages/core/src/events.ts.
-export type InputDriver =
-  | { readonly kind: "player" }
-  | { readonly kind: "controller"; readonly owner: string; readonly label?: string; readonly reason?: string };
+export type InputDriver = GameEventMap["driver-changed"];
 export interface PublicMod { readonly id: string; readonly version: string; readonly flags?: Readonly<Record<string, boolean>> }
 export interface DriverEvents {
   on(name: "driver-changed", handler: (type: "driver-changed", event: InputDriver) => void): void;
@@ -188,10 +152,10 @@ export type StorePromptAnswer = number | boolean | { readonly action: "cancel" }
 export type StoreReplyResult = IntentResult;
 export interface StorePromptSeam { reply(promptId: number, answer: StorePromptAnswer): StoreReplyResult }
 export type StoreItemRef = number | { readonly store: number; readonly index: number };
-export interface InspectSection { readonly kind: "title" | "description" | "info"; readonly text: string }
-export interface StoreInspectResult extends InspectResult { readonly sections?: readonly InspectSection[] }
-export type LoadoutSlotRef = { readonly from: "gear"; readonly handle: number } | { readonly from: "store"; readonly store: number; readonly index: number };
-export interface LoadoutSlotsResult { readonly token: InputToken; readonly slots: readonly { readonly slot: number; readonly name: string; readonly comparison: LoadoutSimulation }[] }
+export type InspectSection = NonNullable<InspectResult["sections"]>[number];
+export type StoreInspectResult = InspectResult;
+export type LoadoutSlotRef = LoadoutItemRef;
+export type LoadoutSlotsResult = import("@rpgm-tools/neo-angband-core").LoadoutSlotsResult;
 export interface StoreInspectSeam extends Omit<InspectSeam, "inspectItem"> {
   inspectItem(ref: StoreItemRef): StoreInspectResult | null;
   compareLoadoutSlots?(ref: LoadoutSlotRef): LoadoutSlotsResult | null;
@@ -209,8 +173,8 @@ export interface StoreInspectSeam extends Omit<InspectSeam, "inspectItem"> {
 // files and remain optional so an older engine's payload still satisfies these
 // shapes.
 export type RestMode = "turns" | "complete" | "all-points" | "some-points";
-export interface BookItemResult { readonly token: InputToken; readonly bookIndex: number; readonly spells: readonly number[] }
-export interface BlastAreaResult { readonly token: InputToken; readonly grids: readonly Grid[]; readonly radius?: number; readonly element?: string | null; readonly wallsStop?: boolean; readonly arc?: number | null }
+export type BookItemResult = import("@rpgm-tools/neo-angband-core").BookItemResult;
+export type BlastAreaResult = import("@rpgm-tools/neo-angband-core").BlastAreaResult;
 export interface RestingView { readonly active: boolean; readonly mode: number | RestMode | null; readonly turnsRequested?: number | null; readonly turnsRemaining: number | null; readonly turnsRested?: number | null }
 export interface ActiveBlastView { readonly token: InputToken; readonly radius: number; readonly arc?: number; readonly element: string; readonly wallsStop: boolean }
 export interface TextPrompt { readonly kind: "text"; readonly promptId: number; readonly label: string; readonly maxLength: number; readonly defaultValue: string; readonly tag?: "rest" }
@@ -246,9 +210,8 @@ export interface RecallSeam { monsterRecall?(raceIndex: number): MonsterRecallRe
 // mirror the ignore, unignore and item-rule arms and IntentResult.code of
 // packages/web/src/intent-gate.ts. Every field is optional so an older engine's
 // snapshot still satisfies these shapes.
-export interface ItemIdentity { readonly kindKey?: string; readonly itemKey?: string; readonly nameColor?: string }
-export type PanelItemView = ItemView & ItemIdentity;
-export interface EquipmentSlotView { readonly type: string; readonly name: string }
+export type PanelItemView = ItemView;
+export type EquipmentSlotView = NonNullable<import("@rpgm-tools/neo-angband-core").CoreSnapshot["equipmentSlots"]>[number];
 export interface ItemPanelSnapshot extends Omit<InputSnapshot, "core"> {
   readonly core: Omit<CoreSnapshot, "inventory" | "equipment"> & {
     readonly inventory?: readonly PanelItemView[] | null;
@@ -259,8 +222,8 @@ export interface ItemPanelSnapshot extends Omit<InputSnapshot, "core"> {
   };
 }
 export type ItemRef = number | { readonly floor: { readonly x: number; readonly y: number; readonly index: number } } | { readonly store: number; readonly index: number };
-export interface ItemInspectResult extends InspectResult { readonly sections?: readonly InspectSection[] }
-export type LoadoutRef = { readonly from: "gear"; readonly handle: number } | { readonly from: "store"; readonly store: number; readonly index: number };
+export type ItemInspectResult = InspectResult;
+export type LoadoutRef = LoadoutItemRef;
 export type ItemRuleName = "kind-aware" | "kind-unaware" | "ego" | "quality" | "note-aware" | "note-unaware";
 export type ItemIntent =
   | { readonly kind: "ignore" | "unignore"; readonly handle: number }

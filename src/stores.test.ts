@@ -5,7 +5,7 @@ import { installStores, storeAction, storeComparisons, storeInspection, storePro
 import { clickTile } from "./map-mouse.js";
 
 const token = { epoch: 4, revision: 9 };
-const item = (handle: number) => ({ handle, label: "Long Sword", number: 2, inscription: null, tval: 20, sval: 1, artifact: false, ego: false });
+const item = (handle: number) => ({ handle, kindKey: "kind:long-sword", nameColor: "white", label: "Long Sword", number: 2, inscription: null, tval: 20, sval: 1, pval: 0, weight: 0, ac: 0, toA: 0, toH: 0, toD: 0, dd: 0, ds: 0, artifact: false, ego: false, flags: [], modifiers: [], brands: [], slays: [], resists: [], curses: [], egoName: null, artifactName: null, activation: false, timeout: 0 });
 const status: StoreStatus = { token, feat: 21, ready: true, noSelling: false, inventory: [{ handle: 7, eligible: true, price: 12 }] };
 // A newer engine tags each store row with its location and lists worn gear too.
 const located: StoreStatus = { token, feat: 21, ready: true, noSelling: false, inventory: [
@@ -22,7 +22,7 @@ const snap = (phase: StoreSnapshot["phase"] = "store", prompt: StoreSnapshot["pr
 // An engine from before storeStatus: no field at all on the snapshot.
 const oldSnap = (prompt: StoreSnapshot["prompt"] = null): StoreSnapshot => snap("store", prompt, "absent");
 const homeOf = (source: StoreSnapshot): StoreSnapshot => ({ ...source, core: { ...source.core, stores: [{ ...source.core.stores![0]!, isHome: true }] } });
-const known: KnownLevel = { token, cells: [{ x: 2, y: 3, remembered: { feat: 21, objects: [] } }] };
+const known: KnownLevel = { token, levelId: 1, depth: 1, width: 5, height: 5, cells: [{ x: 2, y: 3, visible: true, remembered: { feat: 21, traps: [], objects: [] } }] };
 const quantity: StoreQuantityPrompt = { kind: "quantity", promptId: 10, label: "Buy how many? (max 3) ", min: 0, max: 3, defaultValue: 1, unitPrice: 20, totalPrice: 20, gold: 50 };
 const confirm = { kind: "confirm", promptId: 11, label: "Buy a Long Sword? [ESC, any other key to accept]" } as const;
 
@@ -181,8 +181,9 @@ describe("store prompts", () => {
   });
 });
 
-const stats = (ac: number) => ({ speed: 0, ac, toH: 0, toD: 0, blows: 100, shots: 10, maxHp: 10, maxSp: 0, totalWeight: 100, statUse: [], resists: [], resistElements: [], objectFlags: [] });
-const sim = (ac: number): LoadoutSimulation => ({ before: { stats: stats(0) }, after: { stats: stats(ac) }, placements: [{ slot: 2, displaced: null }], unresolved: [] });
+const stats = (ac = 0) => ({ speed: 110, baseAc: 0, toA: ac, ac, toH: 0, toD: 0, blows: 100, shots: 10, moves: 0, ammoMult: 0, ammoTval: 0, damRed: 0, percDamRed: 0, seeInfra: 0, light: 0, hold: 0, heavyWield: false, heavyShoot: false, blessWield: false, cumberArmor: false, statAdd: [], statUse: [], statTop: [], statInd: [], skills: [], resists: [], resistElements: [], objectFlags: [], playerFlags: [], maxHp: 10, maxSp: 0, totalWeight: 100, weightLimit: 0 });
+const player = { race: "Human", cls: "Warrior", level: 1, maxLevel: 1, exp: 0, maxExp: 0, gold: 0, learnableSpells: 0, depth: 0, maxDepth: 0, hp: 10, maxHp: 10, sp: 0, maxSp: 0, speed: 110, ac: 0, toHit: 0, toDam: 0, stats: [], light: 0, grid: { x: 0, y: 0 }, status: { blind: 0, confused: 0, afraid: 0, poisoned: 0, cut: 0, stun: 0, paralyzed: 0, food: 0, fast: 0, sprint: 0, protEvil: 0, hero: 0, shero: 0, shield: 0, stoneskin: 0, blessed: 0, fastcast: 0, resAcid: 0, resElec: 0, resFire: 0, resCold: 0, resPois: 0 }, dead: false, winner: false, hpWarning: 0, recall: 0, descent: 0, skills: [], shape: null, objectFlags: [], classFlags: [], seeInfra: 0, blows: 100, shots: 10 };
+const sim = (ac: number): LoadoutSimulation => ({ before: { player, equipment: [], inventory: [], stats: stats(0) }, after: { player, equipment: [], inventory: [], stats: stats(ac) }, delta: { speed: 0, baseAc: 0, toA: ac, ac, toH: 0, toD: 0, blows: 0, shots: 0, moves: 0, ammoMult: 0, damRed: 0, percDamRed: 0, seeInfra: 0, light: 0, hold: 0, maxHp: 0, maxSp: 0, totalWeight: 0, weightLimit: 0, statAdd: [], statUse: [], statTop: [], statInd: [], skills: [], resists: [], objectFlagsGained: [], objectFlagsLost: [], playerFlagsGained: [], playerFlagsLost: [], changed: ac !== 0 }, placements: [{ slot: 2, worn: item(2), displaced: null }], unresolved: [] });
 
 describe("store comparison and inspection", () => {
   it("compares stock against every slot it fits, both rings included", () => {

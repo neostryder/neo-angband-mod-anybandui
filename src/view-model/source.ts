@@ -11,7 +11,7 @@ interface SourceCtx extends MessageSeams {
 }
 
 /** The core message log's read side, newest at age 0 (GameState.messages). */
-interface CoreLog { num(): number; str(age: number): string; count(age: number): number; type(age: number): number }
+type CoreLog = Pick<NonNullable<GameState["messages"]>, "num" | "str" | "count" | "type">;
 /* The host's own message log, oldest first (packages/web/src/input-snapshot.ts
  * InputSnapshot.messages.log). Each entry carries its repeat count and the
  * colour the engine drew it in, so the source no longer has to match against

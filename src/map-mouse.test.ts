@@ -7,7 +7,8 @@ const snap = (revision = 1, grid = { x: 5, y: 5 }): InputSnapshot => ({
   token: token(revision), phase: "play", messagePending: false, prompt: null, core: { player: { grid } },
 });
 const level = (revision = 1, at = { x: 8, y: 8 }): KnownLevel => ({
-  token: token(revision), cells: [{ ...at, remembered: { feat: 1, objects: [{}] } }],
+  token: token(revision), levelId: 1, depth: 1, width: 20, height: 20,
+  cells: [{ ...at, visible: true, remembered: { feat: 1, traps: [], objects: [{ sensed: false, aware: true, kindIndex: 1 }] } }],
 });
 function fixture(snapshot: InputSnapshot = snap(), known: KnownLevel | null = null) {
   const submitted: { token: InputSnapshot["token"]; intent: PlayerIntent }[] = [];
