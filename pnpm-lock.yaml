@@ -109,12 +109,15 @@ importers:
 
   .:
     devDependencies:
+      '@rpgm-tools/neo-angband-content':
+        specifier: 1.21.0
+        version: 1.21.0
       '@rpgm-tools/neo-angband-core':
-        specifier: ^1.18.0
-        version: 1.18.0
+        specifier: 1.21.0
+        version: 1.21.0
       '@rpgm-tools/neo-angband-mod-sdk':
-        specifier: ^1.18.0
-        version: 1.18.0
+        specifier: 1.21.0
+        version: 1.21.0
       '@types/node':
         specifier: ^22.20.1
         version: 22.20.4
@@ -391,12 +394,16 @@ packages:
   '@rolldown/pluginutils@1.0.1':
     resolution: {integrity: sha512-2j9bGt5Jh8hj+vPtgzPtl72j0yRxHAyumoo6TNfAjsLB04UtpSvPbPcDcBMxz7n+9CYB0c1GxQFxYRg2jimqGw==}
 
-  '@rpgm-tools/neo-angband-core@1.18.0':
-    resolution: {integrity: sha512-ayI00no4w5LRQTlj+P1KguPAXUVg9/ubkM+mWYSkFfBAYkC7bWN/m2hwsS4Ma53TBtzh4gRLLPmlhbSu4pXYSA==}
+  '@rpgm-tools/neo-angband-content@1.21.0':
+    resolution: {integrity: sha512-mTUygdncHU9fXGkGhQ+XyMm+hEHK8NG4ufvcXZKBFJj+jfmE6BiGf06IXLAgW7S07knUoL0t03Uoxx1d2RZNqA==}
     engines: {node: '>=22'}
 
-  '@rpgm-tools/neo-angband-mod-sdk@1.18.0':
-    resolution: {integrity: sha512-NjM8GUEoYGb+jVlDx+tW8Bshfgh2+3hg0XolZhAxzDeDXxagjQy9c8iYXMtzgvv4rsVdAFbsm4TAVZw1umq2ng==}
+  '@rpgm-tools/neo-angband-core@1.21.0':
+    resolution: {integrity: sha512-/iHItF0fxxhgzxkYfKFbrBtI+Xf822fpJ5XHG7KIfyQh3iqz2qMStUuEiUVrhtCJaSPd6h5l5i7aoMhvjWlCzQ==}
+    engines: {node: '>=22'}
+
+  '@rpgm-tools/neo-angband-mod-sdk@1.21.0':
+    resolution: {integrity: sha512-YOBw6km0Qa+qRyB9XUyhLKjW/Nj3RoLnN1DBROSraSgFEbDTBbyk9o8dvqrda0qOhskNDSkOLjq8CAfGe6keLQ==}
     engines: {node: '>=22'}
     hasBin: true
 
@@ -849,9 +856,13 @@ snapshots:
 
   '@rolldown/pluginutils@1.0.1': {}
 
-  '@rpgm-tools/neo-angband-core@1.18.0': {}
+  '@rpgm-tools/neo-angband-content@1.21.0': {}
 
-  '@rpgm-tools/neo-angband-mod-sdk@1.18.0': {}
+  '@rpgm-tools/neo-angband-core@1.21.0':
+    dependencies:
+      '@rpgm-tools/neo-angband-mod-sdk': 1.21.0
+
+  '@rpgm-tools/neo-angband-mod-sdk@1.21.0': {}
 
   '@standard-schema/spec@1.1.0': {}
 

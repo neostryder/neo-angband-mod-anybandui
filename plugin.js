@@ -1,4 +1,4 @@
-// abui-core - generated from plugin.ts by neo-angband-mod-build
+// neo-angband-mod-anybandui - generated from plugin.ts by neo-angband-mod-build
 // (@rpgm-tools/neo-angband-mod-sdk). Edit the TypeScript source, not this file.
 
 // src/view-model/adapter.ts
