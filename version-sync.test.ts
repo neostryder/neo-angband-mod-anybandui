@@ -14,17 +14,6 @@ import { readFileSync } from "node:fs";
  * version whose section is undated is a release nobody can read the notes for,
  * and The Ledger builds every entry from that version's own section at its tag,
  * so a missing one is a version that reaches the site as nothing at all.
- *
- * THIS COPY DIFFERS FROM THE OTHER MODS', because AnybandUI has not had a first
- * release. Its changelog carries an Unreleased section and nothing else, and
- * the repository carries no tags, so the third site has nothing to compare
- * against yet. That is a real state rather than a check worth skipping, and the
- * branch below is written so it cannot stay quietly vacuous: the moment a
- * version is dated the ordinary assertion takes over, and until then the shape
- * of the heading itself is pinned. A section written as `## [0.1.0] - <date>`
- * rather than `## 0.1.0 - <date>` would otherwise leave the main pattern
- * matching nothing here forever, which is the same silence this file exists to
- * remove.
  */
 describe("the two version sites", () => {
   const read = (f: string): string =>
