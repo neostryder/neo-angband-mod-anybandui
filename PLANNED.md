@@ -1,6 +1,6 @@
 # Planned
 
-The order AnybandUI's features arrive in Neo Angband, from the character card and message log through items, spells, stores and effects to touch controls and a bridge for the native client. Each phase ends in a release you can switch on, and each feature inside a phase gets its own toggle on the Mods screen. Nothing listed here is in the mod yet; [CHANGELOG.md](CHANGELOG.md) records what has shipped. The port is tracked as [neostryder/neo-angband#284](https://github.com/neostryder/neo-angband/issues/284).
+The order AnybandUI's features arrive in Neo Angband, from the character card and message log through items, spells, stores and effects to touch controls and a bridge for the native client. Each phase ends in a release you can switch on, and each feature inside a phase gets its own toggle on the Mods screen. [CHANGELOG.md](CHANGELOG.md) records what has shipped, and the table under "Where the port stands against AnybandUI" compares the mod with AnybandUI module by module. The port is tracked as [neostryder/neo-angband#284](https://github.com/neostryder/neo-angband/issues/284).
 
 ## What gets ported
 
@@ -82,6 +82,48 @@ Touch, controller and phone-sized screens, built on the same panels. Tap, double
 ### Phase 10: the Anyband Protocol bridge
 
 A small launcher that runs Neo Angband headless and serves the view model over the Anyband Protocol, so the native AnybandUI client lists Neo Angband in its engine picker. Before it ships it passes the engine checks in AnybandUI's `protocol/README.md`: native birth, inventory and equipment, spells, shops, targeting, continuation and death messages, save, load and replay, known-map purity, and precise combat and motion events. The reference Angband implementation of those checks is the AnybandUI-AngbandAdapter repository.
+
+## Where the port stands against AnybandUI
+
+This table compares each AnybandUI module on the `deluxe` branch with the port, as of upstream commit `e7dd1a22c`. A partial or missing row names what is absent and where the work belongs. "Mod build" means the data is already in the agent view, the event bus or the mod context. "Core seam" means Neo Angband has to expose something new first.
+
+| AnybandUI module | Status | What the port lacks | Where it belongs |
+| --- | --- | --- | --- |
+| `quickbar.h` | Ported | Nothing. The port keeps 30 slots per character in three rows of ten, where AnybandUI keeps 10 on a save profile. | |
+| `spell_panel.h` | Ported | Nothing. | |
+| `store_panel.h`, `quantity_picker.h` | Partial | The quantity slider. OK stays enabled when the total costs more gold than the character has. A book in stock has no Browse spells button. | Mod build, phase 5. The quantity prompt already carries the maximum, the gold and the price of every amount. |
+| `rest_dialog.h` | Ported | Nothing. | |
+| `blast_preview.h` | Ported | Nothing. | |
+| `item_comparison.h`, `item_description.h`, `item_rules.h`, `item_glow.h` | Partial | The blows, damage, range and breakage tiles in the description. The artifact glow is a circle where AnybandUI draws a sunburst. | Mod build, phases 3 and 7. |
+| `map_overview.h` | Ported | Hover on the map overview waits 2,000 ms (`HOVER_DWELL_MS` in `src/qol-map-hover.ts`) instead of the shared delay that starts at 550 ms. | Mod build, phase 2. |
+| `dungeon_camera.h`, `dungeon_tooltip.h`, `dungeon_view.h` | Different | Zoom moves in whole-cell steps. AnybandUI zooms smoothly from 0.35 to 4. | Recorded under Quality of Life's display features. |
+| `message_history.h` | Partial | The All, Combat, Loot, System and Other filters. The log draws at most 20 lines and shows a repeat count on the newest line only. | Mod build, phase 1. |
+| `status_effects.h` | Ported | Nothing. | |
+| `character_overview.h` | Ported | Nothing. The card has the XP bar and the stat tiles, with a mark on a drained stat. | |
+| `crt_renderer`, `crt_settings.h` | Partial | Every CRT part except the scanlines and one moving bar, including phosphor glow and colour fringing. | Mod build, phase 7. |
+| `monster_feedback.h` | Partial | The `!` over a frightened monster. The port marks sleeping monsters only. | Mod build, phase 7. `MonsterView.afraid` is in the agent view. |
+| `combat_feedback.h`, `motion_feedback.h` | Partial | Floating damage and healing numbers, the one-tile slide when a creature walks, and the blink ripple. The port draws rings for hits, misses, healing, deaths and teleports, and skips walking. | Mod build, phase 7. `combat-outcome` carries `damage`, `heal` carries `amount`, and `motion` carries the start, the end and whether it was a walk or a teleport. |
+| `scene_presence.h` | Partial | Embers over remembered lava and stairs, and the recall ring. The port draws only the haze around visible uniques. | Mod build, phase 7. Known cells carry their terrain codes, and the dungeon card already reads recall. |
+| `projectile_feedback.h` | Partial | Bolt glyphs that follow the bolt's direction, and the cone wash for breaths. The port fills each seen blast cell with one colour. | Mod build, phase 7. Core emits a `bolt` event for every step with its origin, and `explosion` has an `arc` flag for cones. |
+| `dungeon_feedback.h` | Partial | The three-dot cue when a message is cut short, and the pause emblem of two bars and breathing dots. The port shows the words "Messages waiting" and "Resting". | Mod build, phase 1. |
+| `floor_items.h` | Ported | Nothing. | |
+| `detached_panels.h`, `workspace_layout.h` | Partial | Undo and redo, and named saved layouts. Panels never open their own operating system window, as phase 6 records. | Core seam. A mod can read panel geometry but cannot set it, so undo and named layouts belong in the game's window manager (neostryder/neo-angband#287). |
+| `ui_theme.h` | Partial | The custom colour editor. The theme tokens store `invert_dungeon`, but nothing draws it. | Mod build, phase 8. |
+| `tileset.cpp` | Different | No tileset code. Linoleum draws the tiles and this mod draws effects over them. | Recorded under Works with the other mods. |
+| `font_library.h` | Ported | Nothing. | |
+| `character_sheet.h` | Missing | The read-only character sheet with its seven-column stat breakdown. | Mod build, phase 8. `ctx.character.sheet()` returns the panels, stat rows and flag grid the character screen draws. |
+| `equipment_portrait.h` | Missing | The ASCII figure with worn items hung on it. | Mod build, phase 8. The equipment tab already has the slot names and worn items. |
+| `inventory_changes.h` | Ported | Nothing. | |
+| `scene_transitions.h` | Missing | The fade from the old screen on loading, taking stairs, entering a shop and dying. | Mod build, phase 7. |
+| `level_feedback.h` | Missing | The flash when the character passes the highest level reached this session. | Mod build, phase 7. `max_level` is in the player record. |
+| `character_select.h` | Missing | The save roster with profile cards and a colour for each save name. | Mod build, phase 8. `ctx.saves.list()` under `saves:manage`. |
+| `run_history.h`, `run_journal.h` | Missing | Post-mortems, the timeline of the current run and the graveyard, and Play Again. | Mod build, phase 8. `ctx.character.history()` gives the journal, and `onRunEnd` gives the run report, which the mod stores itself so it outlives the save. `ctx.saves.create({ like })` starts a character like that one. |
+| `birth_panel.h` | Missing | The character creation wizard. | Mod build, phase 8, as a `birth` presenter over Core's birth views. |
+| `knowledge_browser.h` | Missing | The knowledge browser with search. | Mod build, phase 8. `ctx.knowledge` under `state:knowledge.read`. |
+| `engine_options.h` | Missing | The options window, which keeps changes as a draft until Save. | Mod build, phase 8. `ctx.options` under `state:options.read` and `options:write`, which can change interface options and the three number settings. |
+| `keybinding_editor.h` | Missing | The keymap editor. | Mod build, phase 8. `ctx.keybindings` under `keymap:edit`. |
+
+Two things in AnybandUI's `client.cpp` have no module of their own. The low-health glitch and the death flash are ported as the low-health wash and the death burst. The Save, Close game, Rename save and Delete save dialogs and the plain Yes and No prompt are missing; they belong to phase 8, and `ctx.saves` already has `rename` and `delete`.
 
 ## Keeping in step with AnybandUI
 
