@@ -8,6 +8,8 @@ An entry opens with one or more bracketed tags. `[Visible]` marks a change a pla
 
 ## [Unreleased]
 
+## 1.1.0 - 2026-10-01
+
 ### Added
 
 - [Visible] [UI] **Glow shows hidden magic, a new switch that works with the floor item glow.** Turn it on and a cursed item, an artifact or an item with runes glows on the floor before you have identified it, matching the native AnybandUI. It starts off because it gives away what the game hides.
