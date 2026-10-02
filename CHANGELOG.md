@@ -16,7 +16,7 @@ An entry opens with one or more bracketed tags. `[Visible]` marks a change a pla
 
 - [Visible] [UI] **The cards, the map menus and the window frames around them take on Angband's own look.** They use the game's 8x13 dialog font and a palette close to its terminal, with thin borders, a coloured band under each heading and small marks in each card's corners. While any card is on, the frames around every pane change to the same colours, so the game's own subwindows and the cards read as one screen. Turning every card off gives the frames the game's usual look back.
 - [Visible] [UI] **The dungeon card shows a dash instead of a question mark while the level feeling is not known yet.**
-- [Visible] [Compatibility] **AnybandUI now needs Neo Angband 1.21.0 or later.** It is built and tested against that version.
+- [Visible] [Compatibility] **AnybandUI now needs Neo Angband 1.21.1 or later.** It is built and tested against that version.
 
 ### Removed
 

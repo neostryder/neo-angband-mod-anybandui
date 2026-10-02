@@ -29,7 +29,7 @@ The effects (CRT scanlines, item glows, sleeping-monster marks, the presence haz
 
 ## Installing
 
-AnybandUI is on the recommended list on the in-game Mods screen. Install it there, enable it, then open its options to turn on the features you want. It needs Neo Angband 1.21.0 or later.
+AnybandUI is on the recommended list on the in-game Mods screen. Install it there, enable it, then open its options to turn on the features you want. It needs Neo Angband 1.21.1 or later.
 
 ![AnybandUI on the Mods screen](docs/img/anybandui-enable.jpg)
 
