@@ -72,7 +72,7 @@ const input = freeze({
   recall: 5, descent: 2, extraMoves: 2, study: 3, messagePending: true,
 });
 
-describe("full-v1 phase 1 adapter", () => {
+describe("Anyband Protocol phase 1 adapter", () => {
   it("maps every published character, dungeon, status, target, and message field", () => {
     const actual = adapt(view, frame, input);
     expect(actual.player).toMatchObject({ name: "Elbereth", race: "High Elf", class: "Sorcerer",
@@ -129,7 +129,7 @@ describe("full-v1 phase 1 adapter", () => {
     expect(Object.isFrozen(frame.sidebar?.entries[0]?.values)).toBe(true);
   });
 
-  it("accounts for every undefined full-v1 field in GAPS", () => {
+  it("accounts for every undefined Anyband Protocol field in GAPS", () => {
     const result = adapt(view, frame, input);
     const missing: string[] = [];
     const visit = (value: unknown, path: string): void => {

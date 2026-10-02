@@ -4,9 +4,9 @@ The order AnybandUI's features arrive in Neo Angband, from the character card an
 
 ## What gets ported
 
-AnybandUI's `deluxe` branch is a native C++ program built on Dear ImGui and SDL's GPU API. It launches an Angband engine as a child process and talks to it over a line-delimited JSON protocol called full-v1 (`protocol/wire-v1.md` and `protocol/full-v1.json` in that repository). The engine owns every rule and the frontend owns every pixel.
+AnybandUI's `deluxe` branch is a native C++ program built on Dear ImGui and SDL's GPU API. It launches an Angband engine as a child process and talks to it over a line-delimited JSON protocol, the Anyband Protocol (`protocol/wire-v1.md` and `protocol/anyband-protocol.json` in that repository; its profile string was `full-v1` until 2026-09-29). The engine owns every rule and the frontend owns every pixel.
 
-Neo Angband runs in a browser page and in an Electron window, so this mod reimplements the interface in TypeScript on Neo Angband's own UI seams: `ui:sidebar.replace`, `ui:messages.replace` and `ui:status.replace` for the HUD, `ui:menu.replace` and `ui:screen.replace` for menus and the 39 modeled screens, `ui:region.create` for new panes, `ui:panel.mount` for HTML windows, and `display:replace` for the dungeon view. His layouts, colours, effects and interaction design carry over directly. His fonts, sounds and shaders come across with their licences, and the HLSL shaders are rewritten for WebGL.
+Neo Angband runs in a browser page and in an Electron window, so this mod reimplements the interface in TypeScript on Neo Angband's own UI seams: `ui:sidebar.replace`, `ui:messages.replace` and `ui:status.replace` for the HUD, `ui:menu.replace` and `ui:screen.replace` for menus and the 39 modeled screens, `ui:region.create` for new panes, `ui:panel.mount` for HTML windows, and `display:replace` for the dungeon view. AnybandUI's layouts, colours, effects and interaction design carry over directly. Its fonts and shaders come across with their licences, and the HLSL shaders are rewritten for WebGL. AnybandUI dropped its sound effects on 2026-09-29, so the port has none.
 
 ## Effects work on text and tiles alike
 
@@ -14,9 +14,9 @@ Every visual effect works in the game's text mode and with whatever tileset the 
 
 ## The view model
 
-Every panel reads one adapter, `src/view-model/`, which turns Neo Angband's agent view and world frames into the payload shapes full-v1 defines: the player record, items with `actual` and `player_known` halves, monsters, dungeon cells in terrain, trap, item and actor layers, prompts, targeting, store, spells, and the event stream. Panels never read engine objects directly.
+Every panel reads one adapter, `src/view-model/`, which turns Neo Angband's agent view and world frames into the payload shapes the Anyband Protocol defines: the player record, items with `actual` and `player_known` halves, monsters, dungeon cells in terrain, trap, item and actor layers, prompts, targeting, store, spells, and the event stream. Panels never read engine objects directly.
 
-Each panel can then be checked field by field against the protocol documents, and the same adapter can later sit behind a bridge that speaks full-v1 over stdio or a local socket, letting the native AnybandUI client drive Neo Angband as a second engine.
+Each panel can then be checked field by field against the protocol documents, and the same adapter can later sit behind a bridge that speaks the Anyband Protocol over stdio or a local socket, letting the native AnybandUI client drive Neo Angband as a second engine.
 
 The game owns rules, validation, dice, knowledge, item eligibility, targeting and prices. A read never advances a turn, changes what the character knows, or draws a random number, and every read path gets a test that compares the full game state, knowledge and RNG state before and after.
 
@@ -37,7 +37,7 @@ The web host needs its own pieces as well: a panel seam through which this mod's
 
 ## Phases
 
-Version 1.0.0 carries phases 0 to 7: the view model, the HUD panels, map clicks and hover cards, items, spells and the quickbar, stores, panes and effects. The menus, touch and controller play, and the full-v1 bridge in phases 8 to 10 come after it.
+Version 1.0.0 carries phases 0 to 7: the view model, the HUD panels, map clicks and hover cards, items, spells and the quickbar, stores, panes and effects. The menus, touch and controller play, and the Anyband Protocol bridge in phases 8 to 10 come after it.
 
 ### Phase 0: foundation
 
@@ -79,9 +79,9 @@ The main menu with save cards and the graveyard, the step-by-step character crea
 
 Touch, controller and phone-sized screens, built on the same panels. Tap, double-tap, long-press and swipe all work on the map. The right-click context menu becomes a radial menu under your finger, and the quickbar maps to a controller's shoulder and face buttons. Layouts switch with the device and its orientation, and an in-game workshop exports and imports layout presets. Scalable text and colour settings join the accessibility options.
 
-### Phase 10: the full-v1 bridge
+### Phase 10: the Anyband Protocol bridge
 
-A small launcher that runs Neo Angband headless and serves the view model over full-v1, so the native AnybandUI client lists Neo Angband in its engine picker. It passes his `protocol/check_engine.py` smoke check before it ships.
+A small launcher that runs Neo Angband headless and serves the view model over the Anyband Protocol, so the native AnybandUI client lists Neo Angband in its engine picker. Before it ships it passes the engine checks in AnybandUI's `protocol/README.md`: native birth, inventory and equipment, spells, shops, targeting, continuation and death messages, save, load and replay, known-map purity, and precise combat and motion events. The reference Angband implementation of those checks is the AnybandUI-AngbandAdapter repository.
 
 ## Keeping in step with AnybandUI
 

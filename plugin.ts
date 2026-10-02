@@ -6,11 +6,11 @@
  * Neo Angband's own UI seams: the per-region HUD, menu and screen replacements,
  * mod-created regions, and HTML panels. PLANNED.md holds the phased port.
  *
- * The port reads game state through one adapter that shapes it like AnybandUI's
- * full-v1 protocol payloads (protocol/wire-v1.md in that repository). Every panel
- * draws from that view model rather than from engine objects directly, so the
- * same adapter can later back a stdio bridge that lets the native AnybandUI
- * client drive Neo Angband.
+ * The port reads game state through one adapter that shapes it like the Anyband
+ * Protocol's payloads (protocol/wire-v1.md in that repository). Every panel draws
+ * from that view model rather than from engine objects directly, so the same
+ * adapter can later back a stdio bridge that lets the native AnybandUI client
+ * drive Neo Angband.
  *
  * Each capability is added with the first feature that needs it, so the
  * consent list a player reads matches what the mod does.
