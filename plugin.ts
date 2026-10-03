@@ -35,6 +35,10 @@ import { installMapOverview } from "./src/map-overview.js";
 import { installItems } from "./src/panels/items.js";
 import { installCharacterSheet } from "./src/panels/character-sheet.js";
 import { installThemeEditor } from "./src/theme-editor.js";
+import { installKnowledgeBrowser } from "./src/menus/knowledge-browser.js";
+import { installOptionsEditor } from "./src/menus/options-editor.js";
+import { installKeybindingEditor } from "./src/menus/keybinding-editor.js";
+import { installSettingsWindow } from "./src/menus/settings-window.js";
 import type { ItemsContext } from "./src/seams.js";
 import { installMapMouse } from "./src/map-mouse.js";
 import { installPhase4 } from "./src/phase4.js";
@@ -98,6 +102,13 @@ export default {
     /* Phase 8: the Yes/No prompts, the run journal and the graveyard. The save
      * cards and the hall of fame are presenter parts, in menu() and screen(). */
     displayCleanups.push(installMenus({ ...ctx, flags }));
+    const menuContext = { flags, log: ctx.log, ...(ctx.ui ? { ui: ctx.ui } : {}), ...(ctx.prefs ? { prefs: ctx.prefs } : {}) };
+    displayCleanups.push(installKnowledgeBrowser({ ...menuContext, ...(ctx.knowledge ? { knowledge: ctx.knowledge } : {}) }));
+    displayCleanups.push(installOptionsEditor({ ...menuContext, ...(ctx.options ? { options: ctx.options } : {}) }));
+    displayCleanups.push(installKeybindingEditor({ ...menuContext, ...(ctx.keybindings ? { keybindings: ctx.keybindings } : {}) }));
+    /* Last, so the panels its pages open have registered by the time it draws. */
+    displayCleanups.push(installSettingsWindow({ ...menuContext, ...(ctx.settings ? { settings: ctx.settings } : {}),
+      ...(ctx.display ? { display: ctx.display } : {}) }));
     if (flags["anybandui.highContrast"] || flags["anybandui.colourblind"] || flags["anybandui.crt"] || theme.invert_dungeon) {
       installAccessibilityAccommodations({ flags, invertDungeon: theme.invert_dungeon, ...(ctx.display ? { display: ctx.display } : {}), log: ctx.log });
     }

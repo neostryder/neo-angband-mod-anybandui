@@ -40,7 +40,11 @@
     "ui:screen.replace",
     "ui:title",
     "event:dungeonlevel",
-    "ui:birth.replace"
+    "ui:birth.replace",
+    "state:knowledge.read",
+    "state:options.read",
+    "options:write",
+    "keymap:edit"
   ],
   "author": "WurliMonkhaven, neostryder",
   "license": "GPL-2.0-only",
@@ -270,7 +274,11 @@
     { "flag": "anybandui.runJournal", "title": "Run journal", "description": "Opens a pane with the current run's milestones: level-ups, new depths, unique kills and artifacts. You can search them, show one kind, and choose the order. Play Again appears when the run ends.", "default": false, "requiresReload": true },
     { "flag": "anybandui.hallOfFame", "title": "Hall of fame", "description": "Draws the Hall of Fame as a table in the interface colours, with your own entry marked. Escape or Close returns to the game.", "default": false, "requiresReload": true },
     { "flag": "anybandui.yesNoPrompts", "title": "Yes/No prompts", "description": "Shows the game's yes or no questions in a dialog with Yes and No buttons. Escape answers No. A shop's own questions stay in the shop.", "default": false, "requiresReload": true },
-    { "flag": "anybandui.birthWizard", "title": "Character creation wizard", "description": "Replaces the game's character creation screens with a step-by-step window: race, class, attributes, name and background, then a review. A preview beside each step shows your stats, hit points and starting gold as the game will make them. Point buy and random rolls both work, a previous character can be reused, and Escape goes back one step.", "default": false, "requiresReload": true }
+    { "flag": "anybandui.birthWizard", "title": "Character creation wizard", "description": "Replaces the game's character creation screens with a step-by-step window: race, class, attributes, name and background, then a review. A preview beside each step shows your stats, hit points and starting gold as the game will make them. Point buy and random rolls both work, a previous character can be reused, and Escape goes back one step.", "default": false, "requiresReload": true },
+    { "flag": "anybandui.knowledgeBrowser", "title": "Knowledge browser", "description": "Opens a panel to browse what your character knows: objects, runes, artifacts, egos, monsters, terrain, traps and shapes. Search by name or group, pick a group, and read the recall page of each entry. Reading a page changes nothing in the game.", "default": false, "requiresReload": true },
+    { "flag": "anybandui.optionsEditor", "title": "Game options editor", "description": "Opens a panel with the game's options in groups, with a search box. You can change the interface options, the hit point warning and the two delays; birth, cheat and score options are shown but stay in the game's own menu. Changes take effect when you press Save, and Cancel throws them away.", "default": false, "requiresReload": true },
+    { "flag": "anybandui.keybindingEditor", "title": "Keybinding editor", "description": "Opens a panel listing your keymaps for the current keyset. Add one by pressing its key and typing the keys it presses, or change or remove one. Choosing a key tells you what it runs now. Changes take effect when you press Save.", "default": false, "requiresReload": true },
+    { "flag": "anybandui.settingsWindow", "title": "Settings window", "description": "Opens a panel that gathers this mod's settings in pages: the theme preset and the hover card delay, each with presets, and the strength of each effect. Its pages also open the theme, game options, keybinding and knowledge panels when those are on. Changes take effect when you press Save.", "default": false, "requiresReload": true }
   ],
   "repository": "https://github.com/neostryder/neo-angband-mod-anybandui"
 }

@@ -8,6 +8,7 @@ import { chromeThemeFor } from "./paint.js";
 import { createSettingsStore, themeFromPrefs, type Settings } from "./settings.js";
 import { applyTheme, normalizeColour, normalizeRounding, notifyThemeChange, THEME_CHOICES, THEMES, type CustomTheme, type ThemeTokens } from "./theme.js";
 import { openSurfaces, type SurfaceContext } from "./panels/surface.js";
+import { registerOpener } from "./menus/openers.js";
 
 const CSS = `:host{color:var(--anyband-text);font:var(--anyband-font-size)/var(--anyband-line) var(--anyband-font)}
 .theme{position:absolute;right:12px;top:12px;width:min(420px,44vw);max-height:calc(100vh - 24px);overflow:auto;padding:10px;background:var(--anyband-surface);border:1px solid var(--anyband-accent);border-radius:var(--anyband-rounding)}
@@ -132,6 +133,13 @@ export function renderThemeEditor(parent: HTMLElement, draft: ThemeDraft, note: 
   if (note) el(parent, "p", note).className = "note";
 }
 
+/** Tells the window frames, the dungeon inversion and every open card about a saved theme. */
+export function broadcastTheme(ctx: Pick<ThemeEditorContext, "flags" | "display" | "log">, theme: ThemeTokens): void {
+  try { ctx.display?.setChromeTheme?.(chromeThemeFor(theme)); } catch (err) { ctx.log(`Could not repaint the window frames: ${err instanceof Error ? err.message : String(err)}`); }
+  installAccessibilityAccommodations({ flags: ctx.flags ?? {}, invertDungeon: theme.invert_dungeon, ...(ctx.display ? { display: ctx.display } : {}), log: ctx.log });
+  notifyThemeChange(theme);
+}
+
 export function installThemeEditor(ctx: ThemeEditorContext): () => void {
   if (ctx.flags?.["anybandui.themeEditor"] !== true) return () => {};
   const settings = ctx.prefs ? createSettingsStore({ prefs: ctx.prefs }) : null;
@@ -141,6 +149,8 @@ export function installThemeEditor(ctx: ThemeEditorContext): () => void {
   const surfaces = openSurfaces(ctx, [{ key: "theme-editor", label: "Theme", tab: "Theme", minSize: { width: 280, height: 220 }, placement: { kind: "dock", target: "main", edge: "right" } }],
     { id: "theme-editor", label: "Theme", className: "theme" }, CSS, () => repaint());
   if (!surfaces) { ctx.log("theme: panel seam unavailable"); return () => {}; }
+  // The settings window opens this panel rather than drawing a second colour editor.
+  const stopOpener = registerOpener("theme-editor", () => { surfaces.focus("theme-editor"); repaint(); });
   let mount: HTMLElement | null = null;
   let closed = false;
   const tokens = (): ThemeTokens => themeFromPrefs(customFromDraft(draft) ? { theme: draft.preset, customTheme: customFromDraft(draft) } : { theme: draft.preset });
@@ -156,9 +166,7 @@ export function installThemeEditor(ctx: ThemeEditorContext): () => void {
   const applySaved = (theme: ThemeTokens): void => {
     const root = paintedRoot();
     if (root) applyTheme(root, theme);
-    try { ctx.display?.setChromeTheme?.(chromeThemeFor(theme)); } catch (err) { ctx.log(`Could not repaint the window frames: ${err instanceof Error ? err.message : String(err)}`); }
-    installAccessibilityAccommodations({ flags: ctx.flags ?? {}, invertDungeon: theme.invert_dungeon, ...(ctx.display ? { display: ctx.display } : {}), log: ctx.log });
-    notifyThemeChange(theme);
+    broadcastTheme(ctx, theme);
   };
   const paint = (): void => {
     if (closed) return;
@@ -194,5 +202,5 @@ export function installThemeEditor(ctx: ThemeEditorContext): () => void {
   };
   paint();
   repaint = () => paint();
-  return () => { closed = true; surfaces.close(); };
+  return () => { closed = true; stopOpener(); surfaces.close(); };
 }
