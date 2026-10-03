@@ -76,6 +76,7 @@ A mouse-first desktop interface for Neo Angband, ported from Wurli Monkhaven's A
 | Run journal | `anybandui.runJournal` | off | Opens a pane with the current run's milestones: level-ups, new depths, unique kills and artifacts. You can search them, show one kind, and choose the order. Play Again appears when the run ends. |
 | Hall of fame | `anybandui.hallOfFame` | off | Draws the Hall of Fame as a table in the interface colours, with your own entry marked. Escape or Close returns to the game. |
 | Yes/No prompts | `anybandui.yesNoPrompts` | off | Shows the game's yes or no questions in a dialog with Yes and No buttons. Escape answers No. A shop's own questions stay in the shop. |
+| Character creation wizard | `anybandui.birthWizard` | off | Replaces the game's character creation screens with a step-by-step window: race, class, attributes, name and background, then a review. A preview beside each step shows your stats, hit points and starting gold as the game will make them. Point buy and random rolls both work, a previous character can be reused, and Escape goes back one step. |
 
 
 ## Effect strength
@@ -108,4 +109,4 @@ On a version of the game with numeric mod settings, each effect has a strength s
 
 ## What it needs
 
-`ui:sidebar.replace`, `ui:status.replace`, `ui:messages.replace`, `display:filter` (used by the CRT colour treatment), `ui:panel.mount`, `state:map.read`, `state:interaction.read`, `state:inventory.read`, `state:floor.read`, `state:player.read`, `state:spells.read`, `state:stores.read`, `input:intent`, `input:prompt.reply`, `event:combat-outcome`, `event:heal`, `event:motion`, `event:explosion`, `event:bolt`, and `event:driver-changed`, `state:messages.read`, `state:monsters.read`.
+`ui:sidebar.replace`, `ui:status.replace`, `ui:messages.replace`, `display:filter` (used by the CRT colour treatment), `ui:panel.mount`, `state:map.read`, `state:interaction.read`, `state:inventory.read`, `state:floor.read`, `state:player.read`, `state:spells.read`, `state:stores.read`, `input:intent`, `input:prompt.reply`, `event:combat-outcome`, `event:heal`, `event:motion`, `event:explosion`, `event:bolt`, and `event:driver-changed`, `state:messages.read`, `state:monsters.read`, and `ui:birth.replace` (used by the character creation wizard).
