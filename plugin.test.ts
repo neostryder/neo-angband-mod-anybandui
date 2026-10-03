@@ -26,7 +26,7 @@ describe("the AnybandUI plugin", () => {
       capabilities: string[]; rules: { flag: string; default: boolean; requiresReload: boolean }[];
     };
     expect(manifest.capabilities).toEqual(["ui:sidebar.replace", "ui:status.replace", "ui:messages.replace", "display:filter", "ui:panel.mount", "state:map.read", "state:interaction.read", "state:inventory.read", "state:floor.read", "state:player.read", "state:spells.read", "state:stores.read", "state:messages.read", "state:monsters.read", "state:map-actual.read", "input:intent", "input:prompt.reply", "event:combat-outcome", "event:heal", "event:motion", "event:explosion", "event:bolt", "event:driver-changed"]);
-    expect(manifest.rules.map((rule) => rule.flag)).toEqual(["anybandui.itemsLists", "anybandui.itemsInspection", "anybandui.itemsComparison", "anybandui.itemsQuantity", "anybandui.itemsChoice", "anybandui.itemsHighlights", "anybandui.itemsActions", "anybandui.itemsRules", "anybandui.clickToWalk", "anybandui.dungeonActions", "anybandui.aimPath", "anybandui.walkRoutePreview", "anybandui.sidebar", "anybandui.status", "anybandui.messages", "anybandui.highContrast", "anybandui.colourblind", "anybandui.firstEncounter", "anybandui.quiverItemization", "anybandui.crispTiles", "anybandui.zoom", "anybandui.enlargedDisplay", "anybandui.dragPan", "anybandui.followPlayer", "anybandui.keepTargetInView", "anybandui.recentreOnFloor", "anybandui.mapHoverCards", "anybandui.dungeonHoverCards", "anybandui.mapOverview", "anybandui.mapSchematic", "anybandui.spells", "anybandui.quickbar", "anybandui.blastPreview", "anybandui.restDialog", "anybandui.storeWindow", "anybandui.storePrices", "anybandui.storeComparison", "anybandui.storeTransactions", "anybandui.storePrompts", "anybandui.crt", "anybandui.lowHealthEffect", "anybandui.deathEffect", "anybandui.itemGlow", "anybandui.itemGlowReveals", "anybandui.sleepMarks", "anybandui.fearMarks", "anybandui.presenceHaze", "anybandui.damageNumbers", "anybandui.walkSlide", "anybandui.blinkRipple", "anybandui.boltGlyphs", "anybandui.coneWash", "anybandui.spellEffects", "anybandui.lavaEmbers", "anybandui.stairEmbers", "anybandui.recallRing", "anybandui.levelFlash", "anybandui.sceneFade", "anybandui.crtGlow", "anybandui.crtFringe", "anybandui.crtSweep"]);
+    expect(manifest.rules.map((rule) => rule.flag)).toEqual(["anybandui.itemsLists", "anybandui.itemsInspection", "anybandui.itemsComparison", "anybandui.itemsQuantity", "anybandui.itemsChoice", "anybandui.itemsHighlights", "anybandui.itemsActions", "anybandui.itemsRules", "anybandui.clickToWalk", "anybandui.dungeonActions", "anybandui.aimPath", "anybandui.walkRoutePreview", "anybandui.sidebar", "anybandui.status", "anybandui.messages", "anybandui.highContrast", "anybandui.colourblind", "anybandui.firstEncounter", "anybandui.quiverItemization", "anybandui.crispTiles", "anybandui.zoom", "anybandui.enlargedDisplay", "anybandui.dragPan", "anybandui.followPlayer", "anybandui.keepTargetInView", "anybandui.recentreOnFloor", "anybandui.mapHoverCards", "anybandui.dungeonHoverCards", "anybandui.mapOverview", "anybandui.mapSchematic", "anybandui.spells", "anybandui.quickbar", "anybandui.blastPreview", "anybandui.restDialog", "anybandui.storeWindow", "anybandui.storePrices", "anybandui.storeComparison", "anybandui.storeTransactions", "anybandui.storePrompts", "anybandui.crt", "anybandui.lowHealthEffect", "anybandui.deathEffect", "anybandui.itemGlow", "anybandui.itemGlowReveals", "anybandui.sleepMarks", "anybandui.fearMarks", "anybandui.presenceHaze", "anybandui.damageNumbers", "anybandui.walkSlide", "anybandui.blinkRipple", "anybandui.boltGlyphs", "anybandui.coneWash", "anybandui.spellEffects", "anybandui.lavaEmbers", "anybandui.stairEmbers", "anybandui.recallRing", "anybandui.levelFlash", "anybandui.sceneFade", "anybandui.crtGlow", "anybandui.crtFringe", "anybandui.crtSweep", "anybandui.characterSheet", "anybandui.equipmentPortrait", "anybandui.themeEditor"]);
     expect(manifest.rules.every((rule) => !rule.default && rule.requiresReload)).toBe(true);
   });
 
@@ -76,6 +76,17 @@ describe("the AnybandUI plugin", () => {
     plugin.uninstall();
     expect(setTileScaling).not.toHaveBeenCalled();
     expect(setFullMapOverview).not.toHaveBeenCalled();
+  });
+
+  it("inverts the dungeon from a saved custom theme", () => {
+    const setVisualFilter = vi.fn((_filter: string | null, _options: { scope: "canvas" | "game" }) => {});
+    const customTheme = { background: "#112233ff", surface: "#223344ff", text: "#ccddeeff", accent: "#80b891ff", rounding: 4, invert_dungeon: true };
+    plugin.register(undefined, { id: "anybandui", engine: "1.18.0", log: () => {},
+      prefs: { get: () => ({ theme: "terminal-original", customTheme }), set: () => {} },
+      display: { setVisualFilter } });
+    expect(setVisualFilter).toHaveBeenCalledWith("invert(1)", { scope: "canvas" });
+    plugin.uninstall();
+    expect(setVisualFilter).toHaveBeenLastCalledWith(null, { scope: "canvas" });
   });
 
   it("applies and restores crisp overview settings once on a modern display", () => {

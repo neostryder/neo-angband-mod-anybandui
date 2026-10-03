@@ -1,6 +1,6 @@
-import { THEMES } from "./theme.js";
 import { PAINT_FONT, PAINT_FONT_SIZE, PAINT_LINE_HEIGHT, paintColours } from "./paint.js";
-import { validateSettings } from "./settings.js";
+import { themeFromPrefs } from "./settings.js";
+import { onThemeChange } from "./theme.js";
 import type { DisplaySnapshot, Point, ZoomDisplay } from "./zoom.js";
 import { clampOrigin, keepsDisplayRequestsPerMod, pointInRect } from "./zoom.js";
 
@@ -107,7 +107,7 @@ export function installMapOverview(ctx: Context): () => void {
   if ((!ctx.flags["anybandui.mapOverview"] && !ctx.flags["anybandui.mapSchematic"]) || typeof document === "undefined" || typeof window === "undefined") {
     return restoreDisplay;
   }
-  const theme = THEMES[validateSettings(ctx.prefs?.get()).theme]!;
+  let theme = themeFromPrefs(ctx.prefs?.get());
   const strip = document.createElement("div");
   strip.style.cssText = `position:fixed;z-index:900;display:none;height:24px;align-items:center;gap:8px;padding:0 6px;background:${theme.surface};color:${theme.text};font:${PAINT_FONT_SIZE}px/${PAINT_LINE_HEIGHT}px ${PAINT_FONT};border-bottom:1px solid ${paintColours(theme).border}`;
   const fit = document.createElement("button"); fit.textContent = "Fit floor";
@@ -131,6 +131,21 @@ export function installMapOverview(ctx: Context): () => void {
   toggle.setAttribute("aria-label", "Show map controls");
   toggle.style.cssText = `position:fixed;z-index:901;display:none;background:${theme.surface};color:${theme.text}`;
   document.body.appendChild(toggle);
+  const paintChrome = (): void => {
+    const colours = paintColours(theme);
+    const radius = `${Math.round(theme.rounding * 0.4)}px`;
+    strip.style.background = theme.surface;
+    strip.style.color = theme.text;
+    strip.style.borderBottom = `1px solid ${colours.border}`;
+    for (const control of [fit, center]) {
+      control.style.background = theme.background;
+      control.style.border = `1px solid ${colours.border}`;
+      control.style.borderRadius = radius;
+    }
+    toggle.style.background = theme.surface;
+    toggle.style.color = theme.text;
+  };
+  const stopTheme = onThemeChange((next) => { theme = next; paintChrome(); });
   let controlsOpen = false;
   toggle.addEventListener("click", () => { controlsOpen = !controlsOpen; update(); });
   const overlay = document.createElement("canvas");
@@ -248,7 +263,7 @@ export function installMapOverview(ctx: Context): () => void {
   window.addEventListener("pointermove", move, true);
   window.addEventListener("pointerup", up, true);
   const timer = setInterval(update, 150);
-  return () => { clearInterval(timer); offKey(); strip.remove(); toggle.remove(); overlay.remove(); restoreDisplay();
+  return () => { stopTheme(); clearInterval(timer); offKey(); strip.remove(); toggle.remove(); overlay.remove(); restoreDisplay();
     window.removeEventListener("wheel", wheel, true); window.removeEventListener("pointerdown", down, true);
     window.removeEventListener("pointermove", move, true); window.removeEventListener("pointerup", up, true); };
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { createSettingsStore, DEFAULT_SETTINGS, validateSettings } from "./settings.js";
+import { createSettingsStore, DEFAULT_SETTINGS, themeFromPrefs, validateSettings } from "./settings.js";
+import { THEMES } from "./theme.js";
 
 describe("settings store", () => {
   it("validates stored values independently", () => {
@@ -30,6 +31,25 @@ describe("settings store", () => {
     const store = createSettingsStore({ prefs: { get: () => saved, set: (value) => { saved = value; } } });
     store.set({ theme: "light-paper" });
     expect(saved).toMatchObject({ firstEncounter: { monsters: [1] }, theme: "light-paper" });
+  });
+
+  it("keeps a custom theme and drops one that is not complete", () => {
+    const custom = { background: "#112233", surface: "#223344ff", text: "#CCDDEE", accent: "#80b891", rounding: 4, invert_dungeon: true };
+    let saved: unknown = null;
+    const store = createSettingsStore({ prefs: { get: () => saved, set: (value) => { saved = value; } } });
+    store.set({ customTheme: custom });
+    expect(store.get().customTheme).toEqual({ background: "#112233ff", surface: "#223344ff", text: "#ccddeeff", accent: "#80b891ff", rounding: 4, invert_dungeon: true });
+    expect(validateSettings(saved).customTheme).toEqual(store.get().customTheme);
+    expect(themeFromPrefs(saved).background).toBe("#112233ff");
+    expect(themeFromPrefs(saved).invert_dungeon).toBe(true);
+    expect(themeFromPrefs(saved).light_styling).toBe(false);
+    expect(themeFromPrefs(saved).decorations).toBe(THEMES["terminal-original"]!.decorations);
+    store.set({ customTheme: null });
+    expect(store.get().customTheme).toBeNull();
+    expect(validateSettings({ customTheme: { background: "red", rounding: 17 } }).customTheme).toBeNull();
+    expect(themeFromPrefs({ theme: "light-paper" }).light_styling).toBe(true);
+    expect(themeFromPrefs({ theme: "terminal-original" }).light_styling).toBe(false);
+    expect(themeFromPrefs({ theme: "light-paper", customTheme: { background: "#070b0dff", surface: "#111a1dff", text: "#d9e3dbff", accent: "#80b891ff", rounding: 0, invert_dungeon: false } }).light_styling).toBe(false);
   });
 
   it("shares and bounds the delay for both map and dungeon cards", () => {

@@ -1,6 +1,6 @@
 import { readDisplayPreference } from "../preferences.js";
-import { applyTheme, THEMES } from "../theme.js";
-import { validateSettings } from "../settings.js";
+import { applyTheme, onThemeChange } from "../theme.js";
+import { themeFromPrefs } from "../settings.js";
 import { INTERFACE_ZOOM_SCALES } from "../zoom.js";
 import type { PanelKindSpec, PanelMount } from "../seams.js";
 
@@ -54,7 +54,7 @@ export function interfaceScale(ctx: SurfaceContext): number {
 }
 
 function prepare(ctx: SurfaceContext, root: ShadowRoot, css: string): void {
-  applyTheme(root, THEMES[validateSettings(ctx.prefs?.get()).theme]);
+  applyTheme(root, themeFromPrefs(ctx.prefs?.get()));
   const style = root.ownerDocument.createElement("style"); style.textContent = css; root.appendChild(style);
 }
 
@@ -68,6 +68,7 @@ function section(root: ShadowRoot, className: string): HTMLElement {
  * placement and saving; this mod owns only what is inside. */
 export function openSurfaces(ctx: SurfaceContext, specs: readonly SurfaceSpec[], overlay: { readonly id: string; readonly label: string; readonly className: string }, css: string, onChange: () => void): Surfaces | null {
   const entries = new Map<string, Entry>();
+  const themeStops = new Set<() => void>();
   const scale = (container: HTMLElement): void => { container.style.zoom = String(interfaceScale(ctx)); };
   const register = ctx.ui?.registerPanelKind;
   if (register) {
@@ -77,6 +78,8 @@ export function openSurfaces(ctx: SurfaceContext, specs: readonly SurfaceSpec[],
       ...(spec.placement ? { preferredPlacement: spec.placement } : {}), ...(spec.fitHeight !== undefined ? { fitHeight: spec.fitHeight } : {}),
       mount(host: PanelMount) {
         prepare(ctx, host.root, `${css}${PANE_FILL_CSS}`);
+        const stopTheme = onThemeChange((theme) => applyTheme(host.root, theme));
+        themeStops.add(stopTheme);
         const entry: Entry = { container: section(host.root, `${overlay.className} pane`), host, active: host.active, fitted: spec.fitHeight ?? null };
         entries.set(spec.key, entry);
         /* Focus alone never redraws. The host focuses a pane on pointerdown,
@@ -89,26 +92,41 @@ export function openSurfaces(ctx: SurfaceContext, specs: readonly SurfaceSpec[],
           entry.active = state.active; size = next; onChange();
         });
         onChange();
-        return () => { stop(); entries.delete(spec.key); };
+        // Unmount drops the theme watch and tells the card, so a timer tied to the mount can stop.
+        return () => { stop(); themeStops.delete(stopTheme); stopTheme(); entries.delete(spec.key); onChange(); };
       },
     }));
     return {
       mounts: () => new Map([...entries].filter(([, entry]) => entry.active).map(([key, entry]) => { scale(entry.container); return [key, entry.container]; })),
       fit: (key, px) => { const entry = entries.get(key); const next = Math.ceil(px); if (entry?.host && entry.fitted !== next) { entry.fitted = next; entry.host.setFitHeight(next); } },
       focus: (key) => entries.get(key)?.host?.requestFocus(),
-      close: () => { for (const stop of unregister) stop(); entries.clear(); },
+      close: () => {
+        for (const stop of unregister) stop();
+        for (const stopTheme of themeStops) stopTheme();
+        themeStops.clear();
+        entries.clear();
+        onChange();
+      },
     };
   }
   if (!ctx.ui?.openPanel) return null;
   const panel = ctx.ui.openPanel({ id: overlay.id, modal: false, label: overlay.label });
   prepare(ctx, panel.root, css);
+  const stopTheme = onThemeChange((theme) => applyTheme(panel.root, theme));
   for (const spec of specs) entries.set(spec.key, { container: section(panel.root, overlay.className), host: null, active: true, fitted: null });
   let open = true;
-  void panel.closed.then(() => { open = false; entries.clear(); });
+  const release = (): void => {
+    if (!open) return;
+    open = false;
+    stopTheme();
+    entries.clear();
+    onChange();
+  };
+  void panel.closed.then(release);
   return {
     mounts: () => open ? new Map([...entries].map(([key, entry]) => { scale(entry.container); return [key, entry.container]; })) : new Map(),
     fit: () => {},
     focus: () => {},
-    close: () => { if (open) panel.close(); open = false; entries.clear(); },
+    close: () => { if (open) panel.close(); release(); },
   };
 }

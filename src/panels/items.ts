@@ -5,9 +5,10 @@ import { AcquisitionChanges, adaptItems, compareSlots, defaultSlot, panelRows, t
 import { answerItem, answerQuantity, buildFloorCommand, buildItemCommand, floorChoiceIndex, quantityShortcut, submitFloorItem, submitIgnore, submitItem } from "../item-interactions.js";
 import { inspectionBlocks } from "../item-inspection.js";
 import { renderItemComparison, slotOptionLabel } from "./item-comparison.js";
+import { renderEquipmentPortrait, type PortraitItem } from "./equipment-portrait.js";
 import { playerIsDriving } from "../input-owner.js";
 
-const CSS = `:host{color:var(--anyband-text);font:var(--anyband-font-size)/var(--anyband-line) var(--anyband-font)}.items{position:absolute;right:12px;top:12px;width:min(440px,44vw);max-height:calc(100vh - 24px);overflow:auto;padding:10px;background:var(--anyband-surface);border:1px solid var(--anyband-accent);border-radius:var(--anyband-rounding);pointer-events:auto}button,input,select{font:inherit;color:var(--anyband-text);background:var(--anyband-background);border:1px solid var(--anyband-accent);border-radius:3px;padding:3px 5px}button{cursor:pointer}button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--anyband-accent)}input[type=search]{width:100%}.tabs,.actions,.quick{display:flex;gap:5px;flex-wrap:wrap;margin:6px 0}table{width:100%;border-collapse:collapse}th{text-align:left;position:sticky;top:0;background:var(--anyband-surface)}td,th{padding:3px;border-bottom:1px solid var(--anyband-accent)}tr.new{background:#437d5541}tr.chosen{outline:1px solid var(--anyband-accent)}.row{width:100%;text-align:left;border:0;background:transparent}details{margin:8px 0}summary{color:var(--anyband-accent);cursor:pointer;font-weight:bold}.muted{opacity:.65}.gain{color:#80b891}.loss{color:#ff7559}.error{color:#ff7559}.prompt{border:1px solid var(--anyband-accent);padding:8px;margin:8px 0}.rule{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;padding:3px 0;border-bottom:1px solid var(--anyband-accent)}.rule .name{flex:1 1 12em}.rule input[type=text]{width:9em}.info{white-space:pre-wrap;margin:4px 0}summary.lead{font-weight:normal;color:inherit}`;
+const CSS = `:host{color:var(--anyband-text);font:var(--anyband-font-size)/var(--anyband-line) var(--anyband-font)}.items{position:absolute;right:12px;top:12px;width:min(440px,44vw);max-height:calc(100vh - 24px);overflow:auto;padding:10px;background:var(--anyband-surface);border:1px solid var(--anyband-accent);border-radius:var(--anyband-rounding);pointer-events:auto}button,input,select{font:inherit;color:var(--anyband-text);background:var(--anyband-background);border:1px solid var(--anyband-accent);border-radius:3px;padding:3px 5px}button{cursor:pointer}button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--anyband-accent)}input[type=search]{width:100%}.tabs,.actions,.quick{display:flex;gap:5px;flex-wrap:wrap;margin:6px 0}table{width:100%;border-collapse:collapse}th{text-align:left;position:sticky;top:0;background:var(--anyband-surface)}td,th{padding:3px;border-bottom:1px solid var(--anyband-accent)}tr.new{background:#437d5541}tr.chosen{outline:1px solid var(--anyband-accent)}.row{width:100%;text-align:left;border:0;background:transparent}details{margin:8px 0}summary{color:var(--anyband-accent);cursor:pointer;font-weight:bold}.muted{opacity:.65}.gain{color:#80b891}.loss{color:#ff7559}.error{color:#ff7559}.prompt{border:1px solid var(--anyband-accent);padding:8px;margin:8px 0}.rule{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;padding:3px 0;border-bottom:1px solid var(--anyband-accent)}.rule .name{flex:1 1 12em}.rule input[type=text]{width:9em}.info{white-space:pre-wrap;margin:4px 0}summary.lead{font-weight:normal;color:inherit}.portrait .body{display:grid;grid-template-columns:minmax(8em,auto) auto minmax(8em,auto);align-items:center;column-gap:8px;margin:8px 0}.portrait .figure{grid-column:2;grid-row:1 / span 6;margin:0;white-space:pre;font:inherit}.portrait .left{grid-column:1;justify-self:end;text-align:right}.portrait .right{grid-column:3;justify-self:start;text-align:left}.slotcard{display:flex;flex-direction:column;gap:2px;max-width:14em}.portrait .extras{margin-top:8px}`;
 const ACTIONS = ["wield", "takeoff", "drop", "inscribe", "use"] as const;
 const ACTION_LABELS: Record<(typeof ACTIONS)[number], string> = { wield: "Wield", takeoff: "Take off", drop: "Drop", inscribe: "Inscribe", use: "Use" };
 const USE_CODES = ["activate", "use-staff", "aim-wand", "zap-rod", "eat", "quaff", "read"] as const;
@@ -15,10 +16,17 @@ const TAB_NAMES = { pack: "Pack", equipment: "Equipment", quiver: "Quiver" } as 
 function el(parent: Element | ShadowRoot, tag: string, text?: string): HTMLElement { const child = parent.ownerDocument.createElement(tag); if (text !== undefined) child.textContent = text; parent.appendChild(child); return child; }
 function button(parent: Element, label: string, action: () => void): HTMLButtonElement { const b = el(parent, "button", label) as HTMLButtonElement; b.type = "button"; b.addEventListener("click", action); return b; }
 function same(a: { epoch: number; revision: number }, b: { epoch: number; revision: number }): boolean { return a.epoch === b.epoch && a.revision === b.revision; }
+// A button has no selection, and setSelectionRange throws on it. Only a text field has a caret to put back.
+function textControl(node: HTMLElement): HTMLInputElement | HTMLTextAreaElement | null {
+  const name = typeof node.tagName === "string" ? node.tagName.toLowerCase() : "";
+  if (name !== "input" && name !== "textarea") return null;
+  return node as HTMLInputElement;
+}
 
 export function installItems(ctx: ItemPanelContext): () => void {
   const flags = ctx.flags ?? {};
-  if (!Object.entries(flags).some(([key, on]) => key.startsWith("anybandui.items") && on && (key !== "anybandui.itemsRules" || !!ctx.inspect?.itemRules))) return () => {};
+  const portraitOn = flags["anybandui.equipmentPortrait"] === true;
+  if (!portraitOn && !Object.entries(flags).some(([key, on]) => key.startsWith("anybandui.items") && on && (key !== "anybandui.itemsRules" || !!ctx.inspect?.itemRules))) return () => {};
   if (!ctx.snapshot) { ctx.log("items: snapshot seam unavailable"); return () => {}; }
   let repaint = (): void => {};
   // A pane beside the dungeon view when the host tiles mod panels, else an overlay.
@@ -28,6 +36,8 @@ export function installItems(ctx: ItemPanelContext): () => void {
   let mount: HTMLElement = document.createElement("section");
   const changes = new AcquisitionChanges();
   let tab: keyof typeof TAB_NAMES = "pack";
+  // The figure is the equipment tab's first view while that switch is on.
+  let figure = portraitOn;
   let search = "";
   // The selected row's key: a gear key survives letter changes, so the selection
   // stays on the same stack when the pack reorders.
@@ -282,17 +292,20 @@ export function installItems(ctx: ItemPanelContext): () => void {
     ((mount.getRootNode() as ShadowRoot).host as HTMLElement).style.display = model?.phase === "store" ? "none" : "";
     if (model?.phase === "store") return;
     if (model && ignoreEpoch !== model.token.epoch) { ignoredHere.clear(); ignoreEpoch = model.token.epoch; }
-    const next = JSON.stringify([model, tab, search, selected, promptChoice, unchanged, quantity, error, slotChoice, [...ignoredHere], ruleFilter]);
+    const next = JSON.stringify([model, tab, search, selected, promptChoice, unchanged, quantity, error, slotChoice, [...ignoredHere], ruleFilter, figure]);
     if (!force && next === signature) return; signature = next;
-    // Keep the caret in a text field that a repaint rebuilds.
-    const active = (mount.getRootNode() as ShadowRoot).activeElement as HTMLInputElement | null;
+    // Keep the caret in a text field that a repaint rebuilds, and plain focus on any other marked node.
+    const active = (mount.getRootNode() as ShadowRoot).activeElement as HTMLElement | null;
     const focusKey = active && mount.contains(active) ? active.dataset?.["focus"] : undefined;
-    const caret = focusKey ? [active!.selectionStart, active!.selectionEnd] as const : null;
+    const editing = focusKey && active ? textControl(active) : null;
+    const caret = editing ? [editing.selectionStart, editing.selectionEnd] as const : null;
     mount.replaceChildren();
     build(model);
     if (focusKey) {
-      const field = mount.querySelector<HTMLInputElement>(`[data-focus="${focusKey}"]`);
-      field?.focus(); if (field && caret && caret[0] !== null) field.setSelectionRange(caret[0], caret[1]);
+      const field = mount.querySelector<HTMLElement>(`[data-focus="${focusKey}"]`);
+      field?.focus();
+      const restored = field ? textControl(field) : null;
+      if (restored && caret && caret[0] !== null) restored.setSelectionRange(caret[0], caret[1]);
     }
   };
   const build = (model: ItemsModel | null): void => {
@@ -301,25 +314,45 @@ export function installItems(ctx: ItemPanelContext): () => void {
     if (enabled("Highlights")) changes.update(model);
     showPrompt(model);
     showRules(model);
-    if (!enabled("Lists")) return;
+    if (!enabled("Lists") && !portraitOn) return;
     // The pile under the character sits above the tabs, as in upstream's panel.
-    if (model.floor?.length) {
+    if (enabled("Lists") && model.floor?.length) {
       el(mount, "h3", "On this tile");
       const table = el(mount, "table"); const head = el(table, "tr"); for (const name of ["Item", "Qty"]) el(head, "th", name);
       for (const item of model.floor) { const row = el(table, "tr"); itemButton(el(row, "td"), item, null); el(row, "td", String(item.quantity)); }
     }
-    const tabs = el(mount, "div"); tabs.className = "tabs";
-    for (const name of ["pack", "equipment", "quiver"] as const) { const b = button(tabs, TAB_NAMES[name], () => { tab = name; paint(true); }); b.setAttribute("aria-pressed", String(tab === name)); }
-    const searchBox = el(mount, "input") as HTMLInputElement; searchBox.type = "search"; searchBox.placeholder = "Search items"; searchBox.value = search; searchBox.dataset["focus"] = "item-search";
-    searchBox.addEventListener("input", () => { search = searchBox.value; paint(true); });
-    const listed = tab === "quiver" ? model.quiver ?? [] : model.rows.filter((item) => item.location === tab);
-    const rows = listed.filter((item) => item.label.toLowerCase().includes(search.toLowerCase()));
-    if (!rows.length) el(mount, "p", tab === "pack" ? "Your pack is empty." : tab === "equipment" ? "Nothing equipped." : model.quiver ? "Your quiver is empty." : "No quiver items available.");
-    const table = el(mount, "table"); const head = el(table, "tr"); for (const name of tab === "equipment" ? ["Item", "Slot", "Qty"] : ["Item", "Qty"]) el(head, "th", name);
-    for (const item of rows) {
-      const row = el(table, "tr"); const badge = enabled("Highlights") ? changes.badge(item) : null; if (badge) row.className = "new";
-      itemButton(el(row, "td"), item, badge);
-      if (tab === "equipment") el(row, "td", item.slotName ?? String(item.slot ?? "")); el(row, "td", String(item.quantity));
+    if (enabled("Lists")) {
+      const tabs = el(mount, "div"); tabs.className = "tabs";
+      for (const name of ["pack", "equipment", "quiver"] as const) { const b = button(tabs, TAB_NAMES[name], () => { tab = name; paint(true); }); b.setAttribute("aria-pressed", String(tab === name)); }
+    }
+    const showFigure = portraitOn && figure && (tab === "equipment" || !enabled("Lists"));
+    if (portraitOn && enabled("Lists") && tab === "equipment") {
+      const views = el(mount, "div"); views.className = "tabs";
+      const figureButton = button(views, "Figure", () => { figure = true; paint(true); });
+      figureButton.setAttribute("aria-pressed", String(figure));
+      const listButton = button(views, "List", () => { figure = false; paint(true); });
+      listButton.setAttribute("aria-pressed", String(!figure));
+    }
+    if (showFigure) {
+      const slots = ctx.snapshot?.()?.core.equipmentSlots;
+      const worn: PortraitItem[] = model.rows.filter((item) => item.location === "equipment").map((item) => ({
+        ...(item.slot === undefined ? {} : { slot: item.slot }),
+        ...(item.slotName === undefined ? {} : { slotName: item.slotName }),
+        label: item.label, colour: item.colour, inscription: item.inscription, key: item.key,
+      }));
+      renderEquipmentPortrait(mount, slots, worn, selected, (key) => { selected = key; paint(true); });
+    } else if (enabled("Lists")) {
+      const searchBox = el(mount, "input") as HTMLInputElement; searchBox.type = "search"; searchBox.placeholder = "Search items"; searchBox.value = search; searchBox.dataset["focus"] = "item-search";
+      searchBox.addEventListener("input", () => { search = searchBox.value; paint(true); });
+      const listed = tab === "quiver" ? model.quiver ?? [] : model.rows.filter((item) => item.location === tab);
+      const rows = listed.filter((item) => item.label.toLowerCase().includes(search.toLowerCase()));
+      if (!rows.length) el(mount, "p", tab === "pack" ? "Your pack is empty." : tab === "equipment" ? "Nothing equipped." : model.quiver ? "Your quiver is empty." : "No quiver items available.");
+      const table = el(mount, "table"); const head = el(table, "tr"); for (const name of tab === "equipment" ? ["Item", "Slot", "Qty"] : ["Item", "Qty"]) el(head, "th", name);
+      for (const item of rows) {
+        const row = el(table, "tr"); const badge = enabled("Highlights") ? changes.badge(item) : null; if (badge) row.className = "new";
+        itemButton(el(row, "td"), item, badge);
+        if (tab === "equipment") el(row, "td", item.slotName ?? String(item.slot ?? "")); el(row, "td", String(item.quantity));
+      }
     }
     const item = panelRows(model).find((row) => row.key === selected);
     if (item) {
@@ -350,6 +383,9 @@ export function installItems(ctx: ItemPanelContext): () => void {
       }
       showComparison(model, item);
       showInspection(model, item);
+    } else if (showFigure && selected?.startsWith("empty:")) {
+      el(mount, "h3", "Inspection");
+      el(mount, "p", "Empty").className = "muted";
     }
     if (error) { const message = el(mount, "p", error); message.className = "error"; }
   };

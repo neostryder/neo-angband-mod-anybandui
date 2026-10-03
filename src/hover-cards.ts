@@ -1,5 +1,5 @@
-import { validateSettings } from "./settings.js";
-import { THEMES } from "./theme.js";
+import { themeFromPrefs, validateSettings } from "./settings.js";
+import { onThemeChange } from "./theme.js";
 import { PAINT_FONT, PAINT_FONT_SIZE, PAINT_LINE_HEIGHT, paintColours } from "./paint.js";
 import type { DisplaySnapshot, Point, ZoomDisplay } from "./zoom.js";
 import { pointInRect } from "./zoom.js";
@@ -132,10 +132,19 @@ export function installHoverCards(ctx: HoverContext): () => void {
   }
   const core = ctx.core, display = ctx.display;
   const settings = validateSettings(ctx.prefs?.get());
-  const theme = THEMES[settings.theme]!;
+  let theme = themeFromPrefs(ctx.prefs?.get());
   const card = document.createElement("div");
   card.setAttribute("role", "tooltip");
   card.style.cssText = `position:fixed;z-index:1000;display:none;pointer-events:none;white-space:pre-wrap;max-width:320px;padding:8px 10px;border:1px solid ${paintColours(theme).border};border-radius:${Math.round(theme.rounding * 0.6)}px;background:${theme.surface};color:${theme.text};font:${PAINT_FONT_SIZE}px/${PAINT_LINE_HEIGHT}px ${PAINT_FONT};box-shadow:0 4px 16px #0008`;
+  // Colours were copied onto the card. A later Save has to reach it without hiding it.
+  const paintCard = (): void => {
+    const colours = paintColours(theme);
+    card.style.background = theme.surface;
+    card.style.color = theme.text;
+    card.style.border = `1px solid ${colours.border}`;
+    card.style.borderRadius = `${Math.round(theme.rounding * 0.6)}px`;
+  };
+  const stopTheme = onThemeChange((next) => { theme = next; paintCard(); });
   const preview = document.createElement("canvas");
   preview.width = 64; preview.height = 64;
   preview.style.cssText = "display:none;width:64px;height:64px;float:right;margin:0 0 4px 8px;image-rendering:pixelated";
@@ -208,7 +217,7 @@ export function installHoverCards(ctx: HoverContext): () => void {
   document.addEventListener("pointercancel", onUp);
   document.addEventListener("keydown", onKey);
   window.addEventListener("blur", onBlur);
-  return () => { hide(); card.remove(); document.removeEventListener("pointermove", onMove);
+  return () => { stopTheme(); hide(); card.remove(); document.removeEventListener("pointermove", onMove);
     window.removeEventListener("pointerdown", onDown, true); document.removeEventListener("pointerup", onUp);
     document.removeEventListener("pointercancel", onUp); document.removeEventListener("keydown", onKey);
     window.removeEventListener("blur", onBlur); };

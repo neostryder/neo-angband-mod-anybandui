@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { KnownLevel, StoreContext, StoreSnapshot, StoreStatus, StoreConfirmPrompt, MouseSeams, InputToken, PlayerIntent, StorePromptAnswer, StoreReplyResult, LoadoutSimulation, LoadoutSlotRef, LoadoutSlotsResult, StoreItemRef, StoreInspectResult, StoreQuantityPrompt } from "./seams.js";
 import { adaptStore } from "./view-model/stores.js";
+import { notifyThemeChange, THEMES } from "./theme.js";
 import { installStores, storeAction, storeComparisons, storeInspection, storePromptReply, tradeAllowed } from "./panels/stores.js";
 import { clickTile } from "./map-mouse.js";
 
@@ -258,6 +259,29 @@ describe("store window", () => {
     const cleanup = installStores(store);
     return { root, submit, reply, close, cleanup, set: (next: StoreSnapshot) => { current = next; } };
   }
+  it("repaints an open store when the theme changes and stops when the store closes", () => {
+    vi.useFakeTimers();
+    class Host {
+      values: Record<string, string> = {};
+      style = { setProperty: (key: string, value: string) => { this.values[key] = value; } };
+    }
+    Object.assign(globalThis, { HTMLElement: Host });
+    let current = snap();
+    const { ctx } = context();
+    const root = new FakeNode();
+    const host = new Host();
+    root.host = host as unknown as FakeNode;
+    const cleanup = installStores({ ...ctx, flags: allFlags, snapshot: () => current,
+      ui: { openPanel: () => ({ root: root as unknown as ShadowRoot, closed: new Promise<void>(() => {}), close: vi.fn() }) } });
+    notifyThemeChange(THEMES["light-paper"]!);
+    expect(host.values["--anyband-background"]).toBe(THEMES["light-paper"]!.background);
+    current = snap("play");
+    vi.advanceTimersByTime(200);
+    notifyThemeChange(THEMES["amber-terminal"]!);
+    expect(host.values["--anyband-background"]).toBe(THEMES["light-paper"]!.background);
+    cleanup();
+    vi.useRealTimers();
+  });
   it("asks how many with the price, total and gold, and cancels with the typed reply", () => {
     const view = open(snap("store", quantity));
     const text = view.root.text();

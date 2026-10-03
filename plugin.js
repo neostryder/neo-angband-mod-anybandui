@@ -911,8 +911,8 @@ function wrapBitmapParagraphs(text, maxChars) {
     (paragraph) => paragraph.trim() === "" ? [""] : wrapBitmapText(paragraph, maxChars)
   );
 }
-function styleAsScreenReaderOnly(el5) {
-  Object.assign(el5.style, {
+function styleAsScreenReaderOnly(el8) {
+  Object.assign(el8.style, {
     position: "absolute",
     width: "1px",
     height: "1px",
@@ -997,7 +997,7 @@ function paintProperties(theme) {
     "--anyband-rounding-frame": `${Math.round(theme.rounding * 0.4)}px`
   };
 }
-var FRAMES = [".surface", ".items", ".phase4", ".store"].map((s) => `:host ${s}`).join(",");
+var FRAMES = [".surface", ".items", ".phase4", ".store", ".sheet", ".theme"].map((s) => `:host ${s}`).join(",");
 var TICK = "linear-gradient(var(--anyband-tick),var(--anyband-tick))";
 var CORNERS = ["left 2px top 2px", "right 2px top 2px", "left 2px bottom 2px", "right 2px bottom 2px"];
 var PAINT_CSS = [
@@ -1050,7 +1050,10 @@ var PAINTED_FEATURES = [
   "anybandui.spells",
   "anybandui.quickbar",
   "anybandui.restDialog",
-  "anybandui.storeWindow"
+  "anybandui.storeWindow",
+  "anybandui.characterSheet",
+  "anybandui.equipmentPortrait",
+  "anybandui.themeEditor"
 ];
 function installChromePaint(display, flags, theme, log) {
   if (!PAINTED_FEATURES.some((flag) => flags[flag] === true)) return () => {
@@ -1083,12 +1086,74 @@ var THEMES = {
   "amber-terminal": { background: "#110b06ff", surface: "#241910ff", text: "#f0d9a6ff", accent: "#e89e42ff", rounding: 0, decorations: true, invert_dungeon: false, light_styling: false },
   "midnight-ice": { background: "#060b17ff", surface: "#0e1b2bff", text: "#cfe6f5ff", accent: "#59c2e0ff", rounding: 7, decorations: true, invert_dungeon: false, light_styling: false }
 };
+var COLOUR = /^#([0-9a-f]{6}|[0-9a-f]{8})$/i;
+function normalizeColour(value2) {
+  const match = COLOUR.exec(value2.trim());
+  if (!match) return null;
+  const hex2 = match[1].toLowerCase();
+  return `#${hex2.length === 6 ? `${hex2}ff` : hex2}`;
+}
+function normalizeRounding(value2) {
+  return Number.isInteger(value2) && value2 >= 0 && value2 <= 16 ? value2 : null;
+}
+function parseCustomTheme(value2) {
+  if (value2 === null || value2 === void 0) return null;
+  if (typeof value2 !== "object" || Array.isArray(value2)) return null;
+  const record2 = value2;
+  const background = typeof record2["background"] === "string" ? normalizeColour(record2["background"]) : null;
+  const surface = typeof record2["surface"] === "string" ? normalizeColour(record2["surface"]) : null;
+  const text = typeof record2["text"] === "string" ? normalizeColour(record2["text"]) : null;
+  const accent = typeof record2["accent"] === "string" ? normalizeColour(record2["accent"]) : null;
+  const rounding = typeof record2["rounding"] === "number" ? normalizeRounding(record2["rounding"]) : null;
+  if (!background || !surface || !text || !accent || rounding === null || typeof record2["invert_dungeon"] !== "boolean") return null;
+  return { background, surface, text, accent, rounding, invert_dungeon: record2["invert_dungeon"] };
+}
+function channel(hex2, index) {
+  return Number.parseInt(hex2.slice(1 + index * 2, 3 + index * 2), 16);
+}
+function lightFromBackground(hex2) {
+  const r = channel(hex2, 0);
+  const g = channel(hex2, 1);
+  const b = channel(hex2, 2);
+  return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255 > 0.5;
+}
+function resolveTheme(name, custom) {
+  const base = THEMES[name] ?? THEMES["terminal-original"];
+  if (!custom) return base;
+  return {
+    ...base,
+    background: custom.background,
+    surface: custom.surface,
+    text: custom.text,
+    accent: custom.accent,
+    rounding: custom.rounding,
+    invert_dungeon: custom.invert_dungeon,
+    light_styling: lightFromBackground(custom.background)
+  };
+}
+var THEME_CHOICES = [
+  ["terminal-original", "Terminal (original)"],
+  ["dark-graphite", "Dark / Graphite"],
+  ["light-paper", "Light / Paper"],
+  ["amber-terminal", "Amber terminal"],
+  ["midnight-ice", "Midnight / Ice"]
+];
 var CHROME = {
   padding: { window: [8, 8], frame: [7, 3], separator_text: [8, 3], cell: [6, 2] },
   spacing: { item: [7, 4], item_inner: [5, 4] },
   border: { window: 1, child: 1, frame: 1, tab: 0, separator_text: 1 },
   rounding: { child_factor: 0.6, frame_factor: 0.4, popup_factor: 0.8, scrollbar_size: 12 }
 };
+var themeChanges = /* @__PURE__ */ new Set();
+function onThemeChange(listener) {
+  themeChanges.add(listener);
+  return () => {
+    themeChanges.delete(listener);
+  };
+}
+function notifyThemeChange(theme) {
+  for (const listener of [...themeChanges]) listener(theme);
+}
 var painted = /* @__PURE__ */ new WeakSet();
 function applyTheme(root, theme = THEMES["terminal-original"]) {
   const style = root.host instanceof HTMLElement ? root.host.style : void 0;
@@ -1202,6 +1267,13 @@ function createPanelHost(doc, panels, theme) {
   const surface = node(shadow, "div", "surface");
   const content = createPanelContent(surface, panels);
   doc.body.appendChild(element);
+  const stopTheme2 = onThemeChange((next) => {
+    if (!element.isConnected) {
+      stopTheme2();
+      return;
+    }
+    applyTheme(shadow, next);
+  });
   return {
     element,
     present(section2, frame, model) {
@@ -1335,6 +1407,7 @@ var FONT_FILES = [
 // src/settings.ts
 var DEFAULT_SETTINGS = {
   theme: "terminal-original",
+  customTheme: null,
   interfaceFont: "Nouveau_IBM.ttf",
   dungeonFont: "",
   showHeadings: true,
@@ -1343,12 +1416,17 @@ var DEFAULT_SETTINGS = {
   panelZoom: {},
   effects: {}
 };
+function themeFromPrefs(raw) {
+  const settings = validateSettings(raw);
+  return resolveTheme(settings.theme, settings.customTheme);
+}
 var themes = /* @__PURE__ */ new Set(["terminal-original", "dark-graphite", "light-paper", "amber-terminal", "midnight-ice"]);
 var fonts = new Set(FONT_FILES);
 function validateSettings(value2) {
   const record2 = value2 !== null && typeof value2 === "object" && !Array.isArray(value2) ? value2 : {};
   return {
     theme: typeof record2["theme"] === "string" && themes.has(record2["theme"]) ? record2["theme"] : DEFAULT_SETTINGS.theme,
+    customTheme: parseCustomTheme(record2["customTheme"]),
     interfaceFont: typeof record2["interfaceFont"] === "string" && fonts.has(record2["interfaceFont"]) ? record2["interfaceFont"] : DEFAULT_SETTINGS.interfaceFont,
     dungeonFont: typeof record2["dungeonFont"] === "string" && (record2["dungeonFont"] === "" || fonts.has(record2["dungeonFont"])) ? record2["dungeonFont"] : DEFAULT_SETTINGS.dungeonFont,
     showHeadings: typeof record2["showHeadings"] === "boolean" ? record2["showHeadings"] : DEFAULT_SETTINGS.showHeadings,
@@ -1356,6 +1434,28 @@ function validateSettings(value2) {
     zoomIndex: typeof record2["zoomIndex"] === "number" && Number.isInteger(record2["zoomIndex"]) ? Math.max(0, Math.min(18, record2["zoomIndex"])) : DEFAULT_SETTINGS.zoomIndex,
     panelZoom: record2["panelZoom"] && typeof record2["panelZoom"] === "object" && !Array.isArray(record2["panelZoom"]) ? Object.fromEntries(Object.entries(record2["panelZoom"]).filter(([id, step]) => id.length > 0 && typeof step === "number" && Number.isInteger(step) && step >= 0 && step <= 6)) : DEFAULT_SETTINGS.panelZoom,
     effects: record2["effects"] && typeof record2["effects"] === "object" && !Array.isArray(record2["effects"]) ? Object.fromEntries(Object.entries(record2["effects"]).filter(([id, value3]) => id.length > 0 && typeof value3 === "number" && Number.isFinite(value3)).map(([id, value3]) => [id, Math.max(0, Math.min(100, Math.round(value3)))])) : DEFAULT_SETTINGS.effects
+  };
+}
+function createSettingsStore(ctx) {
+  let current = validateSettings(ctx.prefs.get());
+  const listeners = /* @__PURE__ */ new Set();
+  return {
+    get: () => ({ ...current }),
+    set(patch) {
+      const next = validateSettings({ ...current, ...patch });
+      if (JSON.stringify(next) === JSON.stringify(current)) return;
+      const stored = ctx.prefs.get();
+      const preserved = stored !== null && typeof stored === "object" && !Array.isArray(stored) ? stored : {};
+      ctx.prefs.set({ ...preserved, ...next });
+      current = next;
+      for (const listener of listeners) listener({ ...current });
+    },
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    }
   };
 }
 
@@ -2500,7 +2600,7 @@ function interfaceScale(ctx) {
   return INTERFACE_ZOOM_SCALES[readDisplayPreference(ctx.prefs?.get()).interfaceZoomIndex] ?? 1;
 }
 function prepare(ctx, root, css) {
-  applyTheme(root, THEMES[validateSettings(ctx.prefs?.get()).theme]);
+  applyTheme(root, themeFromPrefs(ctx.prefs?.get()));
   const style = root.ownerDocument.createElement("style");
   style.textContent = css;
   root.appendChild(style);
@@ -2513,6 +2613,7 @@ function section(root, className) {
 }
 function openSurfaces(ctx, specs, overlay, css, onChange) {
   const entries = /* @__PURE__ */ new Map();
+  const themeStops = /* @__PURE__ */ new Set();
   const scale = (container) => {
     container.style.zoom = String(interfaceScale(ctx));
   };
@@ -2527,6 +2628,8 @@ function openSurfaces(ctx, specs, overlay, css, onChange) {
       ...spec.fitHeight !== void 0 ? { fitHeight: spec.fitHeight } : {},
       mount(host) {
         prepare(ctx, host.root, `${css}${PANE_FILL_CSS}`);
+        const stopTheme3 = onThemeChange((theme) => applyTheme(host.root, theme));
+        themeStops.add(stopTheme3);
         const entry2 = { container: section(host.root, `${overlay.className} pane`), host, active: host.active, fitted: spec.fitHeight ?? null };
         entries.set(spec.key, entry2);
         let size = `${host.bounds.width}x${host.bounds.height}`;
@@ -2540,7 +2643,10 @@ function openSurfaces(ctx, specs, overlay, css, onChange) {
         onChange();
         return () => {
           stop();
+          themeStops.delete(stopTheme3);
+          stopTheme3();
           entries.delete(spec.key);
+          onChange();
         };
       }
     }));
@@ -2560,19 +2666,27 @@ function openSurfaces(ctx, specs, overlay, css, onChange) {
       focus: (key) => entries.get(key)?.host?.requestFocus(),
       close: () => {
         for (const stop of unregister) stop();
+        for (const stopTheme3 of themeStops) stopTheme3();
+        themeStops.clear();
         entries.clear();
+        onChange();
       }
     };
   }
   if (!ctx.ui?.openPanel) return null;
   const panel = ctx.ui.openPanel({ id: overlay.id, modal: false, label: overlay.label });
   prepare(ctx, panel.root, css);
+  const stopTheme2 = onThemeChange((theme) => applyTheme(panel.root, theme));
   for (const spec of specs) entries.set(spec.key, { container: section(panel.root, overlay.className), host: null, active: true, fitted: null });
   let open = true;
-  void panel.closed.then(() => {
+  const release = () => {
+    if (!open) return;
     open = false;
+    stopTheme2();
     entries.clear();
-  });
+    onChange();
+  };
+  void panel.closed.then(release);
   return {
     mounts: () => open ? new Map([...entries].map(([key, entry2]) => {
       scale(entry2.container);
@@ -2584,8 +2698,7 @@ function openSurfaces(ctx, specs, overlay, css, onChange) {
     },
     close: () => {
       if (open) panel.close();
-      open = false;
-      entries.clear();
+      release();
     }
   };
 }
@@ -2833,9 +2946,16 @@ function renderMessageLog(mount, model, options = {}) {
 var COLORBLIND_FILTER_ID = "anybandui-accessibility-colorblind";
 var HIGH_CONTRAST_FILTER = "contrast(1.55) saturate(1.2)";
 var COLORBLIND_MATRIX = "0.812 0.199 -0.011 0 0 0 1 0 0 0 -0.188 0.199 0.989 0 0 0 0 0 1 0";
-function setFilter(display, filter) {
-  if (typeof display.getVisualFilter === "function" || display.setVisualFilter.length >= 2) display.setVisualFilter(filter, { scope: "game" });
+function setFilter(display, filter, scope) {
+  if (typeof display.getVisualFilter === "function" || display.setVisualFilter.length >= 2) display.setVisualFilter(filter, { scope });
   else display.setVisualFilter(filter);
+}
+function visualTreatment(flags, invertDungeon = false) {
+  const access = accessibilityFilter(flags);
+  if (invertDungeon && access) return { filter: `${access} invert(1)`, scope: "game" };
+  if (invertDungeon) return { filter: "invert(1)", scope: "canvas" };
+  if (access) return { filter: access, scope: "game" };
+  return null;
 }
 function accessibilityFilter(flags) {
   const filters = [];
@@ -2861,23 +2981,26 @@ function ensureColorblindFilter() {
   document.body?.appendChild(svg);
 }
 var configuredDisplay = null;
+var configuredScope = "game";
 function installAccessibilityAccommodations(ctx) {
   uninstallAccessibilityAccommodations();
-  const filter = accessibilityFilter(ctx.flags);
-  if (!filter) return;
+  const treatment = visualTreatment(ctx.flags, ctx.invertDungeon === true);
+  if (!treatment) return;
   if (!ctx.display) {
-    ctx.log?.("this game is too old for visual accessibility filters");
+    ctx.log?.(ctx.invertDungeon === true && !accessibilityFilter(ctx.flags) ? "this game is too old to invert the dungeon view" : "this game is too old for visual accessibility filters");
     return;
   }
   if (ctx.flags["anybandui.colourblind"] === true) ensureColorblindFilter();
   configuredDisplay = ctx.display;
-  setFilter(ctx.display, filter);
-  setPanelHostVisualFilter(filter);
+  configuredScope = treatment.scope;
+  setFilter(ctx.display, treatment.filter, treatment.scope);
+  setPanelHostVisualFilter(treatment.scope === "game" ? treatment.filter : null);
 }
 function uninstallAccessibilityAccommodations() {
   const display = configuredDisplay;
+  const scope = configuredScope;
   configuredDisplay = null;
-  if (display) setFilter(display, null);
+  if (display) setFilter(display, null, scope);
   setPanelHostVisualFilter(null);
 }
 
@@ -3002,8 +3125,16 @@ var AUTO_DISMISS_MS = 9e3;
 var timer = null;
 var queue = [];
 var activePanel = null;
+var activeContent = null;
 var activeTimeout = null;
 var activeTheme = THEMES["terminal-original"];
+var stopTheme = null;
+function showEncounter(theme) {
+  activeTheme = theme;
+  if (!activePanel || !activeContent) return;
+  activePanel.root.replaceChildren();
+  drawCard(activePanel, activeContent, activeTheme);
+}
 function showNext(ui) {
   if (activePanel) return;
   const content = queue.shift();
@@ -3015,9 +3146,12 @@ function showNext(ui) {
     return;
   }
   activePanel = panel;
+  activeContent = content;
   drawCard(panel, content, activeTheme);
   const advance = () => {
+    if (activePanel !== panel) return;
     activePanel = null;
+    activeContent = null;
     showNext(ui);
   };
   void panel.closed.then(advance);
@@ -3133,6 +3267,7 @@ function installFirstEncounter(ctx) {
   }
   const ui = ctx.ui;
   activeTheme = ctx.theme ?? THEMES["terminal-original"];
+  stopTheme = onThemeChange(showEncounter);
   const core = ctx.core;
   const key = characterKeyFor(ctx.state.actor.player);
   const notebook = readFirstEncounterNotebook(ctx.prefs?.get(), key);
@@ -3169,6 +3304,8 @@ function installFirstEncounter(ctx) {
   }, POLL_MS);
 }
 function uninstallFirstEncounter() {
+  stopTheme?.();
+  stopTheme = null;
   if (timer !== null) {
     clearInterval(timer);
     timer = null;
@@ -3179,6 +3316,7 @@ function uninstallFirstEncounter() {
   }
   activePanel?.close();
   activePanel = null;
+  activeContent = null;
   queue = [];
 }
 
@@ -3300,7 +3438,7 @@ function installMapOverview(ctx) {
   if (!ctx.flags["anybandui.mapOverview"] && !ctx.flags["anybandui.mapSchematic"] || typeof document === "undefined" || typeof window === "undefined") {
     return restoreDisplay;
   }
-  const theme = THEMES[validateSettings(ctx.prefs?.get()).theme];
+  let theme = themeFromPrefs(ctx.prefs?.get());
   const strip = document.createElement("div");
   strip.style.cssText = `position:fixed;z-index:900;display:none;height:24px;align-items:center;gap:8px;padding:0 6px;background:${theme.surface};color:${theme.text};font:${PAINT_FONT_SIZE}px/${PAINT_LINE_HEIGHT}px ${PAINT_FONT};border-bottom:1px solid ${paintColours(theme).border}`;
   const fit = document.createElement("button");
@@ -3331,6 +3469,24 @@ function installMapOverview(ctx) {
   toggle.setAttribute("aria-label", "Show map controls");
   toggle.style.cssText = `position:fixed;z-index:901;display:none;background:${theme.surface};color:${theme.text}`;
   document.body.appendChild(toggle);
+  const paintChrome = () => {
+    const colours2 = paintColours(theme);
+    const radius = `${Math.round(theme.rounding * 0.4)}px`;
+    strip.style.background = theme.surface;
+    strip.style.color = theme.text;
+    strip.style.borderBottom = `1px solid ${colours2.border}`;
+    for (const control of [fit, center]) {
+      control.style.background = theme.background;
+      control.style.border = `1px solid ${colours2.border}`;
+      control.style.borderRadius = radius;
+    }
+    toggle.style.background = theme.surface;
+    toggle.style.color = theme.text;
+  };
+  const stopTheme2 = onThemeChange((next) => {
+    theme = next;
+    paintChrome();
+  });
   let controlsOpen = false;
   toggle.addEventListener("click", () => {
     controlsOpen = !controlsOpen;
@@ -3495,6 +3651,7 @@ function installMapOverview(ctx) {
   window.addEventListener("pointerup", up, true);
   const timer2 = setInterval(update, 150);
   return () => {
+    stopTheme2();
     clearInterval(timer2);
     offKey();
     strip.remove();
@@ -3599,10 +3756,21 @@ function installHoverCards(ctx) {
   }
   const core = ctx.core, display = ctx.display;
   const settings = validateSettings(ctx.prefs?.get());
-  const theme = THEMES[settings.theme];
+  let theme = themeFromPrefs(ctx.prefs?.get());
   const card = document.createElement("div");
   card.setAttribute("role", "tooltip");
   card.style.cssText = `position:fixed;z-index:1000;display:none;pointer-events:none;white-space:pre-wrap;max-width:320px;padding:8px 10px;border:1px solid ${paintColours(theme).border};border-radius:${Math.round(theme.rounding * 0.6)}px;background:${theme.surface};color:${theme.text};font:${PAINT_FONT_SIZE}px/${PAINT_LINE_HEIGHT}px ${PAINT_FONT};box-shadow:0 4px 16px #0008`;
+  const paintCard = () => {
+    const colours2 = paintColours(theme);
+    card.style.background = theme.surface;
+    card.style.color = theme.text;
+    card.style.border = `1px solid ${colours2.border}`;
+    card.style.borderRadius = `${Math.round(theme.rounding * 0.6)}px`;
+  };
+  const stopTheme2 = onThemeChange((next) => {
+    theme = next;
+    paintCard();
+  });
   const preview = document.createElement("canvas");
   preview.width = 64;
   preview.height = 64;
@@ -3719,6 +3887,7 @@ function installHoverCards(ctx) {
   document.addEventListener("keydown", onKey);
   window.addEventListener("blur", onBlur);
   return () => {
+    stopTheme2();
     hide();
     card.remove();
     document.removeEventListener("pointermove", onMove);
@@ -3840,18 +4009,18 @@ function hoverCardContent(core, state, grid) {
   return { kind, text, title: KIND_TITLE[kind] };
 }
 var hoverCardsWired = false;
-function positionHoverCard(el5, clientX, clientY) {
+function positionHoverCard(el8, clientX, clientY) {
   const GAP = 14;
   const vw = window.innerWidth;
   const vh = window.innerHeight;
-  const w = el5.offsetWidth;
-  const h = el5.offsetHeight;
+  const w = el8.offsetWidth;
+  const h = el8.offsetHeight;
   let left = clientX + GAP;
   let top = clientY + GAP;
   if (left + w > vw) left = clientX - GAP - w;
   if (top + h > vh) top = clientY - GAP - h;
-  el5.style.left = `${String(Math.max(0, left))}px`;
-  el5.style.top = `${String(Math.max(0, top))}px`;
+  el8.style.left = `${String(Math.max(0, left))}px`;
+  el8.style.top = `${String(Math.max(0, top))}px`;
 }
 var HOVER_CARD_CELL_HEIGHT = 14;
 var HOVER_CARD_CELL_WIDTH = HOVER_CARD_CELL_HEIGHT * (16 / 24);
@@ -4631,20 +4800,135 @@ function renderItemComparison(parent, sim, unchanged, toggle, choice) {
   }
 }
 
-// src/panels/items.ts
-var CSS2 = `:host{color:var(--anyband-text);font:var(--anyband-font-size)/var(--anyband-line) var(--anyband-font)}.items{position:absolute;right:12px;top:12px;width:min(440px,44vw);max-height:calc(100vh - 24px);overflow:auto;padding:10px;background:var(--anyband-surface);border:1px solid var(--anyband-accent);border-radius:var(--anyband-rounding);pointer-events:auto}button,input,select{font:inherit;color:var(--anyband-text);background:var(--anyband-background);border:1px solid var(--anyband-accent);border-radius:3px;padding:3px 5px}button{cursor:pointer}button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--anyband-accent)}input[type=search]{width:100%}.tabs,.actions,.quick{display:flex;gap:5px;flex-wrap:wrap;margin:6px 0}table{width:100%;border-collapse:collapse}th{text-align:left;position:sticky;top:0;background:var(--anyband-surface)}td,th{padding:3px;border-bottom:1px solid var(--anyband-accent)}tr.new{background:#437d5541}tr.chosen{outline:1px solid var(--anyband-accent)}.row{width:100%;text-align:left;border:0;background:transparent}details{margin:8px 0}summary{color:var(--anyband-accent);cursor:pointer;font-weight:bold}.muted{opacity:.65}.gain{color:#80b891}.loss{color:#ff7559}.error{color:#ff7559}.prompt{border:1px solid var(--anyband-accent);padding:8px;margin:8px 0}.rule{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;padding:3px 0;border-bottom:1px solid var(--anyband-accent)}.rule .name{flex:1 1 12em}.rule input[type=text]{width:9em}.info{white-space:pre-wrap;margin:4px 0}summary.lead{font-weight:normal;color:inherit}`;
-var ACTIONS = ["wield", "takeoff", "drop", "inscribe", "use"];
-var ACTION_LABELS = { wield: "Wield", takeoff: "Take off", drop: "Drop", inscribe: "Inscribe", use: "Use" };
-var USE_CODES = ["activate", "use-staff", "aim-wand", "zap-rod", "eat", "quaff", "read"];
-var TAB_NAMES = { pack: "Pack", equipment: "Equipment", quiver: "Quiver" };
+// src/panels/equipment-portrait.ts
+var ANCHORS = [
+  { slot: "head", label: "Head", right: false, row: 0, x: 8, y: 1 },
+  { slot: "neck", label: "Neck", right: false, row: 1, x: 9, y: 3 },
+  { slot: "body", label: "Body", right: false, row: 2, x: 7, y: 6 },
+  { slot: "weapon", label: "Weapon", right: false, row: 3, x: 3, y: 8 },
+  { slot: "right hand", label: "Right ring", right: false, row: 4, x: 3, y: 8.6 },
+  { slot: "feet", label: "Feet", right: false, row: 5, x: 7, y: 16 },
+  { slot: "back", label: "Cloak", right: true, row: 0, x: 14, y: 4 },
+  { slot: "shooting", label: "Ranged", right: true, row: 1, x: 15, y: 5 },
+  { slot: "arm", label: "Shield", right: true, row: 2, x: 17, y: 6.5 },
+  { slot: "hands", label: "Hands", right: true, row: 3, x: 17, y: 8 },
+  { slot: "left hand", label: "Left ring", right: true, row: 4, x: 17, y: 8.6 },
+  { slot: "light", label: "Light", right: true, row: 5, x: 13, y: 9 }
+];
+var FIGURE = [
+  "        .---.        ",
+  "        |o o|        ",
+  "        '---'        ",
+  "      ___| |___      ",
+  "     /   | |   \\     ",
+  "    / /| : : |\\ \\    ",
+  "   / / | : : | \\ \\   ",
+  "  |_|  |=====|  |_|  ",
+  "  [ ]  | : : |  [ ]  ",
+  "       /-----\\       ",
+  "       | | | |       ",
+  "       | | | |       ",
+  "       | | | |       ",
+  "       | | | |       ",
+  "       | | | |       ",
+  "     __|_| |_|__     ",
+  "    |____| |____|    "
+];
+function displayName(name, anchor, index) {
+  if (anchor) return anchor.label;
+  if (!name) return `Slot ${index + 1}`;
+  return name.charAt(0).toUpperCase() + name.slice(1);
+}
+function layoutPortrait(slots, worn) {
+  const defined = slots?.length ? slots.map((slot, index) => ({ index, name: slot.name })) : worn.flatMap((item) => item.slot === void 0 ? [] : [{ index: item.slot, name: (item.slotName ?? "").toLowerCase() }]);
+  return defined.map(({ index, name }) => {
+    const anchor = ANCHORS.find((entry2) => entry2.slot === name.trim().toLowerCase()) ?? null;
+    const item = worn.find((row) => row.slot === index) ?? null;
+    return {
+      index,
+      name,
+      label: displayName(name, anchor, index),
+      item: item?.label ?? null,
+      colour: item?.colour ?? null,
+      inscription: item?.inscription ?? null,
+      key: item?.key ?? `empty:${index}`,
+      right: anchor?.right ?? null,
+      row: anchor?.row ?? null,
+      x: anchor?.x ?? null,
+      y: anchor?.y ?? null
+    };
+  });
+}
+function stepSelection(count, index, key) {
+  if (count <= 0) return null;
+  if (index < 0) {
+    if (key === "End") return count - 1;
+    if (key === "Home" || key === "ArrowLeft" || key === "ArrowRight" || key === "ArrowUp" || key === "ArrowDown") return 0;
+    return null;
+  }
+  if (key === "Home") return 0;
+  if (key === "End") return count - 1;
+  if (key === "ArrowRight" || key === "ArrowDown") return (index + 1) % count;
+  if (key === "ArrowLeft" || key === "ArrowUp") return (index - 1 + count) % count;
+  return null;
+}
 function el2(parent, tag, text) {
   const child = parent.ownerDocument.createElement(tag);
   if (text !== void 0) child.textContent = text;
   parent.appendChild(child);
   return child;
 }
+function renderEquipmentPortrait(parent, slots, worn, selectedKey, onSelect) {
+  const cards = layoutPortrait(slots, worn);
+  const occupied = cards.filter((card) => card.item).length;
+  const wrap = el2(parent, "div");
+  wrap.className = "portrait";
+  el2(wrap, "p", `${occupied} / ${cards.length} slots occupied`).className = "muted";
+  const body = el2(wrap, "div");
+  body.className = "body";
+  const figure = el2(body, "pre", FIGURE.join("\n"));
+  figure.className = "figure";
+  const extras = el2(wrap, "div");
+  extras.className = "extras";
+  const selected = Math.max(0, cards.findIndex((card) => card.key === selectedKey));
+  cards.forEach((card, index) => {
+    const button4 = el2(card.row === null ? extras : body, "button");
+    button4.type = "button";
+    button4.className = card.row === null ? "slotcard" : `slotcard ${card.right ? "right" : "left"}`;
+    if (card.row !== null) button4.style.gridRow = String(card.row + 1);
+    button4.setAttribute("aria-pressed", String(card.key === selectedKey));
+    if (index === selected) button4.dataset["focus"] = "portrait-slot";
+    const title = el2(button4, "b", card.label);
+    if (!card.item) title.className = "muted";
+    const name = el2(button4, "span", card.item ?? "Empty");
+    if (card.colour) name.style.color = card.colour;
+    if (!card.item) name.className = "muted";
+    if (card.inscription) button4.title = card.inscription;
+    button4.addEventListener("click", () => onSelect(card.key));
+  });
+  wrap.addEventListener("keydown", (event) => {
+    const next = stepSelection(cards.length, cards.findIndex((card2) => card2.key === selectedKey), event.key);
+    if (next === null) return;
+    event.preventDefault();
+    const card = cards[next];
+    if (card) onSelect(card.key);
+  });
+}
+
+// src/panels/items.ts
+var CSS2 = `:host{color:var(--anyband-text);font:var(--anyband-font-size)/var(--anyband-line) var(--anyband-font)}.items{position:absolute;right:12px;top:12px;width:min(440px,44vw);max-height:calc(100vh - 24px);overflow:auto;padding:10px;background:var(--anyband-surface);border:1px solid var(--anyband-accent);border-radius:var(--anyband-rounding);pointer-events:auto}button,input,select{font:inherit;color:var(--anyband-text);background:var(--anyband-background);border:1px solid var(--anyband-accent);border-radius:3px;padding:3px 5px}button{cursor:pointer}button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--anyband-accent)}input[type=search]{width:100%}.tabs,.actions,.quick{display:flex;gap:5px;flex-wrap:wrap;margin:6px 0}table{width:100%;border-collapse:collapse}th{text-align:left;position:sticky;top:0;background:var(--anyband-surface)}td,th{padding:3px;border-bottom:1px solid var(--anyband-accent)}tr.new{background:#437d5541}tr.chosen{outline:1px solid var(--anyband-accent)}.row{width:100%;text-align:left;border:0;background:transparent}details{margin:8px 0}summary{color:var(--anyband-accent);cursor:pointer;font-weight:bold}.muted{opacity:.65}.gain{color:#80b891}.loss{color:#ff7559}.error{color:#ff7559}.prompt{border:1px solid var(--anyband-accent);padding:8px;margin:8px 0}.rule{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;padding:3px 0;border-bottom:1px solid var(--anyband-accent)}.rule .name{flex:1 1 12em}.rule input[type=text]{width:9em}.info{white-space:pre-wrap;margin:4px 0}summary.lead{font-weight:normal;color:inherit}.portrait .body{display:grid;grid-template-columns:minmax(8em,auto) auto minmax(8em,auto);align-items:center;column-gap:8px;margin:8px 0}.portrait .figure{grid-column:2;grid-row:1 / span 6;margin:0;white-space:pre;font:inherit}.portrait .left{grid-column:1;justify-self:end;text-align:right}.portrait .right{grid-column:3;justify-self:start;text-align:left}.slotcard{display:flex;flex-direction:column;gap:2px;max-width:14em}.portrait .extras{margin-top:8px}`;
+var ACTIONS = ["wield", "takeoff", "drop", "inscribe", "use"];
+var ACTION_LABELS = { wield: "Wield", takeoff: "Take off", drop: "Drop", inscribe: "Inscribe", use: "Use" };
+var USE_CODES = ["activate", "use-staff", "aim-wand", "zap-rod", "eat", "quaff", "read"];
+var TAB_NAMES = { pack: "Pack", equipment: "Equipment", quiver: "Quiver" };
+function el3(parent, tag, text) {
+  const child = parent.ownerDocument.createElement(tag);
+  if (text !== void 0) child.textContent = text;
+  parent.appendChild(child);
+  return child;
+}
 function button(parent, label2, action) {
-  const b = el2(parent, "button", label2);
+  const b = el3(parent, "button", label2);
   b.type = "button";
   b.addEventListener("click", action);
   return b;
@@ -4652,9 +4936,15 @@ function button(parent, label2, action) {
 function same(a, b) {
   return a.epoch === b.epoch && a.revision === b.revision;
 }
+function textControl(node2) {
+  const name = typeof node2.tagName === "string" ? node2.tagName.toLowerCase() : "";
+  if (name !== "input" && name !== "textarea") return null;
+  return node2;
+}
 function installItems(ctx) {
   const flags = ctx.flags ?? {};
-  if (!Object.entries(flags).some(([key, on]) => key.startsWith("anybandui.items") && on && (key !== "anybandui.itemsRules" || !!ctx.inspect?.itemRules))) return () => {
+  const portraitOn = flags["anybandui.equipmentPortrait"] === true;
+  if (!portraitOn && !Object.entries(flags).some(([key, on]) => key.startsWith("anybandui.items") && on && (key !== "anybandui.itemsRules" || !!ctx.inspect?.itemRules))) return () => {
   };
   if (!ctx.snapshot) {
     ctx.log("items: snapshot seam unavailable");
@@ -4678,6 +4968,7 @@ function installItems(ctx) {
   let mount = document.createElement("section");
   const changes = new AcquisitionChanges();
   let tab = "pack";
+  let figure = portraitOn;
   let search = "";
   let selected = null;
   let promptChoice = null;
@@ -4826,12 +5117,12 @@ function installItems(ctx) {
         promptId = q.promptId;
         quantity = q.defaultValue;
       }
-      const box = el2(mount, "section");
+      const box = el3(mount, "section");
       box.className = "prompt";
-      el2(box, "h3", "Choose quantity");
-      el2(box, "p", q.label);
-      el2(box, "p", `Available for this action: ${q.max}`);
-      const input = el2(box, "input");
+      el3(box, "h3", "Choose quantity");
+      el3(box, "p", q.label);
+      el3(box, "p", `Available for this action: ${q.max}`);
+      const input = el3(box, "input");
       input.type = "number";
       input.min = String(q.min);
       input.max = String(q.max);
@@ -4839,7 +5130,7 @@ function installItems(ctx) {
       input.addEventListener("input", () => {
         quantity = Number(input.value);
       });
-      const quick = el2(box, "div");
+      const quick = el3(box, "div");
       quick.className = "quick";
       for (const label2 of ["One", "Half", "All"]) button(quick, label2, () => {
         quantity = quantityShortcut(q, label2);
@@ -4856,38 +5147,38 @@ function installItems(ctx) {
         promptId = p.promptId;
         promptChoice = p.choices[0]?.handle ?? null;
       }
-      const box = el2(mount, "section");
+      const box = el3(mount, "section");
       box.className = "prompt";
-      el2(box, "h3", "Angband asks");
-      el2(box, "p", p.label);
-      const table = el2(box, "table");
-      const head = el2(table, "tr");
-      for (const name of ["Key", "Item", "Location", "Qty"]) el2(head, "th", name);
+      el3(box, "h3", "Angband asks");
+      el3(box, "p", p.label);
+      const table = el3(box, "table");
+      const head = el3(table, "tr");
+      for (const name of ["Key", "Item", "Location", "Qty"]) el3(head, "th", name);
       const rowFor = (handle) => {
         const floor = floorChoiceIndex(handle);
         return floor === null ? panelRows(model).find((row) => row.handle === handle && row.location !== "floor") : model.floor?.[floor];
       };
       for (const choice of p.choices) {
         const item = rowFor(choice.handle);
-        const row = el2(table, "tr");
-        el2(row, "td", choice.letter);
+        const row = el3(table, "tr");
+        el3(row, "td", choice.letter);
         if (choice.handle === promptChoice) row.className = "chosen";
-        const cell = el2(row, "td");
+        const cell = el3(row, "td");
         const b = button(cell, item ? item.label : choice.label, () => {
           promptChoice = choice.handle;
           paint(true);
         });
         b.className = "row";
         if (item) b.style.color = item.colour;
-        el2(row, "td", item ? TAB_NAMES[item.location] ?? "Floor" : "Floor");
-        el2(row, "td", item ? String(item.quantity) : "");
+        el3(row, "td", item ? TAB_NAMES[item.location] ?? "Floor" : "Floor");
+        el3(row, "td", item ? String(item.quantity) : "");
       }
       const chosen = p.choices.find((choice) => choice.handle === promptChoice);
       if (chosen) {
         const item = rowFor(chosen.handle);
         const ref = item ? inspectRef(model, item) : chosen.handle > 0 ? chosen.handle : null;
         const inspection = ref === null ? null : ctx.inspect?.inspectItem(ref);
-        if (inspection && same(inspection.token, model.token)) el2(box, "p", inspection.text);
+        if (inspection && same(inspection.token, model.token)) el3(box, "p", inspection.text);
       }
       const choose = button(box, "Choose", () => {
         if (chosen) {
@@ -4902,19 +5193,19 @@ function installItems(ctx) {
   const showRules = (model) => {
     const rules = enabled("Rules") ? ctx.inspect?.itemRules?.() ?? null : null;
     if (!rules || !same(rules.token, model.token)) return;
-    const section2 = el2(mount, "details");
+    const section2 = el3(mount, "details");
     section2.open = rulesOpen;
     section2.addEventListener("toggle", () => {
       rulesOpen = section2.open;
     });
-    el2(section2, "summary", "Ignore settings and inscriptions");
+    el3(section2, "summary", "Ignore settings and inscriptions");
     if (!rulesEditable(ctx, model.phase, !!model.prompt)) {
       const lines = itemRuleLines(rules);
-      if (!lines.length) el2(section2, "p", "No ignore settings or inscriptions yet.");
-      for (const line of lines) el2(section2, "div", line);
+      if (!lines.length) el3(section2, "p", "No ignore settings or inscriptions yet.");
+      for (const line of lines) el3(section2, "div", line);
       return;
     }
-    const filter = el2(section2, "input");
+    const filter = el3(section2, "input");
     filter.type = "search";
     filter.placeholder = "Find an item kind or ego";
     filter.value = ruleFilter;
@@ -4925,15 +5216,15 @@ function installItems(ctx) {
     });
     const rows = ruleEditorRows(rules, ruleFilter);
     if (rows.quality.length) {
-      el2(section2, "h4", "Ignore by quality");
+      el3(section2, "h4", "Ignore by quality");
       for (const row of rows.quality) {
-        const line = el2(section2, "div");
+        const line = el3(section2, "div");
         line.className = "rule";
-        el2(line, "span", row.name).className = "name";
-        const select = el2(line, "select");
+        el3(line, "span", row.name).className = "name";
+        const select = el3(line, "select");
         select.setAttribute("aria-label", `Ignore ${row.name}`);
         qualityChoices(row).forEach((name, value2) => {
-          const option = el2(select, "option", name);
+          const option = el3(select, "option", name);
           option.value = String(value2);
           option.selected = value2 === row.threshold;
         });
@@ -4941,23 +5232,23 @@ function installItems(ctx) {
       }
     }
     const checkbox = (line, label2, checked, change) => {
-      const wrap = el2(line, "label");
-      const box = el2(wrap, "input");
+      const wrap = el3(line, "label");
+      const box = el3(wrap, "input");
       box.type = "checkbox";
       box.checked = checked;
       box.addEventListener("change", () => change(box.checked));
       wrap.append(` ${label2}`);
     };
     if (rows.kinds.length) {
-      el2(section2, "h4", "Item kinds");
+      el3(section2, "h4", "Item kinds");
       for (const row of rows.kinds) {
-        const line = el2(section2, "div");
+        const line = el3(section2, "div");
         line.className = "rule";
-        el2(line, "span", row.name).className = "name";
+        el3(line, "span", row.name).className = "name";
         checkbox(line, "Ignore", row.ignoreAware, (value2) => editRule(model, rules, "kind-aware", row.kidx, value2));
         if (row.ignoreUnaware) checkbox(line, "Ignore unidentified", true, (value2) => editRule(model, rules, "kind-unaware", row.kidx, value2));
         const key = `note:${row.kidx}`;
-        const note = el2(line, "input");
+        const note = el3(line, "input");
         note.type = "text";
         note.maxLength = NOTE_LIMIT;
         note.placeholder = "Inscription";
@@ -4972,22 +5263,22 @@ function installItems(ctx) {
           editRule(model, rules, "note-aware", row.kidx, note.value);
         });
         if (row.noteUnaware) {
-          el2(line, "span", `Unidentified: ${row.noteUnaware}`);
+          el3(line, "span", `Unidentified: ${row.noteUnaware}`);
           button(line, "Clear", () => editRule(model, rules, "note-unaware", row.kidx, ""));
         }
       }
     }
     if (rows.egos.length) {
-      el2(section2, "h4", "Egos");
+      el3(section2, "h4", "Egos");
       for (const row of rows.egos) {
-        const line = el2(section2, "div");
+        const line = el3(section2, "div");
         line.className = "rule";
-        el2(line, "span", row.typeName ? `${row.name} (${row.typeName})` : row.name).className = "name";
+        el3(line, "span", row.typeName ? `${row.name} (${row.typeName})` : row.name).className = "name";
         checkbox(line, "Ignore", row.ignored, (value2) => editRule(model, rules, "ego", row.eidx, value2, row.itype));
       }
     }
-    if (rows.hidden) el2(section2, "p", `${rows.hidden} more match. Type more of the name to narrow the list.`).className = "muted";
-    else if (!ruleFilter.trim() && !rows.kinds.length && !rows.egos.length) el2(section2, "p", "No kind or ego rules yet. Type a name above to add one.").className = "muted";
+    if (rows.hidden) el3(section2, "p", `${rows.hidden} more match. Type more of the name to narrow the list.`).className = "muted";
+    else if (!ruleFilter.trim() && !rows.kinds.length && !rows.egos.length) el3(section2, "p", "No kind or ego rules yet. Type a name above to add one.").className = "muted";
   };
   const showComparison = (model, item) => {
     if (!enabled("Comparison") || item.location !== "pack") return;
@@ -5017,18 +5308,18 @@ function installItems(ctx) {
     if (!inspection || !same(inspection.token, model.token)) return;
     for (const block of inspectionBlocks(inspection)) {
       if (!block.heading) {
-        el2(mount, "p", block.body).className = "info";
+        el3(mount, "p", block.body).className = "info";
         continue;
       }
-      const details = el2(mount, "details");
+      const details = el3(mount, "details");
       details.open = !folded.has(block.heading);
       details.addEventListener("toggle", () => {
         if (details.open) folded.delete(block.heading);
         else folded.add(block.heading);
       });
-      const summary = el2(details, "summary", block.heading);
+      const summary = el3(details, "summary", block.heading);
       if (block.lead) summary.className = "lead";
-      if (block.body) el2(details, "p", block.body).className = "info";
+      if (block.body) el3(details, "p", block.body).className = "info";
     }
   };
   const itemButton = (cell, item, badge) => {
@@ -5057,79 +5348,114 @@ function installItems(ctx) {
       ignoredHere.clear();
       ignoreEpoch = model.token.epoch;
     }
-    const next = JSON.stringify([model, tab, search, selected, promptChoice, unchanged, quantity, error, slotChoice, [...ignoredHere], ruleFilter]);
+    const next = JSON.stringify([model, tab, search, selected, promptChoice, unchanged, quantity, error, slotChoice, [...ignoredHere], ruleFilter, figure]);
     if (!force && next === signature) return;
     signature = next;
     const active = mount.getRootNode().activeElement;
     const focusKey = active && mount.contains(active) ? active.dataset?.["focus"] : void 0;
-    const caret = focusKey ? [active.selectionStart, active.selectionEnd] : null;
+    const editing = focusKey && active ? textControl(active) : null;
+    const caret = editing ? [editing.selectionStart, editing.selectionEnd] : null;
     mount.replaceChildren();
     build(model);
     if (focusKey) {
       const field = mount.querySelector(`[data-focus="${focusKey}"]`);
       field?.focus();
-      if (field && caret && caret[0] !== null) field.setSelectionRange(caret[0], caret[1]);
+      const restored = field ? textControl(field) : null;
+      if (restored && caret && caret[0] !== null) restored.setSelectionRange(caret[0], caret[1]);
     }
   };
   const build = (model) => {
-    el2(mount, "h2", "Items");
+    el3(mount, "h2", "Items");
     if (!model) {
-      el2(mount, "p", "Inventory read unavailable.");
+      el3(mount, "p", "Inventory read unavailable.");
       return;
     }
     if (enabled("Highlights")) changes.update(model);
     showPrompt(model);
     showRules(model);
-    if (!enabled("Lists")) return;
-    if (model.floor?.length) {
-      el2(mount, "h3", "On this tile");
-      const table2 = el2(mount, "table");
-      const head2 = el2(table2, "tr");
-      for (const name of ["Item", "Qty"]) el2(head2, "th", name);
+    if (!enabled("Lists") && !portraitOn) return;
+    if (enabled("Lists") && model.floor?.length) {
+      el3(mount, "h3", "On this tile");
+      const table = el3(mount, "table");
+      const head = el3(table, "tr");
+      for (const name of ["Item", "Qty"]) el3(head, "th", name);
       for (const item2 of model.floor) {
-        const row = el2(table2, "tr");
-        itemButton(el2(row, "td"), item2, null);
-        el2(row, "td", String(item2.quantity));
+        const row = el3(table, "tr");
+        itemButton(el3(row, "td"), item2, null);
+        el3(row, "td", String(item2.quantity));
       }
     }
-    const tabs = el2(mount, "div");
-    tabs.className = "tabs";
-    for (const name of ["pack", "equipment", "quiver"]) {
-      const b = button(tabs, TAB_NAMES[name], () => {
-        tab = name;
+    if (enabled("Lists")) {
+      const tabs = el3(mount, "div");
+      tabs.className = "tabs";
+      for (const name of ["pack", "equipment", "quiver"]) {
+        const b = button(tabs, TAB_NAMES[name], () => {
+          tab = name;
+          paint(true);
+        });
+        b.setAttribute("aria-pressed", String(tab === name));
+      }
+    }
+    const showFigure = portraitOn && figure && (tab === "equipment" || !enabled("Lists"));
+    if (portraitOn && enabled("Lists") && tab === "equipment") {
+      const views = el3(mount, "div");
+      views.className = "tabs";
+      const figureButton = button(views, "Figure", () => {
+        figure = true;
         paint(true);
       });
-      b.setAttribute("aria-pressed", String(tab === name));
+      figureButton.setAttribute("aria-pressed", String(figure));
+      const listButton = button(views, "List", () => {
+        figure = false;
+        paint(true);
+      });
+      listButton.setAttribute("aria-pressed", String(!figure));
     }
-    const searchBox = el2(mount, "input");
-    searchBox.type = "search";
-    searchBox.placeholder = "Search items";
-    searchBox.value = search;
-    searchBox.dataset["focus"] = "item-search";
-    searchBox.addEventListener("input", () => {
-      search = searchBox.value;
-      paint(true);
-    });
-    const listed = tab === "quiver" ? model.quiver ?? [] : model.rows.filter((item2) => item2.location === tab);
-    const rows = listed.filter((item2) => item2.label.toLowerCase().includes(search.toLowerCase()));
-    if (!rows.length) el2(mount, "p", tab === "pack" ? "Your pack is empty." : tab === "equipment" ? "Nothing equipped." : model.quiver ? "Your quiver is empty." : "No quiver items available.");
-    const table = el2(mount, "table");
-    const head = el2(table, "tr");
-    for (const name of tab === "equipment" ? ["Item", "Slot", "Qty"] : ["Item", "Qty"]) el2(head, "th", name);
-    for (const item2 of rows) {
-      const row = el2(table, "tr");
-      const badge = enabled("Highlights") ? changes.badge(item2) : null;
-      if (badge) row.className = "new";
-      itemButton(el2(row, "td"), item2, badge);
-      if (tab === "equipment") el2(row, "td", item2.slotName ?? String(item2.slot ?? ""));
-      el2(row, "td", String(item2.quantity));
+    if (showFigure) {
+      const slots = ctx.snapshot?.()?.core.equipmentSlots;
+      const worn = model.rows.filter((item2) => item2.location === "equipment").map((item2) => ({
+        ...item2.slot === void 0 ? {} : { slot: item2.slot },
+        ...item2.slotName === void 0 ? {} : { slotName: item2.slotName },
+        label: item2.label,
+        colour: item2.colour,
+        inscription: item2.inscription,
+        key: item2.key
+      }));
+      renderEquipmentPortrait(mount, slots, worn, selected, (key) => {
+        selected = key;
+        paint(true);
+      });
+    } else if (enabled("Lists")) {
+      const searchBox = el3(mount, "input");
+      searchBox.type = "search";
+      searchBox.placeholder = "Search items";
+      searchBox.value = search;
+      searchBox.dataset["focus"] = "item-search";
+      searchBox.addEventListener("input", () => {
+        search = searchBox.value;
+        paint(true);
+      });
+      const listed = tab === "quiver" ? model.quiver ?? [] : model.rows.filter((item2) => item2.location === tab);
+      const rows = listed.filter((item2) => item2.label.toLowerCase().includes(search.toLowerCase()));
+      if (!rows.length) el3(mount, "p", tab === "pack" ? "Your pack is empty." : tab === "equipment" ? "Nothing equipped." : model.quiver ? "Your quiver is empty." : "No quiver items available.");
+      const table = el3(mount, "table");
+      const head = el3(table, "tr");
+      for (const name of tab === "equipment" ? ["Item", "Slot", "Qty"] : ["Item", "Qty"]) el3(head, "th", name);
+      for (const item2 of rows) {
+        const row = el3(table, "tr");
+        const badge = enabled("Highlights") ? changes.badge(item2) : null;
+        if (badge) row.className = "new";
+        itemButton(el3(row, "td"), item2, badge);
+        if (tab === "equipment") el3(row, "td", item2.slotName ?? String(item2.slot ?? ""));
+        el3(row, "td", String(item2.quantity));
+      }
     }
     const item = panelRows(model).find((row) => row.key === selected);
     if (item) {
-      el2(mount, "h3", "Inspection");
-      el2(mount, "strong", item.label).style.color = item.colour;
+      el3(mount, "h3", "Inspection");
+      el3(mount, "strong", item.label).style.color = item.colour;
       if (enabled("Actions") && (item.handle > 0 || item.location === "floor") && model.phase === "play" && !model.prompt && ctx.intent?.submit && playerIsDriving(ctx)) {
-        const actions = el2(mount, "div");
+        const actions = el3(mount, "div");
         actions.className = "actions";
         if (item.location === "floor") {
           if (codeAcceptsFloor("pickup")) button(actions, "Pick up", () => pickup(model, item));
@@ -5154,9 +5480,12 @@ function installItems(ctx) {
       }
       showComparison(model, item);
       showInspection(model, item);
+    } else if (showFigure && selected?.startsWith("empty:")) {
+      el3(mount, "h3", "Inspection");
+      el3(mount, "p", "Empty").className = "muted";
     }
     if (error) {
-      const message = el2(mount, "p", error);
+      const message = el3(mount, "p", error);
       message.className = "error";
     }
   };
@@ -5166,6 +5495,430 @@ function installItems(ctx) {
   return () => {
     closed = true;
     globalThis.clearInterval(timer2);
+    surfaces.close();
+  };
+}
+
+// src/panels/character-sheet.ts
+var STAT_HEADERS = ["Stat", "Base", "Race", "Class", "Gear", "Best", "Current"];
+var SHEET_PAGES = ["Overview", "Combat", "Flags", "History"];
+var OVERVIEW = /* @__PURE__ */ new Set(["topleft", "misc", "midleft"]);
+var COMBAT = /* @__PURE__ */ new Set(["combat", "skills"]);
+var PANEL_TITLE = {
+  topleft: "Name",
+  misc: "Age",
+  midleft: "Level",
+  combat: "Combat",
+  skills: "Skills"
+};
+var CSS3 = `:host{color:var(--anyband-text);font:var(--anyband-font-size)/var(--anyband-line) var(--anyband-font)}
+.sheet{position:absolute;left:12px;right:12px;bottom:12px;max-height:calc(100vh - 24px);overflow:auto;padding:10px;background:var(--anyband-surface);border:1px solid var(--anyband-accent);border-radius:var(--anyband-rounding)}
+button{font:inherit;color:var(--anyband-text);background:var(--anyband-background);border:1px solid var(--anyband-accent);border-radius:3px;padding:3px 6px;cursor:pointer}
+button:focus-visible{outline:2px solid var(--anyband-accent)}
+.tabs{display:flex;gap:5px;flex-wrap:wrap;margin:6px 0}
+table{width:100%;border-collapse:collapse}td,th{padding:2px 4px;border-bottom:1px solid var(--anyband-accent);text-align:right}
+td:first-child,th:first-child{text-align:left}
+.drained{opacity:.55}.history{white-space:pre-wrap}.muted{opacity:.65}
+.grid{overflow:auto;margin:8px 0}.cells{font:inherit;letter-spacing:.2em}`;
+function statLabel(label2, naturalMax) {
+  if (!naturalMax || label2.includes("!")) return label2;
+  const colon = label2.indexOf(":");
+  if (colon < 0) return `${label2}!`;
+  return `${label2.slice(0, colon)}!${label2.slice(colon + 1)}`;
+}
+function statCells(row) {
+  return {
+    label: statLabel(row.label, row.naturalMax),
+    base: row.natural,
+    race: row.raceBonus,
+    classBonus: row.classBonus,
+    gear: row.equipBonus,
+    best: row.best,
+    current: row.reduced ?? row.best,
+    drained: row.drained
+  };
+}
+function stepSheetPage(index, key) {
+  const count = SHEET_PAGES.length;
+  if (key === "Home") return 0;
+  if (key === "End") return count - 1;
+  if (key === "ArrowRight" || key === "ArrowDown") return (index + 1) % count;
+  if (key === "ArrowLeft" || key === "ArrowUp") return (index - 1 + count) % count;
+  return null;
+}
+function pageFocus(index) {
+  const name = SHEET_PAGES[index] ?? "Overview";
+  return `sheet-page-${name.toLowerCase()}`;
+}
+function el4(parent, tag, text) {
+  const child = parent.ownerDocument.createElement(tag);
+  if (text !== void 0) child.textContent = text;
+  parent.appendChild(child);
+  return child;
+}
+function panelTitle(key) {
+  return PANEL_TITLE[key] ?? key;
+}
+function drawPanel(parent, panel) {
+  el4(parent, "h3", panelTitle(panel.key));
+  const table = el4(parent, "table");
+  for (const line of panel.lines) {
+    if (!line.label && !line.value) continue;
+    const row = el4(table, "tr");
+    el4(row, "td", line.label);
+    const value2 = el4(row, "td", line.value);
+    if (line.css) value2.style.color = line.css;
+  }
+}
+function drawStats(parent, data) {
+  el4(parent, "h3", "Attributes");
+  const table = el4(parent, "table");
+  const head = el4(table, "tr");
+  for (const name of STAT_HEADERS) el4(head, "th", name);
+  for (const row of data.stats) {
+    const cells = statCells(row);
+    const tr = el4(table, "tr");
+    if (cells.drained) tr.className = "drained";
+    for (const value2 of [cells.label, cells.base, cells.race, cells.classBonus, cells.gear, cells.best, cells.current]) el4(tr, "td", value2);
+  }
+}
+function drawGrids(parent, data) {
+  if (!data.grids) {
+    el4(parent, "p", "The flag grid is not available in this game.").className = "muted";
+    return;
+  }
+  if (!data.grids.length) {
+    el4(parent, "p", "No flags.").className = "muted";
+    return;
+  }
+  for (const grid of data.grids) {
+    el4(parent, "h3", panelTitle(grid.key));
+    const table = el4(parent, "table");
+    table.className = "grid";
+    for (const row of grid.rows) {
+      const tr = el4(table, "tr");
+      const label2 = el4(tr, "td", row.label);
+      if (row.labelColor.css) label2.style.color = row.labelColor.css;
+      const symbols = el4(tr, "td");
+      symbols.className = "cells";
+      for (const cell of row.cells) {
+        const mark = el4(symbols, "span", cell.symbol || " ");
+        if (cell.css) mark.style.color = cell.css;
+      }
+    }
+  }
+}
+function renderCharacterSheet(parent, data, page, onPage) {
+  el4(parent, "h2", data?.name ? data.name : "Character");
+  const tabs = el4(parent, "div");
+  tabs.className = "tabs";
+  tabs.setAttribute("role", "tablist");
+  SHEET_PAGES.forEach((name2, index) => {
+    const button4 = el4(tabs, "button", name2);
+    button4.type = "button";
+    button4.setAttribute("role", "tab");
+    button4.setAttribute("aria-selected", String(index === page));
+    button4.dataset["focus"] = pageFocus(index);
+    button4.addEventListener("click", () => onPage(index));
+  });
+  tabs.addEventListener("keydown", (event) => {
+    const next = stepSheetPage(page, event.key);
+    if (next === null) return;
+    event.preventDefault();
+    onPage(next, true);
+  });
+  if (!data) {
+    el4(parent, "p", "Character sheet unavailable.").className = "muted";
+    return;
+  }
+  const name = SHEET_PAGES[page] ?? "Overview";
+  if (name === "Overview") {
+    for (const panel of data.panels) if (OVERVIEW.has(panel.key)) drawPanel(parent, panel);
+    for (const panel of data.panels) if (!OVERVIEW.has(panel.key) && !COMBAT.has(panel.key)) drawPanel(parent, panel);
+    drawStats(parent, data);
+  } else if (name === "Combat") {
+    const panels = data.panels.filter((panel) => COMBAT.has(panel.key));
+    if (!panels.length) el4(parent, "p", "No combat details.").className = "muted";
+    for (const panel of panels) drawPanel(parent, panel);
+  } else if (name === "Flags") drawGrids(parent, data);
+  else {
+    el4(parent, "h3", "History");
+    el4(parent, "p", data.history || "No background.").className = data.history ? "history" : "history muted";
+  }
+}
+function installCharacterSheet(ctx) {
+  if (ctx.flags?.["anybandui.characterSheet"] !== true) return () => {
+  };
+  if (!ctx.character?.sheet) ctx.log("character sheet: this game has no sheet read");
+  let page = 0;
+  let repaint = () => {
+  };
+  const surfaces = openSurfaces(
+    ctx,
+    [{ key: "character-sheet", label: "Character sheet", tab: "Character", minSize: { width: 360, height: 220 }, placement: { kind: "dock", target: "main", edge: "bottom" } }],
+    { id: "character-sheet", label: "Character sheet", className: "sheet" },
+    CSS3,
+    () => repaint()
+  );
+  if (!surfaces) {
+    ctx.log("character sheet: panel seam unavailable");
+    return () => {
+    };
+  }
+  let mount = null;
+  let signature = "";
+  let closed = false;
+  let timer2 = null;
+  const read = () => {
+    try {
+      return ctx.character?.sheet?.() ?? null;
+    } catch {
+      return null;
+    }
+  };
+  const stopTimer = () => {
+    if (timer2 === null) return;
+    globalThis.clearInterval(timer2);
+    timer2 = null;
+  };
+  const ensureTimer = () => {
+    if (timer2 !== null || closed) return;
+    timer2 = globalThis.setInterval(() => paint(), 200);
+  };
+  const paint = (force = false, nextFocus) => {
+    if (closed) return;
+    const host = surfaces.mounts().get("character-sheet");
+    if (!host) {
+      stopTimer();
+      return;
+    }
+    ensureTimer();
+    if (host !== mount) {
+      mount = host;
+      signature = "";
+    }
+    const data = read();
+    const next = JSON.stringify([page, data]);
+    if (!force && next === signature) return;
+    signature = next;
+    const active = mount.getRootNode().activeElement;
+    const focusKey = nextFocus ?? (active && mount.contains(active) ? active.dataset?.["focus"] : void 0);
+    mount.replaceChildren();
+    renderCharacterSheet(mount, data, page, (index, moveFocus) => {
+      page = index;
+      paint(true, moveFocus ? pageFocus(index) : void 0);
+    });
+    if (focusKey) mount.querySelector(`[data-focus="${focusKey}"]`)?.focus();
+  };
+  paint(true);
+  repaint = () => paint(true);
+  return () => {
+    closed = true;
+    stopTimer();
+    surfaces.close();
+  };
+}
+
+// src/theme-editor.ts
+var CSS4 = `:host{color:var(--anyband-text);font:var(--anyband-font-size)/var(--anyband-line) var(--anyband-font)}
+.theme{position:absolute;right:12px;top:12px;width:min(420px,44vw);max-height:calc(100vh - 24px);overflow:auto;padding:10px;background:var(--anyband-surface);border:1px solid var(--anyband-accent);border-radius:var(--anyband-rounding)}
+label{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:6px 0}
+button,input{font:inherit;color:var(--anyband-text);background:var(--anyband-background);border:1px solid var(--anyband-accent);border-radius:3px;padding:3px 6px}
+button{cursor:pointer}button:focus-visible,input:focus-visible{outline:2px solid var(--anyband-accent)}
+.tabs{display:flex;gap:5px;flex-wrap:wrap;margin:6px 0}.actions{display:flex;gap:6px;margin-top:8px}
+.preview{margin-top:8px;padding:8px;background:var(--anyband-background);color:var(--anyband-text);border:1px solid var(--anyband-accent);border-radius:var(--anyband-rounding)}
+.preview b{color:var(--anyband-accent)}.note{opacity:.7}`;
+function draftFromTheme(theme, preset) {
+  return {
+    background: theme.background,
+    surface: theme.surface,
+    text: theme.text,
+    accent: theme.accent,
+    rounding: theme.rounding,
+    invert_dungeon: theme.invert_dungeon,
+    preset
+  };
+}
+function customFromDraft(draft) {
+  const background = normalizeColour(draft.background);
+  const surface = normalizeColour(draft.surface);
+  const text = normalizeColour(draft.text);
+  const accent = normalizeColour(draft.accent);
+  const rounding = normalizeRounding(draft.rounding);
+  if (!background || !surface || !text || !accent || rounding === null) return null;
+  return { background, surface, text, accent, rounding, invert_dungeon: draft.invert_dungeon };
+}
+function el5(parent, tag, text) {
+  const child = parent.ownerDocument.createElement(tag);
+  if (text !== void 0) child.textContent = text;
+  parent.appendChild(child);
+  return child;
+}
+function colourField(parent, label2, key, draft, onPreview) {
+  const row = el5(parent, "label", label2);
+  const input = el5(row, "input");
+  input.type = "color";
+  input.value = draft[key].slice(0, 7);
+  input.setAttribute("aria-label", label2);
+  input.dataset["focus"] = key;
+  input.addEventListener("input", () => {
+    const next = normalizeColour(input.value);
+    if (next) draft[key] = next;
+    onPreview();
+  });
+}
+function renderThemeEditor(parent, draft, note, onPreview, onRebuild, onSave, onDrop) {
+  el5(parent, "h2", "Theme");
+  const presets = el5(parent, "div");
+  presets.className = "tabs";
+  for (const [id, label2] of THEME_CHOICES) {
+    const button4 = el5(presets, "button", label2);
+    button4.type = "button";
+    button4.setAttribute("aria-pressed", String(draft.preset === id && !draft.invert_dungeon && draft.rounding === THEMES[id].rounding && draft.background === THEMES[id].background));
+    button4.addEventListener("click", () => {
+      const theme = THEMES[id];
+      draft.preset = id;
+      draft.background = theme.background;
+      draft.surface = theme.surface;
+      draft.text = theme.text;
+      draft.accent = theme.accent;
+      draft.rounding = theme.rounding;
+      draft.invert_dungeon = theme.invert_dungeon;
+      onRebuild();
+    });
+  }
+  colourField(parent, "Background", "background", draft, onPreview);
+  colourField(parent, "Surface", "surface", draft, onPreview);
+  colourField(parent, "Text", "text", draft, onPreview);
+  colourField(parent, "Accent", "accent", draft, onPreview);
+  const rounding = el5(parent, "label", "Corner rounding");
+  const range = el5(rounding, "input");
+  range.type = "range";
+  range.min = "0";
+  range.max = "16";
+  range.step = "1";
+  range.value = String(draft.rounding);
+  range.setAttribute("aria-label", "Corner rounding");
+  range.dataset["focus"] = "rounding";
+  const readout = el5(rounding, "span", `${draft.rounding} px`);
+  range.addEventListener("input", () => {
+    const next = normalizeRounding(Number(range.value));
+    if (next !== null) {
+      draft.rounding = next;
+      readout.textContent = `${next} px`;
+      onPreview();
+    }
+  });
+  const invert = el5(parent, "label", "Invert dungeon colours");
+  const box = el5(invert, "input");
+  box.type = "checkbox";
+  box.checked = draft.invert_dungeon;
+  box.setAttribute("aria-label", "Invert dungeon colours");
+  box.dataset["focus"] = "invert";
+  box.addEventListener("change", () => {
+    draft.invert_dungeon = box.checked;
+    onPreview();
+  });
+  const preview = el5(parent, "div");
+  preview.className = "preview";
+  el5(preview, "b", "Adventurer");
+  el5(preview, "p", "A new chapter awaits.");
+  const actions = el5(parent, "div");
+  actions.className = "actions";
+  const save = el5(actions, "button", "Save");
+  save.type = "button";
+  save.addEventListener("click", onSave);
+  const drop = el5(actions, "button", "Drop custom theme");
+  drop.type = "button";
+  drop.addEventListener("click", onDrop);
+  if (note) el5(parent, "p", note).className = "note";
+}
+function installThemeEditor(ctx) {
+  if (ctx.flags?.["anybandui.themeEditor"] !== true) return () => {
+  };
+  const settings = ctx.prefs ? createSettingsStore({ prefs: ctx.prefs }) : null;
+  let draft = draftFromTheme(themeFromPrefs(ctx.prefs?.get()), settings?.get().theme ?? "terminal-original");
+  let note = "";
+  let repaint = () => {
+  };
+  const surfaces = openSurfaces(
+    ctx,
+    [{ key: "theme-editor", label: "Theme", tab: "Theme", minSize: { width: 280, height: 220 }, placement: { kind: "dock", target: "main", edge: "right" } }],
+    { id: "theme-editor", label: "Theme", className: "theme" },
+    CSS4,
+    () => repaint()
+  );
+  if (!surfaces) {
+    ctx.log("theme: panel seam unavailable");
+    return () => {
+    };
+  }
+  let mount = null;
+  let closed = false;
+  const tokens = () => themeFromPrefs(customFromDraft(draft) ? { theme: draft.preset, customTheme: customFromDraft(draft) } : { theme: draft.preset });
+  const paintedRoot = () => {
+    const root = mount?.getRootNode();
+    return typeof ShadowRoot !== "undefined" && root instanceof ShadowRoot ? root : null;
+  };
+  const preview = () => {
+    const root = paintedRoot();
+    if (root) applyTheme(root, tokens());
+  };
+  const applySaved = (theme) => {
+    const root = paintedRoot();
+    if (root) applyTheme(root, theme);
+    try {
+      ctx.display?.setChromeTheme?.(chromeThemeFor(theme));
+    } catch (err) {
+      ctx.log(`Could not repaint the window frames: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    installAccessibilityAccommodations({ flags: ctx.flags ?? {}, invertDungeon: theme.invert_dungeon, ...ctx.display ? { display: ctx.display } : {}, log: ctx.log });
+    notifyThemeChange(theme);
+  };
+  const paint = () => {
+    if (closed) return;
+    const host = surfaces.mounts().get("theme-editor");
+    if (!host) return;
+    mount = host;
+    const active = mount.getRootNode().activeElement;
+    const focusKey = active && mount.contains(active) ? active.dataset?.["focus"] : void 0;
+    const caret = focusKey && active ? [active.selectionStart, active.selectionEnd] : null;
+    mount.replaceChildren();
+    preview();
+    renderThemeEditor(mount, draft, note, preview, () => paint(), () => {
+      const custom = customFromDraft(draft);
+      if (!custom || !settings) {
+        note = "Theme preferences are unavailable.";
+        paint();
+        return;
+      }
+      settings.set({ theme: draft.preset, customTheme: custom });
+      note = "Saved.";
+      applySaved(themeFromPrefs(settings.get()));
+      paint();
+    }, () => {
+      if (!settings) {
+        note = "Theme preferences are unavailable.";
+        paint();
+        return;
+      }
+      settings.set({ customTheme: null });
+      const theme = themeFromPrefs(settings.get());
+      draft = draftFromTheme(theme, settings.get().theme);
+      note = "Using the preset.";
+      applySaved(theme);
+      paint();
+    });
+    if (focusKey) {
+      const field = mount.querySelector(`[data-focus="${focusKey}"]`);
+      field?.focus();
+      if (field && caret && caret[0] !== null) field.setSelectionRange(caret[0], caret[1]);
+    }
+  };
+  paint();
+  repaint = () => paint();
+  return () => {
+    closed = true;
     surfaces.close();
   };
 }
@@ -5293,11 +6046,29 @@ function installMapMouse(ctx) {
     };
   }
   const display = ctx.display;
-  const theme = THEMES[validateSettings(ctx.prefs?.get()).theme];
+  let theme = themeFromPrefs(ctx.prefs?.get());
   const menu = document.createElement("div");
   menu.setAttribute("role", "menu");
   menu.setAttribute("aria-label", "Dungeon actions");
   menu.style.cssText = `display:none;position:fixed;z-index:1002;background:${theme.surface};color:${theme.text};border:1px solid ${paintColours(theme).border};border-radius:${Math.round(theme.rounding * 0.6)}px;padding:4px;font:${PAINT_FONT_SIZE}px/${PAINT_LINE_HEIGHT}px ${PAINT_FONT}`;
+  const paintMenu = () => {
+    const colours2 = paintColours(theme);
+    menu.style.background = theme.surface;
+    menu.style.color = theme.text;
+    menu.style.border = `1px solid ${colours2.border}`;
+    menu.style.borderRadius = `${Math.round(theme.rounding * 0.6)}px`;
+    const buttons = menu.querySelectorAll("button");
+    for (let index = 0; index < buttons.length; index += 1) {
+      const button4 = buttons[index];
+      if (!button4) continue;
+      button4.style.background = theme.surface;
+      button4.style.color = theme.text;
+    }
+  };
+  const stopTheme2 = onThemeChange((next) => {
+    theme = next;
+    paintMenu();
+  });
   const canvas = document.createElement("canvas");
   canvas.setAttribute("aria-hidden", "true");
   canvas.style.cssText = "position:fixed;inset:0;pointer-events:none;z-index:49";
@@ -5454,6 +6225,7 @@ function installMapMouse(ctx) {
   window.addEventListener("keydown", onKey);
   const timer2 = window.setInterval(render, 100);
   return () => {
+    stopTheme2();
     window.clearInterval(timer2);
     window.removeEventListener("click", onClick, true);
     window.removeEventListener("mousemove", onMove, true);
@@ -5781,15 +6553,15 @@ function installBlastPreview(ctx) {
 }
 
 // src/phase4.ts
-var CSS3 = `:host{color:var(--anyband-text);font:var(--anyband-font-size)/var(--anyband-line) var(--anyband-font)}.phase4{position:fixed;left:12px;bottom:12px;width:min(680px,calc(100vw - 24px));max-height:55vh;overflow:auto;padding:10px;background:var(--anyband-surface);border:1px solid var(--anyband-accent);border-radius:var(--anyband-rounding);pointer-events:auto}button,select,input{font:inherit;color:var(--anyband-text);background:var(--anyband-background);border:1px solid var(--anyband-accent);border-radius:3px;padding:4px}button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--anyband-accent)}button:disabled{opacity:.45}table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:3px;border-bottom:1px solid var(--anyband-accent)}.slots{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:3px}.slot{min-height:42px;overflow:hidden;word-break:break-word}.muted{opacity:.55}.row{width:100%;text-align:left;border:0;background:transparent}.menu{margin:6px 0;padding:6px;border:1px solid var(--anyband-accent)}.menu button{margin:2px}.hint{font-size:12px}`;
-function el3(parent, tag, content) {
+var CSS5 = `:host{color:var(--anyband-text);font:var(--anyband-font-size)/var(--anyband-line) var(--anyband-font)}.phase4{position:fixed;left:12px;bottom:12px;width:min(680px,calc(100vw - 24px));max-height:55vh;overflow:auto;padding:10px;background:var(--anyband-surface);border:1px solid var(--anyband-accent);border-radius:var(--anyband-rounding);pointer-events:auto}button,select,input{font:inherit;color:var(--anyband-text);background:var(--anyband-background);border:1px solid var(--anyband-accent);border-radius:3px;padding:4px}button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--anyband-accent)}button:disabled{opacity:.45}table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:3px;border-bottom:1px solid var(--anyband-accent)}.slots{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:3px}.slot{min-height:42px;overflow:hidden;word-break:break-word}.muted{opacity:.55}.row{width:100%;text-align:left;border:0;background:transparent}.menu{margin:6px 0;padding:6px;border:1px solid var(--anyband-accent)}.menu button{margin:2px}.hint{font-size:12px}`;
+function el6(parent, tag, content) {
   const node2 = parent.ownerDocument.createElement(tag);
   if (content !== void 0) node2.textContent = content;
   parent.append(node2);
   return node2;
 }
 function button2(parent, label2, callback) {
-  const node2 = el3(parent, "button", label2);
+  const node2 = el6(parent, "button", label2);
   node2.type = "button";
   node2.addEventListener("click", callback);
   return node2;
@@ -5864,7 +6636,7 @@ function installPhase4(ctx) {
     ...spellOn ? [{ key: "spells", label: "Spells", tab: "Spells", minSize: { width: 280, height: 220 }, placement: { kind: "dock", target: "main", edge: "right" } }] : [],
     ...quickOn ? [{ key: "quickbar", label: "Quickbar", tab: "Bar", minSize: { width: 320, height: 60 }, placement: { kind: "dock", target: "main", edge: "bottom" }, fitHeight: 140 }] : [],
     ...restOn ? [{ key: "rest", label: "Rest", tab: "Rest", minSize: { width: 220, height: 120 }, placement: { kind: "dock", target: "main", edge: "right" } }] : []
-  ], { id: "phase4", label: "Spells and quickbar", className: "phase4" }, CSS3, () => repaint());
+  ], { id: "phase4", label: "Spells and quickbar", className: "phase4" }, CSS5, () => repaint());
   if (!surfaces) {
     ctx.log("phase 4: panel seam unavailable");
     return blastCleanup;
@@ -5915,19 +6687,19 @@ ${snap?.core.player?.race ?? ""}`;
     signature = sig;
     for (const target of mounts.values()) target.replaceChildren();
     if (!snap) {
-      for (const target of mounts.values()) el3(target, "p", "Game state unavailable.");
+      for (const target of mounts.values()) el6(target, "p", "Game state unavailable.");
       return;
     }
     if (spellOn && spellMount) {
-      el3(spellMount, "h2", "Spells");
-      if (model?.learnable) el3(spellMount, "p", model.learnable === 1 ? "You can learn 1 new spell." : `You can learn ${model.learnable} new spells.`);
-      if (!model) el3(spellMount, "p", "Spell list unavailable.");
-      else if (!model.books.length) el3(spellMount, "p", "No readable spellbooks carried.");
+      el6(spellMount, "h2", "Spells");
+      if (model?.learnable) el6(spellMount, "p", model.learnable === 1 ? "You can learn 1 new spell." : `You can learn ${model.learnable} new spells.`);
+      if (!model) el6(spellMount, "p", "Spell list unavailable.");
+      else if (!model.books.length) el6(spellMount, "p", "No readable spellbooks carried.");
       else {
-        const picker = el3(spellMount, "select");
+        const picker = el6(spellMount, "select");
         picker.setAttribute("aria-label", "Spellbook");
         for (const book2 of model.books) {
-          const opt = el3(picker, "option", book2.name);
+          const opt = el6(picker, "option", book2.name);
           opt.value = book2.key;
         }
         if (!model.books.some((book2) => book2.key === bookKey)) bookKey = model.books[0].key;
@@ -5938,13 +6710,13 @@ ${snap?.core.player?.race ?? ""}`;
           paint(true);
         });
         const book = model.books.find((entry2) => entry2.key === bookKey);
-        const table = el3(spellMount, "table");
-        const head = el3(table, "tr");
-        for (const label2 of ["Spell", "Mana", "Fail", "State"]) el3(head, "th", label2);
+        const table = el6(spellMount, "table");
+        const head = el6(table, "tr");
+        for (const label2 of ["Spell", "Mana", "Fail", "State"]) el6(head, "th", label2);
         for (const spell of book.spells) {
-          const row = el3(table, "tr");
+          const row = el6(table, "tr");
           if (!spell.canCast && !spell.canStudy) row.className = "muted";
-          const cell = el3(row, "td");
+          const cell = el6(row, "td");
           const pick = button2(cell, spell.name, () => {
             spellIndex = spell.index;
             paint(true);
@@ -5966,9 +6738,9 @@ ${snap?.core.player?.race ?? ""}`;
             spellIndex = spell.index;
             paint(true);
           });
-          el3(row, "td", String(spell.mana));
-          el3(row, "td", `${spell.fail}%`);
-          el3(row, "td", spell.state);
+          el6(row, "td", String(spell.mana));
+          el6(row, "td", `${spell.fail}%`);
+          el6(row, "td", spell.state);
         }
         const selected = book.spells.find((entry2) => entry2.index === spellIndex) ?? book.spells[0];
         if (selected) {
@@ -5983,25 +6755,25 @@ ${snap?.core.player?.race ?? ""}`;
           });
           study.disabled = !(book.chooseSpells ? selected.canStudy : book.spells.some((entry2) => entry2.canStudy)) || !ctx.intent?.submit;
           if (!book.chooseSpells) study.title = "Your class learns a random eligible spell from this book.";
-          el3(spellMount, "h3", selected.name);
-          el3(spellMount, "p", `Level ${selected.level}. Mana ${selected.mana}. Failure ${selected.fail}%. ${selected.state}.`);
-          if (selected.canCast && (snap.core.player?.sp ?? 0) < selected.mana) el3(spellMount, "p", "Not enough mana. Confirmation may be required.");
-          el3(spellMount, "p", selected.description);
-          if (selected.infoLine) el3(spellMount, "p", `Info: ${selected.infoLine}`);
+          el6(spellMount, "h3", selected.name);
+          el6(spellMount, "p", `Level ${selected.level}. Mana ${selected.mana}. Failure ${selected.fail}%. ${selected.state}.`);
+          if (selected.canCast && (snap.core.player?.sp ?? 0) < selected.mana) el6(spellMount, "p", "Not enough mana. Confirmation may be required.");
+          el6(spellMount, "p", selected.description);
+          if (selected.infoLine) el6(spellMount, "p", `Info: ${selected.infoLine}`);
           if (quickOn && menu === -2) {
-            const box = el3(spellMount, "div");
+            const box = el6(spellMount, "div");
             box.className = "menu";
-            el3(box, "strong", "Assign spell to quickbar");
+            el6(box, "strong", "Assign spell to quickbar");
             for (let i = 0; i < 30; i++) button2(box, `${i < 10 ? "" : i < 20 ? "Shift+" : "Ctrl+"}${keys[i % 10]}`, () => assign(i, { type: "spell", key: book.key, index: selected.index, name: selected.name }));
           }
         }
       }
       if (snap.prompt?.kind === "spell" && ctx.prompt?.reply && playerIsDriving(ctx)) {
         const prompt = snap.prompt;
-        const box = el3(spellMount, "div");
+        const box = el6(spellMount, "div");
         box.className = "menu";
-        el3(box, "h3", "Choose spell");
-        el3(box, "p", prompt.label);
+        el6(box, "h3", "Choose spell");
+        el6(box, "p", prompt.label);
         for (const choice of prompt.choices) button2(box, choice.name, () => {
           promptChoice = choice.index;
           paint(true);
@@ -6018,11 +6790,11 @@ ${snap?.core.player?.race ?? ""}`;
       }
     }
     if (quickOn && quickMount && snap.phase === "play") {
-      el3(quickMount, "h2", "Quickbar");
-      if (!character) el3(quickMount, "p", "Assignments last for this game session.");
+      el6(quickMount, "h2", "Quickbar");
+      if (!character) el6(quickMount, "p", "Assignments last for this game session.");
       for (let row = 0; row < 3; row++) {
-        el3(quickMount, "h3", row === 0 ? "Number keys" : row === 1 ? "Shift and number" : "Ctrl and number");
-        const line = el3(quickMount, "div");
+        el6(quickMount, "h3", row === 0 ? "Number keys" : row === 1 ? "Shift and number" : "Ctrl and number");
+        const line = el6(quickMount, "div");
         line.className = "slots";
         for (let col = 0; col < 10; col++) {
           const index = row * 10 + col;
@@ -6078,9 +6850,9 @@ ${snap?.core.player?.race ?? ""}`;
         }
       }
       if (menu >= 0) {
-        const box = el3(quickMount, "div");
+        const box = el6(quickMount, "div");
         box.className = "menu";
-        el3(box, "strong", `Assign ${keys[menu % 10]}`);
+        el6(box, "strong", `Assign ${keys[menu % 10]}`);
         if (slots[menu]) button2(box, "Customize", () => {
           customize = menu;
           appearance = slots[menu]?.appearance ?? { style: "automatic", text: "", color: "#7abaf4" };
@@ -6102,13 +6874,13 @@ ${snap?.core.player?.race ?? ""}`;
         });
       }
       if (customize >= 0 && slots[customize]) {
-        const box = el3(quickMount, "div");
+        const box = el6(quickMount, "div");
         box.className = "menu";
-        el3(box, "h3", "Customize slot");
-        const style = el3(box, "select");
+        el6(box, "h3", "Customize slot");
+        const style = el6(box, "select");
         style.setAttribute("aria-label", "Appearance");
         for (const [value2, label2] of [["automatic", "Automatic"], ["text", "Custom text"], ["potion", "Potion icon"], ["scroll", "Scroll icon"], ["wand", "Wand icon"]]) {
-          const opt = el3(style, "option", label2);
+          const opt = el6(style, "option", label2);
           opt.value = value2;
         }
         style.value = appearance.style;
@@ -6116,14 +6888,14 @@ ${snap?.core.player?.race ?? ""}`;
           appearance = { ...appearance, style: style.value };
           paint(true);
         });
-        const input = el3(box, "input");
+        const input = el6(box, "input");
         input.value = appearance.text;
         input.placeholder = "Text wraps to fit the slot.";
         input.setAttribute("aria-label", "Slot text");
         input.addEventListener("input", () => {
           appearance = { ...appearance, text: input.value.slice(0, 60) };
         });
-        const color = el3(box, "input");
+        const color = el6(box, "input");
         color.type = "color";
         color.value = appearance.color;
         color.setAttribute("aria-label", "Slot color");
@@ -6150,7 +6922,7 @@ ${snap?.core.player?.race ?? ""}`;
     const resting = snap.resting?.active ? snap.resting : null;
     if (restOn && restMount && (snap.phase === "play" || asking || resting)) {
       if (resting) {
-        const status = el3(restMount, "p", restingText(resting));
+        const status = el6(restMount, "p", restingText(resting));
         status.setAttribute("role", "status");
         const stop = button2(restMount, "Stop resting", () => {
           if (!stopResting(ctx)) fail("Stop unavailable.");
@@ -6162,19 +6934,19 @@ ${snap?.core.player?.race ?? ""}`;
         paint(true);
       });
       if (restOpen && !resting || asking) {
-        const box = el3(restMount, "div");
+        const box = el6(restMount, "div");
         box.className = "menu";
-        el3(box, "h3", "Rest");
+        el6(box, "h3", "Rest");
         for (const [count, label2, description] of [[-2, "Fully recovered", "Recover HP and mana and wait out harmful conditions."], [-1, "HP and mana", "Stop when both are full."], [-3, "HP or mana", "Stop as soon as either is full."], [1, "Number of turns", "Rest for a set number of turns."]]) {
           const choice = button2(box, label2, () => {
             restMode = count;
             paint(true);
           });
           choice.setAttribute("aria-pressed", String(restMode === count));
-          el3(box, "p", description);
+          el6(box, "p", description);
         }
         if (restMode === 1) {
-          const input = el3(box, "input");
+          const input = el6(box, "input");
           input.type = "number";
           input.min = "1";
           input.max = "9999";
@@ -6184,8 +6956,8 @@ ${snap?.core.player?.race ?? ""}`;
             turns = Number(input.value);
           });
         }
-        if (restMode === 1 && (!Number.isInteger(turns) || turns < 1 || turns > 9999)) el3(box, "p", "Enter between 1 and 9999 turns.");
-        el3(box, "p", "Danger interrupts rest normally.");
+        if (restMode === 1 && (!Number.isInteger(turns) || turns < 1 || turns > 9999)) el6(box, "p", "Enter between 1 and 9999 turns.");
+        el6(box, "p", "Danger interrupts rest normally.");
         const confirm = button2(box, "Rest", () => {
           const count = restMode === 1 ? turns : restMode;
           if (!(asking ? answerRest(ctx, snap, count) : rest(ctx, snap, count))) fail("Rest unavailable.");
@@ -6202,7 +6974,7 @@ ${snap?.core.player?.race ?? ""}`;
     }
     const first = spellMount ?? quickMount ?? restMount;
     if (error && first) {
-      const p = el3(first, "p", error);
+      const p = el6(first, "p", error);
       p.setAttribute("role", "status");
     }
     if (quickMount) surfaces.fit("quickbar", quickMount.getBoundingClientRect().height + 16);
@@ -6312,16 +7084,16 @@ function adaptStore(snap, known) {
 }
 
 // src/panels/stores.ts
-var CSS4 = `:host{color:var(--anyband-text);font:var(--anyband-font-size)/var(--anyband-line) var(--anyband-font)}.store{position:absolute;inset:12px;overflow:auto;padding:10px;background:var(--anyband-surface);border:1px solid var(--anyband-accent);border-radius:var(--anyband-rounding);pointer-events:auto}.sides{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.side{min-width:0;overflow:auto}h2,h3{color:var(--anyband-accent);border-bottom:1px solid var(--anyband-accent)}table{width:100%;border-collapse:collapse}th{text-align:left}td,th{padding:3px;border-bottom:1px solid var(--anyband-accent)}button,input{font:inherit;color:var(--anyband-text);background:var(--anyband-background);border:1px solid var(--anyband-accent);border-radius:3px;padding:3px 6px}button{cursor:pointer}button:disabled{cursor:default;opacity:.5}button:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid var(--anyband-accent)}.row{width:100%;text-align:left;border:0;background:transparent}.row[aria-pressed=true]{background:var(--anyband-accent);color:var(--anyband-background)!important}.actions{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}.prompt{border:1px solid var(--anyband-accent);padding:8px;max-width:30em}.prompt input{width:100%}.muted{opacity:.65}.gain{color:#80b891}.loss,.error,.unaffordable{color:#ff7559}details{margin:8px 0}summary{color:var(--anyband-accent);cursor:pointer}@media(max-width:650px){.sides{grid-template-columns:1fr}}`;
+var CSS6 = `:host{color:var(--anyband-text);font:var(--anyband-font-size)/var(--anyband-line) var(--anyband-font)}.store{position:absolute;inset:12px;overflow:auto;padding:10px;background:var(--anyband-surface);border:1px solid var(--anyband-accent);border-radius:var(--anyband-rounding);pointer-events:auto}.sides{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.side{min-width:0;overflow:auto}h2,h3{color:var(--anyband-accent);border-bottom:1px solid var(--anyband-accent)}table{width:100%;border-collapse:collapse}th{text-align:left}td,th{padding:3px;border-bottom:1px solid var(--anyband-accent)}button,input{font:inherit;color:var(--anyband-text);background:var(--anyband-background);border:1px solid var(--anyband-accent);border-radius:3px;padding:3px 6px}button{cursor:pointer}button:disabled{cursor:default;opacity:.5}button:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid var(--anyband-accent)}.row{width:100%;text-align:left;border:0;background:transparent}.row[aria-pressed=true]{background:var(--anyband-accent);color:var(--anyband-background)!important}.actions{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}.prompt{border:1px solid var(--anyband-accent);padding:8px;max-width:30em}.prompt input{width:100%}.muted{opacity:.65}.gain{color:#80b891}.loss,.error,.unaffordable{color:#ff7559}details{margin:8px 0}summary{color:var(--anyband-accent);cursor:pointer}@media(max-width:650px){.sides{grid-template-columns:1fr}}`;
 var same3 = (a, b) => a.epoch === b.epoch && a.revision === b.revision;
-function el4(parent, tag, value2) {
+function el7(parent, tag, value2) {
   const node2 = parent.ownerDocument.createElement(tag);
   if (value2 !== void 0) node2.textContent = value2;
   parent.appendChild(node2);
   return node2;
 }
 function button3(parent, label2, click) {
-  const node2 = el4(parent, "button", label2);
+  const node2 = el7(parent, "button", label2);
   node2.type = "button";
   node2.addEventListener("click", click);
   return node2;
@@ -6392,6 +7164,7 @@ function installStores(ctx) {
     };
   }
   let panel = null;
+  let stopTheme2 = null;
   let stockSelection = null, packSelection = null, unchanged = false, amount = 1, lastPrompt = -1, split = 50;
   let place = "", signature = "", error = "";
   let pending = null;
@@ -6406,6 +7179,8 @@ function installStores(ctx) {
     const model = read();
     if (!model) {
       if (panel) {
+        stopTheme2?.();
+        stopTheme2 = null;
         panel.close();
         panel = null;
         mount = null;
@@ -6415,9 +7190,13 @@ function installStores(ctx) {
     }
     if (!panel) {
       panel = ctx.ui.openPanel({ id: "store", modal: false, label: "Store" });
-      applyTheme(panel.root, THEMES[validateSettings(ctx.prefs?.get()).theme]);
-      el4(panel.root, "style", CSS4);
-      mount = el4(panel.root, "section");
+      applyTheme(panel.root, themeFromPrefs(ctx.prefs?.get()));
+      const open = panel;
+      stopTheme2 = onThemeChange((theme) => {
+        if (panel) applyTheme(open.root, theme);
+      });
+      el7(panel.root, "style", CSS6);
+      mount = el7(panel.root, "section");
       mount.className = "store";
     }
     const name = `${model.index}:${model.name}`;
@@ -6441,7 +7220,7 @@ function installStores(ctx) {
     signature = next;
     const host = mount;
     host.replaceChildren();
-    const width = el4(host, "input");
+    const width = el7(host, "input");
     width.type = "range";
     width.min = "25";
     width.max = "75";
@@ -6452,7 +7231,7 @@ function installStores(ctx) {
       split = Number(width.value);
       sides.style.gridTemplateColumns = `${split}% ${100 - split}%`;
     });
-    const sides = el4(host, "div");
+    const sides = el7(host, "div");
     sides.className = "sides";
     sides.style.gridTemplateColumns = `${split}% ${100 - split}%`;
     const show = (result, failure) => {
@@ -6465,23 +7244,23 @@ function installStores(ctx) {
       paint(true);
     };
     const draw = (side) => {
-      const box = el4(sides, "section");
+      const box = el7(sides, "section");
       box.className = "side";
-      el4(box, "h2", side === "stock" ? `${model.name}${model.owner ? ` - ${model.owner}` : ""}` : `Your inventory${model.gold === void 0 ? "" : ` (Gold: ${model.gold})`}`);
+      el7(box, "h2", side === "stock" ? `${model.name}${model.owner ? ` - ${model.owner}` : ""}` : `Your inventory${model.gold === void 0 ? "" : ` (Gold: ${model.gold})`}`);
       if (side === "pack" && model.noSelling && !model.home) {
-        const note = el4(box, "p", "Stores take items as gifts and pay no gold for them.");
+        const note = el7(box, "p", "Stores take items as gifts and pay no gold for them.");
         note.className = "muted";
       }
       const rows = side === "stock" ? model.stock : model.pack;
       const selected = side === "stock" ? stockSelection : packSelection;
       const prices = on("Prices") && !model.home && !(side === "pack" && model.noSelling);
-      const table = el4(box, "table");
-      const head = el4(table, "tr");
-      for (const label2 of ["Item", "Qty", ...side === "pack" ? ["Location"] : [], ...prices ? [side === "stock" ? "Gold each" : "Offer each"] : []]) el4(head, "th", label2);
-      if (!rows.length) el4(box, "p", side === "stock" ? "No stock here." : "No items in your pack.");
+      const table = el7(box, "table");
+      const head = el7(table, "tr");
+      for (const label2 of ["Item", "Qty", ...side === "pack" ? ["Location"] : [], ...prices ? [side === "stock" ? "Gold each" : "Offer each"] : []]) el7(head, "th", label2);
+      if (!rows.length) el7(box, "p", side === "stock" ? "No stock here." : "No items in your pack.");
       for (const row of rows) {
-        const tr = el4(table, "tr");
-        const cell = el4(tr, "td");
+        const tr = el7(table, "tr");
+        const cell = el7(tr, "td");
         if (!row.eligible) tr.className = "muted";
         const pick = button3(cell, row.label, () => {
           if (side === "stock") stockSelection = row.key;
@@ -6492,15 +7271,15 @@ function installStores(ctx) {
         pick.style.color = row.colour;
         pick.title = row.eligible ? row.label : `${row.label}. This store will not buy it.`;
         pick.setAttribute("aria-pressed", String(selected === row.key));
-        el4(tr, "td", String(row.quantity));
-        if (side === "pack") el4(tr, "td", row.location ?? "Pack");
+        el7(tr, "td", String(row.quantity));
+        if (side === "pack") el7(tr, "td", row.location ?? "Pack");
         if (prices) {
-          const price = el4(tr, "td", row.price === void 0 ? "" : String(row.price));
+          const price = el7(tr, "td", row.price === void 0 ? "" : String(row.price));
           if (side === "stock" && row.price !== void 0 && model.gold !== void 0 && row.price > model.gold) price.className = "unaffordable";
         }
       }
       if (on("Transactions")) {
-        const actions = el4(box, "div");
+        const actions = el7(box, "div");
         actions.className = "actions";
         const label2 = side === "stock" ? model.home ? "Retrieve" : "Buy" : model.home ? "Stash" : model.noSelling ? "Give" : "Sell";
         const active = rows.find((row) => row.key === selected);
@@ -6515,22 +7294,22 @@ function installStores(ctx) {
           leave.disabled = !drive || !ctx.intent?.submit || !model.ready || !!model.prompt;
         }
         if (side === "stock" && model.transactionPrompts && !model.ready && !model.prompt) {
-          const wait = el4(box, "p", "Waiting for the store.");
+          const wait = el7(box, "p", "Waiting for the store.");
           wait.className = "muted";
         }
       }
-      el4(box, "h3", "Inspection");
+      el7(box, "h3", "Inspection");
       const chosen = rows.find((row) => row.key === selected);
       if (!chosen) {
-        const empty = el4(box, "p", "Select an item to inspect it.");
+        const empty = el7(box, "p", "Select an item to inspect it.");
         empty.className = "muted";
         return;
       }
-      el4(box, "strong", chosen.label).style.color = chosen.colour;
+      el7(box, "strong", chosen.label).style.color = chosen.colour;
       if (on("Comparison")) {
         const slots = storeComparisons(ctx, model, side, chosen.key);
         for (const slot of slots) {
-          if (slots.length > 1 && slot.name) el4(box, "h4", slot.name.charAt(0).toUpperCase() + slot.name.slice(1));
+          if (slots.length > 1 && slot.name) el7(box, "h4", slot.name.charAt(0).toUpperCase() + slot.name.slice(1));
           renderItemComparison(box, slot.sim, unchanged, (value2) => {
             unchanged = value2;
             paint(true);
@@ -6539,30 +7318,30 @@ function installStores(ctx) {
       }
       const inspection = storeInspection(ctx, model, side, chosen.key);
       if (inspection) {
-        const details = el4(box, "details");
+        const details = el7(box, "details");
         details.open = true;
-        el4(details, "summary", inspection.title);
+        el7(details, "summary", inspection.title);
         const parts = inspection.sections?.filter((part) => part.kind !== "title");
-        if (parts) for (const part of parts) el4(details, "p", part.text);
-        else el4(details, "p", inspection.text);
+        if (parts) for (const part of parts) el7(details, "p", part.text);
+        else el7(details, "p", inspection.text);
       }
     };
     draw("stock");
     draw("pack");
     if (model.prompt) drawPrompt(host, model);
     if (error) {
-      const line = el4(host, "p", error);
+      const line = el7(host, "p", error);
       line.className = "error";
     }
   };
   const drawPrompt = (host, model) => {
     const prompt = model.prompt;
-    const box = el4(host, "section");
+    const box = el7(host, "section");
     box.className = "prompt";
     const interactive = on("Prompts") && !!ctx.prompt?.reply && (prompt.kind === "quantity" || prompt.kind === "confirm");
     if (!interactive) {
-      el4(box, "p", cleanLabel(prompt.label) || "The game is asking a question.");
-      const hint = el4(box, "p", "Answer it with the keyboard.");
+      el7(box, "p", cleanLabel(prompt.label) || "The game is asking a question.");
+      const hint = el7(box, "p", "Answer it with the keyboard.");
       hint.className = "muted";
       return;
     }
@@ -6583,22 +7362,22 @@ function installStores(ctx) {
         amount = Math.max(1, Math.min(quantity.max, quantity.defaultValue));
       }
       const low = Math.max(1, quantity.min);
-      el4(box, "h3", "How many?");
+      el7(box, "h3", "How many?");
       const text2 = cleanLabel(quantity.label);
-      if (text2) el4(box, "p", text2);
-      el4(box, "p", `Up to ${quantity.max}`);
+      if (text2) el7(box, "p", text2);
+      el7(box, "p", `Up to ${quantity.max}`);
       const priced = quantity.unitPrice !== void 0 && !(selling && model.noSelling);
-      if (selling && model.noSelling) el4(box, "p", "The store pays no gold for this.");
-      if (priced) el4(box, "p", `${selling ? "Offer" : "Price"} each: ${quantity.unitPrice} gold`);
-      const total = priced ? el4(box, "p") : null;
-      if (quantity.gold !== void 0) el4(box, "p", `Your gold: ${quantity.gold}`);
-      const input = el4(box, "input");
+      if (selling && model.noSelling) el7(box, "p", "The store pays no gold for this.");
+      if (priced) el7(box, "p", `${selling ? "Offer" : "Price"} each: ${quantity.unitPrice} gold`);
+      const total = priced ? el7(box, "p") : null;
+      if (quantity.gold !== void 0) el7(box, "p", `Your gold: ${quantity.gold}`);
+      const input = el7(box, "input");
       input.type = "number";
       input.min = String(low);
       input.max = String(quantity.max);
       input.value = String(amount);
       input.setAttribute("aria-label", "Amount");
-      const actions2 = el4(box, "div");
+      const actions2 = el7(box, "div");
       actions2.className = "actions";
       const update = () => {
         const valid = Number.isInteger(amount) && amount >= low && amount <= quantity.max;
@@ -6631,18 +7410,18 @@ function installStores(ctx) {
       update();
       return;
     }
-    el4(box, "h3", pending && !model.home ? selling ? "Accept this offer?" : "Accept this price?" : "Confirm");
+    el7(box, "h3", pending && !model.home ? selling ? "Accept this offer?" : "Accept this price?" : "Confirm");
     const text = cleanLabel(prompt.label);
-    if (text) el4(box, "p", text);
+    if (text) el7(box, "p", text);
     const price = prompt.price;
     if (pending && !model.home) {
       const row = (pending.side === "stock" ? model.stock : model.pack).find((entry2) => entry2.key === pending.key);
       const unit = pending.unitPrice ?? row?.price;
-      if (selling && model.noSelling) el4(box, "p", "You get no gold for this.");
-      else if (price !== void 0) el4(box, "p", `${selling ? "You receive" : "Price"}: ${price} gold`);
-      else if (unit !== void 0) el4(box, "p", `${selling ? "You receive" : "Price"}: ${pending.amount === 1 ? "" : "about "}${unit * pending.amount} gold`);
+      if (selling && model.noSelling) el7(box, "p", "You get no gold for this.");
+      else if (price !== void 0) el7(box, "p", `${selling ? "You receive" : "Price"}: ${price} gold`);
+      else if (unit !== void 0) el7(box, "p", `${selling ? "You receive" : "Price"}: ${pending.amount === 1 ? "" : "about "}${unit * pending.amount} gold`);
     }
-    const actions = el4(box, "div");
+    const actions = el7(box, "div");
     actions.className = "actions";
     button3(actions, "Accept", () => reply(true));
     button3(actions, "Decline", () => reply(false));
@@ -6652,6 +7431,8 @@ function installStores(ctx) {
   const timer2 = globalThis.setInterval(() => paint(), 200);
   return () => {
     globalThis.clearInterval(timer2);
+    stopTheme2?.();
+    stopTheme2 = null;
     panel?.close();
     panel = null;
   };
@@ -7366,7 +8147,7 @@ function installEffects(ctx) {
     }
     function fringeChannels(shift, amount, width, height) {
       if (shift <= 0) return;
-      const channel = (color, dx) => {
+      const channel2 = (color, dx) => {
         fringeScratch.width = sample.width;
         fringeScratch.height = sample.height;
         const sg = fringeScratch.getContext("2d");
@@ -7387,8 +8168,8 @@ function installEffects(ctx) {
         g.restore();
       };
       try {
-        channel("#ff0000", shift);
-        channel("#0000ff", -shift);
+        channel2("#ff0000", shift);
+        channel2("#0000ff", -shift);
       } catch {
       }
     }
@@ -7521,7 +8302,8 @@ var plugin_default = {
       }
     }
     displayCleanups.push(installEffects({ flags, ...ctx.snapshot ? { snapshot: ctx.snapshot } : {}, ...ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {}, ...ctx.events ? { events: ctx.events } : {}, ...ctx.display?.snapshot ? { display: { snapshot: ctx.display.snapshot.bind(ctx.display) } } : {}, ...ctx.prefs ? { prefs: ctx.prefs } : {}, ...ctx.settings ? { settings: ctx.settings } : {} }));
-    displayCleanups.push(installChromePaint(ctx.display, flags, THEMES[validateSettings(ctx.prefs?.get()).theme], ctx.log));
+    const theme = themeFromPrefs(ctx.prefs?.get());
+    displayCleanups.push(installChromePaint(ctx.display, flags, theme, ctx.log));
     const liveCore = ctx.core, liveState = ctx.state;
     const itemContext = {
       flags,
@@ -7536,8 +8318,22 @@ var plugin_default = {
     };
     displayCleanups.push(installItems(itemContext));
     displayCleanups.push(installStores({ ...itemContext, ...ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {}, ...ctx.driver ? { driver: ctx.driver } : {} }));
-    if (flags["anybandui.highContrast"] || flags["anybandui.colourblind"] || flags["anybandui.crt"]) {
-      installAccessibilityAccommodations({ flags, ...ctx.display ? { display: ctx.display } : {}, log: ctx.log });
+    displayCleanups.push(installCharacterSheet({
+      flags,
+      log: ctx.log,
+      ...ctx.ui ? { ui: ctx.ui } : {},
+      ...ctx.prefs ? { prefs: ctx.prefs } : {},
+      ...ctx.character ? { character: ctx.character } : {}
+    }));
+    displayCleanups.push(installThemeEditor({
+      flags,
+      log: ctx.log,
+      ...ctx.ui ? { ui: ctx.ui } : {},
+      ...ctx.prefs ? { prefs: ctx.prefs } : {},
+      ...ctx.display ? { display: ctx.display } : {}
+    }));
+    if (flags["anybandui.highContrast"] || flags["anybandui.colourblind"] || flags["anybandui.crt"] || theme.invert_dungeon) {
+      installAccessibilityAccommodations({ flags, invertDungeon: theme.invert_dungeon, ...ctx.display ? { display: ctx.display } : {}, log: ctx.log });
     }
     if (flags["anybandui.quiverItemization"]) {
       if (!ctx.display) ctx.log("this game is too old for display conveniences");
@@ -7631,11 +8427,11 @@ var plugin_default = {
     }));
     if (flags["anybandui.firstEncounter"]) {
       if (ctx.core && ctx.state) {
-        const theme = THEMES[validateSettings(ctx.prefs?.get()).theme];
+        const theme2 = themeFromPrefs(ctx.prefs?.get());
         installFirstEncounter({
           core: ctx.core,
           state: ctx.state,
-          theme,
+          theme: theme2,
           ...ctx.ui ? { ui: ctx.ui } : {},
           ...ctx.prefs ? { prefs: ctx.prefs } : {},
           ...ctx.tiles ? { tiles: ctx.tiles } : {},
@@ -7669,7 +8465,7 @@ var plugin_default = {
     const zoomSidebar = !enabled.sidebar && (ctx.flags["anybandui.zoom"] || ctx.flags["anybandui.enlargedDisplay"]);
     if (!enabled.sidebar && !enabled.status && !enabled.messages && !zoomSidebar) return void 0;
     const source = createSource(ctx);
-    const theme = THEMES[validateSettings(ctx.prefs?.get()).theme];
+    const theme = themeFromPrefs(ctx.prefs?.get());
     const output = {};
     const cardPanels = [
       { key: "character", render: renderCharacterCard, select: (m) => {

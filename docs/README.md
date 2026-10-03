@@ -68,6 +68,9 @@ A mouse-first desktop interface for Neo Angband, ported from Wurli Monkhaven's A
 | Phosphor glow | `anybandui.crtGlow` | off | Softens the bright pixels of the dungeon view into a glow, in text mode and with tiles. It stays dark when the game's picture cannot be read. |
 | Colour fringing | `anybandui.crtFringe` | off | Shifts the red and the blue of the dungeon view a few pixels apart, in text mode and with tiles. It stays dark when the game's picture cannot be read. |
 | CRT sweep | `anybandui.crtSweep` | off | Draws a band of light moving down the dungeon view, brightest at the front and fading out behind it. The band stops when your system asks for reduced motion. |
+| Character sheet | `anybandui.characterSheet` | off | Opens a read-only character sheet in its own panel: the panels, seven-column stat breakdown and flag grid the game's character screen draws, plus the background. Left and Right move between its pages while that list has focus. |
+| Equipment portrait | `anybandui.equipmentPortrait` | off | Adds a Figure view on the equipment tab: an ASCII body with each worn item beside the part it covers. Slots the figure does not place stay listed under it. Up and Down move between slots while a slot has focus. |
+| Theme | `anybandui.themeEditor` | off | Opens a panel to edit the background, surface, text and accent colours and the corner rounding of the current theme, and to invert the dungeon view. Save stores the result as your custom theme. |
 
 
 ## Effect strength

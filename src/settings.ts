@@ -1,7 +1,9 @@
 import { FONT_FILES } from "./fonts.js";
+import { parseCustomTheme, resolveTheme, type CustomTheme, type ThemeTokens } from "./theme.js";
 
 export interface Settings {
   theme: "terminal-original" | "dark-graphite" | "light-paper" | "amber-terminal" | "midnight-ice";
+  customTheme: CustomTheme | null;
   interfaceFont: string;
   dungeonFont: string;
   showHeadings: boolean;
@@ -12,9 +14,15 @@ export interface Settings {
 }
 
 export const DEFAULT_SETTINGS: Readonly<Settings> = {
-  theme: "terminal-original", interfaceFont: "Nouveau_IBM.ttf", dungeonFont: "", showHeadings: true,
+  theme: "terminal-original", customTheme: null, interfaceFont: "Nouveau_IBM.ttf", dungeonFont: "", showHeadings: true,
   hoverDelayMs: 550, zoomIndex: 7, panelZoom: {}, effects: {},
 };
+
+/** The theme a panel should draw, including a custom theme saved over the preset. */
+export function themeFromPrefs(raw: unknown): ThemeTokens {
+  const settings = validateSettings(raw);
+  return resolveTheme(settings.theme, settings.customTheme);
+}
 
 interface PrefsCtx { readonly prefs: { get(): unknown; set(value: unknown): void } }
 type Listener = (settings: Readonly<Settings>) => void;
@@ -27,6 +35,7 @@ export function validateSettings(value: unknown): Settings {
   return {
     theme: typeof record["theme"] === "string" && themes.has(record["theme"] as Settings["theme"])
       ? record["theme"] as Settings["theme"] : DEFAULT_SETTINGS.theme,
+    customTheme: parseCustomTheme(record["customTheme"]),
     interfaceFont: typeof record["interfaceFont"] === "string" && fonts.has(record["interfaceFont"])
       ? record["interfaceFont"] : DEFAULT_SETTINGS.interfaceFont,
     dungeonFont: typeof record["dungeonFont"] === "string" && (record["dungeonFont"] === "" || fonts.has(record["dungeonFont"]))

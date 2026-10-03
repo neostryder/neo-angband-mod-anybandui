@@ -1,5 +1,5 @@
 import type { HudFrame, HudSection } from "@rpgm-tools/neo-angband-mod-sdk";
-import { applyTheme } from "../theme.js";
+import { applyTheme, onThemeChange } from "../theme.js";
 import type { ThemeTokens } from "../theme.js";
 import type { ViewModel } from "../view-model/protocol.js";
 
@@ -109,6 +109,11 @@ export function createPanelHost(doc: Document, panels: readonly PanelSpec[], the
   const surface = node(shadow as unknown as HTMLElement, "div", "surface");
   const content = createPanelContent(surface, panels);
   doc.body.appendChild(element);
+  // The host builds this card once per hud() call, so a saved theme has to repaint the one already on the page.
+  const stopTheme = onThemeChange((next) => {
+    if (!element.isConnected) { stopTheme(); return; }
+    applyTheme(shadow, next);
+  });
   return {
     element,
     present(section, frame, model) {

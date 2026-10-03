@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { aimingPath, clickIntent, clickTile, finishPickup, runMenuAction, tileMenuActions, walkIntent, walkingPath } from "./map-mouse.js";
+import { notifyThemeChange, THEMES } from "./theme.js";
+import { aimingPath, clickIntent, clickTile, finishPickup, installMapMouse, runMenuAction, tileMenuActions, walkIntent, walkingPath } from "./map-mouse.js";
 import type { InputSnapshot, KnownLevel, MouseSeams, PlayerIntent } from "./seams.js";
 
 const token = (revision: number) => ({ epoch: 1, revision });
@@ -24,6 +25,31 @@ function fixture(snapshot: InputSnapshot = snap(), known: KnownLevel | null = nu
 }
 
 describe("map mouse intents", () => {
+  it("repaints the action menu when the theme changes and stops on cleanup", () => {
+    const made: Array<{ style: Record<string, string>; querySelectorAll: () => unknown[] }> = [];
+    const element = () => {
+      const node = { style: {} as Record<string, string>, setAttribute() {}, remove() {}, replaceChildren() {}, querySelectorAll: () => [] };
+      made.push(node);
+      return node;
+    };
+    vi.stubGlobal("document", { createElement: element, body: { append() {} } });
+    vi.stubGlobal("window", { addEventListener() {}, removeEventListener() {}, setInterval: () => 1, clearInterval() {} });
+    try {
+      const cleanup = installMapMouse({
+        flags: { "anybandui.dungeonActions": true },
+        display: { snapshot: () => ({ mode: "play" }) } as never,
+        snapshot: () => null,
+      });
+      notifyThemeChange(THEMES["light-paper"]!);
+      expect(made[0]?.style.background).toBe(THEMES["light-paper"]!.surface);
+      cleanup();
+      notifyThemeChange(THEMES["amber-terminal"]!);
+      expect(made[0]?.style.background).toBe(THEMES["light-paper"]!.surface);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("walks or attacks adjacent cells through the walk command", () => {
     expect(walkIntent({ x: 5, y: 5 }, { x: 6, y: 5 })).toEqual({ kind: "command", command: { code: "walk", dir: 6 } });
     const { ctx, submitted } = fixture();

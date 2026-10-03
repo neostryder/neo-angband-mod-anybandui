@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
+import { notifyThemeChange, THEMES } from "./theme.js";
 import { anchoredOrigin, centerOn, clampOrigin, fitCellHeight, panelAutoFit, type DisplaySnapshot } from "./zoom.js";
 import { drawMarker, fitView, installMapOverview, landmarkKind, schematicColour, zoomMapAt } from "./map-overview.js";
-import { hoverGrid, knownCard, snapLandmark } from "./hover-cards.js";
+import { hoverGrid, installHoverCards, knownCard, snapLandmark } from "./hover-cards.js";
 
 const snapshot: DisplaySnapshot = {
   mode: "play", grid: { cols: 80, rows: 24, cellWidth: 12, cellHeight: 18 },
@@ -68,6 +69,47 @@ describe("display geometry", () => {
     expect(g.rect).toHaveBeenCalledTimes(1);
     expect(g.fill).toHaveBeenCalledTimes(8);
     expect(g.fillText).not.toHaveBeenCalled();
+  });
+
+  it("repaints the map strip and a hover card when the theme changes, then stops", () => {
+    const made: Array<{ style: Record<string, string> }> = [];
+    const element = (tag = "div") => {
+      const node = {
+        tag, style: {} as Record<string, string>, textContent: "", children: [] as unknown[], width: 0, height: 0,
+        setAttribute() {}, addEventListener() {}, append(...kids: unknown[]) { node.children.push(...kids); },
+        appendChild(kid: unknown) { node.children.push(kid); return kid; }, remove() {},
+        querySelectorAll() { return []; }, getContext: () => null,
+      };
+      made.push(node);
+      return node;
+    };
+    const listeners = { addEventListener() {}, removeEventListener() {} };
+    vi.stubGlobal("document", { createElement: element, createTextNode: (text: string) => ({ text }), body: { appendChild() {}, append() {} }, addEventListener() {}, removeEventListener() {}, querySelectorAll: () => [] });
+    vi.stubGlobal("window", { ...listeners, setInterval: () => 1, clearInterval() {}, devicePixelRatio: 1, innerWidth: 800, innerHeight: 600 });
+    const interval = vi.spyOn(globalThis, "setInterval").mockReturnValue(0 as unknown as ReturnType<typeof setInterval>);
+    vi.spyOn(globalThis, "clearInterval").mockImplementation(() => {});
+    try {
+      const strip = installMapOverview({ flags: { "anybandui.mapOverview": true },
+        display: { snapshot: () => snapshot, onKey: () => () => {}, setMapView: vi.fn(),
+          setFullMapOverview: vi.fn(), setTileScaling: vi.fn(), setGrid: vi.fn(), setCamera: vi.fn(),
+          setSidebarExtent: vi.fn(), setVisualFilter: vi.fn(), repaint: vi.fn() } });
+      const card = installHoverCards({ flags: { "anybandui.dungeonHoverCards": true },
+        display: { snapshot: () => snapshot } as never, core: { describeLookGrid: () => ({ text: "floor" }) } });
+      notifyThemeChange(THEMES["light-paper"]!);
+      const radius = `${Math.round(THEMES["light-paper"]!.rounding * 0.6)}px`;
+      expect(made[0]?.style.background).toBe(THEMES["light-paper"]!.surface);
+      expect(made.some((node) => node.style.borderRadius === radius)).toBe(true);
+      strip();
+      card();
+      notifyThemeChange(THEMES["amber-terminal"]!);
+      expect(made[0]?.style.background).toBe(THEMES["light-paper"]!.surface);
+      expect(made.some((node) => node.style.borderRadius === radius)).toBe(true);
+      expect(made.some((node) => node.style.borderRadius === "0px")).toBe(false);
+      expect(interval).toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+      vi.restoreAllMocks();
+    }
   });
 
   it("maps pointer positions to whole cave cells", () => {
