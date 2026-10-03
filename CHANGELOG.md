@@ -11,6 +11,11 @@ An entry opens with one or more bracketed tags. `[Visible]` marks a change a pla
 ### Added
 
 - [Visible] [UI] **More combat and movement effects: fear marks, damage numbers, walking slides, a teleport ripple, bolt trails and breath cones.** A frightened creature shows a `!` where a sleeping one shows its mark. Damage floats up red over your character and gold over a creature, and healing floats up green. A creature you can see slides into the square it steps to, and a ripple spreads from where a teleport lands. A bolt leaves a trail that points the way it flew, and a breath washes outward from where it starts. Each has its own switch and strength and starts off, and the moving ones hold still when your system asks for reduced motion.
+- [Visible] [UI] **Embers, a recall ring, a level flash, scene fades and more of the CRT look.** Embers glow over lava and stairs you have seen, a ring circles your character while Word of Recall counts down, and your square flashes the first time you pass your highest level this session. The old view fades out when a character loads, when you take stairs or enter a shop, and when you die. The CRT look gains phosphor glow, colour fringing and a band of light that sweeps down the view, in text mode and with tiles. Each has its own switch and strength setting and starts off, and the moving ones hold still or shorten when your system asks for reduced motion.
+
+### Changed
+
+- [Visible] [UI] **An artifact on the floor glows with a gold sunburst instead of a circle.**
 
 ## 1.1.0 - 2026-10-01
 

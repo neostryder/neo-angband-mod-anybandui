@@ -94,16 +94,16 @@ This table compares each AnybandUI module on the `deluxe` branch with the port, 
 | `store_panel.h`, `quantity_picker.h` | Partial | The quantity slider. OK stays enabled when the total costs more gold than the character has. A book in stock has no Browse spells button. | Mod build, phase 5. The quantity prompt already carries the maximum, the gold and the price of every amount. |
 | `rest_dialog.h` | Ported | Nothing. | |
 | `blast_preview.h` | Ported | Nothing. | |
-| `item_comparison.h`, `item_description.h`, `item_rules.h`, `item_glow.h` | Partial | The blows, damage, range and breakage tiles in the description. The artifact glow is a circle where AnybandUI draws a sunburst. | Mod build, phases 3 and 7. |
+| `item_comparison.h`, `item_description.h`, `item_rules.h`, `item_glow.h` | Partial | The blows, damage, range and breakage tiles in the description. | Mod build, phase 3. |
 | `map_overview.h` | Ported | Hover on the map overview waits 2,000 ms (`HOVER_DWELL_MS` in `src/qol-map-hover.ts`) instead of the shared delay that starts at 550 ms. | Mod build, phase 2. |
 | `dungeon_camera.h`, `dungeon_tooltip.h`, `dungeon_view.h` | Different | Zoom moves in whole-cell steps. AnybandUI zooms smoothly from 0.35 to 4. | Recorded under Quality of Life's display features. |
 | `message_history.h` | Partial | The All, Combat, Loot, System and Other filters. The log draws at most 20 lines and shows a repeat count on the newest line only. | Mod build, phase 1. |
 | `status_effects.h` | Ported | Nothing. | |
 | `character_overview.h` | Ported | Nothing. The card has the XP bar and the stat tiles, with a mark on a drained stat. | |
-| `crt_renderer`, `crt_settings.h` | Partial | Every CRT part except the scanlines and one moving bar, including phosphor glow and colour fringing. | Mod build, phase 7. |
+| `crt_renderer`, `crt_settings.h` | Partial | Bloom, vignetting, barrel distortion, ghosting, phosphor dots, signal interference, beam width, edge defocus, glass diffusion, and the tube presets with their mask layouts. The port draws the scanlines, the moving band, phosphor glow and colour fringing. | Mod build, a later phase. |
 | `monster_feedback.h` | Ported | Nothing. | |
 | `combat_feedback.h`, `motion_feedback.h` | Ported | Nothing. | |
-| `scene_presence.h` | Partial | Embers over remembered lava and stairs, and the recall ring. The port draws only the haze around visible uniques. | Mod build, phase 7. Known cells carry their terrain codes, and the dungeon card already reads recall. |
+| `scene_presence.h` | Ported | Nothing. | |
 | `projectile_feedback.h` | Ported | Nothing. | |
 | `dungeon_feedback.h` | Partial | The three-dot cue when a message is cut short, and the pause emblem of two bars and breathing dots. The port shows the words "Messages waiting" and "Resting". | Mod build, phase 1. |
 | `floor_items.h` | Ported | Nothing. | |
@@ -114,8 +114,8 @@ This table compares each AnybandUI module on the `deluxe` branch with the port, 
 | `character_sheet.h` | Missing | The read-only character sheet with its seven-column stat breakdown. | Mod build, phase 8. `ctx.character.sheet()` returns the panels, stat rows and flag grid the character screen draws. |
 | `equipment_portrait.h` | Missing | The ASCII figure with worn items hung on it. | Mod build, phase 8. The equipment tab already has the slot names and worn items. |
 | `inventory_changes.h` | Ported | Nothing. | |
-| `scene_transitions.h` | Missing | The fade from the old screen on loading, taking stairs, entering a shop and dying. | Mod build, phase 7. |
-| `level_feedback.h` | Missing | The flash when the character passes the highest level reached this session. | Mod build, phase 7. `max_level` is in the player record. |
+| `scene_transitions.h` | Ported | Nothing. | |
+| `level_feedback.h` | Ported | Nothing. | |
 | `character_select.h` | Missing | The save roster with profile cards and a colour for each save name. | Mod build, phase 8. `ctx.saves.list()` under `saves:manage`. |
 | `run_history.h`, `run_journal.h` | Missing | Post-mortems, the timeline of the current run and the graveyard, and Play Again. | Mod build, phase 8. `ctx.character.history()` gives the journal, and `onRunEnd` gives the run report, which the mod stores itself so it outlives the save. `ctx.saves.create({ like })` starts a character like that one. |
 | `birth_panel.h` | Missing | The character creation wizard. | Mod build, phase 8, as a `birth` presenter over Core's birth views. |

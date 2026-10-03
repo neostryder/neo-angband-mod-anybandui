@@ -49,7 +49,7 @@ A mouse-first desktop interface for Neo Angband, ported from Wurli Monkhaven's A
 | CRT display | `anybandui.crt` | off | Gives the dungeon view the look of an old monitor: slightly richer colours, faint scanlines, and a slow band of light that sweeps down the screen. The sweep stops when your system asks for reduced motion. |
 | Low health warning | `anybandui.lowHealthEffect` | off | Tints the dungeon view red once your hit points drop below the game's own hit point warning, deepening as they fall, with a pulse unless your system asks for reduced motion. With that warning turned off, it starts below 30 percent. |
 | Death burst | `anybandui.deathEffect` | off | Draws a burst on your character's square at the moment of death. |
-| Floor item glow | `anybandui.itemGlow` | off | Makes a soft glow around items you know about on the floor: gold for an artifact, red for a known curse, and blue for a rune you have not learned yet. |
+| Floor item glow | `anybandui.itemGlow` | off | Makes a soft glow around items you know about on the floor: a gold sunburst for an artifact, a red circle for a known curse, and a blue circle for a rune you have not learned yet. |
 | Glow shows hidden magic | `anybandui.itemGlowReveals` | off | The floor item glow also marks what you have not found out yet: an unidentified artifact, a hidden curse, or runes you have never seen. It tells you things the game normally keeps from you, and it needs the floor item glow turned on. Off by default. |
 | Sleeping creature marks | `anybandui.sleepMarks` | off | Puts a small mark above each sleeping creature you can see. |
 | Frightened creature marks | `anybandui.fearMarks` | off | Puts an exclamation mark above each frightened creature you can see. With reduced motion on, the mark does not bob. |
@@ -60,6 +60,14 @@ A mouse-first desktop interface for Neo Angband, ported from Wurli Monkhaven's A
 | Bolt glyphs | `anybandui.boltGlyphs` | off | Draws a glyph on each square a bolt or beam passes through, pointing the way it travels, in the colour of its element. Only squares your character sees are drawn, and with reduced motion the whole path shows at once. |
 | Breath cone | `anybandui.coneWash` | off | Washes each square of a breath you can see in its element's colour, spreading outward from the centre. While this is on, a breath uses the wash instead of the flat flash. |
 | Combat rings and flashes | `anybandui.spellEffects` | off | Draws a brief ring where a spell is cast, where a blow or shot lands or misses, where a creature dies, where someone heals, and at both ends of a teleport. The squares a ball or breath hits flash in the colour of its element. Only things your character sees are drawn. |
+| Lava embers | `anybandui.lavaEmbers` | off | Draws small embers over lava you have seen, including lava outside your current light. The sparks stay still when your system asks for reduced motion. |
+| Stair embers | `anybandui.stairEmbers` | off | Draws embers over stairs you have seen, orange on the way up and violet on the way down. The sparks stay still when your system asks for reduced motion. |
+| Recall ring | `anybandui.recallRing` | off | Draws a ring on your character while Word of Recall is counting down. The ring stays still when your system asks for reduced motion. |
+| Level flash | `anybandui.levelFlash` | off | Flashes your character's square when you pass the highest level reached this session. Climbing back to a level you had already reached stays quiet, and the flash is a steady mark when your system asks for reduced motion. |
+| Scene fades | `anybandui.sceneFade` | off | Fades the previous dungeon view on loading a character, taking stairs, entering a shop, and dying. The fade is shorter when your system asks for reduced motion. |
+| Phosphor glow | `anybandui.crtGlow` | off | Softens the bright pixels of the dungeon view into a glow, in text mode and with tiles. It stays dark when the game's picture cannot be read. |
+| Colour fringing | `anybandui.crtFringe` | off | Shifts the red and the blue of the dungeon view a few pixels apart, in text mode and with tiles. It stays dark when the game's picture cannot be read. |
+| CRT sweep | `anybandui.crtSweep` | off | Draws a band of light moving down the dungeon view, brightest at the front and fading out behind it. The band stops when your system asks for reduced motion. |
 
 
 ## Effect strength
@@ -80,7 +88,15 @@ On a version of the game with numeric mod settings, each effect has a strength s
 | Bolt glyph strength | `anybandui.boltGlyphsStrength` | 100% | Brightness of the glyphs a bolt or beam leaves behind. |
 | Breath cone strength | `anybandui.coneWashStrength` | 100% | How strong the wash is across a breath. |
 | Presence haze strength | `anybandui.presenceHazeStrength` | 100% | How thick the violet haze is around unique creatures. |
-| Combat ring strength | `anybandui.spellEffectsStrength` | 100% | How bright the combat rings and the blast flashes are. |
+| Combat ring strength | `anybandui.spellEffectsStrength` | 100% | Brightness of the combat rings and blast flashes. |
+| Lava ember strength | `anybandui.lavaEmbersStrength` | 100% | Sets how strongly the lava embers glow. |
+| Stair ember strength | `anybandui.stairEmbersStrength` | 100% | Dims or brightens the embers over stairs. |
+| Recall ring strength | `anybandui.recallRingStrength` | 100% | How bright the recall ring is. |
+| Level flash strength | `anybandui.levelFlashStrength` | 100% | Strength of the level-up flash on your character's square. |
+| Scene fade strength | `anybandui.sceneFadeStrength` | 100% | Controls how much of the old view shows through while it fades. |
+| Phosphor glow strength | `anybandui.crtGlowStrength` | 100% | Spread of the glow around bright pixels. |
+| Colour fringe strength | `anybandui.crtFringeStrength` | 100% | Distance between the shifted red and blue. |
+| CRT sweep strength | `anybandui.crtSweepStrength` | 100% | Sets the brightness of the band that sweeps down the view. |
 
 ## What it needs
 
