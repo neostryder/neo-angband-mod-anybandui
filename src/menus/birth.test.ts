@@ -101,7 +101,7 @@ function fakeSession(previous: BirthCatalogue["previous"] = null, pinned = false
   let race: string | null = null, cls: string | null = null, method: "point" | "roller" = "point";
   let stats = [10, 10, 10, 10, 10], spent = [0, 0, 0, 0, 0], left = 20;
   let rolled: number[] | null = null, previousRolled: number[] | null = null, rolls = 0;
-  let name = previous ? previous.name : "", history = "", historyEdited = false;
+  let name = previous ? previous.name : "", history = "", historyEdited = false, generated = "";
   const options: Record<string, boolean> = { birth_randarts: false };
   const ok: BirthResult = { ok: true };
   const refuse = (reason: string): BirthResult => ({ ok: false, reason });
@@ -122,6 +122,11 @@ function fakeSession(previous: BirthCatalogue["previous"] = null, pinned = false
     catalogue: vi.fn(() => catalogue),
     draft: vi.fn((): BirthDraftView => ({
       race, cls, method, stats: [...current()], pointsLeft: method === "point" ? left : 0, pointsSpent: method === "point" ? [...spent] : [0, 0, 0, 0, 0],
+      statCosts: stats.map((value) => {
+        const point = method === "point", buying = point && race !== null && cls !== null;
+        const buyCost = point && value < 18 ? 1 : null, sellRefund = point && value > 10 ? 1 : null;
+        return { buyCost, sellRefund, canBuy: buying && buyCost !== null && buyCost <= left, canSell: buying && sellRefund !== null };
+      }),
       canPreviousRoll: method === "roller" && previousRolled !== null, name, history, historyEdited,
       options: OPTIONS.map((o) => ({ ...o, value: options[o.name] ?? false })),
       preview: race && cls ? {
@@ -131,7 +136,7 @@ function fakeSession(previous: BirthCatalogue["previous"] = null, pinned = false
       } : null,
       ready: race !== null && cls !== null && name.trim() !== "",
     })),
-    chooseRace: vi.fn((n: string) => { race = n; suggested(); history = `${n} history ${++rolls}`; historyEdited = false; return ok; }),
+    chooseRace: vi.fn((n: string) => { race = n; suggested(); history = generated = `${n} history ${++rolls}`; historyEdited = false; return ok; }),
     chooseClass: vi.fn((n: string) => { cls = n; suggested(); return ok; }),
     usePointBuy: vi.fn(() => { suggested(); return ok; }),
     buy: vi.fn((i: number) => {
@@ -150,7 +155,8 @@ function fakeSession(previous: BirthCatalogue["previous"] = null, pinned = false
     setName: vi.fn((n: string) => { if (pinned) return refuse("The name is set for this game and cannot be changed."); name = n; return ok; }),
     randomName: vi.fn(() => { name = "Random"; return ok; }),
     setHistory: vi.fn((text: string) => { history = text; historyEdited = true; return ok; }),
-    regenerateHistory: vi.fn(() => { history = `${race} history ${++rolls}`; historyEdited = false; return ok; }),
+    restoreHistory: vi.fn(() => { history = generated; historyEdited = false; return ok; }),
+    regenerateHistory: vi.fn(() => { history = generated = `${race} history ${++rolls}`; historyEdited = false; return ok; }),
     setOption: vi.fn((n: string, value: boolean) => { options[n] = value; return ok; }),
     usePrevious: vi.fn(() => { if (!previous) return refuse("There is no previous character to reuse."); race = previous.race; cls = previous.cls; stats = [16, 10, 10, 12, 15]; spent = [6, 0, 0, 2, 5]; left = 7; method = "point"; history = "Previous history"; return ok; }),
     accept: vi.fn(() => (race && cls && name.trim() ? ok : refuse("The character needs a name."))),
@@ -298,8 +304,12 @@ describe("the character creation wizard", () => {
     top(ui).byFocus("buy-2")!.fire("keydown", "-");
     expect(session.sell).not.toHaveBeenCalled();
     expect(top(ui).text()).not.toContain("already at its lowest");
+    expect(top(ui).byFocus("buy-2")!.title).toBe("Costs 1 point. 6 remaining.");
+    expect(top(ui).byFocus("sell-0")!.title).toBe("Refunds 1 point.");
     for (const stat of [0, 0, 0, 0, 1, 1]) top(ui).byFocus(`buy-${stat}`)!.click();
     expect(top(ui).text()).toContain("Points remaining: 0");
+    expect(top(ui).byFocus("buy-0")!.title).toBe("Base stat is at its maximum.");
+    expect(top(ui).byFocus("buy-2")!.title).toBe("Costs 1 point. 0 remaining. Reduce another stat to free points.");
     for (const stat of [0, 2]) {
       expect(top(ui).byFocus(`buy-${stat}`)!.attributes["aria-disabled"]).toBe("true");
       top(ui).byFocus(`buy-${stat}`)!.click();
@@ -417,8 +427,12 @@ describe("the character creation wizard", () => {
     history.value = "Raised by wolves.";
     history.fire("input");
     expect(session.setHistory).toHaveBeenCalledWith("Raised by wolves.");
+    expect(top(ui).byText("Restore generated background")!.disabled).toBe(false);
     top(ui).byText("Restore generated background")!.click();
-    expect(session.setHistory).toHaveBeenLastCalledWith("Human history 1");
+    expect(session.restoreHistory).toHaveBeenCalledTimes(1);
+    expect(session.setHistory).toHaveBeenCalledTimes(1);
+    expect(top(ui).byFocus("history")!.value).toBe("Human history 1");
+    expect(top(ui).byText("Restore generated background")!.disabled).toBe(true);
     top(ui).byText("New background")!.click();
     expect(session.regenerateHistory).toHaveBeenCalled();
     top(ui).byText("Random name")!.click();

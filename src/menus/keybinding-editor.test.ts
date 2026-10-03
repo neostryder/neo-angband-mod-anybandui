@@ -1,38 +1,52 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ModKeybinding, ModKeybindings } from "@rpgm-tools/neo-angband-core";
-import { bindingDiff, conflictNote, draftFromList, installKeybindingEditor } from "./keybinding-editor.js";
+import type { ModGameCommand, ModKeybinding, ModKeybindings } from "@rpgm-tools/neo-angband-core";
+import { bindingDiff, commandKeys, commandOnKey, conflictNote, draftFromList, installKeybindingEditor } from "./keybinding-editor.js";
 import { installDomGlobals, overlayUi, paneUi } from "./test-dom.js";
 import { openMenu } from "./openers.js";
 
 const flush = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
 
-function seam(keys: (string | null)[] = []): ModKeybindings & { set: ReturnType<typeof vi.fn>; remove: ReturnType<typeof vi.fn>; stored: Map<string, ModKeybinding>; mode: { keyset: "original" | "roguelike" } } {
+type Keyset = "original" | "roguelike";
+
+const COMMANDS: readonly ModGameCommand[] = [
+  { id: "0", name: "Cast a spell", group: "Action commands", keys: { original: "m", roguelike: "m" }, control: null },
+  { id: "1", name: "Tunnel through a wall", group: "Action commands", keys: { original: "T", roguelike: "^T" }, control: "T" },
+  { id: "2", name: "Aim a wand", group: "Items", keys: { original: "a", roguelike: "z" }, control: null },
+  { id: "3", name: "Center the map", group: "Information", keys: { original: null, roguelike: null }, control: "L" },
+];
+
+function seam(keys: (string | null)[] = []): ModKeybindings & { set: ReturnType<typeof vi.fn>; remove: ReturnType<typeof vi.fn>; cancelCapture: ReturnType<typeof vi.fn>; stored: Map<string, ModKeybinding>; rogue: Map<string, ModKeybinding>; mode: { keyset: Keyset } } {
   const stored = new Map<string, ModKeybinding>([
     ["F1", { trigger: "F1", action: "R&\\e", owner: null }],
     ["F2", { trigger: "F2", action: "maa", owner: null }],
     ["F5", { trigger: "F5", action: "v1", owner: "Squire" }],
   ]);
-  const mode = { keyset: "original" as "original" | "roguelike" };
-  const set = vi.fn((trigger: string, action: string) => { if (trigger === "Pause") return false; stored.set(trigger, { trigger, action, owner: null }); return true; });
-  const remove = vi.fn((trigger: string) => stored.delete(trigger));
+  const rogue = new Map<string, ModKeybinding>([["F3", { trigger: "F3", action: "zaa", owner: null }]]);
+  const mode = { keyset: "original" as Keyset };
+  const pick = (keyset?: Keyset): Map<string, ModKeybinding> => ((keyset ?? mode.keyset) === "roguelike" ? rogue : stored);
+  const set = vi.fn((trigger: string, action: string, keyset?: Keyset) => { if (trigger === "Pause") return false; pick(keyset).set(trigger, { trigger, action, owner: null }); return true; });
+  const remove = vi.fn((trigger: string, keyset?: Keyset) => pick(keyset).delete(trigger));
   return {
     keyset: () => mode.keyset,
-    list: () => [...stored.values()],
+    list: (keyset?: Keyset) => [...pick(keyset).values()],
     set,
     remove,
+    commands: () => COMMANDS,
     capture: () => Promise.resolve(keys.length > 0 ? keys.shift()! : null),
+    cancelCapture: vi.fn(() => false),
     stored,
+    rogue,
     mode,
   };
 }
 
-/** A seam whose captures wait until the test ends them, with the newer host's cancel when asked for. */
-function waitingSeam(withCancel = false): ReturnType<typeof seam> & { waits: ((key: string | null) => void)[]; cancelCapture?: ReturnType<typeof vi.fn> } {
+/** A seam whose captures wait until the test ends them. cancelCapture resolves the waiting one with null, or, with cancels off, fails as a host whose capture already ended would. */
+function waitingSeam(cancels = true): ReturnType<typeof seam> & { waits: ((key: string | null) => void)[] } {
   const base = seam();
   const waits: ((key: string | null) => void)[] = [];
   const capture = (): Promise<string | null> => new Promise((resolve) => { waits.push(resolve); });
-  const extra = withCancel ? { cancelCapture: vi.fn(() => { const wait = waits.shift(); wait?.(null); return wait !== undefined; }) } : {};
-  return Object.assign(base, { capture, waits }, extra);
+  const cancelCapture = vi.fn(() => { if (!cancels) return false; const wait = waits.shift(); wait?.(null); return wait !== undefined; });
+  return Object.assign(base, { capture, waits, cancelCapture });
 }
 
 describe("keybinding editor", () => {
@@ -74,7 +88,7 @@ describe("keybinding editor", () => {
     expect(root.byFocus("save")?.disabled).toBe(false);
     root.byFocus("save")!.click();
     root.byFocus("confirm-yes")!.click();
-    expect(keybindings.set).toHaveBeenCalledWith("F5", "v1");
+    expect(keybindings.set).toHaveBeenCalledWith("F5", "v1", "original");
     expect(keybindings.stored.get("F5")?.owner).toBeNull();
   });
 
@@ -85,14 +99,77 @@ describe("keybinding editor", () => {
     expect(conflictNote("F2", draft, "F2")).toBe("Currently: F2 runs maa.");
     expect(conflictNote("F5", draft, "F5")).toBe("Currently: F5 runs v1. It was set by the Squire mod, and saving makes it yours.");
     expect(conflictNote("4", draft, null)).toContain("moves your character");
-    expect(conflictNote("F9", draft, null)).toBe("Currently: F9 has no keymap. A keymap runs instead of the game's own command for that key.");
+    expect(conflictNote("F9", draft, null)).toBe("Currently: F9 has no keymap and runs no game command.");
+    expect(conflictNote("a", draft, null, commandOnKey(COMMANDS, "a", "original"))).toBe("Currently: a runs the game command Aim a wand. A keymap here runs instead.");
+  });
+
+  it("finds the game command on a key in each keyset and lists its keys", () => {
+    expect(commandOnKey(COMMANDS, "z", "roguelike")?.name).toBe("Aim a wand");
+    expect(commandOnKey(COMMANDS, "z", "original")).toBeNull();
+    expect(commandKeys(COMMANDS[1]!)).toBe("T in Original, ^T in Roguelike, Ctrl-T");
+    expect(commandKeys(COMMANDS[3]!)).toBe("Ctrl-L");
+    expect(commandKeys({ ...COMMANDS[3]!, control: null })).toBe("no key");
+  });
+
+  it("names the game command a captured key would hide, and on a keymap's row", async () => {
+    const { root, ui } = overlayUi();
+    const keybindings = seam(["a"]);
+    keybindings.stored.set("m", { trigger: "m", action: "maa", owner: null });
+    cleanup = installKeybindingEditor({ flags: { "anybandui.keybindingEditor": true }, log: () => {}, ui, keybindings });
+    expect(root.text()).toContain("yours, hides Cast a spell");
+    root.byFocus("add")!.click();
+    await flush();
+    expect(root.text()).toContain("Currently: a runs the game command Aim a wand. A keymap here runs instead.");
+  });
+
+  it("lists the game commands with their keys, narrowed by the search box", () => {
+    const { root, ui } = overlayUi();
+    cleanup = installKeybindingEditor({ flags: { "anybandui.keybindingEditor": true }, log: () => {}, ui, keybindings: seam() });
+    expect(root.text()).not.toContain("Aim a wand");
+    root.byFocus("commands")!.click();
+    expect(root.byFocus("commands")!.attributes["aria-expanded"]).toBe("true");
+    expect(root.text()).toContain("Aim a wand");
+    expect(root.text()).toContain("a in Original, z in Roguelike");
+    expect(root.text()).toContain("Items");
+    root.byFocus("search")!.enter("wand");
+    expect(root.text()).not.toContain("Cast a spell");
+    expect(root.text()).toContain("Aim a wand");
+    root.byFocus("search")!.enter("nothing like it");
+    expect(root.text()).toContain("No matching game commands.");
+    root.byFocus("commands")!.click();
+    expect(root.text()).not.toContain("No matching game commands.");
+  });
+
+  it("edits the roguelike keymaps while the original keyset is in use, asking before it drops changes", () => {
+    const { root, ui } = overlayUi();
+    const keybindings = seam();
+    cleanup = installKeybindingEditor({ flags: { "anybandui.keybindingEditor": true }, log: () => {}, ui, keybindings });
+    expect(root.text()).toContain("Editing: Original. In use: Original.");
+    expect(root.byFocus("keyset:original")!.attributes["aria-pressed"]).toBe("true");
+    root.byFocus("key:F1")!.focus();
+    root.byFocus("key:F1")!.fire("keydown", "Delete");
+    root.byFocus("keyset:roguelike")!.click();
+    expect(root.text()).toContain("Throw away your changes to the original keymaps and edit the roguelike ones?");
+    root.byFocus("confirm-yes")!.click();
+    expect(root.text()).toContain("Editing: Roguelike. In use: Original.");
+    expect(root.byFocus("keyset:roguelike")!.attributes["aria-pressed"]).toBe("true");
+    expect(root.byFocus("key:F3")).toBeDefined();
+    expect(root.byFocus("key:F2")).toBeUndefined();
+    root.byFocus("key:F3")!.focus();
+    root.byFocus("key:F3")!.fire("keydown", "Delete");
+    root.byFocus("save")!.click();
+    expect(root.text()).toContain("to your roguelike keymaps?");
+    root.byFocus("confirm-yes")!.click();
+    expect(keybindings.remove).toHaveBeenCalledWith("F3", "roguelike");
+    expect(keybindings.rogue.has("F3")).toBe(false);
+    expect(keybindings.stored.has("F1")).toBe(true);
   });
 
   it("adds a keymap from a captured key, warns about a conflict, and saves only after Yes", async () => {
     const { root, ui } = overlayUi();
     const keybindings = seam(["F2"]);
     cleanup = installKeybindingEditor({ flags: { "anybandui.keybindingEditor": true }, log: () => {}, ui, keybindings });
-    expect(root.text()).toContain("Keyset: Original.");
+    expect(root.text()).toContain("Editing: Original.");
     root.byFocus("add")!.click();
     expect(root.text()).toContain("Press the key to bind.");
     await flush();
@@ -109,7 +186,7 @@ describe("keybinding editor", () => {
     expect(keybindings.set).not.toHaveBeenCalled();
     root.byFocus("save")!.click();
     root.byFocus("confirm-yes")!.click();
-    expect(keybindings.set).toHaveBeenCalledWith("F2", "mbb");
+    expect(keybindings.set).toHaveBeenCalledWith("F2", "mbb", "original");
     expect(keybindings.stored.get("F2")?.action).toBe("mbb");
     expect(root.text()).toContain("Saved.");
   });
@@ -123,7 +200,7 @@ describe("keybinding editor", () => {
     expect(root.focused()).toBe("add");
   });
 
-  it("leaves the panel unfocused and its Cancel off while a capture waits, so Escape ends it", async () => {
+  it("leaves the panel unfocused while a capture waits, so Escape ends it", async () => {
     const { root, ui } = overlayUi();
     const keybindings = waitingSeam();
     cleanup = installKeybindingEditor({ flags: { "anybandui.keybindingEditor": true }, log: () => {}, ui, keybindings });
@@ -131,19 +208,31 @@ describe("keybinding editor", () => {
     root.byFocus("add")!.click();
     expect(root.text()).toContain("Press the key to bind. Escape cancels.");
     expect(root.focused()).toBeUndefined();
-    expect(root.byFocus("form-cancel")?.disabled).toBe(true);
     expect(root.byFocus("key:F1")?.disabled).toBe(true);
-    root.byFocus("form-cancel")!.fire("click");
-    expect(root.text()).toContain("New keymap");
+    expect(root.byFocus("keyset:roguelike")?.disabled).toBe(true);
     keybindings.waits.shift()!(null);
     await flush();
     expect(root.text()).not.toContain("New keymap");
     expect(root.focused()).toBe("add");
   });
 
-  it("drops a capture the host interrupts by hiding the pane, and ignores the key that ends it", async () => {
-    const pane = paneUi();
+  it("stops a waiting capture through the game when Cancel keymap is pressed", async () => {
+    const { root, ui } = overlayUi();
     const keybindings = waitingSeam();
+    cleanup = installKeybindingEditor({ flags: { "anybandui.keybindingEditor": true }, log: () => {}, ui, keybindings });
+    root.byFocus("add")!.click();
+    expect(root.byFocus("form-cancel")?.disabled).toBe(false);
+    root.byFocus("form-cancel")!.click();
+    expect(keybindings.cancelCapture).toHaveBeenCalledTimes(1);
+    expect(keybindings.waits).toHaveLength(0);
+    await flush();
+    expect(root.text()).not.toContain("New keymap");
+    expect(root.focused()).toBe("add");
+  });
+
+  it("drops a capture the host interrupts by hiding the pane, and ignores a key that still ends it", async () => {
+    const pane = paneUi();
+    const keybindings = waitingSeam(false);
     cleanup = installKeybindingEditor({ flags: { "anybandui.keybindingEditor": true }, log: () => {}, ui: pane.ui, keybindings });
     pane.root.byFocus("key:F1")!.click();
     pane.root.byFocus("capture")!.click();
@@ -166,9 +255,9 @@ describe("keybinding editor", () => {
     expect(pane.root.byFocus("add")?.disabled).toBe(false);
   });
 
-  it("stops a waiting capture when the panel goes away, on a host that can", () => {
+  it("stops a waiting capture when the panel goes away", () => {
     const pane = paneUi();
-    const keybindings = waitingSeam(true);
+    const keybindings = waitingSeam();
     cleanup = installKeybindingEditor({ flags: { "anybandui.keybindingEditor": true }, log: () => {}, ui: pane.ui, keybindings });
     pane.root.byFocus("add")!.click();
     pane.unmount();
@@ -193,7 +282,7 @@ describe("keybinding editor", () => {
     expect(keybindings.remove).not.toHaveBeenCalled();
     root.byFocus("save")!.click();
     root.byFocus("confirm-yes")!.click();
-    expect(keybindings.remove).toHaveBeenCalledWith("F2");
+    expect(keybindings.remove).toHaveBeenCalledWith("F2", "original");
     expect(keybindings.stored.has("F2")).toBe(false);
   });
 
@@ -226,7 +315,7 @@ describe("keybinding editor", () => {
     expect(keybindings.remove).not.toHaveBeenCalled();
   });
 
-  it("refuses to save over a keyset that changed, and names refused keys", () => {
+  it("saves to the keyset being edited after the one in use changes, and names refused keys", () => {
     const { root, ui } = overlayUi();
     const keybindings = seam();
     cleanup = installKeybindingEditor({ flags: { "anybandui.keybindingEditor": true }, log: () => {}, ui, keybindings });
@@ -235,8 +324,9 @@ describe("keybinding editor", () => {
     keybindings.mode.keyset = "roguelike";
     root.byFocus("save")!.click();
     root.byFocus("confirm-yes")!.click();
-    expect(root.text()).toContain("The keyset changed while you were editing.");
-    expect(keybindings.remove).not.toHaveBeenCalled();
+    expect(keybindings.remove).toHaveBeenCalledWith("F1", "original");
+    expect(keybindings.stored.has("F1")).toBe(false);
+    expect(keybindings.rogue.has("F3")).toBe(true);
     keybindings.mode.keyset = "original";
     cleanup(); cleanup = () => {};
     const second = overlayUi();

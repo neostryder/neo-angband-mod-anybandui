@@ -113,7 +113,8 @@ export default {
     displayCleanups.push(installKeybindingEditor({ ...menuContext, ...(ctx.keybindings ? { keybindings: ctx.keybindings } : {}) }));
     /* Last, so the panels its pages open have registered by the time it draws. */
     displayCleanups.push(installSettingsWindow({ ...menuContext, ...(ctx.settings ? { settings: ctx.settings } : {}),
-      ...(ctx.display ? { display: ctx.display } : {}) }));
+      ...(ctx.display ? { display: ctx.display } : {}), ...(ctx.session ? { session: ctx.session } : {}),
+      ...(ctx.subwindows ? { subwindows: ctx.subwindows } : {}) }));
     if (flags["anybandui.highContrast"] || flags["anybandui.colourblind"] || flags["anybandui.crt"] || theme.invert_dungeon) {
       installAccessibilityAccommodations({ flags, invertDungeon: theme.invert_dungeon, ...(ctx.display ? { display: ctx.display } : {}), log: ctx.log });
     }

@@ -7,7 +7,7 @@
     "plugin"
   ],
   "modApi": 1,
-  "engine": ">=1.21.1",
+  "engine": ">=1.22.0",
   "dependencies": {
     "core": "*"
   },
@@ -44,7 +44,8 @@
     "state:knowledge.read",
     "state:options.read",
     "options:write",
-    "keymap:edit"
+    "keymap:edit",
+    "session:control"
   ],
   "author": "WurliMonkhaven, neostryder",
   "license": "GPL-2.0-only",
@@ -274,11 +275,11 @@
     { "flag": "anybandui.runJournal", "title": "Run journal", "description": "Opens a pane with the current run's milestones: level-ups, new depths, unique kills and artifacts. You can search them, show one kind, and choose the order. Play Again appears when the run ends.", "default": false, "requiresReload": true },
     { "flag": "anybandui.hallOfFame", "title": "Hall of fame", "description": "Draws the Hall of Fame as a table in the interface colours, with your own entry marked. Escape or Close returns to the game.", "default": false, "requiresReload": true },
     { "flag": "anybandui.yesNoPrompts", "title": "Yes/No prompts", "description": "Shows the game's yes or no questions in a dialog with Yes and No buttons. Escape answers No. A shop's own questions stay in the shop.", "default": false, "requiresReload": true },
-    { "flag": "anybandui.birthWizard", "title": "Character creation wizard", "description": "Replaces the game's character creation screens with a step-by-step window: race, class, attributes, name and background, then a review. A preview beside each step shows your stats, hit points and starting gold as the game will make them. Point buy and random rolls both work, a previous character can be reused, and Escape goes back one step.", "default": false, "requiresReload": true },
-    { "flag": "anybandui.knowledgeBrowser", "title": "Knowledge browser", "description": "Opens a panel to browse what your character knows: objects, runes, artifacts, egos, monsters, terrain, traps and shapes. Search by name or group, pick a group, and read the recall page of each entry. Reading a page changes nothing in the game.", "default": false, "requiresReload": true },
+    { "flag": "anybandui.birthWizard", "title": "Character creation wizard", "description": "Replaces the game's character creation screens with a step-by-step window: race, class, attributes, name and background, then a review. A preview beside each step shows your stats, hit points and starting gold as the game will make them. In point buy each stat shows what its next point costs, and its + or - is greyed out when the game would refuse it. Random rolls work too, and a previous character can be reused. After you edit the background, Restore generated background brings back the one the game wrote. Escape goes back one step.", "default": false, "requiresReload": true },
+    { "flag": "anybandui.knowledgeBrowser", "title": "Knowledge browser", "description": "Opens a panel to browse what your character knows: objects, runes, artifacts, egos, monsters, terrain, traps and shapes. Search by name or group, pick a group, and read the recall page of each entry. Known only starts on and hides item types you have not identified yet. Reading a page changes nothing in the game.", "default": false, "requiresReload": true },
     { "flag": "anybandui.optionsEditor", "title": "Game options editor", "description": "Opens a panel with the game's options in groups, with a search box. You can change the interface options, the hit point warning and the two delays; birth, cheat and score options are shown but stay in the game's own menu. Changes take effect when you press Save, and Cancel throws them away.", "default": false, "requiresReload": true },
-    { "flag": "anybandui.keybindingEditor", "title": "Keybinding editor", "description": "Opens a panel listing your keymaps for the current keyset. Add one by pressing its key and typing the keys it presses, or change or remove one. Choosing a key tells you what it runs now. Changes take effect when you press Save.", "default": false, "requiresReload": true },
-    { "flag": "anybandui.settingsWindow", "title": "Settings window", "description": "Opens a panel that gathers this mod's settings in pages: the theme preset and the hover card delay, each with presets, and the strength of each effect. Its pages also open the theme, game options, keybinding and knowledge panels when those are on. Changes take effect when you press Save.", "default": false, "requiresReload": true },
+    { "flag": "anybandui.keybindingEditor", "title": "Keybinding editor", "description": "Opens a panel listing your keymaps. It starts on the keyset in use, and you can switch to the other one. Add one by pressing its key and typing the keys it presses, or change or remove one. Choosing a key tells you what it does now: its keymap, or the game command on that key. Show game commands lists every command with its keys in both keysets. Cancel keymap stops waiting for a key. Changes take effect when you press Save.", "default": false, "requiresReload": true },
+    { "flag": "anybandui.settingsWindow", "title": "Settings window", "description": "Opens a panel that gathers this mod's settings in pages: the theme preset and the hover card delay, each with presets, and the strength of each effect, the same strengths the Mods screen shows. Its pages also open the theme, game options, keybinding and knowledge panels when those are on. Changes take effect when you press Save. Two pages act at once instead: Save game saves, goes back to the main menu or quits, and Layout undoes layout changes and saves layouts by name.", "default": false, "requiresReload": true },
     { "flag": "anybandui.deathRecap", "title": "Death recap", "description": "When your character dies, a recap shows what killed it, the last blows and healing it took, its final messages, and its depth, level, turns and latest milestones. An attacker your character could not see is listed as unseen. With the graveyard on, the recap is the first page of the post-mortem. If an autoplayer such as Squire was playing at the time, the recap says so.", "default": false, "requiresReload": true },
     { "flag": "anybandui.itemsPickupPreview", "title": "Pickup preview", "description": "Lists the items on the floor where you stand in the item panel. Select one to see how many of that kind you already carry, the game's description of it, and the equipment comparison for wearing it, all before you pick it up. Hovering the item shows the comparison in one line. With dungeon hover cards on, an item you can see gets the same line on its card.", "default": false, "requiresReload": true },
     { "flag": "anybandui.minimapTravel", "title": "Map travel", "description": "On the level map, click a square you remember to travel there. The map closes, and the game finds the way and stops if something disturbs you, as it does when running. A click does nothing while an autoplayer is playing.", "default": false, "requiresReload": true },

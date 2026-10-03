@@ -1,4 +1,4 @@
-// neo-angband-mod-anybandui - generated from plugin.ts by neo-angband-mod-build
+// p8-core122 - generated from plugin.ts by neo-angband-mod-build
 // (@rpgm-tools/neo-angband-mod-sdk). Edit the TypeScript source, not this file.
 
 // src/view-model/adapter.ts
@@ -6522,11 +6522,14 @@ function renderScreenView(parent, view) {
 // src/menus/knowledge-browser.ts
 var KNOWLEDGE_KEY = "knowledge-browser";
 var REFRESH_MS = 1e3;
-function visibleEntries(list, group, search) {
+function visibleEntries(list, group, search, knownOnly = false) {
   const out = [];
   for (const g of list?.groups ?? []) {
     if (group && g.name !== group) continue;
-    for (const entry2 of g.entries) if (matches(`${entry2.name} ${g.name}`, search)) out.push({ group: g.name, entry: entry2 });
+    for (const entry2 of g.entries) {
+      if (knownOnly && !entry2.known) continue;
+      if (matches(`${entry2.name} ${g.name}`, search)) out.push({ group: g.name, entry: entry2 });
+    }
   }
   return out;
 }
@@ -6536,7 +6539,7 @@ function installKnowledgeBrowser(ctx) {
   if (ctx.flags?.["anybandui.knowledgeBrowser"] !== true) return () => {
   };
   if (!ctx.knowledge) ctx.log("knowledge browser: this game does not share its knowledge lists");
-  const state = { category: "", group: "", search: "", selected: null };
+  const state = { category: "", group: "", search: "", selected: null, knownOnly: true };
   let signature = "";
   let timer2 = null;
   const read = () => {
@@ -6551,7 +6554,7 @@ function installKnowledgeBrowser(ctx) {
       }
       const list = state.category ? seam.list(state.category) : null;
       if (state.group && !list?.groups.some((g) => g.name === state.group)) state.group = "";
-      const visible = visibleEntries(list, state.group, state.search);
+      const visible = visibleEntries(list, state.group, state.search, state.knownOnly);
       if (!visible.some((v) => v.entry.id === state.selected)) state.selected = visible[0]?.entry.id ?? null;
       const recall = state.selected ? seam.recall(state.category, state.selected) : null;
       return { categories, list, visible, recall, error: "" };
@@ -6602,6 +6605,17 @@ function installKnowledgeBrowser(ctx) {
     });
     const controls = el6(mount, "div");
     controls.className = "controls";
+    const knownLabel = el6(controls, "label");
+    const known = el6(knownLabel, "input");
+    known.type = "checkbox";
+    known.checked = state.knownOnly;
+    known.dataset["focus"] = "known-only";
+    known.title = "Hide item types whose identity you have not learned.";
+    known.addEventListener("change", () => {
+      state.knownOnly = known.checked;
+      repaint("known-only");
+    });
+    el6(knownLabel, "span", " Known only");
     const search = el6(controls, "input");
     search.type = "search";
     search.placeholder = "Search by name or group";
@@ -7028,7 +7042,20 @@ function bindingDiff(original, draft) {
   }).map(([trigger, binding]) => [trigger, binding.action]);
   return { remove, set };
 }
-function conflictNote(trigger, draft, editing) {
+var KEYSET_NAMES = { original: "Original", roguelike: "Roguelike" };
+function commandOnKey(commands, trigger, keyset) {
+  return commands.find((command) => command.keys[keyset] === trigger) ?? null;
+}
+function commandKeys(command) {
+  const parts = [];
+  for (const keyset of ["original", "roguelike"]) {
+    const key = command.keys[keyset];
+    if (key !== null) parts.push(`${key} in ${KEYSET_NAMES[keyset]}`);
+  }
+  if (command.control) parts.push(`Ctrl-${command.control}`);
+  return parts.length > 0 ? parts.join(", ") : "no key";
+}
+function conflictNote(trigger, draft, editing, command = null) {
   const current = draft.get(trigger);
   if (current) {
     const owner = current.owner ? ` It was set by the ${current.owner} mod, and saving makes it yours.` : "";
@@ -7036,14 +7063,19 @@ function conflictNote(trigger, draft, editing) {
     return `Currently: ${trigger} runs ${current.action}.${replaces}${owner}`;
   }
   if (/^[0-9]$/u.test(trigger)) return `Currently: ${trigger} moves your character or enters a number. A keymap here replaces that.`;
-  return `Currently: ${trigger} has no keymap. A keymap runs instead of the game's own command for that key.`;
+  if (command) return `Currently: ${trigger} runs the game command ${command.name}. A keymap here runs instead.`;
+  return `Currently: ${trigger} has no keymap and runs no game command.`;
 }
+var COMMAND_LIMIT = 40;
 var rowFocus = (trigger) => `key:${trigger}`;
 function installKeybindingEditor(ctx) {
   if (ctx.flags?.["anybandui.keybindingEditor"] !== true) return () => {
   };
   if (!ctx.keybindings) ctx.log("keybinding editor: this game does not share its keymaps");
   let keyset = "original";
+  let started = false;
+  let commands = [];
+  let showCommands = false;
   let original = [];
   let draft = /* @__PURE__ */ new Map();
   let selected = null;
@@ -7057,8 +7089,12 @@ function installKeybindingEditor(ctx) {
     const seam = ctx.keybindings;
     if (!seam) return;
     try {
-      keyset = seam.keyset();
-      original = seam.list();
+      if (!started) {
+        keyset = seam.keyset();
+        started = true;
+      }
+      original = seam.list(keyset);
+      commands = seam.commands();
     } catch (err) {
       original = [];
       note = `The keymaps could not be read: ${err instanceof Error ? err.message : String(err)}`;
@@ -7110,9 +7146,8 @@ function installKeybindingEditor(ctx) {
     captureRun++;
     form.capturing = false;
     if (form.trigger === null) form = null;
-    const seam = ctx.keybindings;
     try {
-      seam?.cancelCapture?.();
+      ctx.keybindings?.cancelCapture();
     } catch {
     }
   };
@@ -7122,7 +7157,7 @@ function installKeybindingEditor(ctx) {
     else capture();
   };
   const closeForm = () => {
-    if (form?.capturing) return;
+    dropCapture();
     form = null;
     repaint(selected ? rowFocus(selected) : "add");
   };
@@ -7163,13 +7198,8 @@ function installKeybindingEditor(ctx) {
     ask({ question: `Save ${count} ${count === 1 ? "change" : "changes"} to your ${keyset} keymaps? This replaces what is stored now.`, yes: "Save", onYes: () => {
       let failed = [];
       try {
-        if (seam.keyset() !== keyset) {
-          note = "The keyset changed while you were editing. Cancel, then make your changes again.";
-          repaint("cancel");
-          return;
-        }
-        for (const trigger of diff.remove) seam.remove(trigger);
-        failed = diff.set.filter(([trigger, action]) => !seam.set(trigger, action)).map(([trigger]) => trigger);
+        for (const trigger of diff.remove) seam.remove(trigger, keyset);
+        failed = diff.set.filter(([trigger, action]) => !seam.set(trigger, action, keyset)).map(([trigger]) => trigger);
       } catch (err) {
         note = `The keymaps could not be saved: ${err instanceof Error ? err.message : String(err)}`;
         repaint("save");
@@ -7193,6 +7223,22 @@ function installKeybindingEditor(ctx) {
       repaint("add");
     } });
   };
+  const switchKeyset = (next) => {
+    if (next === keyset) return;
+    const go = () => {
+      dropCapture();
+      keyset = next;
+      selected = null;
+      reload();
+      note = "";
+      repaint(`keyset:${next}`);
+    };
+    if (changes() === 0) {
+      go();
+      return;
+    }
+    ask({ question: `Throw away your changes to the ${keyset} keymaps and edit the ${next} ones?`, yes: "Discard", onYes: go });
+  };
   const clearKeyset = () => {
     for (const [trigger, binding] of [...draft]) if (binding.owner === null) draft.delete(trigger);
     selected = null;
@@ -7205,7 +7251,21 @@ function installKeybindingEditor(ctx) {
       el6(mount, "p", "This game does not share its keymaps.").className = "muted";
       return;
     }
-    el6(mount, "p", `Keyset: ${keyset === "roguelike" ? "Roguelike" : "Original"}. The roguelike keys option chooses which one is active. Your changes apply when you press Save.`).className = "muted";
+    let inUse = null;
+    try {
+      inUse = ctx.keybindings.keyset();
+    } catch {
+      inUse = null;
+    }
+    const sets = el6(mount, "div");
+    sets.className = "tabs";
+    sets.setAttribute("aria-label", "Keyset to edit");
+    for (const choice of ["original", "roguelike"]) {
+      const tab = button2(sets, `${KEYSET_NAMES[choice]} keyset`, `keyset:${choice}`, () => switchKeyset(choice));
+      tab.setAttribute("aria-pressed", String(choice === keyset));
+      tab.disabled = form?.capturing === true || confirm2 !== null;
+    }
+    el6(mount, "p", `Editing: ${KEYSET_NAMES[keyset]}.${inUse ? ` In use: ${KEYSET_NAMES[inUse]}.` : ""} The roguelike keys option chooses which one is in use. Your changes apply when you press Save.`).className = "muted";
     if (form) {
       const active = form;
       const box = el6(mount, "div");
@@ -7215,7 +7275,7 @@ function installKeybindingEditor(ctx) {
         el6(box, "p", "Press the key to bind. Escape cancels.").setAttribute("role", "status");
       } else {
         el6(box, "p", `Key: ${active.trigger ?? "none yet"}`);
-        if (active.trigger) el6(box, "p", conflictNote(active.trigger, draft, active.editing)).className = "warn";
+        if (active.trigger) el6(box, "p", conflictNote(active.trigger, draft, active.editing, commandOnKey(commands, active.trigger, keyset))).className = "warn";
       }
       const field = el6(box, "label");
       field.className = "field";
@@ -7241,7 +7301,7 @@ function installKeybindingEditor(ctx) {
       actions2.className = "actions";
       button2(actions2, "Use this key", "apply", applyForm).disabled = active.capturing;
       button2(actions2, active.trigger ? "Choose another key" : "Choose a key", "capture", capture).disabled = active.capturing;
-      button2(actions2, "Cancel keymap", "form-cancel", closeForm).disabled = active.capturing;
+      button2(actions2, "Cancel keymap", "form-cancel", closeForm);
       box.addEventListener("keydown", (event) => {
         if (active.capturing) return;
         if (event.key === "Escape") {
@@ -7280,7 +7340,8 @@ function installKeybindingEditor(ctx) {
       row.setAttribute("aria-selected", String(trigger === selected));
       el6(row, "span", trigger);
       el6(row, "span", binding.action);
-      el6(row, "span", binding.owner ? `from ${binding.owner}` : "yours").className = "muted";
+      const hidden = commandOnKey(commands, trigger, keyset);
+      el6(row, "span", `${binding.owner ? `from ${binding.owner}` : "yours"}${hidden ? `, hides ${hidden.name}` : ""}`).className = "muted";
       row.addEventListener("focus", () => {
         selected = trigger;
       });
@@ -7320,6 +7381,32 @@ function installKeybindingEditor(ctx) {
       button2(actions, `Remove ${chosen}`, "remove", () => removeRow(chosen));
     }
     if (note) el6(mount, "p", note).className = "note";
+    if (commands.length > 0) {
+      const toggle = button2(mount, showCommands ? "Hide game commands" : "Show game commands", "commands", () => {
+        showCommands = !showCommands;
+        repaint("commands");
+      });
+      toggle.setAttribute("aria-expanded", String(showCommands));
+      if (showCommands) {
+        const shown = commands.filter((command) => matches(`${command.name} ${command.group} ${commandKeys(command)}`, search));
+        const table = el6(mount, "div");
+        table.className = "list";
+        table.setAttribute("aria-label", "Game commands");
+        if (shown.length === 0) el6(table, "p", "No matching game commands.").className = "muted";
+        let group = "";
+        for (const command of shown.slice(0, COMMAND_LIMIT)) {
+          if (command.group !== group) {
+            el6(table, "div", command.group).className = "section";
+            group = command.group;
+          }
+          const row = el6(table, "div");
+          row.className = "field";
+          el6(row, "span", command.name);
+          el6(row, "span", commandKeys(command)).className = "muted";
+        }
+        if (shown.length > COMMAND_LIMIT) el6(table, "p", `${shown.length - COMMAND_LIMIT} more. Search to narrow the list.`).className = "muted";
+      }
+    }
     mount.addEventListener("keydown", (event) => {
       if (event.key !== "Escape" || form || confirm2 || changes() === 0) return;
       swallow(event);
@@ -8295,6 +8382,172 @@ function installEffects(ctx) {
   };
 }
 
+// src/menus/game-session.ts
+var SESSION_LABELS = {
+  save: "Save and continue",
+  close: "Save and return to main menu",
+  quit: "Save and quit"
+};
+var SESSION_QUESTIONS = {
+  close: "Save this character and return to the main menu?",
+  quit: "Save this character and quit?"
+};
+var DONE = {
+  save: "Game saved.",
+  close: "Game saved. Returning to the main menu.",
+  quit: "Game saved. Quitting."
+};
+function outcome(action, result) {
+  if (result.ok) return { ok: true, message: DONE[action] };
+  return { ok: false, message: `The game was not saved: ${result.reason}` };
+}
+async function runSessionAction(session, action) {
+  if (!session) return { ok: false, message: "This game does not let mods save it." };
+  try {
+    if (action === "save") return outcome(action, session.save());
+    return outcome(action, await (action === "close" ? session.exitToTitle() : session.quit()));
+  } catch (err) {
+    return { ok: false, message: `The game was not saved: ${err instanceof Error ? err.message : String(err)}` };
+  }
+}
+
+// src/menus/layout-history.ts
+var HISTORY_LIMIT = 50;
+function createLayoutHistory(seam, limit = HISTORY_LIMIT) {
+  const undoSteps = [];
+  const redoSteps = [];
+  const listeners = /* @__PURE__ */ new Set();
+  let last = seam.layout();
+  let restoring = null;
+  const notify = () => {
+    for (const listener of [...listeners]) listener();
+  };
+  const stop = seam.onLayoutChange((text) => {
+    if (restoring !== null && text === restoring) {
+      restoring = null;
+      last = text;
+      return;
+    }
+    restoring = null;
+    if (text === last) return;
+    undoSteps.push(last);
+    if (undoSteps.length > limit) undoSteps.splice(0, undoSteps.length - limit);
+    redoSteps.length = 0;
+    last = text;
+    notify();
+  });
+  const step = (from, to) => {
+    const target = from.pop();
+    if (target === void 0) return false;
+    const previous = last;
+    restoring = target;
+    let ok = false;
+    try {
+      ok = seam.setLayout(target);
+    } catch {
+      ok = false;
+    }
+    if (!ok) {
+      restoring = null;
+      notify();
+      return false;
+    }
+    to.push(previous);
+    last = target;
+    notify();
+    return true;
+  };
+  return {
+    canUndo: () => undoSteps.length > 0,
+    canRedo: () => redoSteps.length > 0,
+    undo: () => step(undoSteps, redoSteps),
+    redo: () => step(redoSteps, undoSteps),
+    onChange(listener) {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+    close() {
+      stop();
+      listeners.clear();
+    }
+  };
+}
+var SAVED_LAYOUTS_KEY = "savedLayouts";
+var SAVED_LAYOUT_LIMIT = 32;
+var LAYOUT_NAME_MAX = 40;
+function readSavedLayouts(raw) {
+  const root = raw !== null && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
+  const block2 = root[SAVED_LAYOUTS_KEY];
+  const entries = block2 !== null && typeof block2 === "object" && !Array.isArray(block2) ? block2.entries : void 0;
+  if (!Array.isArray(entries)) return [];
+  const seen = /* @__PURE__ */ new Set();
+  const out = [];
+  for (const entry2 of entries) {
+    if (entry2 === null || typeof entry2 !== "object") continue;
+    const { name, layout } = entry2;
+    if (typeof name !== "string" || typeof layout !== "string" || !name.trim() || seen.has(name)) continue;
+    seen.add(name);
+    out.push({ name, layout });
+  }
+  return out.slice(0, SAVED_LAYOUT_LIMIT);
+}
+var refuse = (reason) => ({ ok: false, reason });
+function createSavedLayouts(seam, prefs) {
+  const write = (entries) => {
+    const stored = prefs.get();
+    const root = stored !== null && typeof stored === "object" && !Array.isArray(stored) ? stored : {};
+    prefs.set({ ...root, [SAVED_LAYOUTS_KEY]: { v: 1, entries: entries.map(({ name, layout }) => ({ name, layout })) } });
+  };
+  const check = (name) => {
+    if (!name) return "Type a name for the layout.";
+    if (name.length > LAYOUT_NAME_MAX) return `Use a name of ${LAYOUT_NAME_MAX} characters or fewer.`;
+    return null;
+  };
+  return {
+    list: () => readSavedLayouts(prefs.get()),
+    save(raw) {
+      const name = raw.trim();
+      const problem = check(name);
+      if (problem) return refuse(problem);
+      const entries = readSavedLayouts(prefs.get());
+      const at = entries.findIndex((entry2) => entry2.name === name);
+      if (at < 0 && entries.length >= SAVED_LAYOUT_LIMIT) return refuse(`You can keep ${SAVED_LAYOUT_LIMIT} saved layouts. Delete one first.`);
+      const saved = { name, layout: seam.layout() };
+      if (at < 0) entries.push(saved);
+      else entries[at] = saved;
+      write(entries);
+      return { ok: true };
+    },
+    restore(name) {
+      const entry2 = readSavedLayouts(prefs.get()).find((saved) => saved.name === name);
+      if (!entry2) return refuse(`There is no saved layout called ${name}.`);
+      return seam.setLayout(entry2.layout) ? { ok: true } : refuse(`The game could not use the layout saved as ${name}.`);
+    },
+    rename(from, raw) {
+      const to = raw.trim();
+      const problem = check(to);
+      if (problem) return refuse(problem);
+      const entries = readSavedLayouts(prefs.get());
+      const at = entries.findIndex((entry2) => entry2.name === from);
+      if (at < 0) return refuse(`There is no saved layout called ${from}.`);
+      if (to === from) return { ok: true };
+      if (entries.some((entry2) => entry2.name === to)) return refuse(`A layout called ${to} is already saved.`);
+      entries[at] = { name: to, layout: entries[at].layout };
+      write(entries);
+      return { ok: true };
+    },
+    remove(name) {
+      const entries = readSavedLayouts(prefs.get());
+      const rest2 = entries.filter((entry2) => entry2.name !== name);
+      if (rest2.length === entries.length) return refuse(`There is no saved layout called ${name}.`);
+      write(rest2);
+      return { ok: true };
+    }
+  };
+}
+
 // src/menus/settings-window.ts
 var SETTINGS_KEY = "settings-window";
 var STRENGTH_GROUPS = [
@@ -8338,14 +8591,23 @@ var PAGES = [
   { id: "keys", group: "Play", title: "Keybindings", summary: "Your keymaps for the current keyset.", opens: { key: KEYBINDINGS_KEY, flag: "anybandui.keybindingEditor", switchTitle: "Keybinding editor" } },
   { id: "options", group: "Play", title: "Game options", summary: "The game's own options for this character.", opens: { key: OPTIONS_KEY, flag: "anybandui.optionsEditor", switchTitle: "Game options editor" } },
   { id: "knowledge", group: "Play", title: "Knowledge", summary: "What your character has learned about the world.", opens: { key: KNOWLEDGE_KEY, flag: "anybandui.knowledgeBrowser", switchTitle: "Knowledge browser" } },
+  { id: "session", group: "Play", title: "Save game", summary: "Save this character, or save and leave. These act at once." },
   { id: "theme", group: "Presentation", title: "Theme", summary: "The colours of this mod's panels and window frames." },
-  { id: "effects", group: "Presentation", title: "Effects", summary: "How strongly each dungeon effect is drawn." }
+  { id: "effects", group: "Presentation", title: "Effects", summary: "How strongly each dungeon effect is drawn." },
+  { id: "layout", group: "Presentation", title: "Layout", summary: "Undo and redo changes to the panel layout, and keep layouts by name. These act at once." }
 ];
-function draftFromSettings(settings) {
+function draftFromSettings(settings, read) {
   const strengths = {};
   for (const [, members] of STRENGTH_GROUPS) for (const setting of members) {
-    const stored = cueKindsFor(setting.id).map((kind) => settings.effects[kind]).find((value2) => typeof value2 === "number");
-    strengths[setting.id] = stored ?? 100;
+    let stored;
+    if (read) {
+      try {
+        stored = read(setting.id);
+      } catch {
+        stored = void 0;
+      }
+    } else stored = cueKindsFor(setting.id).map((kind) => settings.effects[kind]).find((value2) => typeof value2 === "number");
+    strengths[setting.id] = typeof stored === "number" ? stored : 100;
   }
   return { theme: settings.theme, keepCustom: settings.customTheme !== null, hoverDelayMs: settings.hoverDelayMs, strengths };
 }
@@ -8362,6 +8624,17 @@ function rebaseDraft(base, draft, fresh) {
     hoverDelayMs: draft.hoverDelayMs === base.hoverDelayMs ? fresh.hoverDelayMs : draft.hoverDelayMs,
     strengths
   };
+}
+function strengthWrites(draft, read) {
+  return Object.entries(draft.strengths).filter(([id, value2]) => {
+    let stored;
+    try {
+      stored = read(id);
+    } catch {
+      stored = void 0;
+    }
+    return (typeof stored === "number" ? stored : 100) !== value2;
+  });
 }
 function settingsPatch(current, draft, writeStrengths) {
   const patch = {};
@@ -8385,45 +8658,63 @@ function installSettingsWindow(ctx) {
   if (ctx.flags?.["anybandui.settingsWindow"] !== true) return () => {
   };
   const current = () => validateSettings(ctx.prefs?.get());
-  const gameOwnsStrengths = ctx.settings !== void 0;
-  let base = draftFromSettings(current());
-  let draft = draftFromSettings(current());
+  const seam = ctx.settings;
+  const read = seam ? (id) => seam.get(id) : void 0;
+  let base = draftFromSettings(current(), read);
+  let draft = draftFromSettings(current(), read);
   const rebase = () => {
-    const fresh = draftFromSettings(current());
+    const fresh = draftFromSettings(current(), read);
     if (JSON.stringify(fresh) === JSON.stringify(base)) return;
     draft = rebaseDraft(base, draft, fresh);
     base = fresh;
   };
   const reset = () => {
-    base = draftFromSettings(current());
-    draft = draftFromSettings(current());
+    base = draftFromSettings(current(), read);
+    draft = draftFromSettings(current(), read);
   };
   let page = PAGES[0].id;
   let confirm2 = null;
+  let confirmReturn = "save";
   let note = "";
+  let pageNote = null;
+  let leaving = false;
+  let layoutName = "";
+  let renaming = null;
+  const history = ctx.subwindows ? createLayoutHistory(ctx.subwindows) : null;
+  const saved = ctx.subwindows && ctx.prefs ? createSavedLayouts(ctx.subwindows, ctx.prefs) : null;
   let surface = null;
   const repaint = (focusKey) => surface?.repaint(focusKey);
   const pending = () => {
     rebase();
-    return settingsPatch(current(), draft, !gameOwnsStrengths);
+    return settingsPatch(current(), draft, !read);
   };
-  const changed = () => Object.keys(pending()).length > 0;
-  const ask = (next) => {
+  const strengthChanges = () => read ? strengthWrites(draft, read) : [];
+  const changed = () => Object.keys(pending()).length > 0 || strengthChanges().length > 0;
+  const ask = (next, back = "save") => {
     confirm2 = next;
+    confirmReturn = back;
     repaint(CONFIRM_NO);
   };
   const commit = () => {
-    if (!ctx.prefs) {
+    const patch = pending();
+    if (Object.keys(patch).length > 0 && !ctx.prefs) {
       note = "This game does not keep this mod's settings.";
       repaint("save");
       return;
     }
-    const before = JSON.stringify(themeFromPrefs(ctx.prefs.get()));
-    const store = createSettingsStore({ prefs: ctx.prefs });
-    store.set(pending());
+    if (ctx.prefs) {
+      const before = JSON.stringify(themeFromPrefs(ctx.prefs.get()));
+      createSettingsStore({ prefs: ctx.prefs }).set(patch);
+      const theme = themeFromPrefs(ctx.prefs.get());
+      if (JSON.stringify(theme) !== before) broadcastTheme(ctx, theme);
+    }
+    for (const [id, value2] of strengthChanges()) {
+      try {
+        seam?.set(id, value2);
+      } catch {
+      }
+    }
     reset();
-    const theme = themeFromPrefs(ctx.prefs?.get());
-    if (JSON.stringify(theme) !== before) broadcastTheme(ctx, theme);
     note = "Saved.";
     repaint("save");
   };
@@ -8448,6 +8739,144 @@ function installSettingsWindow(ctx) {
       repaint(focusKey);
     } });
   };
+  const runSession = (action) => {
+    leaving = true;
+    pageNote = null;
+    repaint(`session:${action}`);
+    void runSessionAction(ctx.session, action).then((result) => {
+      leaving = false;
+      pageNote = { text: result.message, warn: !result.ok };
+      repaint(`session:${action}`);
+    });
+  };
+  const layoutResult = (result, done, focusKey) => {
+    pageNote = result.ok ? { text: done, warn: false } : { text: result.reason ?? "That did not work.", warn: true };
+    repaint(focusKey);
+  };
+  const renderSession = (parent, mark) => {
+    if (!ctx.session) {
+      el6(parent, "p", "This game does not let mods save it.").className = "muted";
+      return;
+    }
+    const actions = el6(parent, "div");
+    actions.className = "actions";
+    for (const action of ["save", "close", "quit"]) {
+      const node2 = button2(actions, SESSION_LABELS[action], `session:${action}`, () => {
+        if (action === "save") {
+          runSession(action);
+          return;
+        }
+        ask({ question: SESSION_QUESTIONS[action], yes: SESSION_LABELS[action], onYes: () => runSession(action) }, `session:${action}`);
+      });
+      mark(node2);
+      node2.disabled = leaving || confirm2 !== null;
+    }
+    el6(parent, "p", "Save and quit closes the desktop app. In a browser it returns to the main menu.").className = "muted";
+  };
+  const renderLayout = (parent, mark) => {
+    if (!history) {
+      el6(parent, "p", "This game cannot save or restore its layout.").className = "muted";
+      return;
+    }
+    const busy = confirm2 !== null;
+    const refused = { ok: false, reason: "The game could not put that layout back." };
+    const steps = el6(parent, "div");
+    steps.className = "actions";
+    const undo = button2(steps, "Undo", "layout:undo", () => layoutResult(history.undo() ? { ok: true } : refused, "Layout change undone.", "layout:undo"));
+    mark(undo);
+    undo.disabled = busy || !history.canUndo();
+    undo.title = "Undo the last layout change";
+    const redo = button2(steps, "Redo", "layout:redo", () => layoutResult(history.redo() ? { ok: true } : refused, "Layout change redone.", "layout:redo"));
+    redo.disabled = busy || !history.canRedo();
+    redo.title = "Redo the last undone change";
+    el6(parent, "div", "Saved layouts").className = "section";
+    if (!saved) {
+      el6(parent, "p", "This game does not keep this mod's settings, so layouts cannot be saved.").className = "muted";
+      return;
+    }
+    const entries = saved.list();
+    el6(parent, "p", entries.length === 0 ? "No saved layouts yet." : "Choose a layout to restore it.").className = "muted";
+    for (const entry2 of entries) {
+      const row2 = el6(parent, "div");
+      row2.className = "field";
+      if (renaming?.from === entry2.name) {
+        const edit = renaming;
+        const input = el6(row2, "input");
+        input.type = "text";
+        input.value = edit.text;
+        input.maxLength = LAYOUT_NAME_MAX;
+        input.dataset["focus"] = `layout-rename:${entry2.name}`;
+        input.setAttribute("aria-label", `New name for ${entry2.name}`);
+        const apply = () => {
+          const named = edit.text.trim();
+          const result = saved.rename(edit.from, edit.text);
+          if (result.ok) renaming = null;
+          layoutResult(result, `Renamed to ${named}.`, result.ok ? `layout-saved:${named}` : `layout-rename:${entry2.name}`);
+        };
+        input.addEventListener("input", () => {
+          edit.text = input.value;
+        });
+        input.addEventListener("keydown", (event) => {
+          if (event.key === "Enter") {
+            swallow(event);
+            apply();
+          } else if (event.key === "Escape") {
+            swallow(event);
+            renaming = null;
+            repaint(`layout-saved:${entry2.name}`);
+          }
+        });
+        button2(row2, "Rename", `layout-apply:${entry2.name}`, apply).disabled = busy;
+        button2(row2, "Cancel", `layout-keep:${entry2.name}`, () => {
+          renaming = null;
+          repaint(`layout-saved:${entry2.name}`);
+        }).disabled = busy;
+        continue;
+      }
+      const restore = button2(row2, entry2.name, `layout-saved:${entry2.name}`, () => layoutResult(saved.restore(entry2.name), `Restored ${entry2.name}.`, `layout-saved:${entry2.name}`));
+      restore.className = "row";
+      restore.style.flex = "1";
+      restore.title = `Restore ${entry2.name}`;
+      restore.disabled = busy;
+      button2(row2, "Rename", `layout-rename-open:${entry2.name}`, () => {
+        renaming = { from: entry2.name, text: entry2.name };
+        pageNote = null;
+        repaint(`layout-rename:${entry2.name}`);
+      }).disabled = busy;
+      button2(row2, "Delete", `layout-delete:${entry2.name}`, () => {
+        ask({ question: `Delete the saved layout ${entry2.name}?`, yes: "Delete", onYes: () => layoutResult(saved.remove(entry2.name), `Deleted ${entry2.name}.`, "layout:name") }, `layout-saved:${entry2.name}`);
+      }).disabled = busy;
+    }
+    el6(parent, "p", "Save the current layout").className = "muted";
+    const row = el6(parent, "div");
+    row.className = "controls";
+    const name = el6(row, "input");
+    name.type = "text";
+    name.placeholder = "Layout name";
+    name.value = layoutName;
+    name.maxLength = LAYOUT_NAME_MAX;
+    name.dataset["focus"] = "layout:name";
+    name.setAttribute("aria-label", "Layout name");
+    const replacing = entries.some((entry2) => entry2.name === layoutName.trim());
+    const store = () => {
+      const named = layoutName.trim();
+      const result = saved.save(layoutName);
+      if (result.ok) layoutName = "";
+      layoutResult(result, `Saved the current layout as ${named}.`, "layout:name");
+    };
+    name.addEventListener("input", () => {
+      layoutName = name.value;
+      repaint();
+    });
+    name.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        swallow(event);
+        store();
+      }
+    });
+    const keep = button2(row, replacing ? "Replace saved layout" : "Save layout", "layout:save", store);
+    keep.disabled = busy || layoutName.trim() === "" || !replacing && entries.length >= SAVED_LAYOUT_LIMIT;
+  };
   const renderPage = (parent, info) => {
     el6(parent, "div", info.title).className = "section";
     el6(parent, "p", info.summary).className = "muted";
@@ -8471,11 +8900,21 @@ function installSettingsWindow(ctx) {
       } else el6(parent, "p", `Turn on ${opens.switchTitle} on the Mods screen to use it here.`);
       return;
     }
+    if (info.id === "session" || info.id === "layout") {
+      if (info.id === "session") renderSession(parent, mark);
+      else renderLayout(parent, mark);
+      if (pageNote) {
+        const line = el6(parent, "p", pageNote.text);
+        line.className = pageNote.warn ? "warn" : "note";
+        line.setAttribute("role", "status");
+      }
+      return;
+    }
     if (info.id === "interaction") {
-      const presets = el6(parent, "div");
-      presets.className = "tabs";
+      const presets2 = el6(parent, "div");
+      presets2.className = "tabs";
       for (const [label2, ms] of HOVER_PRESETS) {
-        const node2 = mark(button2(presets, `${label2} (${ms} ms)`, `hover:${label2}`, () => {
+        const node2 = mark(button2(presets2, `${label2} (${ms} ms)`, `hover:${label2}`, () => {
           draft.hoverDelayMs = ms;
           note = "";
           repaint(`hover:${label2}`);
@@ -8505,10 +8944,10 @@ function installSettingsWindow(ctx) {
       return;
     }
     if (info.id === "theme") {
-      const presets = el6(parent, "div");
-      presets.className = "tabs";
+      const presets2 = el6(parent, "div");
+      presets2.className = "tabs";
       for (const [id, label2] of themeChoices()) {
-        const node2 = mark(button2(presets, label2, `theme:${id}`, () => {
+        const node2 = mark(button2(presets2, label2, `theme:${id}`, () => {
           draft.theme = id;
           draft.keepCustom = false;
           note = "";
@@ -8537,20 +8976,17 @@ function installSettingsWindow(ctx) {
       } else el6(parent, "p", "Turn on Theme on the Mods screen to edit the colours.").className = "muted";
       return;
     }
-    if (gameOwnsStrengths) el6(parent, "p", "The game keeps these on its Mods screen, under this mod. Change them there.").className = "muted";
-    else {
-      const presets = el6(parent, "div");
-      presets.className = "tabs";
-      for (const [label2, value2] of STRENGTH_PRESETS) {
-        const node2 = mark(button2(presets, label2, `strength:${label2}`, () => {
-          for (const id of Object.keys(draft.strengths)) draft.strengths[id] = value2;
-          note = "";
-          repaint(`strength:${label2}`);
-        }));
-        node2.setAttribute("aria-pressed", String(Object.values(draft.strengths).every((v) => v === value2)));
-      }
-      el6(parent, "p", "A preset sets every effect to the same strength.").className = "muted";
+    const presets = el6(parent, "div");
+    presets.className = "tabs";
+    for (const [label2, value2] of STRENGTH_PRESETS) {
+      const node2 = mark(button2(presets, label2, `strength:${label2}`, () => {
+        for (const id of Object.keys(draft.strengths)) draft.strengths[id] = value2;
+        note = "";
+        repaint(`strength:${label2}`);
+      }));
+      node2.setAttribute("aria-pressed", String(Object.values(draft.strengths).every((v) => v === value2)));
     }
+    el6(parent, "p", read ? "A preset sets every effect to the same strength. These are the strengths under this mod on the Mods screen." : "A preset sets every effect to the same strength.").className = "muted";
     for (const [group, members] of STRENGTH_GROUPS) {
       el6(parent, "div", group).className = "section";
       for (const setting of members) {
@@ -8558,16 +8994,6 @@ function installSettingsWindow(ctx) {
         const row = el6(parent, "label");
         row.className = "field";
         el6(row, "span", on ? setting.title : `${setting.title} (effect off)`).style.flex = "1";
-        if (gameOwnsStrengths) {
-          let value2;
-          try {
-            value2 = ctx.settings?.get(setting.id);
-          } catch {
-            value2 = void 0;
-          }
-          el6(row, "span", typeof value2 === "number" ? `${value2}%` : "100%");
-          continue;
-        }
         const range = el6(row, "input");
         range.type = "range";
         range.min = "0";
@@ -8603,13 +9029,17 @@ function installSettingsWindow(ctx) {
         group = info2.group;
       }
       const tab = button2(nav, info2.title, pageFocus2(info2.id), () => {
+        if (page !== info2.id) {
+          pageNote = null;
+          renaming = null;
+        }
         page = info2.id;
         repaint(pageFocus2(info2.id));
       });
       tab.setAttribute("role", "tab");
       tab.setAttribute("aria-selected", String(info2.id === page));
     }
-    el6(nav, "p", "Changes apply when you save.").className = "muted";
+    el6(nav, "p", "Changes apply when you save, except on Save game and Layout.").className = "muted";
     const content = el6(split, "div");
     content.className = "page";
     const info = PAGES.find((p) => p.id === page) ?? PAGES[0];
@@ -8620,6 +9050,8 @@ function installSettingsWindow(ctx) {
       const next = listStep(event.key, at, PAGES.length);
       if (next !== null) {
         swallow(event);
+        pageNote = null;
+        renaming = null;
         page = PAGES[next].id;
         repaint(pageFocus2(page));
         return;
@@ -8644,7 +9076,7 @@ function installSettingsWindow(ctx) {
     });
     if (confirm2) renderConfirm(mount, confirm2, () => {
       confirm2 = null;
-      repaint("save");
+      repaint(confirmReturn);
     });
     const actions = el6(mount, "div");
     actions.className = "actions";
@@ -8655,13 +9087,27 @@ function installSettingsWindow(ctx) {
   };
   surface = openMenuSurface(ctx, { key: SETTINGS_KEY, label: "Settings", tab: "Settings", minSize: { width: 420, height: 260 }, placement: { kind: "dock", target: "main", edge: "right" }, firstFocus: pageFocus2(page) }, render);
   if (!surface) {
+    history?.close();
     ctx.log("settings window: panel seam unavailable");
     return () => {
     };
   }
   const stopTheme2 = onThemeChange(() => repaint());
+  let stopSettings = () => {
+  };
+  try {
+    stopSettings = seam?.onChange(() => repaint()) ?? stopSettings;
+  } catch {
+  }
+  const stopHistory = history?.onChange(() => {
+    if (page === "layout") repaint();
+  }) ?? (() => {
+  });
   return () => {
     stopTheme2();
+    stopSettings();
+    stopHistory();
+    history?.close();
     surface?.close();
     surface = null;
   };
@@ -9722,7 +10168,7 @@ function button4(parent, label2, click) {
 }
 var REFUSED = { accepted: false, quiet: false };
 var STANDING_DOWN = { accepted: false, quiet: true };
-function outcome(result) {
+function outcome2(result) {
   return { accepted: result.accepted, quiet: !result.accepted && result.code === "controller-owned" };
 }
 function tradeAllowed(model, side, row) {
@@ -9735,7 +10181,7 @@ function storeAction(ctx, model, side, key) {
   if (!playerIsDriving(ctx)) return STANDING_DOWN;
   if (side !== "leave" && !tradeAllowed(model, side, (side === "stock" ? model.stock : model.pack).find((row) => row.key === key))) return REFUSED;
   const command = side === "leave" ? { code: "shop-exit" } : side === "stock" ? { code: "shop-buy", args: { index: key } } : { code: "shop-sell", args: { handle: key } };
-  return outcome(ctx.intent.submit(snap.token, { kind: "command", command }));
+  return outcome2(ctx.intent.submit(snap.token, { kind: "command", command }));
 }
 function storePromptReply(ctx, model, answer) {
   const snap = viewInput(ctx);
@@ -9748,7 +10194,7 @@ function storePromptReply(ctx, model, answer) {
   } else if (snap.prompt.kind === "confirm") {
     if (!cancel && typeof answer !== "boolean") return REFUSED;
   } else return REFUSED;
-  return outcome(ctx.prompt.reply(snap.prompt.promptId, answer));
+  return outcome2(ctx.prompt.reply(snap.prompt.promptId, answer));
 }
 function storeComparisons(ctx, model, side, key) {
   if (ctx.inspect?.compareLoadoutSlots) {
@@ -11749,6 +12195,7 @@ function statRows(draft, catalogue) {
     const preview = draft.preview?.stats[index];
     const natural = draft.stats[index] ?? 0;
     const spent = draft.pointsSpent[index] ?? 0;
+    const cost = draft.statCosts[index];
     return {
       index,
       name,
@@ -11757,7 +12204,10 @@ function statRows(draft, catalogue) {
       cls: preview?.classBonus.trim() || "-",
       total: preview?.best.trim() || "-",
       spent,
-      canSell: draft.method === "point" && spent > 0,
+      buyCost: cost?.buyCost ?? null,
+      sellRefund: cost?.sellRefund ?? null,
+      canBuy: cost?.canBuy ?? false,
+      canSell: cost?.canSell ?? false,
       atMaximum: natural >= 18
     };
   });
@@ -11792,14 +12242,11 @@ var BirthWizard = class {
   constructor(session) {
     this.session = session;
     this.catalogue = session.catalogue();
-    this.remember();
   }
   session;
   catalogue;
   /** The last refusal, shown under the step as upstream shows menu_error (:202). */
   error = "";
-  /** The background Core generated, kept so an edit can be taken back. */
-  generatedHistory = "";
   cached = null;
   /** Something other than the name, background or options changed after the previous character was applied. */
   changedSincePrevious = true;
@@ -11807,10 +12254,6 @@ var BirthWizard = class {
   draft() {
     if (!this.cached) this.cached = this.session.draft();
     return this.cached;
-  }
-  remember() {
-    const draft = this.draft();
-    if (!draft.historyEdited) this.generatedHistory = draft.history;
   }
   /** Run one session change, keep its refusal, and read the draft again. */
   run(change, build = true) {
@@ -11824,7 +12267,6 @@ var BirthWizard = class {
     this.cached = null;
     this.error = result.ok ? "" : result.reason;
     if (result.ok && build) this.changedSincePrevious = true;
-    this.remember();
     return result.ok;
   }
   /** Upstream's engine always has a race and a class picked; Core starts with neither, so the first of each is chosen. */
@@ -11931,24 +12373,26 @@ function birthOptions(parent, draft, actions) {
 function statTable(parent, rows, editable, pointsLeft, actions) {
   const table = el10(parent, "table");
   const head = el10(table, "tr");
-  for (const name of ["Stat", "Base", "Race", "Class", "Total", ...editable ? ["Spent", "Adjust"] : []]) el10(head, "th", name);
+  for (const name of ["Stat", "Base", "Race", "Class", "Total", ...editable ? ["Spent", "Cost", "Adjust"] : []]) el10(head, "th", name);
   for (const row of rows) {
     const tr = el10(table, "tr");
     for (const value2 of [row.name, row.base, row.race, row.cls, row.total]) el10(tr, "td", value2);
     if (!editable) continue;
     el10(tr, "td", String(row.spent));
+    el10(tr, "td", row.buyCost === null ? "-" : String(row.buyCost));
     const cell = el10(tr, "td", void 0, "adjust");
-    const canBuy = !row.atMaximum && pointsLeft > 0;
+    const canBuy = row.canBuy;
     const sell = button6(cell, "-", `sell-${row.index}`, () => {
       if (row.canSell) actions.act((s) => s.sell(row.index));
     });
     sell.setAttribute("aria-label", `Refund a point from ${row.name}`);
+    if (row.sellRefund !== null) sell.title = `Refunds ${row.sellRefund} ${row.sellRefund === 1 ? "point" : "points"}.`;
     if (!row.canSell) sell.setAttribute("aria-disabled", "true");
     const buy = button6(cell, "+", `buy-${row.index}`, () => {
       if (canBuy) actions.act((s) => s.buy(row.index));
     });
     buy.setAttribute("aria-label", `Spend points on ${row.name}`);
-    buy.title = row.atMaximum ? "Base stat is at its maximum." : `Spends points. ${pointsLeft} remaining.`;
+    buy.title = row.atMaximum || row.buyCost === null ? "Base stat is at its maximum." : `Costs ${row.buyCost} ${row.buyCost === 1 ? "point" : "points"}. ${pointsLeft} remaining.${canBuy ? "" : " Reduce another stat to free points."}`;
     if (!canBuy) buy.setAttribute("aria-disabled", "true");
     for (const [node2, kind] of [[sell, "sell"], [buy, "buy"]]) {
       node2.addEventListener("keydown", (event) => {
@@ -12111,14 +12555,7 @@ function identityStep(parent, wizard, draft, actions) {
   history.setAttribute("aria-label", "Background");
   history.addEventListener("input", () => actions.act((s) => s.setHistory(history.value), false));
   const row = el10(parent, "div", void 0, "row");
-  const generated = wizard.generatedHistory;
-  button6(
-    row,
-    "Restore generated background",
-    "restore-history",
-    () => actions.act((s) => s.setHistory(generated), false),
-    !draft.historyEdited || generated === "" || generated === draft.history
-  );
+  button6(row, "Restore generated background", "restore-history", () => actions.act((s) => s.restoreHistory(), false), !draft.historyEdited);
   button6(row, "New background", "new-history", () => actions.act((s) => s.regenerateHistory(), false), draft.race === null);
 }
 function reviewStep(parent, draft, actions) {
@@ -12499,7 +12936,9 @@ var plugin_default = {
     displayCleanups.push(installSettingsWindow({
       ...menuContext,
       ...ctx.settings ? { settings: ctx.settings } : {},
-      ...ctx.display ? { display: ctx.display } : {}
+      ...ctx.display ? { display: ctx.display } : {},
+      ...ctx.session ? { session: ctx.session } : {},
+      ...ctx.subwindows ? { subwindows: ctx.subwindows } : {}
     }));
     if (flags["anybandui.highContrast"] || flags["anybandui.colourblind"] || flags["anybandui.crt"] || theme.invert_dungeon) {
       installAccessibilityAccommodations({ flags, invertDungeon: theme.invert_dungeon, ...ctx.display ? { display: ctx.display } : {}, log: ctx.log });
