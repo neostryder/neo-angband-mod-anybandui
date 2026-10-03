@@ -116,14 +116,14 @@ This table compares each AnybandUI module on the `deluxe` branch with the port, 
 | `inventory_changes.h` | Ported | Nothing. | |
 | `scene_transitions.h` | Ported | Nothing. | |
 | `level_feedback.h` | Ported | Nothing. | |
-| `character_select.h` | Missing | The save roster with profile cards and a colour for each save name. | Mod build, phase 8. `ctx.saves.list()` under `saves:manage`. |
-| `run_history.h`, `run_journal.h` | Missing | Post-mortems, the timeline of the current run and the graveyard, and Play Again. | Mod build, phase 8. `ctx.character.history()` gives the journal, and `onRunEnd` gives the run report, which the mod stores itself so it outlives the save. `ctx.saves.create({ like })` starts a character like that one. |
-| `birth_panel.h` | Missing | The character creation wizard. | Mod build, phase 8, as a `birth` presenter over Core's birth views. |
-| `knowledge_browser.h` | Missing | The knowledge browser with search. | Mod build, phase 8. `ctx.knowledge` under `state:knowledge.read`. |
-| `engine_options.h` | Missing | The options window, which keeps changes as a draft until Save. | Mod build, phase 8. `ctx.options` under `state:options.read` and `options:write`, which can change interface options and the three number settings. |
-| `keybinding_editor.h` | Missing | The keymap editor. | Mod build, phase 8. `ctx.keybindings` under `keymap:edit`. |
+| `character_select.h` | Ported | Nothing. | |
+| `run_history.h`, `run_journal.h` | Ported | Nothing. | The journal reads the depth once a second to mark new depths, because Core does not yet send its level-change event (neostryder/neo-angband#363). |
+| `birth_panel.h` | Partial | The cost of the next point for each stat, and a way back to the generated background after editing it. | Needs a Core seam (neostryder/neo-angband#362). |
+| `knowledge_browser.h` | Partial | The known-only switch. | Needs a Core seam: knowledge entries do not say whether the player knows them (neostryder/neo-angband#362). |
+| `engine_options.h` | Ported | Nothing. | |
+| `keybinding_editor.h` | Partial | Naming the game command a key already runs, editing the keyset that is not active, and cancelling a key capture outright. | Needs a Core seam (neostryder/neo-angband#362). Until then a capture interrupted by hiding the panel ignores the key that ends it. |
 
-Two things in AnybandUI's `client.cpp` have no module of their own. The low-health glitch and the death flash are ported as the low-health wash and the death burst. The Save, Close game, Rename save and Delete save dialogs and the plain Yes and No prompt are missing; they belong to phase 8, and `ctx.saves` already has `rename` and `delete`.
+Two things in AnybandUI's `client.cpp` have no module of their own. The low-health glitch and the death flash are ported as the low-health wash and the death burst. The Rename save and Delete save dialogs and the plain Yes and No prompt are ported. The Save and Close game dialogs are missing and need a Core seam to save and leave the game (neostryder/neo-angband#361).
 
 ## Keeping in step with AnybandUI
 
