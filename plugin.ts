@@ -15,7 +15,7 @@
  * Each capability is added with the first feature that needs it, so the
  * consent list a player reads matches what the mod does.
  */
-import type { HudFrame, HudOwnership, HudSection } from "@rpgm-tools/neo-angband-mod-sdk";
+import type { HudFrame, HudOwnership, HudSection, MenuPresenter, ScreenPresenter } from "@rpgm-tools/neo-angband-mod-sdk";
 import type { ModDisplay, ModPluginContext } from "@rpgm-tools/neo-angband-core";
 import { createSource } from "./src/view-model/source.js";
 import { createPanelHost, type PanelSpec } from "./src/panels/panel-host.js";
@@ -43,6 +43,7 @@ import { installEffects } from "./src/effects.js";
 import { coexistingFlags } from "./src/mod-coexistence.js";
 import { currentDriver } from "./src/input-owner.js";
 import { installChromePaint } from "./src/paint.js";
+import { installMenus, menuPresenter, screenPresenter } from "./src/menus/menus.js";
 
 /** The register callback reads a subset of the published plugin context. */
 type RegisterCtx = Pick<ModPluginContext, "id" | "engine" | "log"> & Partial<Omit<ModPluginContext, "id" | "engine" | "log" | "display">> & { readonly display?: Pick<ModDisplay, "setVisualFilter"> & Partial<Omit<ModDisplay, "setVisualFilter">> };
@@ -93,6 +94,9 @@ export default {
     displayCleanups.push(installThemeEditor({ flags, log: ctx.log,
       ...(ctx.ui ? { ui: ctx.ui } : {}), ...(ctx.prefs ? { prefs: ctx.prefs } : {}),
       ...(ctx.display ? { display: ctx.display } : {}) }));
+    /* Phase 8: the Yes/No prompts, the run journal and the graveyard. The save
+     * cards and the hall of fame are presenter parts, in menu() and screen(). */
+    displayCleanups.push(installMenus({ ...ctx, flags }));
     if (flags["anybandui.highContrast"] || flags["anybandui.colourblind"] || flags["anybandui.crt"] || theme.invert_dungeon) {
       installAccessibilityAccommodations({ flags, invertDungeon: theme.invert_dungeon, ...(ctx.display ? { display: ctx.display } : {}), log: ctx.log });
     }
@@ -183,6 +187,16 @@ export default {
     quiverDisplay = undefined;
     tileDisplay = undefined;
     tileFullOverviewApplied = false;
+  },
+
+  /** The save roster as cards. Undefined with the switch off, so Core asks every menu itself. */
+  menu(ctx: RegisterCtx): MenuPresenter | undefined {
+    return menuPresenter({ ...ctx, flags: coexistingFlags(ctx.flags ?? {}, ctx.mods?.bind(ctx)) });
+  },
+
+  /** The hall of fame as a table. Undefined with the switch off, so Core draws every screen itself. */
+  screen(ctx: RegisterCtx): ScreenPresenter | undefined {
+    return screenPresenter({ ...ctx, flags: coexistingFlags(ctx.flags ?? {}, ctx.mods?.bind(ctx)) });
   },
 
   hud(ctx: HudCtx): HudOwnership | undefined {

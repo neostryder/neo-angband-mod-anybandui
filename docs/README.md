@@ -71,6 +71,11 @@ A mouse-first desktop interface for Neo Angband, ported from Wurli Monkhaven's A
 | Character sheet | `anybandui.characterSheet` | off | Opens a read-only character sheet in its own panel: the panels, seven-column stat breakdown and flag grid the game's character screen draws, plus the background. Left and Right move between its pages while that list has focus. |
 | Equipment portrait | `anybandui.equipmentPortrait` | off | Adds a Figure view on the equipment tab: an ASCII body with each worn item beside the part it covers. Slots the figure does not place stay listed under it. Up and Down move between slots while a slot has focus. |
 | Theme | `anybandui.themeEditor` | off | Opens a panel to edit the background, surface, text and accent colours and the corner rounding of the current theme, and to invert the dungeon view. Save stores the result as your custom theme. |
+| Character cards | `anybandui.saveCards` | off | Shows your saved characters as cards on the character select screen, each in its own colour with race, class, level and depth. Continue, Rename and Delete act on the chosen character, and Delete asks before it removes anything. Up and Down move between cards and Enter plays the chosen one. |
+| Graveyard | `anybandui.graveyard` | off | Keeps a record of each finished run that stays after its save is deleted. A post-mortem opens when a run ends, with your final messages, journal, belongings and character sheet. Open past runs from Graveyard on the title screen or on the character cards. |
+| Run journal | `anybandui.runJournal` | off | Opens a pane with the current run's milestones: level-ups, new depths, unique kills and artifacts. You can search them, show one kind, and choose the order. Play Again appears when the run ends. |
+| Hall of fame | `anybandui.hallOfFame` | off | Draws the Hall of Fame as a table in the interface colours, with your own entry marked. Escape or Close returns to the game. |
+| Yes/No prompts | `anybandui.yesNoPrompts` | off | Shows the game's yes or no questions in a dialog with Yes and No buttons. Escape answers No. A shop's own questions stay in the shop. |
 
 
 ## Effect strength
