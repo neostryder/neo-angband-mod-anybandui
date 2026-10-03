@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { actorGrid, blastCues, chooseEffectMotion, eventCue, effectGrids, actualAura, healthIntensity } from "./effects.js";
+import { actorGrid, blastCues, chooseEffectMotion, eventCue, effectGrids, actualAura, healthIntensity, EFFECT_FLAGS, STRENGTH_SETTINGS, sceneTerrain, sceneCells, playerOnStairs, recallGrid, driftingEmbers, IDLE_LEVEL, observeLevel, levelFlashIntensity, IDLE_SCENE, sceneDuration, observeScene, sceneOpacity, phosphorKeep, fringeOffset, sweepTrail, glowFigure, sunburstAngles, cellAnchor } from "./effects.js";
 import type { EffectSnapshot, KnownLevel } from "./seams.js";
-const flags = ["anybandui.crt", "anybandui.lowHealthEffect", "anybandui.deathEffect", "anybandui.itemGlow", "anybandui.sleepMarks", "anybandui.presenceHaze", "anybandui.spellEffects"];
 describe("phase 7 effects", () => {
   it("selects visible sleeping, unique and known artifact grids", () => {
     const s = { core: { monsters: [{ id: 1, race: "Morgoth, Lord of Darkness", raceIndex: 1, grid: {x:2,y:3}, visible: true, hp: 4, maxHp: 4, asleep: true, level: 100, raceFlags: ["UNIQUE"] }] } } as unknown as EffectSnapshot;
@@ -52,7 +51,8 @@ describe("phase 7 effects", () => {
     expect(actorGrid(s, 9)).toBeNull();
   });
   it("uses static reduced-motion cues and declares every flag in combination coverage", () => {
-    expect(chooseEffectMotion(true)).toBe("static"); expect(chooseEffectMotion(false)).toBe("motion"); expect(flags).toHaveLength(7);
+    expect(chooseEffectMotion(true)).toBe("static"); expect(chooseEffectMotion(false)).toBe("motion");
+    expect(EFFECT_FLAGS).toEqual(["anybandui.crt", "anybandui.lowHealthEffect", "anybandui.deathEffect", "anybandui.itemGlow", "anybandui.sleepMarks", "anybandui.presenceHaze", "anybandui.spellEffects", "anybandui.lavaEmbers", "anybandui.stairEmbers", "anybandui.recallRing", "anybandui.levelFlash", "anybandui.sceneFade", "anybandui.crtGlow", "anybandui.crtFringe", "anybandui.crtSweep"]);
   });
 });
 
@@ -116,5 +116,238 @@ describe("the hidden-magic glow", () => {
     expect(effectGrids(null, level(cell(cursed, { visible: false })), true).glows).toEqual([]);
     expect(effectGrids(null, level(cell(cursed, { remembered: { feat: 1, objects: [] } })), true).glows).toEqual([]);
     expect(effectGrids(null, level({ ...cell(cursed), actual: { monster: 7, objects: [cursed] } }), true).glows).toEqual([]);
+  });
+});
+
+describe("scene terrain", () => {
+  it("names lava and stairs from the terrain code, and ignores a glyph", () => {
+    expect(sceneTerrain("LAVA")).toBe("lava");
+    expect(sceneTerrain("core:lava")).toBe("lava");
+    expect(sceneTerrain("lava-pool")).toBe("lava");
+    expect(sceneTerrain("core:old-lava")).toBe("lava");
+    expect(sceneTerrain("LESS")).toBe("up");
+    expect(sceneTerrain("core:less")).toBe("up");
+    expect(sceneTerrain("core:stair-up")).toBe("up");
+    expect(sceneTerrain("UP_STAIR")).toBe("up");
+    expect(sceneTerrain("MORE")).toBe("down");
+    expect(sceneTerrain("core:more")).toBe("down");
+    expect(sceneTerrain("STAIR_DOWN")).toBe("down");
+    expect(sceneTerrain("FLOOR")).toBeNull();
+    expect(sceneTerrain("core:lesser-vault")).toBeNull();
+    expect(sceneTerrain(undefined)).toBeNull();
+    const lava = { x: 1, y: 2, remembered: { feat: 23 }, glyph: "@" };
+    const cells = sceneCells({ cells: [
+      lava,
+      { x: 3, y: 4, remembered: { feat: 5 } },
+      { x: 5, y: 6, remembered: { feat: 6 } },
+      { x: 7, y: 8, remembered: { feat: 1, featCode: "core:floor" } },
+      { x: 9, y: 1, remembered: { feat: 1, featCode: "core:lava" } },
+    ] });
+    expect(cells).toEqual([
+      { grid: { x: 1, y: 2 }, kind: "lava" },
+      { grid: { x: 3, y: 4 }, kind: "up" },
+      { grid: { x: 5, y: 6 }, kind: "down" },
+      { grid: { x: 9, y: 1 }, kind: "lava" },
+    ]);
+    expect("glyph" in lava).toBe(true);
+  });
+
+  it("knows when the player is standing on stairs", () => {
+    const known = { cells: [{ x: 2, y: 2, remembered: { feat: 5 } }, { x: 3, y: 3, remembered: { feat: 23 } }] };
+    expect(playerOnStairs(known, { x: 2, y: 2 })).toBe(true);
+    expect(playerOnStairs(known, { x: 3, y: 3 })).toBe(false);
+    expect(playerOnStairs(known, { x: 0, y: 0 })).toBe(false);
+    expect(playerOnStairs(known, null)).toBe(false);
+    expect(playerOnStairs(null, { x: 2, y: 2 })).toBe(false);
+  });
+});
+
+describe("recall ring and embers", () => {
+  it("places the ring only while recall has turns left", () => {
+    expect(recallGrid({ grid: { x: 4, y: 5 }, recall: 3 })).toEqual({ x: 4, y: 5 });
+    expect(recallGrid({ grid: { x: 4, y: 5 }, recall: 0 })).toBeNull();
+    expect(recallGrid({ recall: 4 })).toBeNull();
+    expect(recallGrid({ grid: { x: 4, y: 5 } })).toBeNull();
+    expect(recallGrid(null)).toBeNull();
+  });
+
+  it("holds the sparks still when motion is reduced", () => {
+    const still = driftingEmbers(500, 1, 4, true);
+    expect(still).toHaveLength(4);
+    expect(driftingEmbers(9000, 1, 4, true)).toEqual(still);
+    const dots = driftingEmbers(500, 1, 4, false);
+    expect(dots).toHaveLength(4);
+    expect(dots[0]!.alpha).toBeGreaterThan(0);
+    expect(dots[0]!.alpha).toBeLessThanOrEqual(1);
+  });
+});
+
+describe("level flash", () => {
+  const play = (level: number, maxLevel = level, dead = false) => ({ phase: "play", level, maxLevel, dead });
+
+  it("stays quiet on the first reading, on a repeat, and while climbing back to max level", () => {
+    const loaded = observeLevel(IDLE_LEVEL, play(10, 10), 1000);
+    expect(loaded.started).toBe(-1);
+    expect(loaded.highest).toBe(10);
+    const climbed = observeLevel(loaded, play(11, 11), 2000);
+    expect(climbed.flashedLevel).toBe(11);
+    expect(climbed.started).toBe(2000);
+    expect(climbed.highest).toBe(11);
+    expect(observeLevel(climbed, play(11, 11), 2500).started).toBe(2000);
+    const drained = observeLevel(observeLevel(IDLE_LEVEL, play(7, 7), 0), play(4, 7), 100);
+    expect(drained.started).toBe(-1);
+    expect(drained.highest).toBe(7);
+    expect(observeLevel(drained, play(7, 7), 200).started).toBe(-1);
+  });
+
+  it("does not flash a dead character, and a pause keeps the baseline", () => {
+    const base = observeLevel(IDLE_LEVEL, play(5, 5), 0);
+    const dead = observeLevel(base, play(6, 6, true), 100);
+    expect(dead.started).toBe(-1);
+    expect(dead.highest).toBe(6);
+    const paused = observeLevel(base, { phase: "more", level: 5, maxLevel: 5 }, 50);
+    expect(paused.highest).toBe(5);
+    expect(paused.started).toBe(-1);
+    const modal = observeLevel(paused, { phase: "modal", level: 6, maxLevel: 6 }, 80);
+    expect(modal.flashedLevel).toBe(6);
+    expect(modal.started).toBe(80);
+  });
+
+  it("drops the baseline outside a live session and keeps it when the phase is missing", () => {
+    const base = observeLevel(IDLE_LEVEL, play(2, 2), 0);
+    expect(observeLevel(base, { phase: "pregame", level: 9, maxLevel: 9 }, 5)).toBe(IDLE_LEVEL);
+    expect(observeLevel(base, { phase: "dead", level: 9, maxLevel: 9 }, 5)).toBe(IDLE_LEVEL);
+    expect(observeLevel(base, {}, 9)).toBe(base);
+    expect(observeLevel(base, { phase: null }, 9)).toBe(base);
+  });
+
+  it("front-loads the flash and holds a short mark when motion is reduced", () => {
+    expect(levelFlashIntensity(-1, 0)).toBe(0);
+    expect(levelFlashIntensity(0, 0)).toBe(0);
+    expect(levelFlashIntensity(0, 100)).toBeGreaterThan(0);
+    expect(levelFlashIntensity(0, 2199)).toBeGreaterThan(0);
+    expect(levelFlashIntensity(0, 2200)).toBe(0);
+    expect(levelFlashIntensity(0, 100, true)).toBe(0.7);
+    expect(levelFlashIntensity(0, 200, true)).toBe(0);
+  });
+});
+
+describe("scene fades", () => {
+  const floor = (levelId: number, onStairs = false, phase = "play") => ({ phase, levelId, depth: levelId, onStairs });
+
+  it("fades once on the first level, and on stairs only after a stair square", () => {
+    const loaded = observeScene(IDLE_SCENE, floor(1), 10);
+    expect(loaded.kind).toBe("load");
+    expect(loaded.started).toBe(10);
+    expect(observeScene(loaded, floor(1), 20).started).toBe(10);
+    const fromStairs = observeScene(observeScene(IDLE_SCENE, floor(1, true), 0), floor(2), 100);
+    expect(fromStairs.kind).toBe("stairs");
+    expect(fromStairs.started).toBe(100);
+    const teleported = observeScene(observeScene(IDLE_SCENE, floor(1, false), 0), floor(9, true), 50);
+    expect(teleported.kind).toBe("load");
+    expect(teleported.levelId).toBe(9);
+    expect(teleported.onStairs).toBe(true);
+  });
+
+  it("fades when a shop opens, and not when it closes", () => {
+    const playing = observeScene(IDLE_SCENE, floor(1), 0);
+    const entered = observeScene(playing, floor(1, false, "store"), 40);
+    expect(entered.kind).toBe("shop");
+    expect(entered.started).toBe(40);
+    expect(entered.inShop).toBe(true);
+    const left = observeScene(entered, floor(1), 80);
+    expect(left.kind).toBe("shop");
+    expect(left.started).toBe(40);
+    expect(left.inShop).toBe(false);
+    const firstIsStore = observeScene(IDLE_SCENE, floor(3, false, "store"), 5);
+    expect(firstIsStore.kind).toBe("load");
+    expect(firstIsStore.inShop).toBe(true);
+  });
+
+  it("fades on death once, resets at the title, and keeps a gap in snapshots", () => {
+    const playing = observeScene(IDLE_SCENE, floor(1), 0);
+    const died = observeScene(playing, { phase: "play", dead: true, levelId: 1, depth: 1 }, 10);
+    expect(died.kind).toBe("death");
+    expect(died.started).toBe(10);
+    expect(observeScene(died, { phase: "dead", dead: true, levelId: 1, depth: 1 }, 99)).toBe(died);
+    expect(observeScene(playing, { phase: "pregame" }, 5)).toBe(IDLE_SCENE);
+    expect(observeScene(playing, {}, 5)).toBe(playing);
+    expect(observeScene(playing, { phase: null }, 5)).toBe(playing);
+  });
+
+  it("uses a short fade, shorter still when motion is reduced", () => {
+    expect(sceneDuration("death")).toBe(900);
+    expect(sceneDuration("load")).toBe(420);
+    expect(sceneDuration("shop")).toBe(300);
+    expect(sceneDuration("stairs")).toBe(340);
+    const death = { ...IDLE_SCENE, established: true, kind: "death" as const, started: 1000 };
+    expect(sceneOpacity(death, 1000)).toBe(1);
+    expect(sceneOpacity(death, 1900)).toBe(0);
+    expect(sceneOpacity(death, 1000, true)).toBe(1);
+    expect(sceneOpacity(death, 1040, true)).toBeGreaterThan(0);
+    expect(sceneOpacity(death, 1080, true)).toBe(0);
+    expect(sceneOpacity(IDLE_SCENE, 1000)).toBe(0);
+  });
+});
+
+describe("crt parts and the artifact sunburst", () => {
+  it("keeps bright pixels, shifts the fringe, and trails the sweep", () => {
+    expect(phosphorKeep(0, 0, 0)).toBe(0);
+    expect(phosphorKeep(255, 255, 255)).toBe(1);
+    const mid = phosphorKeep(51, 51, 51);
+    expect(mid).toBeGreaterThan(0);
+    expect(mid).toBeLessThan(1);
+    expect(fringeOffset(0, 800)).toBe(0);
+    expect(fringeOffset(1, 0)).toBe(0);
+    expect(fringeOffset(1, 1000)).toBe(6);
+    expect(fringeOffset(1, 100)).toBe(1);
+    expect(sweepTrail(10, 10, 100)).toBe(1);
+    expect(sweepTrail(10 - 24, 10, 100)).toBe(0);
+    expect(sweepTrail(0, 0, 0)).toBe(0);
+    expect(sweepTrail(-2, 10, 100)).toBeGreaterThan(0);
+    expect(sweepTrail(-2, 10, 100)).toBeLessThan(1);
+  });
+
+  it("draws an artifact as a six-ray sunburst on the cell, and a curse or rune as a disc", () => {
+    expect(glowFigure("artifact")).toBe("sunburst");
+    expect(glowFigure("cursed")).toBe("disc");
+    expect(glowFigure("rune")).toBe("disc");
+    const rays = sunburstAngles(0);
+    expect(rays).toHaveLength(6);
+    expect(rays[1]! - rays[0]!).toBeCloseTo(Math.PI / 3);
+    expect(sunburstAngles(0.5)[0]).toBeCloseTo(0.5);
+    const origin = { x: 10, y: 20 };
+    const size = { width: 40, height: 20 };
+    const rect = { width: 400, height: 200 };
+    expect(cellAnchor(origin, size, rect, { x: 10, y: 20 })).toEqual({ x: 5, y: 5 });
+    expect(cellAnchor(origin, size, rect, { x: 11, y: 20 })).toEqual({ x: 15, y: 5 });
+  });
+
+  it("names a strength setting for each new part", () => {
+    expect(STRENGTH_SETTINGS["lava"]).toBe("anybandui.lavaEmbersStrength");
+    expect(STRENGTH_SETTINGS["stairs"]).toBe("anybandui.stairEmbersStrength");
+    expect(STRENGTH_SETTINGS["recall"]).toBe("anybandui.recallRingStrength");
+    expect(STRENGTH_SETTINGS["level"]).toBe("anybandui.levelFlashStrength");
+    expect(STRENGTH_SETTINGS["scene"]).toBe("anybandui.sceneFadeStrength");
+    expect(STRENGTH_SETTINGS["crtGlow"]).toBe("anybandui.crtGlowStrength");
+    expect(STRENGTH_SETTINGS["crtFringe"]).toBe("anybandui.crtFringeStrength");
+    expect(STRENGTH_SETTINGS["crtSweep"]).toBe("anybandui.crtSweepStrength");
+  });
+});
+
+describe("a scene flag on its own", () => {
+  it("installs the overlay without the spell-effect events", async () => {
+    const { installEffects } = await import("./effects.js");
+    const handlers = new Map<string, (...args: unknown[]) => void>();
+    const g = new Proxy({}, { get: () => () => {}, set: () => true });
+    const canvas = { style: {}, setAttribute: () => {}, getContext: () => g, remove: () => {} };
+    const saved = { document: globalThis.document, raf: globalThis.requestAnimationFrame, caf: globalThis.cancelAnimationFrame };
+    Object.assign(globalThis, { document: { createElement: () => canvas, body: { append: () => {} } }, requestAnimationFrame: () => 1, cancelAnimationFrame: () => {} });
+    try {
+      const stop = installEffects({ flags: { "anybandui.lavaEmbers": true }, display: { snapshot: () => ({}) as never },
+        events: { on: (name, fn) => { handlers.set(name, fn as (...args: unknown[]) => void); }, off: (name) => { handlers.delete(name); } } });
+      expect(handlers.size).toBe(0);
+      stop();
+    } finally { Object.assign(globalThis, { document: saved.document, requestAnimationFrame: saved.raf, cancelAnimationFrame: saved.caf }); }
   });
 });

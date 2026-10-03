@@ -1,4 +1,4 @@
-// neo-angband-mod-anybandui - generated from plugin.ts by neo-angband-mod-build
+// p7-scene - generated from plugin.ts by neo-angband-mod-build
 // (@rpgm-tools/neo-angband-mod-sdk). Edit the TypeScript source, not this file.
 
 // src/view-model/adapter.ts
@@ -6734,8 +6734,33 @@ var STRENGTH_SETTINGS = {
   heal: "anybandui.spellEffectsStrength",
   departure: "anybandui.spellEffectsStrength",
   arrival: "anybandui.spellEffectsStrength",
-  blast: "anybandui.spellEffectsStrength"
+  blast: "anybandui.spellEffectsStrength",
+  lava: "anybandui.lavaEmbersStrength",
+  stairs: "anybandui.stairEmbersStrength",
+  recall: "anybandui.recallRingStrength",
+  level: "anybandui.levelFlashStrength",
+  scene: "anybandui.sceneFadeStrength",
+  crtGlow: "anybandui.crtGlowStrength",
+  crtFringe: "anybandui.crtFringeStrength",
+  crtSweep: "anybandui.crtSweepStrength"
 };
+var EFFECT_FLAGS = [
+  "anybandui.crt",
+  "anybandui.lowHealthEffect",
+  "anybandui.deathEffect",
+  "anybandui.itemGlow",
+  "anybandui.sleepMarks",
+  "anybandui.presenceHaze",
+  "anybandui.spellEffects",
+  "anybandui.lavaEmbers",
+  "anybandui.stairEmbers",
+  "anybandui.recallRing",
+  "anybandui.levelFlash",
+  "anybandui.sceneFade",
+  "anybandui.crtGlow",
+  "anybandui.crtFringe",
+  "anybandui.crtSweep"
+];
 function effectStrength(settings, stored, key) {
   const id = STRENGTH_SETTINGS[key];
   let value2;
@@ -6747,9 +6772,153 @@ function effectStrength(settings, stored, key) {
   const raw = typeof value2 === "number" && Number.isFinite(value2) ? value2 : stored[key] ?? 100;
   return Math.max(0, Math.min(100, raw));
 }
+function sceneTerrain(code) {
+  if (!code) return null;
+  const local = (code.split(":").pop() ?? code).toLowerCase().replace(/_/g, "-");
+  if (local === "less" || local === "stair-up" || local === "up-stair") return "up";
+  if (local === "more" || local === "stair-down" || local === "down-stair") return "down";
+  if (local === "lava" || local.startsWith("lava-") || local.endsWith("-lava")) return "lava";
+  return null;
+}
+function sceneCells(known) {
+  const out = [];
+  for (const cell of known?.cells ?? []) {
+    const kind = sceneTerrain(featureCode(cell));
+    if (kind) out.push({ grid: { x: cell.x, y: cell.y }, kind });
+  }
+  return out;
+}
+function playerOnStairs(known, grid) {
+  if (!grid) return false;
+  const cell = known?.cells?.find((entry2) => entry2.x === grid.x && entry2.y === grid.y);
+  if (!cell) return false;
+  const kind = sceneTerrain(featureCode(cell));
+  return kind === "up" || kind === "down";
+}
+function recallGrid(player) {
+  if (!player?.grid || !(typeof player.recall === "number" && player.recall > 0)) return null;
+  return player.grid;
+}
+function driftingEmbers(now, seed, count, reduced) {
+  const out = [];
+  for (let i = 0; i < count; i++) {
+    const t = (reduced ? 0 : now / 1e3 * 0.65) + seed + i * 0.25;
+    const frac = t - Math.floor(t);
+    out.push({ x: Math.sin(seed + i * 2 + frac * 3) * 0.4, y: 0.35 - frac * 1.05, alpha: Math.sin(frac * Math.PI) });
+  }
+  return out;
+}
+var IDLE_LEVEL = { highest: 0, flashedLevel: 0, started: -1 };
+var LEVEL_PHASES = /* @__PURE__ */ new Set(["play", "store", "more", "modal"]);
+function observeLevel(watch, sample, now) {
+  const phase = sample.phase;
+  if (!phase) return watch;
+  if (!LEVEL_PHASES.has(phase)) return IDLE_LEVEL;
+  if (typeof sample.level !== "number" || !Number.isFinite(sample.level)) return watch;
+  const current = sample.level;
+  const recorded = typeof sample.maxLevel === "number" && Number.isFinite(sample.maxLevel) ? sample.maxLevel : current;
+  const best = Math.max(current, recorded);
+  const flashed = watch.highest > 0 && current > watch.highest && sample.dead !== true ? { highest: watch.highest, flashedLevel: current, started: now } : watch;
+  return { ...flashed, highest: Math.max(flashed.highest, best) };
+}
+function levelFlashIntensity(started, now, reduced = false) {
+  if (started < 0) return 0;
+  const duration = reduced ? 200 : 2200;
+  const t = (now - started) / duration;
+  if (t < 0 || t >= 1) return 0;
+  if (reduced) return 0.7;
+  return Math.min(1, t * 12) * Math.max(0, 1 - t) * 1.15;
+}
+var IDLE_SCENE = { established: false, levelId: null, depth: 0, inShop: false, onStairs: false, kind: null, started: 0 };
+function sceneDuration(kind) {
+  return kind === "death" ? 900 : kind === "load" ? 420 : kind === "shop" ? 300 : 340;
+}
+function observeScene(watch, sample, now) {
+  const phase = sample.phase;
+  if (!phase) return watch;
+  if (phase === "pregame") return IDLE_SCENE;
+  if (sample.dead === true || phase === "dead") {
+    return watch.kind === "death" ? watch : { ...watch, kind: "death", started: now };
+  }
+  let current = watch.kind === "death" ? { ...watch, kind: null, started: 0 } : watch;
+  const shop = phase === "store";
+  if (current.established && shop && !current.inShop) current = { ...current, kind: "shop", started: now, inShop: true };
+  else current = { ...current, inShop: shop };
+  if (typeof sample.levelId !== "number" || !Number.isFinite(sample.levelId)) return current;
+  const nextDepth = typeof sample.depth === "number" && Number.isFinite(sample.depth) ? sample.depth : current.depth;
+  const onStairs = sample.onStairs === true;
+  if (!current.established) {
+    return { ...current, established: true, kind: "load", started: now, levelId: sample.levelId, depth: nextDepth, onStairs };
+  }
+  if (current.levelId !== null && sample.levelId !== current.levelId && current.onStairs) {
+    current = { ...current, kind: "stairs", started: now };
+  }
+  return { ...current, levelId: sample.levelId, depth: nextDepth, onStairs };
+}
+function sceneOpacity(watch, now, reduced = false) {
+  if (!watch.kind) return 0;
+  const duration = reduced ? 80 : sceneDuration(watch.kind);
+  const t = (now - watch.started) / duration;
+  if (t < 0 || t >= 1) return 0;
+  const remain = 1 - t;
+  return remain * remain * (3 - 2 * remain);
+}
+function phosphorKeep(r, g, b) {
+  const lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+  const x = (lum - 0.08) / (0.45 - 0.08);
+  if (x <= 0) return 0;
+  if (x >= 1) return 1;
+  return x * x * (3 - 2 * x);
+}
+function fringeOffset(strength, width) {
+  if (!(strength > 0) || !(width > 0)) return 0;
+  return Math.max(1, Math.round(strength * Math.min(6, width * 6e-3)));
+}
+function sweepTrail(y, front, height) {
+  if (!(height > 0)) return 0;
+  const behind = (front - y) / height;
+  const wrapped = behind - Math.floor(behind);
+  if (wrapped >= 0.24) return 0;
+  const t = 1 - wrapped / 0.24;
+  return t * t * t;
+}
+function glowFigure(aura) {
+  return aura === "artifact" ? "sunburst" : "disc";
+}
+function sunburstAngles(spin) {
+  return Array.from({ length: 6 }, (_, ray) => ray * (Math.PI / 3) + spin);
+}
+function cellAnchor(origin, size, rect, grid) {
+  const cellW = rect.width / size.width, cellH = rect.height / size.height;
+  return { x: (grid.x - origin.x + 0.5) * cellW, y: (grid.y - origin.y + 0.5) * cellH };
+}
+function terminalCanvas(doc = typeof document === "undefined" ? void 0 : document) {
+  const node2 = doc?.getElementById("game");
+  return typeof HTMLCanvasElement !== "undefined" && node2 instanceof HTMLCanvasElement ? node2 : null;
+}
+function blitRegion(game, css, dest) {
+  const bounds = game.getBoundingClientRect();
+  if (!(bounds.width > 0) || !(bounds.height > 0) || !(css.width > 1) || !(css.height > 1)) return false;
+  const scaleX = game.width / bounds.width, scaleY = game.height / bounds.height;
+  const sx = (css.x - bounds.left) * scaleX, sy = (css.y - bounds.top) * scaleY;
+  const sw = css.width * scaleX, sh = css.height * scaleY;
+  if (!(sw > 1) || !(sh > 1)) return false;
+  const dw = Math.max(1, Math.round(css.width)), dh = Math.max(1, Math.round(css.height));
+  if (dest.width !== dw) dest.width = dw;
+  if (dest.height !== dh) dest.height = dh;
+  const cg = dest.getContext("2d");
+  if (!cg) return false;
+  try {
+    cg.setTransform(1, 0, 0, 1, 0, 0);
+    cg.drawImage(game, sx, sy, sw, sh, 0, 0, dw, dh);
+    return true;
+  } catch {
+    return false;
+  }
+}
 function installEffects(ctx) {
   const flags = ctx.flags ?? {};
-  const enabled = ["anybandui.crt", "anybandui.lowHealthEffect", "anybandui.deathEffect", "anybandui.itemGlow", "anybandui.sleepMarks", "anybandui.presenceHaze", "anybandui.spellEffects"].some((x) => flags[x]);
+  const enabled = EFFECT_FLAGS.some((x) => flags[x]);
   const display = ctx.display;
   if (!enabled || !display || typeof document === "undefined") return () => {
   };
@@ -6767,6 +6936,11 @@ function installEffects(ctx) {
   const g = maybeContext;
   const cues = [];
   let raf = 0, wasDead = false, deadBurstAt = 0;
+  let levelWatch = IDLE_LEVEL, sceneWatch = IDLE_SCENE;
+  const held = document.createElement("canvas"), sample = document.createElement("canvas");
+  const glowScratch = document.createElement("canvas"), fringeScratch = document.createElement("canvas");
+  let heldReady = false;
+  let lastRect = null;
   const reduced = () => globalThis.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
   const push = (list) => {
     const effects = validateSettings(ctx.prefs?.get()).effects;
@@ -6797,93 +6971,295 @@ function installEffects(ctx) {
     raf = 0;
     const view = activeDisplay.snapshot(), rect = mapProjection(view);
     const snap = ctx.snapshot?.() ?? null;
-    if (!rect || view.mode !== "play") {
+    const player = snap?.core.player ?? null;
+    const known = ctx.knownLevel?.() ?? null;
+    const staticMode = chooseEffectMotion(reduced()) === "static";
+    if (flags["anybandui.levelFlash"]) {
+      levelWatch = observeLevel(levelWatch, { phase: snap?.phase, level: player?.level, maxLevel: player?.maxLevel, dead: player?.dead === true }, now);
+    }
+    if (flags["anybandui.sceneFade"]) {
+      sceneWatch = observeScene(sceneWatch, {
+        phase: snap?.phase,
+        dead: player?.dead === true || snap?.phase === "dead",
+        ...known ? { levelId: known.levelId, depth: known.depth } : {},
+        onStairs: playerOnStairs(known, player?.grid)
+      }, now);
+    }
+    const fade = flags["anybandui.sceneFade"] ? sceneOpacity(sceneWatch, now, staticMode) : 0;
+    const live = rect && view.mode === "play" ? rect : null;
+    if (live) lastRect = live;
+    const drawRect = live ?? (fade > 0 ? lastRect : null);
+    if (!drawRect) {
       canvas.style.display = "none";
+      if (fade > 0) request();
       return;
     }
     canvas.style.display = "block";
-    canvas.style.left = `${rect.x}px`;
-    canvas.style.top = `${rect.y}px`;
-    canvas.style.width = `${rect.width}px`;
-    canvas.style.height = `${rect.height}px`;
+    canvas.style.left = `${drawRect.x}px`;
+    canvas.style.top = `${drawRect.y}px`;
+    canvas.style.width = `${drawRect.width}px`;
+    canvas.style.height = `${drawRect.height}px`;
     const dpr = devicePixelRatio || 1;
-    canvas.width = Math.round(rect.width * dpr);
-    canvas.height = Math.round(rect.height * dpr);
+    canvas.width = Math.round(drawRect.width * dpr);
+    canvas.height = Math.round(drawRect.height * dpr);
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
-    g.clearRect(0, 0, rect.width, rect.height);
-    const cellW = rect.width / view.viewport.size.width, cellH = rect.height / view.viewport.size.height;
-    const cell = (p) => ({ x: (p.x - view.viewport.origin.x + 0.5) * cellW, y: (p.y - view.viewport.origin.y + 0.5) * cellH });
+    g.clearRect(0, 0, drawRect.width, drawRect.height);
     const effectSettings = validateSettings(ctx.prefs?.get()).effects;
     const intensity = (key) => effectStrength(ctx.settings, effectSettings, key) / 100;
-    const staticMode = chooseEffectMotion(reduced()) === "static";
-    if (flags["anybandui.crt"] && intensity("crt") > 0) {
-      g.fillStyle = `rgba(0,0,0,${0.1 * intensity("crt")})`;
-      for (let y = 0; y < rect.height; y += 3) g.fillRect(0, y, rect.width, 1);
-      if (!staticMode) {
-        const y = now / 14 % rect.height;
-        g.fillStyle = "rgba(120,220,255,.08)";
-        g.fillRect(0, y, rect.width, Math.max(2, cellH * 0.18));
-      }
-    }
-    if (flags["anybandui.lowHealthEffect"] && intensity("lowHealth") > 0) {
-      const p = snap?.core.player;
-      const v = healthIntensity(p?.hp, p?.maxHp, p?.hpWarning) * intensity("lowHealth");
-      if (v) {
-        g.fillStyle = `rgba(255,20,25,${v * (staticMode ? 0.1 : 0.08 + 0.08 * Math.sin(now / 45))})`;
-        g.fillRect(0, 0, rect.width, rect.height);
-      }
-    }
-    const dead = snap?.phase === "dead" || snap?.core.player?.dead === true;
-    if (dead && !wasDead && flags["anybandui.deathEffect"] && intensity("death") > 0) {
-      deadBurstAt = now;
-      const at = snap?.core.player?.grid;
-      if (at) cues.push({ grid: at, kind: "death", started: now, strength: 100 });
-    }
-    wasDead = dead;
-    const known = ctx.knownLevel?.() ?? null, grids = effectGrids(snap, known, flags["anybandui.itemGlowReveals"] === true);
-    if (flags["anybandui.itemGlow"]) for (const glow of grids.glows) paint(glow.grid, AURA_COLOURS[glow.aura], intensity("itemGlow"));
-    if (flags["anybandui.sleepMarks"]) for (const p of grids.asleep) {
-      const q = cell(p);
-      g.strokeStyle = `rgba(190,220,255,${intensity("sleepMarks")})`;
-      g.lineWidth = 1.5;
-      g.beginPath();
-      g.moveTo(q.x - 3, q.y - cellH * 0.38);
-      g.lineTo(q.x, q.y - cellH * 0.52);
-      g.lineTo(q.x + 3, q.y - cellH * 0.38);
-      g.stroke();
-    }
-    if (flags["anybandui.presenceHaze"]) for (const u of grids.uniques) paint(u.grid, "#b45cff", intensity("presenceHaze") * (u.final ? 1 : 0.65));
-    let active = false;
-    for (const c of cues) {
-      const age = (now - c.started) / 650;
-      if (age >= (staticMode ? 0.08 : 1)) continue;
-      active = true;
-      const q = cell(c.grid), a = staticMode ? 0.45 : (1 - age) * c.strength / 100;
-      if (c.kind === "blast") {
-        g.fillStyle = c.colour ?? "#ffbe5a";
-        g.globalAlpha = a * 0.55;
-        g.fillRect(q.x - cellW / 2, q.y - cellH / 2, cellW, cellH);
+    const sceneAlpha = fade * intensity("scene");
+    if (live && view.viewport.size.width > 0 && view.viewport.size.height > 0) {
+      let paint2 = function(p, color, a, aura) {
+        if (!a) return;
+        const q = cell(p);
+        if (aura && glowFigure(aura) === "sunburst") {
+          const unit = Math.max(cellW, cellH), spin = staticMode ? 0 : now / 8e3;
+          const beat = staticMode ? 0.65 : 0.5 + 0.5 * Math.sin(now / 420);
+          g.save();
+          g.strokeStyle = color;
+          g.globalAlpha = a;
+          g.lineWidth = Math.max(1, unit * 0.055);
+          for (const angle of sunburstAngles(spin)) {
+            const length = unit * (0.55 + 0.65 * beat), inner = unit * 0.22;
+            g.beginPath();
+            g.moveTo(q.x + Math.cos(angle) * inner, q.y + Math.sin(angle) * inner);
+            g.lineTo(q.x + Math.cos(angle) * (inner + length), q.y + Math.sin(angle) * (inner + length));
+            g.stroke();
+          }
+          g.restore();
+          return;
+        }
+        g.fillStyle = color;
+        g.globalAlpha = a * (staticMode ? 1 : 0.5 + 0.5 * Math.sin(now / 180));
+        g.beginPath();
+        g.arc(q.x, q.y, Math.max(3, cellW * 0.42), 0, Math.PI * 2);
+        g.fill();
         g.globalAlpha = 1;
-        continue;
+      }, embers2 = function(p, kind, a) {
+        if (!a || !seen(p)) return;
+        const q = cell(p), seed = p.x * 0.173 + p.y * 0.317;
+        if (kind === "lava") {
+          g.fillStyle = `rgba(255,70,12,${0.28 * a})`;
+          g.fillRect(q.x - cellW / 2, q.y - cellH / 2, cellW, cellH);
+          for (const dot of driftingEmbers(now, seed, 4, staticMode)) {
+            g.fillStyle = `rgba(255,140,30,${dot.alpha * a})`;
+            g.fillRect(q.x + dot.x * cellW, q.y + dot.y * cellH, 2, 2);
+          }
+        } else {
+          const ink2 = kind === "up" ? "255,133,41" : "217,145,255";
+          g.fillStyle = `rgba(${ink2},${0.22 * a})`;
+          g.beginPath();
+          g.arc(q.x, q.y, Math.max(cellW, cellH) * 0.7, 0, Math.PI * 2);
+          g.fill();
+          for (const dot of driftingEmbers(now, seed, 5, staticMode)) {
+            const reach = Math.max(cellW, cellH) * (0.25 + (1 - dot.alpha) * 0.4);
+            g.fillStyle = `rgba(${ink2},${dot.alpha * 0.7 * a})`;
+            g.fillRect(q.x + Math.cos(seed + dot.x) * reach, q.y + Math.sin(seed + dot.y) * reach, 2, 2);
+          }
+        }
+      }, ring2 = function(p, a) {
+        if (!a) return;
+        const q = cell(p), unit = Math.max(cellW, cellH), spin = staticMode ? 0 : now / 2800;
+        g.strokeStyle = `rgba(64,191,255,${0.75 * a})`;
+        g.lineWidth = Math.max(1, unit * 0.06);
+        const radius = unit * 0.62;
+        for (let i = 0; i < 8; i++) {
+          const a0 = spin + i * Math.PI * 2 / 8;
+          g.beginPath();
+          g.arc(q.x, q.y, radius, a0, a0 + 1.7 / 8);
+          g.stroke();
+        }
+      };
+      var paint = paint2, embers = embers2, ring = ring2;
+      const cellW = live.width / view.viewport.size.width, cellH = live.height / view.viewport.size.height;
+      const cell = (p) => cellAnchor(view.viewport.origin, view.viewport.size, live, p);
+      const seen = (p) => {
+        const q = cell(p);
+        return q.x >= -cellW && q.y >= -cellH && q.x <= live.width + cellW && q.y <= live.height + cellH;
+      };
+      if (flags["anybandui.lowHealthEffect"] && intensity("lowHealth") > 0) {
+        const v = healthIntensity(player?.hp, player?.maxHp, player?.hpWarning) * intensity("lowHealth");
+        if (v) {
+          g.fillStyle = `rgba(255,20,25,${v * (staticMode ? 0.1 : 0.08 + 0.08 * Math.sin(now / 45))})`;
+          g.fillRect(0, 0, live.width, live.height);
+        }
       }
-      g.strokeStyle = `rgba(${c.kind === "heal" ? "100,255,160" : c.kind === "cast" ? "100,190,255" : "255,190,90"},${a})`;
-      g.lineWidth = 2;
-      g.beginPath();
-      g.arc(q.x, q.y, staticMode ? 5 : 4 + age * cellH * 0.55, 0, Math.PI * 2);
-      g.stroke();
+      const dead = snap?.phase === "dead" || player?.dead === true;
+      if (dead && !wasDead && flags["anybandui.deathEffect"] && intensity("death") > 0) {
+        deadBurstAt = now;
+        const at = player?.grid;
+        if (at) cues.push({ grid: at, kind: "death", started: now, strength: 100 });
+      }
+      wasDead = dead;
+      const grids = effectGrids(snap, known, flags["anybandui.itemGlowReveals"] === true);
+      if (flags["anybandui.itemGlow"]) for (const glow of grids.glows) paint2(glow.grid, AURA_COLOURS[glow.aura], intensity("itemGlow"), glow.aura);
+      if (flags["anybandui.sleepMarks"]) for (const p of grids.asleep) {
+        const q = cell(p);
+        g.strokeStyle = `rgba(190,220,255,${intensity("sleepMarks")})`;
+        g.lineWidth = 1.5;
+        g.beginPath();
+        g.moveTo(q.x - 3, q.y - cellH * 0.38);
+        g.lineTo(q.x, q.y - cellH * 0.52);
+        g.lineTo(q.x + 3, q.y - cellH * 0.38);
+        g.stroke();
+      }
+      if (flags["anybandui.presenceHaze"]) for (const u of grids.uniques) paint2(u.grid, "#b45cff", intensity("presenceHaze") * (u.final ? 1 : 0.65));
+      const places = flags["anybandui.lavaEmbers"] || flags["anybandui.stairEmbers"] ? sceneCells(known) : [];
+      if (flags["anybandui.lavaEmbers"]) {
+        for (const place of places) if (place.kind === "lava" && seen(place.grid)) embers2(place.grid, "lava", intensity("lava"));
+      }
+      if (flags["anybandui.stairEmbers"]) {
+        for (const place of places) if (place.kind !== "lava" && seen(place.grid)) embers2(place.grid, place.kind, intensity("stairs"));
+      }
+      const recallAt = flags["anybandui.recallRing"] ? recallGrid(player) : null;
+      if (recallAt && seen(recallAt)) ring2(recallAt, intensity("recall"));
+      const flash = flags["anybandui.levelFlash"] ? levelFlashIntensity(levelWatch.started, now, staticMode) * intensity("level") : 0;
+      if (flash > 0 && player?.grid && seen(player.grid)) {
+        const q = cell(player.grid);
+        g.fillStyle = `rgba(255,196,80,${0.45 * flash})`;
+        g.beginPath();
+        g.arc(q.x, q.y, Math.max(cellW, cellH) * 0.9, 0, Math.PI * 2);
+        g.fill();
+      }
+      let active = false;
+      for (const c of cues) {
+        const age = (now - c.started) / 650;
+        if (age >= (staticMode ? 0.08 : 1)) continue;
+        active = true;
+        const q = cell(c.grid), a = staticMode ? 0.45 : (1 - age) * c.strength / 100;
+        if (c.kind === "blast") {
+          g.fillStyle = c.colour ?? "#ffbe5a";
+          g.globalAlpha = a * 0.55;
+          g.fillRect(q.x - cellW / 2, q.y - cellH / 2, cellW, cellH);
+          g.globalAlpha = 1;
+          continue;
+        }
+        g.strokeStyle = `rgba(${c.kind === "heal" ? "100,255,160" : c.kind === "cast" ? "100,190,255" : "255,190,90"},${a})`;
+        g.lineWidth = 2;
+        g.beginPath();
+        g.arc(q.x, q.y, staticMode ? 5 : 4 + age * cellH * 0.55, 0, Math.PI * 2);
+        g.stroke();
+      }
+      cues.splice(0, cues.length, ...cues.filter((c) => now - c.started < 650));
+      if (flags["anybandui.deathEffect"] && deadBurstAt && now - deadBurstAt < 900) active = true;
+      if (sceneAlpha > 0) cover(drawRect, sceneAlpha);
+      if (sceneAlpha === 0) hold(live);
+      const crtOn = flags["anybandui.crt"] && intensity("crt") > 0;
+      if (crtOn) {
+        g.fillStyle = `rgba(0,0,0,${0.1 * intensity("crt")})`;
+        for (let y = 0; y < live.height; y += 3) g.fillRect(0, y, live.width, 1);
+        if (!staticMode) {
+          const y = now / 14 % live.height;
+          g.fillStyle = "rgba(120,220,255,.08)";
+          g.fillRect(0, y, live.width, Math.max(2, cellH * 0.18));
+        }
+      }
+      if (sceneAlpha === 0) sampled(live, intensity("crtGlow"), intensity("crtFringe"));
+      if (flags["anybandui.crtSweep"] && !staticMode && intensity("crtSweep") > 0) sweep(live.height, live.width, intensity("crtSweep"));
+      const moving = !staticMode && (crtOn || flags["anybandui.crtSweep"] && intensity("crtSweep") > 0 || flags["anybandui.lowHealthEffect"] && healthIntensity(player?.hp, player?.maxHp, player?.hpWarning) > 0 || flags["anybandui.sleepMarks"] && grids.asleep.length > 0 || flags["anybandui.itemGlow"] && grids.glows.length > 0 || flags["anybandui.presenceHaze"] && grids.uniques.length > 0 || places.length > 0 || recallAt !== null || flags["anybandui.crtGlow"] && intensity("crtGlow") > 0 || flags["anybandui.crtFringe"] && intensity("crtFringe") > 0);
+      if (active || sceneAlpha > 0 || flash > 0 || moving) request();
+    } else if (sceneAlpha > 0) {
+      cover(drawRect, sceneAlpha);
+      request();
     }
-    cues.splice(0, cues.length, ...cues.filter((c) => now - c.started < 650));
-    if (flags["anybandui.deathEffect"] && deadBurstAt && now - deadBurstAt < 900) active = true;
-    if (active || !staticMode && (flags["anybandui.crt"] && intensity("crt") > 0 || flags["anybandui.lowHealthEffect"] && healthIntensity(snap?.core.player?.hp, snap?.core.player?.maxHp, snap?.core.player?.hpWarning) > 0 || flags["anybandui.sleepMarks"] && grids.asleep.length > 0 || flags["anybandui.itemGlow"] && grids.glows.length > 0 || flags["anybandui.presenceHaze"] && grids.uniques.length > 0)) request();
-    function paint(p, color, a) {
-      if (!a) return;
-      const q = cell(p);
-      g.fillStyle = color;
-      g.globalAlpha = a * (staticMode ? 1 : 0.5 + 0.5 * Math.sin(now / 180));
-      g.beginPath();
-      g.arc(q.x, q.y, Math.max(3, cellW * 0.42), 0, Math.PI * 2);
-      g.fill();
-      g.globalAlpha = 1;
+    function cover(area, alpha) {
+      if (heldReady) {
+        g.globalAlpha = alpha;
+        g.drawImage(held, 0, 0, area.width, area.height);
+        g.globalAlpha = 1;
+      } else {
+        g.fillStyle = `rgba(8,12,17,${alpha})`;
+        g.fillRect(0, 0, area.width, area.height);
+      }
+    }
+    function hold(area) {
+      const game = terminalCanvas();
+      if (game && blitRegion(game, area, held)) heldReady = true;
+    }
+    function sampled(area, glow, fringe) {
+      if (!(flags["anybandui.crtGlow"] && glow > 0) && !(flags["anybandui.crtFringe"] && fringe > 0)) return;
+      const game = terminalCanvas();
+      if (!game || !blitRegion(game, area, sample)) return;
+      if (flags["anybandui.crtFringe"] && fringe > 0) fringeChannels(fringeOffset(fringe, area.width), fringe, area.width, area.height);
+      if (flags["anybandui.crtGlow"] && glow > 0) phosphor(glow, area.width, area.height);
+    }
+    function fringeChannels(shift, amount, width, height) {
+      if (shift <= 0) return;
+      const channel = (color, dx) => {
+        fringeScratch.width = sample.width;
+        fringeScratch.height = sample.height;
+        const sg = fringeScratch.getContext("2d");
+        if (!sg) return;
+        sg.setTransform(1, 0, 0, 1, 0, 0);
+        sg.globalCompositeOperation = "source-over";
+        sg.clearRect(0, 0, fringeScratch.width, fringeScratch.height);
+        sg.drawImage(sample, dx, 0);
+        sg.globalCompositeOperation = "multiply";
+        sg.fillStyle = color;
+        sg.fillRect(0, 0, fringeScratch.width, fringeScratch.height);
+        sg.globalCompositeOperation = "destination-in";
+        sg.drawImage(sample, dx, 0);
+        g.save();
+        g.globalCompositeOperation = "lighter";
+        g.globalAlpha = 0.85 * amount;
+        g.drawImage(fringeScratch, 0, 0, width, height);
+        g.restore();
+      };
+      try {
+        channel("#ff0000", shift);
+        channel("#0000ff", -shift);
+      } catch {
+      }
+    }
+    function phosphor(amount, width, height) {
+      const sg = sample.getContext("2d");
+      if (!sg || !(sample.width > 0) || !(sample.height > 0)) return;
+      let image;
+      try {
+        image = sg.getImageData(0, 0, sample.width, sample.height);
+      } catch {
+        return;
+      }
+      const px = image.data;
+      let lit = false;
+      for (let i = 0; i < px.length; i += 4) {
+        const keep = phosphorKeep(px[i] ?? 0, px[i + 1] ?? 0, px[i + 2] ?? 0);
+        px[i + 3] = Math.round(255 * keep);
+        if (keep > 0.05) lit = true;
+      }
+      if (!lit) return;
+      glowScratch.width = sample.width;
+      glowScratch.height = sample.height;
+      const gg = glowScratch.getContext("2d");
+      if (!gg) return;
+      gg.putImageData(image, 0, 0);
+      g.save();
+      g.globalAlpha = 0.55 * amount;
+      try {
+        g.filter = `blur(${Math.max(1, Math.round(1 + 3 * amount))}px)`;
+      } catch {
+        g.filter = "none";
+      }
+      g.drawImage(glowScratch, 0, 0, width, height);
+      g.filter = "none";
+      g.restore();
+    }
+    function sweep(height, width, amount) {
+      const front = now / 4e3 % 1 * height, trail = height * 0.24, yStart = front - trail;
+      const band = (y0, y1) => {
+        if (y1 - y0 < 1) return;
+        const grad = g.createLinearGradient(0, y0, 0, y1);
+        for (let i = 0; i <= 4; i++) {
+          const y = y0 + (y1 - y0) * i / 4;
+          grad.addColorStop(i / 4, `rgba(170,220,255,${sweepTrail(y, front, height) * 0.18 * amount})`);
+        }
+        g.fillStyle = grad;
+        g.fillRect(0, y0, width, y1 - y0);
+      };
+      if (yStart >= 0) band(yStart, front);
+      else {
+        band(0, front);
+        band(height + yStart, height);
+      }
     }
   }
   const tick = globalThis.setInterval(request, 250);
