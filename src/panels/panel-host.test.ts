@@ -4,7 +4,7 @@ import type { ViewModel } from "../view-model/protocol.js";
 import { notifyThemeChange, THEMES } from "../theme.js";
 import { createPanelHost } from "./panel-host.js";
 
-it("places a shadow panel, skips unchanged data, and hides under later overlapping regions", () => {
+it("places a shadow panel, skips unchanged data, redraws on a layout switch, and hides under later overlapping regions", () => {
   const originalElement = globalThis.HTMLElement;
   class Stub {
     ownerDocument: Document;
@@ -40,8 +40,10 @@ it("places a shadow panel, skips unchanged data, and hides under later overlappi
     const line = { region: { name: "status", pixels: { x: 0, y: 200, width: 400, height: 20 }, cells: { col: 0, row: 23, cols: 80, rows: 1 } } } as HudSection;
     host.present(line, { stack: [{ id: "status", cells: line.region!.cells }] } as unknown as HudFrame, model);
     expect(surface.className).toBe("surface compact");
+    expect(renders).toBe(2);
     host.present(section, { stack: [base] } as unknown as HudFrame, model);
     expect(surface.className).toBe("surface");
+    expect(renders).toBe(3);
     host.present(section, { stack: [base, { id: "modal", cells: { col: 5, row: 5, cols: 4, rows: 4 } }] } as unknown as HudFrame, model);
     expect(host.element.style.display).toBe("none");
     (host.element as unknown as Stub & { isConnected?: boolean }).isConnected = true;

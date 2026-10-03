@@ -189,10 +189,27 @@ function playerIsDriving(ctx) {
 var MATCH_WINDOW = 8;
 function messageHistory(entries, log, hostLog) {
   if (hostLog) {
+    const core2 = log === void 0 ? [] : Array.from({ length: log.num() }, (_, age) => ({
+      text: log.str(age),
+      category: log.type(age)
+    }));
     const history2 = [];
+    let next2 = 0;
     for (let index = hostLog.length - 1; index >= 0; index--) {
       const entry2 = hostLog[index];
-      history2.push({ text: entry2.text, count: entry2.count, category: void 0, color: entry2.color });
+      let category;
+      let found = -1;
+      for (let age = next2; age < Math.min(core2.length, next2 + MATCH_WINDOW); age++) {
+        if (core2[age].text === entry2.text) {
+          found = age;
+          break;
+        }
+      }
+      if (found >= 0) {
+        category = core2[found].category;
+        next2 = found + 1;
+      }
+      history2.push({ text: entry2.text, count: entry2.count, category, color: entry2.color });
     }
     return history2;
   }
@@ -1188,13 +1205,22 @@ var PANEL_CSS = `
 .metric{text-align:center;border:1px solid var(--anyband-accent);border-radius:3px;padding:2px;min-width:0}.metric b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bar{height:6px;background:var(--anyband-background);border:1px solid var(--anyband-accent);margin-top:2px}.fill{height:100%}.stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));text-align:center}.drained{opacity:.55}
 .badges{display:flex;flex-wrap:wrap;gap:4px}.badge{border:1px solid currentColor;border-left-width:2px;padding:2px 5px;border-radius:3px}
-.muted{opacity:.55}.messages{overflow:auto}.message{white-space:pre-wrap}.ribbon{color:#f5bc5a;border:1px solid #f5bc5a;padding:2px 5px;pointer-events:none}
+.muted{opacity:.55}.messages{overflow:auto;max-height:min(24em,50vh)}.message{white-space:pre-wrap}.message .body{white-space:inherit}.ribbon{color:#f5bc5a;border:1px solid #f5bc5a;padding:2px 5px;pointer-events:none}
+.messages-filter{width:100%;background:var(--anyband-background);color:var(--anyband-text);border:1px solid var(--anyband-accent)}
+.pause{display:inline-flex;align-items:flex-end;gap:2px;height:1em;vertical-align:middle}.pause i,.pause b{display:inline-block;background:currentColor;font-style:normal;font-weight:normal}
+.pause i{width:.13em;height:.7em}.pause b{width:.16em;height:.16em;border-radius:50%;animation:anyband-breathe 1.1s ease-in-out infinite}
+.pause b:nth-child(4){animation-delay:.15s}.pause b:nth-child(5){animation-delay:.3s}
+@keyframes anyband-breathe{0%,100%{opacity:.35}50%{opacity:1}}
+.pause.still b{animation:none;opacity:.8}@media (prefers-reduced-motion:reduce){.pause b{animation:none;opacity:.8}}
+.sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.cut{flex:none;margin-left:.25em}
 .tip{display:none;position:absolute;z-index:2;max-width:26em;white-space:pre-wrap;pointer-events:none;background:var(--anyband-background);color:var(--anyband-text);border:1px solid var(--anyband-accent);border-radius:3px;padding:6px}
 input{width:100%;background:var(--anyband-background);color:var(--anyband-text);border:1px solid var(--anyband-accent)}
 .compact{display:flex;align-items:center;gap:10px;overflow:hidden;white-space:nowrap;padding:0 5px}.compact .group{display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden}.compact .group:empty{display:none}
-.compact .heading,.compact input{display:none}.compact .badges{flex-wrap:nowrap}.compact .badge{padding:0 4px}.compact .grid,.compact .metric-grid{display:flex;gap:8px}
-.compact .metric{border:0;padding:0;display:flex;gap:3px}.compact .metric b{display:inline}.compact .messages{overflow:hidden;min-width:0}
-.compact .message{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.compact .message~.message{display:none}.compact .ribbon{width:auto!important;flex:none}
+.compact .heading,.compact input,.compact .messages-filter{display:none}.compact .badges{flex-wrap:nowrap}.compact .badge{padding:0 4px}.compact .grid,.compact .metric-grid{display:flex;gap:8px}
+.compact .metric{border:0;padding:0;display:flex;gap:3px}.compact .metric b{display:inline}.compact .messages{overflow:hidden;max-height:none;min-width:0}
+.compact .message{display:flex;align-items:baseline;overflow:hidden;white-space:nowrap;min-width:0}.compact .message .body{overflow:hidden;white-space:nowrap;min-width:0;flex:1}
+.compact .message~.message{display:none}.compact .ribbon{width:auto!important;flex:none}
 `;
 var COMPACT_ROWS = 3;
 var CSS = `${HOST_CSS}${PANEL_CSS}`;
@@ -1247,7 +1273,7 @@ function createPanelContent(surface, panels) {
   return {
     render(model) {
       panels.forEach((panel, index) => {
-        const signature = JSON.stringify(panel.select(model));
+        const signature = JSON.stringify([surface.className, panel.select(model)]);
         if (signatures[index] === signature) return;
         signatures[index] = signature;
         panel.render(mounts[index], model);
@@ -2817,6 +2843,182 @@ Remaining: ${Math.max(0, next - p.experience)}`].join("\n");
   if (p.extra_moves) node(mount, "div", "", `Extra moves: ${p.extra_moves > 0 ? "+" : ""}${p.extra_moves}`);
 }
 
+// src/panels/message-log.ts
+var ink = { system: "#64a0b5b4", combat: "#c88f5fb4", loot: "#b1a962b4", other: "#5b8a71a0" };
+var COMBAT_TYPES = /* @__PURE__ */ new Set([
+  2,
+  3,
+  4,
+  6,
+  11,
+  34,
+  35,
+  36,
+  37,
+  38,
+  39,
+  40,
+  41,
+  42,
+  43,
+  44,
+  45,
+  46,
+  47,
+  48,
+  49,
+  50,
+  51,
+  52,
+  85,
+  92,
+  93,
+  94,
+  95,
+  96,
+  97,
+  98,
+  99,
+  100,
+  101,
+  102,
+  103,
+  104,
+  105,
+  106,
+  107,
+  108,
+  109,
+  110,
+  139,
+  140,
+  141,
+  142,
+  143,
+  144,
+  145,
+  148,
+  149
+]);
+var LOOT_TYPES = /* @__PURE__ */ new Set([5, 33, 82, 83, 84]);
+var KINDS = /* @__PURE__ */ new Set(["combat", "loot", "system", "other"]);
+var FILTERS = [["all", "All"], ["combat", "Combat"], ["loot", "Loot"], ["other", "Other"]];
+function messageKind(message) {
+  if (message.system === true) return "system";
+  if (message.group && KINDS.has(message.group)) return message.group;
+  if (message.category !== void 0 && COMBAT_TYPES.has(message.category)) return "combat";
+  if (message.category !== void 0 && LOOT_TYPES.has(message.category)) return "loot";
+  return "other";
+}
+function messageLine(message) {
+  const count = message.count ?? 1;
+  return count > 1 ? `${message.text} (x${count})` : message.text;
+}
+function lineIsCut(node2) {
+  return node2.clientWidth > 0 && node2.scrollWidth > node2.clientWidth;
+}
+function childWithClass(parent, className) {
+  const children = parent.children;
+  for (let index = 0; index < children.length; index++) {
+    const child = children[index];
+    if (child && child.className === className) return child;
+  }
+  return null;
+}
+function refreshLineCues(list) {
+  const children = list.children;
+  for (let index = 0; index < children.length; index++) {
+    const row = children[index];
+    if (!row || row.className !== "message") continue;
+    const body = childWithClass(row, "body");
+    if (!body) continue;
+    const cue = childWithClass(row, "cut");
+    if (lineIsCut(body)) {
+      if (!cue) {
+        const mark = node(row, "span", "cut", "...");
+        mark.setAttribute("aria-hidden", "true");
+      }
+    } else if (cue) cue.remove();
+  }
+}
+function prefersReducedMotion() {
+  return globalThis.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
+}
+function appendPauseEmblem(parent, label2) {
+  const mark = node(parent, "span", prefersReducedMotion() ? "pause still" : "pause");
+  mark.setAttribute("aria-hidden", "true");
+  node(mark, "i");
+  node(mark, "i");
+  node(mark, "b");
+  node(mark, "b");
+  node(mark, "b");
+  node(parent, "span", "sr", label2);
+}
+function renderMessageLog(mount, model, options = {}) {
+  const previous = mount.querySelector("input")?.value ?? "";
+  const previousFilter = mount.querySelector("select")?.value || "all";
+  mount.replaceChildren();
+  const heading = node(mount, "div", "heading", "Messages");
+  if (model.message_pending === true) {
+    heading.style.color = "#ffba4d";
+    const acknowledge = options.acknowledge;
+    if (acknowledge) {
+      const ribbon = node(mount, "button", "ribbon");
+      ribbon.type = "button";
+      ribbon.style.pointerEvents = "auto";
+      ribbon.style.cursor = "pointer";
+      ribbon.style.background = "transparent";
+      ribbon.style.font = "inherit";
+      ribbon.style.width = "100%";
+      ribbon.style.textAlign = "left";
+      appendPauseEmblem(ribbon, "Messages waiting");
+      ribbon.addEventListener("click", () => {
+        if (!acknowledge()) ribbon.disabled = true;
+      });
+    } else {
+      const ribbon = node(mount, "div", "ribbon");
+      appendPauseEmblem(ribbon, "Messages waiting");
+    }
+  }
+  const filter = node(mount, "select", "messages-filter");
+  filter.setAttribute("aria-label", "Filter messages");
+  for (const [value2, label2] of FILTERS) {
+    const option = node(filter, "option", "", label2);
+    option.value = value2;
+  }
+  filter.value = FILTERS.some(([value2]) => value2 === previousFilter) ? previousFilter : "all";
+  const search = node(mount, "input");
+  search.type = "search";
+  search.placeholder = "Search messages";
+  search.setAttribute("aria-label", "Search messages");
+  search.value = previous;
+  const list = node(mount, "div", "messages");
+  const draw = () => {
+    list.replaceChildren();
+    const match = search.value.toLocaleLowerCase();
+    const compact = mount.closest(".compact") !== null;
+    const selected = compact ? "all" : filter.value || "all";
+    if (!model.messages.length) {
+      node(list, "div", "muted", "No messages yet.");
+      return;
+    }
+    for (const message of model.messages) {
+      if (message.text.trim() === "") continue;
+      const bucket = messageKind(message);
+      if (selected !== "all" && (bucket === "system" ? "other" : bucket) !== selected) continue;
+      if (!compact && !message.text.toLocaleLowerCase().includes(match)) continue;
+      const row = node(list, "div", "message");
+      node(row, "span", "body", messageLine(message));
+      row.style.color = message.color ?? ink[bucket];
+    }
+    refreshLineCues(list);
+  };
+  filter.addEventListener("change", draw);
+  search.addEventListener("input", draw);
+  draw();
+  if (typeof requestAnimationFrame === "function") requestAnimationFrame(() => refreshLineCues(list));
+}
+
 // src/panels/dungeon-card.ts
 function renderDungeonCard(mount, model) {
   mount.replaceChildren();
@@ -2830,7 +3032,9 @@ function renderDungeonCard(mount, model) {
     if (tip2) tile.dataset.tip = tip2;
   }
   for (const [condition, label2] of [[p.trap_detected, "Trap-detected area"], [p.recall, "Recall pending"], [p.descent, "Descent pending"], [p.resting, "Resting"], [p.running, "Running"], [p.repeat, `Repeating: ${p.repeat}`], [p.unignoring, "Showing ignored items"]]) {
-    if (condition) node(mount, "div", "", label2);
+    if (!condition) continue;
+    if (label2 === "Resting") appendPauseEmblem(node(mount, "div"), "Resting");
+    else node(mount, "div", "", label2);
   }
 }
 
@@ -2892,54 +3096,6 @@ function renderTrackedCreature(mount, model) {
   if (target.hp !== void 0 && target.max_hp !== void 0) {
     meter(mount, "HP", `${Math.max(0, target.hp)} / ${target.max_hp}`, fraction(target.hp, target.max_hp), "#8f5e1f");
   }
-}
-
-// src/panels/message-log.ts
-var ink = { system: "#64a0b5b4", combat: "#c88f5fb4", loot: "#b1a962b4", other: "#5b8a71a0" };
-function renderMessageLog(mount, model, options = {}) {
-  const previous = mount.querySelector("input")?.value ?? "";
-  mount.replaceChildren();
-  const heading = node(mount, "div", "heading", "Messages");
-  if (model.message_pending === true) {
-    heading.style.color = "#ffba4d";
-    const acknowledge = options.acknowledge;
-    if (acknowledge) {
-      const ribbon = node(mount, "button", "ribbon", "Messages waiting");
-      ribbon.type = "button";
-      ribbon.style.pointerEvents = "auto";
-      ribbon.style.cursor = "pointer";
-      ribbon.style.background = "transparent";
-      ribbon.style.font = "inherit";
-      ribbon.style.width = "100%";
-      ribbon.style.textAlign = "left";
-      ribbon.addEventListener("click", () => {
-        if (!acknowledge()) ribbon.disabled = true;
-      });
-    } else node(mount, "div", "ribbon", "Messages waiting");
-  }
-  const search = node(mount, "input");
-  search.type = "search";
-  search.placeholder = "Search messages";
-  search.setAttribute("aria-label", "Search messages");
-  search.value = previous;
-  const list = node(mount, "div", "messages");
-  const recent = model.messages.slice(0, 20);
-  const draw = () => {
-    list.replaceChildren();
-    const match = search.value.toLocaleLowerCase();
-    if (!recent.length) {
-      node(list, "div", "muted", "No messages yet.");
-      return;
-    }
-    for (const [index, message] of recent.entries()) {
-      if (!message.text.toLocaleLowerCase().includes(match)) continue;
-      const row = node(list, "div", "message", `${message.text}${index === 0 && (message.count ?? 1) > 1 ? ` (x${message.count})` : ""}`);
-      const group = message.system ? "system" : message.group === "combat" ? "combat" : message.group === "loot" ? "loot" : "other";
-      row.style.color = message.color ?? ink[group];
-    }
-  };
-  search.addEventListener("input", draw);
-  draw();
 }
 
 // src/accessibility.ts
@@ -3937,7 +4093,9 @@ var TERM_COLS = 80;
 var TERM_ROWS = 24;
 var GLYPH_W = 16;
 var GLYPH_H = 24;
-var HOVER_DWELL_MS = 2e3;
+function hoverDwellMs(read) {
+  return validateSettings(read?.()).hoverDelayMs;
+}
 var TOUCH_HOLD_MS = 1e3;
 var TILE_PREVIEW_PX = 64;
 function pointInRect2(rect, x, y) {
@@ -4375,7 +4533,7 @@ function installMapHoverCards(ctx) {
       const still = resolveCaveGrid(lastClientX, lastClientY);
       if (!still || gridKey(still.grid) !== key) return;
       showAt(lastClientX, lastClientY, still);
-    }, HOVER_DWELL_MS);
+    }, hoverDwellMs(() => ctx.prefs?.get()));
   }, { signal: abort.signal });
   return () => {
     abort.abort();
@@ -7021,6 +7179,27 @@ function storeName(featName) {
   const words = featName.replace(/^STORE_/, "").toLowerCase().replace(/_/g, " ");
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
+function bookForStock(item, books) {
+  const sameTval = books.filter((book) => book.tval === item.tval);
+  const text = `${item.name ?? ""} ${item.label}`.toLowerCase();
+  const named = sameTval.filter((book) => book.name.length > 0 && text.includes(book.name.toLowerCase())).sort((a, b) => b.name.length - a.name.length);
+  if (named.length === 0) return null;
+  if (named.length > 1 && named[0].name.length === named[1].name.length) return null;
+  return named[0];
+}
+function stockSpells(item, books) {
+  const book = bookForStock(item, books ?? []);
+  if (!book || book.spells.length === 0) return void 0;
+  return book.spells.map((spell) => ({
+    index: spell.sidx,
+    name: spell.name,
+    level: spell.level,
+    mana: spell.mana,
+    fail: spell.chance ?? spell.fail,
+    learned: spell.learned,
+    infoLine: spell.infoLine
+  }));
+}
 function adaptStore(snap, known) {
   if (snap.phase !== "store" || !snap.core.stores || !snap.core.player || !snap.core.inventory) return null;
   const status = snap.storeStatus && same2(snap.storeStatus.token, snap.token) ? snap.storeStatus : null;
@@ -7070,14 +7249,19 @@ function adaptStore(snap, known) {
     noSelling: status?.noSelling ?? false,
     transactionPrompts: status !== null,
     // ItemView.name, when published, is the game's own object name; label is the kind's raw template.
-    stock: store.stock.map((item) => ({
-      key: item.index,
-      label: item.name ?? item.label,
-      quantity: item.number,
-      colour: item.artifact ? "#e89e42" : item.ego ? "#80b891" : "inherit",
-      eligible: true,
-      ...item.price === void 0 ? {} : { price: item.price }
-    })),
+    stock: store.stock.map((item) => {
+      const spells = stockSpells(item, snap.core.spellbooks);
+      return {
+        key: item.index,
+        kind: itemKey(item),
+        label: item.name ?? item.label,
+        quantity: item.number,
+        colour: item.artifact ? "#e89e42" : item.ego ? "#80b891" : "inherit",
+        eligible: true,
+        ...item.price === void 0 ? {} : { price: item.price },
+        ...spells ? { spells } : {}
+      };
+    }),
     pack,
     prompt: snap.prompt
   };
@@ -7166,6 +7350,7 @@ function installStores(ctx) {
   let panel = null;
   let stopTheme2 = null;
   let stockSelection = null, packSelection = null, unchanged = false, amount = 1, lastPrompt = -1, split = 50;
+  let browsing = null, spellPick = -1;
   let place = "", signature = "", error = "";
   let pending = null;
   let mount = null;
@@ -7206,8 +7391,21 @@ function installStores(ctx) {
       packSelection = null;
       error = "";
       pending = null;
+      browsing = null;
     }
-    if (!model.stock.some((row) => row.key === stockSelection)) stockSelection = null;
+    if (browsing) {
+      const kind = browsing.kind;
+      const book = model.stock.find((row) => row.key === browsing.key && row.kind === kind) ?? model.stock.find((row) => row.kind === kind && row.spells);
+      if (!book) browsing = null;
+      else if (book.key !== browsing.key) {
+        browsing = { key: book.key, kind };
+        stockSelection = book.key;
+      }
+    }
+    if (!model.stock.some((row) => row.key === stockSelection)) {
+      stockSelection = null;
+      browsing = null;
+    }
     if (!model.pack.some((row) => row.key === packSelection)) packSelection = null;
     if (pending) {
       if (model.prompt) pending.seen = true;
@@ -7215,7 +7413,7 @@ function installStores(ctx) {
     }
     const asked = model.prompt?.kind === "quantity" ? model.prompt : null;
     if (pending && asked?.unitPrice !== void 0) pending.unitPrice = asked.unitPrice;
-    const next = JSON.stringify([model, stockSelection, packSelection, unchanged, error, pending]);
+    const next = JSON.stringify([model, stockSelection, packSelection, unchanged, error, pending, browsing, spellPick]);
     if (!force && next === signature) return;
     signature = next;
     const host = mount;
@@ -7263,8 +7461,10 @@ function installStores(ctx) {
         const cell = el7(tr, "td");
         if (!row.eligible) tr.className = "muted";
         const pick = button3(cell, row.label, () => {
-          if (side === "stock") stockSelection = row.key;
-          else packSelection = row.key;
+          if (side === "stock") {
+            if (stockSelection !== row.key) browsing = null;
+            stockSelection = row.key;
+          } else packSelection = row.key;
           paint(true);
         });
         pick.className = "row";
@@ -7325,6 +7525,47 @@ function installStores(ctx) {
         if (parts) for (const part of parts) el7(details, "p", part.text);
         else el7(details, "p", inspection.text);
       }
+      if (side === "stock" && chosen.spells && chosen.spells.length > 0) {
+        const spells = chosen.spells;
+        button3(box, "Browse spells", () => {
+          browsing = { key: chosen.key, kind: chosen.kind };
+          if (!spells.some((spell) => spell.index === spellPick)) spellPick = spells[0].index;
+          paint(true);
+        });
+        if (browsing?.key === chosen.key) {
+          const detail = (index) => {
+            try {
+              const info2 = ctx.inspect?.spellInfo?.(index);
+              return info2 && same3(info2.token, model.token) ? info2 : null;
+            } catch {
+              return null;
+            }
+          };
+          const table2 = el7(box, "table");
+          const head2 = el7(table2, "tr");
+          for (const label2 of ["Spell", "Level", "Mana", "Fail"]) el7(head2, "th", label2);
+          for (const spell of spells) {
+            const tr = el7(table2, "tr");
+            const cell = el7(tr, "td");
+            button3(cell, spell.name, () => {
+              spellPick = spell.index;
+              paint(true);
+            });
+            el7(tr, "td", String(spell.level));
+            el7(tr, "td", String(spell.mana));
+            el7(tr, "td", `${detail(spell.index)?.failChance ?? spell.fail}%`);
+          }
+          const shown = spells.find((spell) => spell.index === spellPick) ?? spells[0];
+          const info = detail(shown.index);
+          el7(box, "p", `Level ${shown.level}. Mana ${shown.mana}. Failure ${info?.failChance ?? shown.fail}%.`);
+          if (shown.infoLine) el7(box, "p", shown.infoLine);
+          if (info?.description) el7(box, "p", info.description);
+          button3(box, "Close", () => {
+            browsing = null;
+            paint(true);
+          });
+        }
+      }
     };
     draw("stock");
     draw("pack");
@@ -7377,21 +7618,38 @@ function installStores(ctx) {
       input.max = String(quantity.max);
       input.value = String(amount);
       input.setAttribute("aria-label", "Amount");
+      const slider = quantity.max > 1 ? el7(box, "input") : null;
+      if (slider) {
+        slider.type = "range";
+        slider.min = String(low);
+        slider.max = String(quantity.max);
+        slider.value = String(amount);
+        slider.setAttribute("aria-label", "Quantity");
+      }
       const actions2 = el7(box, "div");
       actions2.className = "actions";
       const update = () => {
         const valid = Number.isInteger(amount) && amount >= low && amount <= quantity.max;
-        confirm.disabled = !valid;
+        if (slider) slider.value = String(amount);
+        let over = false;
         if (total) {
           const exact = quantity.totals?.[amount];
           const hasExact = typeof exact === "number";
           const sum = hasExact ? exact : amount === 1 && quantity.totalPrice !== void 0 ? quantity.totalPrice : quantity.unitPrice * amount;
-          total.textContent = valid ? `Total: ${!hasExact && amount !== 1 ? "about " : ""}${sum} gold` : "";
-          total.className = !selling && quantity.gold !== void 0 && sum > quantity.gold ? "unaffordable" : "";
+          const about = !hasExact && amount !== 1;
+          total.textContent = valid ? `Total: ${about ? "about " : ""}${sum} gold` : "";
+          over = !about && !selling && quantity.gold !== void 0 && sum > quantity.gold;
+          total.className = over ? "unaffordable" : "";
         }
+        confirm.disabled = !valid || over;
       };
       input.addEventListener("input", () => {
         amount = Number(input.value);
+        update();
+      });
+      slider?.addEventListener("input", () => {
+        amount = Number(slider.value);
+        input.value = String(amount);
         update();
       });
       input.addEventListener("keydown", (event) => {
@@ -7405,7 +7663,9 @@ function installStores(ctx) {
         input.value = String(value2);
         update();
       });
-      const confirm = button3(actions2, "OK", () => reply(amount));
+      const confirm = button3(actions2, "OK", () => {
+        if (!confirm.disabled) reply(amount);
+      });
       button3(actions2, "Cancel", () => reply({ action: "cancel" }));
       update();
       return;
@@ -8371,6 +8631,7 @@ var plugin_default = {
         flags,
         ...ctx.core ? { core: ctx.core } : { core: null },
         ...ctx.state ? { state: ctx.state } : {},
+        ...ctx.prefs ? { prefs: ctx.prefs } : {},
         display
       }));
       displayCleanups.push(installHoverCards({
@@ -8397,6 +8658,7 @@ var plugin_default = {
         flags,
         core: ctx.core ?? null,
         ...ctx.state ? { state: ctx.state } : {},
+        ...ctx.prefs ? { prefs: ctx.prefs } : {},
         ...ctx.display?.snapshot ? { display: ctx.display } : {}
       }));
     }

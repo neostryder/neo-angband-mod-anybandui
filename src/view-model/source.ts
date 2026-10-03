@@ -11,8 +11,8 @@ type SourceCtx = MessageSeams & Pick<ModPluginContext, "state"> & { readonly cor
 type CoreLog = Pick<NonNullable<GameState["messages"]>, "num" | "str" | "count" | "type">;
 /* The host's own message log, oldest first (packages/web/src/input-snapshot.ts
  * InputSnapshot.messages.log). Each entry carries its repeat count and the
- * colour the engine drew it in, so the source no longer has to match against
- * the core log to recover a count or guess a category. */
+ * colour the engine drew it in. It does not carry a message type, so that
+ * still comes from the core log where the text matches. */
 type SnapshotLogEntry = NonNullable<InputSnapshot["messages"]>["log"][number];
 export interface HistoryEntry { readonly text: string; readonly count: number | undefined; readonly category: number | undefined; readonly color: string | undefined }
 
@@ -34,8 +34,8 @@ const MATCH_WINDOW = 8;
  *
  * When the snapshot also carries a `log` (the field the host added alongside
  * `entries` for engine #294), every entry takes its count and the colour the
- * engine drew it in straight from the host's log. The core log is left alone,
- * so an older engine without `log` keeps the text-match path above.
+ * engine drew it in straight from the host's log. The message type is still
+ * the core log's type() where the text matches, and the host count is kept.
  */
 export function messageHistory(
   entries: readonly string[] | null | undefined,
@@ -43,10 +43,20 @@ export function messageHistory(
   hostLog?: readonly SnapshotLogEntry[] | null,
 ): HistoryEntry[] {
   if (hostLog) {
+    const core = log === undefined ? [] : Array.from({ length: log.num() }, (_, age) => ({
+      text: log.str(age), category: log.type(age),
+    }));
     const history: HistoryEntry[] = [];
+    let next = 0;
     for (let index = hostLog.length - 1; index >= 0; index--) {
       const entry = hostLog[index]!;
-      history.push({ text: entry.text, count: entry.count, category: undefined, color: entry.color });
+      let category: number | undefined;
+      let found = -1;
+      for (let age = next; age < Math.min(core.length, next + MATCH_WINDOW); age++) {
+        if (core[age]!.text === entry.text) { found = age; break; }
+      }
+      if (found >= 0) { category = core[found]!.category; next = found + 1; }
+      history.push({ text: entry.text, count: entry.count, category, color: entry.color });
     }
     return history;
   }

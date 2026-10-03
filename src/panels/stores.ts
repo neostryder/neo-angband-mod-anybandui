@@ -1,6 +1,6 @@
 import { applyTheme, onThemeChange } from "../theme.js";
 import { themeFromPrefs } from "../settings.js";
-import type { InputToken, LoadoutSimulation, StoreConfirmPrompt, StoreContext, StoreInspectResult, StorePromptAnswer, StoreQuantityPrompt, StoreReplyResult } from "../seams.js";
+import type { InputToken, LoadoutSimulation, SpellInspectResult, StoreConfirmPrompt, StoreContext, StoreInspectResult, StorePromptAnswer, StoreQuantityPrompt, StoreReplyResult } from "../seams.js";
 import { adaptStore, type StoreModel, type StoreRow } from "../view-model/stores.js";
 import { compareItem } from "../view-model/items.js";
 import { renderItemComparison } from "./item-comparison.js";
@@ -95,6 +95,7 @@ export function installStores(ctx: StoreContext): () => void {
   let panel: ReturnType<NonNullable<NonNullable<StoreContext["ui"]>["openPanel"]>> | null = null;
   let stopTheme: (() => void) | null = null;
   let stockSelection: number | null = null, packSelection: number | null = null, unchanged = false, amount = 1, lastPrompt = -1, split = 50;
+  let browsing: { readonly key: number; readonly kind: string | undefined } | null = null, spellPick = -1;
   let place = "", signature = "", error = "";
   let pending: PendingTrade | null = null;
   let mount: HTMLElement | null = null;
@@ -120,8 +121,16 @@ export function installStores(ctx: StoreContext): () => void {
       mount = el(panel.root, "section"); mount.className = "store";
     }
     const name = `${model.index}:${model.name}`;
-    if (name !== place) { place = name; stockSelection = null; packSelection = null; error = ""; pending = null; }
-    if (!model.stock.some((row) => row.key === stockSelection)) stockSelection = null;
+    if (name !== place) { place = name; stockSelection = null; packSelection = null; error = ""; pending = null; browsing = null; }
+    // Stock rows renumber when a stack sells out, so an open browse follows its
+    // book by kind, the selection with it, and closes once the book is gone.
+    if (browsing) {
+      const kind = browsing.kind;
+      const book = model.stock.find((row) => row.key === browsing!.key && row.kind === kind) ?? model.stock.find((row) => row.kind === kind && row.spells);
+      if (!book) browsing = null;
+      else if (book.key !== browsing.key) { browsing = { key: book.key, kind }; stockSelection = book.key; }
+    }
+    if (!model.stock.some((row) => row.key === stockSelection)) { stockSelection = null; browsing = null; }
     if (!model.pack.some((row) => row.key === packSelection)) packSelection = null;
     // A trade this window started ends once its prompts have come and gone.
     if (pending) { if (model.prompt) pending.seen = true; else if (pending.seen) pending = null; }
@@ -129,7 +138,7 @@ export function installStores(ctx: StoreContext): () => void {
     if (pending && asked?.unitPrice !== undefined) pending.unitPrice = asked.unitPrice;
     // The amount is left out: it changes as the player types, and a repaint
     // would rebuild the box they are typing in.
-    const next = JSON.stringify([model, stockSelection, packSelection, unchanged, error, pending]);
+    const next = JSON.stringify([model, stockSelection, packSelection, unchanged, error, pending, browsing, spellPick]);
     if (!force && next === signature) return;
     signature = next;
     const host = mount!; host.replaceChildren();
@@ -162,7 +171,11 @@ export function installStores(ctx: StoreContext): () => void {
         const tr = el(table, "tr"); const cell = el(tr, "td");
         // A pack item the store will not buy stays selectable for inspection, but greyed out.
         if (!row.eligible) tr.className = "muted";
-        const pick = button(cell, row.label, () => { if (side === "stock") stockSelection = row.key; else packSelection = row.key; paint(true); });
+        const pick = button(cell, row.label, () => {
+          if (side === "stock") { if (stockSelection !== row.key) browsing = null; stockSelection = row.key; }
+          else packSelection = row.key;
+          paint(true);
+        });
         pick.className = "row"; pick.style.color = row.colour;
         pick.title = row.eligible ? row.label : `${row.label}. This store will not buy it.`;
         pick.setAttribute("aria-pressed", String(selected === row.key));
@@ -205,6 +218,40 @@ export function installStores(ctx: StoreContext): () => void {
         const parts = inspection.sections?.filter((part) => part.kind !== "title");
         if (parts) for (const part of parts) el(details, "p", part.text);
         else el(details, "p", inspection.text);
+      }
+      if (side === "stock" && chosen.spells && chosen.spells.length > 0) {
+        const spells = chosen.spells;
+        button(box, "Browse spells", () => {
+          browsing = { key: chosen.key, kind: chosen.kind };
+          if (!spells.some((spell) => spell.index === spellPick)) spellPick = spells[0]!.index;
+          paint(true);
+        });
+        if (browsing?.key === chosen.key) {
+          // spellInfo is the game's own read. A token from another wait is ignored.
+          const detail = (index: number): SpellInspectResult | null => {
+            try {
+              const info = ctx.inspect?.spellInfo?.(index);
+              return info && same(info.token, model.token) ? info : null;
+            } catch { return null; }
+          };
+          const table = el(box, "table");
+          const head = el(table, "tr");
+          for (const label of ["Spell", "Level", "Mana", "Fail"]) el(head, "th", label);
+          for (const spell of spells) {
+            const tr = el(table, "tr");
+            const cell = el(tr, "td");
+            button(cell, spell.name, () => { spellPick = spell.index; paint(true); });
+            el(tr, "td", String(spell.level));
+            el(tr, "td", String(spell.mana));
+            el(tr, "td", `${detail(spell.index)?.failChance ?? spell.fail}%`);
+          }
+          const shown = spells.find((spell) => spell.index === spellPick) ?? spells[0]!;
+          const info = detail(shown.index);
+          el(box, "p", `Level ${shown.level}. Mana ${shown.mana}. Failure ${info?.failChance ?? shown.fail}%.`);
+          if (shown.infoLine) el(box, "p", shown.infoLine);
+          if (info?.description) el(box, "p", info.description);
+          button(box, "Close", () => { browsing = null; paint(true); });
+        }
       }
     };
     draw("stock"); draw("pack");
@@ -251,10 +298,16 @@ export function installStores(ctx: StoreContext): () => void {
       if (quantity.gold !== undefined) el(box, "p", `Your gold: ${quantity.gold}`);
       const input = el(box, "input") as HTMLInputElement; input.type = "number"; input.min = String(low); input.max = String(quantity.max); input.value = String(amount);
       input.setAttribute("aria-label", "Amount");
+      const slider = quantity.max > 1 ? el(box, "input") as HTMLInputElement : null;
+      if (slider) {
+        slider.type = "range"; slider.min = String(low); slider.max = String(quantity.max); slider.value = String(amount);
+        slider.setAttribute("aria-label", "Quantity");
+      }
       const actions = el(box, "div"); actions.className = "actions";
       const update = (): void => {
         const valid = Number.isInteger(amount) && amount >= low && amount <= quantity.max;
-        confirm.disabled = !valid;
+        if (slider) slider.value = String(amount);
+        let over = false;
         if (total) {
           // The engine's totals prices every quantity exactly. Without it,
           // totalPrice follows the digits typed at the game's own prompt, which
@@ -262,15 +315,21 @@ export function installStores(ctx: StoreContext): () => void {
           const exact = quantity.totals?.[amount];
           const hasExact = typeof exact === "number";
           const sum = hasExact ? exact : amount === 1 && quantity.totalPrice !== undefined ? quantity.totalPrice : quantity.unitPrice! * amount;
+          const about = !hasExact && amount !== 1;
           // PROSE
-          total.textContent = valid ? `Total: ${!hasExact && amount !== 1 ? "about " : ""}${sum} gold` : "";
-          total.className = !selling && quantity.gold !== undefined && sum > quantity.gold ? "unaffordable" : "";
+          total.textContent = valid ? `Total: ${about ? "about " : ""}${sum} gold` : "";
+          // An approximate total can run high (a wand or staff stack prices its
+          // charges), so only an exact one blocks OK; the game checks the gold.
+          over = !about && !selling && quantity.gold !== undefined && sum > quantity.gold;
+          total.className = over ? "unaffordable" : "";
         }
+        confirm.disabled = !valid || over;
       };
       input.addEventListener("input", () => { amount = Number(input.value); update(); });
+      slider?.addEventListener("input", () => { amount = Number(slider.value); input.value = String(amount); update(); });
       input.addEventListener("keydown", (event) => { if (event.key === "Enter") { event.stopPropagation(); if (!confirm.disabled) reply(amount); } });
       for (const [label, value] of [["One", 1], ["Half", Math.max(1, Math.floor(quantity.max / 2))], ["All", quantity.max]] as const) button(actions, label, () => { amount = value; input.value = String(value); update(); });
-      const confirm = button(actions, "OK", () => reply(amount));
+      const confirm = button(actions, "OK", () => { if (!confirm.disabled) reply(amount); });
       button(actions, "Cancel", () => reply({ action: "cancel" }));
       update();
       return;

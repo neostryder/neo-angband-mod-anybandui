@@ -249,12 +249,12 @@ describe("store window", () => {
   const original = globalThis.HTMLElement;
   beforeEach(() => { Object.assign(globalThis, { HTMLElement: class {} }); });
   afterEach(() => { Object.assign(globalThis, { HTMLElement: original }); });
-  function open(source: StoreSnapshot, flags: Record<string, boolean> = allFlags) {
+  function open(source: StoreSnapshot, flags: Record<string, boolean> = allFlags, inspect?: StoreContext["inspect"]) {
     let current = source;
     const { ctx, submit, reply } = context(source);
     const root = new FakeNode(); root.host = new FakeNode();
     const close = vi.fn();
-    const store: StoreContext = { ...ctx, flags, snapshot: () => current,
+    const store: StoreContext = { ...ctx, flags, ...(inspect ? { inspect } : {}), snapshot: () => current,
       ui: { openPanel: () => ({ root: root as unknown as ShadowRoot, closed: new Promise<void>(() => {}), close }) } };
     const cleanup = installStores(store);
     return { root, submit, reply, close, cleanup, set: (next: StoreSnapshot) => { current = next; } };
@@ -307,6 +307,43 @@ describe("store window", () => {
     view.root.buttons("All")[0]!.fire("click");
     expect(view.root.text()).toContain("Total: 60 gold");
     expect(view.root.text()).not.toContain("about 60");
+    expect(view.root.buttons("OK")[0]!.disabled).toBe(true);
+    view.root.buttons("OK")[0]!.fire("click");
+    expect(view.reply).not.toHaveBeenCalled();
+    view.cleanup();
+  });
+  it("offers a quantity slider and leaves an approximate total to the game's own gold check", () => {
+    const view = open(snap("store", quantity));
+    const slider = view.root.all().find((node) => node.attributes["aria-label"] === "Quantity");
+    expect(slider?.type).toBe("range");
+    expect(slider?.min).toBe("1");
+    expect(slider?.max).toBe("3");
+    view.root.buttons("All")[0]!.fire("click");
+    expect(slider?.value).toBe("3");
+    // A wand stack can cost less than this estimate, so it does not block OK.
+    expect(view.root.text()).toContain("Total: about 60 gold");
+    expect(view.root.buttons("OK")[0]!.disabled).toBe(false);
+    slider!.value = "2";
+    slider!.fire("input");
+    expect(view.root.text()).toContain("Total: about 40 gold");
+    view.root.buttons("OK")[0]!.fire("click");
+    expect(view.reply).toHaveBeenCalledExactlyOnceWith(10, 2);
+    view.cleanup();
+    const single = open(snap("store", { ...quantity, max: 1 }));
+    expect(single.root.all().some((node) => node.attributes["aria-label"] === "Quantity")).toBe(false);
+    single.cleanup();
+  });
+  it("keeps OK enabled when the character is selling", () => {
+    const sellQ: StoreQuantityPrompt = { ...quantity, promptId: 14, label: "Sell how many?", gold: 10 };
+    const view = open(snap());
+    view.root.buttons("Long Sword")[2]!.fire("click");
+    view.root.buttons("Sell")[0]!.fire("click");
+    view.set(snap("store", sellQ));
+    view.root.buttons("Long Sword")[2]!.fire("click");
+    view.root.buttons("All")[0]!.fire("click");
+    expect(view.root.buttons("OK")[0]!.disabled).toBe(false);
+    view.root.buttons("OK")[0]!.fire("click");
+    expect(view.reply).toHaveBeenCalledExactlyOnceWith(14, 3);
     view.cleanup();
   });
   it("shows the price for a trade it started and gives the confirmation its own buttons", () => {
@@ -395,6 +432,71 @@ describe("store window", () => {
         expect(view.submit).not.toHaveBeenCalled();
         view.cleanup();
       }
+    }
+  });
+  it("browses the spells in a stocked book and shows the game's description", () => {
+    const spell = { name: "Magic Missile", sidx: 4, bidx: 0, level: 1, mana: 2, fail: 20, chance: 30, learned: true, forgotten: false, worked: false, studyEligible: false, infoLine: "dam 2d6" };
+    const base = snap();
+    const stock = [{ ...item(0), index: 0, tval: 30, sval: 0, label: "Magic for Beginners", name: "Magic for Beginners", price: 20 }];
+    const source = { ...base, core: { ...base.core, spellbooks: [{ tval: 30, name: "Magic for Beginners", realm: "arcane", spells: [spell] }], stores: [{ ...base.core.stores![0]!, stock }] } } as StoreSnapshot;
+    const spellInfo = vi.fn((index: number) => index === 4 ? { token, name: "Magic Missile", description: "A bolt of force.", level: 1, mana: 2, failChance: 25, canCastNow: false } : null);
+    const view = open(source, allFlags, { inspectItem: vi.fn(() => null), itemTester: vi.fn(() => null), spellInfo });
+    expect(view.root.buttons("Browse spells")).toEqual([]);
+    view.root.buttons("Magic for Beginners")[0]!.fire("click");
+    view.root.buttons("Browse spells")[0]!.fire("click");
+    const text = view.root.text();
+    expect(text).toContain("Magic Missile");
+    expect(text).toContain("Level 1. Mana 2. Failure 25%.");
+    expect(text).not.toContain("20%");
+    expect(text).toContain("dam 2d6");
+    expect(text).toContain("A bolt of force.");
+    expect(view.root.buttons("Cast")).toEqual([]);
+    expect(spellInfo).toHaveBeenCalledWith(4);
+    view.root.buttons("Close")[0]!.fire("click");
+    expect(view.root.text()).not.toContain("A bolt of force.");
+    view.cleanup();
+
+    const stale = open(source, allFlags, { inspectItem: vi.fn(() => null), itemTester: vi.fn(() => null), spellInfo: () => ({ token: { epoch: 1, revision: 1 }, name: "Magic Missile", description: "From another wait.", level: 1, mana: 2, failChance: 20, canCastNow: false }) });
+    stale.root.buttons("Magic for Beginners")[0]!.fire("click");
+    stale.root.buttons("Browse spells")[0]!.fire("click");
+    expect(stale.root.text()).not.toContain("From another wait.");
+    expect(stale.root.text()).toContain("Level 1. Mana 2. Failure 30%.");
+    stale.cleanup();
+
+    const weapon = open(snap("store", null, status));
+    weapon.root.buttons("Long Sword")[0]!.fire("click");
+    expect(weapon.root.buttons("Browse spells")).toEqual([]);
+    weapon.cleanup();
+  });
+  it("keeps an open browse on its book when the stock renumbers, and closes it once the book is gone", () => {
+    vi.useFakeTimers();
+    try {
+      const spell = { name: "Magic Missile", sidx: 4, bidx: 0, level: 1, mana: 2, fail: 20, learned: true, forgotten: false, worked: false, studyEligible: false, infoLine: "dam 2d6" };
+      const other = { ...spell, name: "Bless", sidx: 9 };
+      const books = [{ tval: 30, name: "Magic for Beginners", realm: "arcane", spells: [spell] }, { tval: 30, name: "Conjurings and Tricks", realm: "arcane", spells: [other] }];
+      const base = snap();
+      const shelf = (stock: readonly object[]): StoreSnapshot => ({ ...base, core: { ...base.core, spellbooks: books, stores: [{ ...base.core.stores![0]!, stock }] } }) as unknown as StoreSnapshot;
+      const beginners = { ...item(0), tval: 30, sval: 0, label: "Magic for Beginners", name: "Magic for Beginners", price: 20 };
+      const conjurings = { ...item(0), tval: 30, sval: 1, label: "Conjurings and Tricks", name: "Conjurings and Tricks", price: 20 };
+      const sword = { ...item(0), index: 0, price: 20 };
+      const view = open(shelf([sword, { ...conjurings, index: 1 }, { ...beginners, index: 2 }]));
+      view.root.buttons("Magic for Beginners")[0]!.fire("click");
+      view.root.buttons("Browse spells")[0]!.fire("click");
+      expect(view.root.buttons("Magic Missile")).toHaveLength(1);
+      // The sword sells out, so every later row moves up one place.
+      view.set(shelf([{ ...conjurings, index: 0 }, { ...beginners, index: 1 }]));
+      vi.advanceTimersByTime(200);
+      expect(view.root.buttons("Magic Missile")).toHaveLength(1);
+      expect(view.root.buttons("Bless")).toEqual([]);
+      expect(view.root.buttons("Magic for Beginners")[0]!.attributes["aria-pressed"]).toBe("true");
+      view.set(shelf([{ ...conjurings, index: 0 }]));
+      vi.advanceTimersByTime(200);
+      expect(view.root.buttons("Magic Missile")).toEqual([]);
+      expect(view.root.buttons("Bless")).toEqual([]);
+      expect(view.root.buttons("Close")).toEqual([]);
+      view.cleanup();
+    } finally {
+      vi.useRealTimers();
     }
   });
 });

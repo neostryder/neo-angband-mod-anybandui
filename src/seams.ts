@@ -70,7 +70,7 @@ export type InspectSection = NonNullable<InspectResult["sections"]>[number];
 export type StoreInspectResult = InspectResult;
 export type LoadoutSlotRef = LoadoutItemRef;
 export type LoadoutSlotsResult = import("@rpgm-tools/neo-angband-core").LoadoutSlotsResult;
-export type StoreInspectSeam = Pick<ModInspect, "inspectItem" | "itemTester"> & Partial<Pick<ModInspect, "itemRules" | "compareLoadoutSlots">>;
+export type StoreInspectSeam = Pick<ModInspect, "inspectItem" | "itemTester"> & Partial<Pick<ModInspect, "itemRules" | "compareLoadoutSlots" | "spellInfo">>;
 
 export type RestMode = import("@rpgm-tools/neo-angband-core").RestMode;
 export type BookItemResult = import("@rpgm-tools/neo-angband-core").BookItemResult;

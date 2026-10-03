@@ -122,6 +122,7 @@ export default {
       displayCleanups.push(installMapHoverCards({ flags,
         ...(ctx.core ? { core: ctx.core } : { core: null }),
         ...(ctx.state ? { state: ctx.state as unknown as NonNullable<Parameters<typeof installMapHoverCards>[0]["state"]> } : {}),
+        ...(ctx.prefs ? { prefs: ctx.prefs } : {}),
         display }));
       displayCleanups.push(installHoverCards({ flags: { ...flags, "anybandui.mapHoverCards": false }, display,
         ...(ctx.snapshot ? { snapshot: ctx.snapshot } : {}),
@@ -141,6 +142,7 @@ export default {
         !(ctx.display?.snapshot && ctx.display.onKey && ctx.display.setGrid && ctx.display.setCamera && ctx.display.setSidebarExtent && ctx.display.repaint)) {
       displayCleanups.push(installMapHoverCards({ flags, core: ctx.core ?? null,
         ...(ctx.state ? { state: ctx.state as unknown as NonNullable<Parameters<typeof installMapHoverCards>[0]["state"]> } : {}),
+        ...(ctx.prefs ? { prefs: ctx.prefs } : {}),
         ...(ctx.display?.snapshot ? { display: ctx.display as NonNullable<ZoomPanContext["display"]> } : {}) }));
     }
     displayCleanups.push(installMapMouse({ flags,
