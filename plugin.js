@@ -1,4 +1,4 @@
-// neo-angband-mod-anybandui - generated from plugin.ts by neo-angband-mod-build
+// p8-saves - generated from plugin.ts by neo-angband-mod-build
 // (@rpgm-tools/neo-angband-mod-sdk). Edit the TypeScript source, not this file.
 
 // src/view-model/adapter.ts
@@ -928,8 +928,8 @@ function wrapBitmapParagraphs(text, maxChars) {
     (paragraph) => paragraph.trim() === "" ? [""] : wrapBitmapText(paragraph, maxChars)
   );
 }
-function styleAsScreenReaderOnly(el8) {
-  Object.assign(el8.style, {
+function styleAsScreenReaderOnly(el9) {
+  Object.assign(el9.style, {
     position: "absolute",
     width: "1px",
     height: "1px",
@@ -953,14 +953,14 @@ function bitmapTextBlock(lines, cellWidth, cellHeight, dpr) {
   wrap.appendChild(label2);
   return wrap;
 }
-function paintBitmapButtonLabel(button4, text, css, cellWidth, cellHeight, dpr) {
-  button4.replaceChildren();
-  if (!button4.hasAttribute("aria-label")) button4.setAttribute("aria-label", text);
+function paintBitmapButtonLabel(button5, text, css, cellWidth, cellHeight, dpr) {
+  button5.replaceChildren();
+  if (!button5.hasAttribute("aria-label")) button5.setAttribute("aria-label", text);
   const canvas = document.createElement("canvas");
   canvas.setAttribute("aria-hidden", "true");
   canvas.style.display = "block";
   paintBitmapLine(canvas, [{ text, css }], cellWidth, cellHeight, dpr);
-  button4.appendChild(canvas);
+  button5.appendChild(canvas);
 }
 
 // src/paint.ts
@@ -2390,11 +2390,11 @@ function paintSidebar(rt, section2, frame) {
     sidebar.body.appendChild(row);
   }
   if (plan.pages > 1) {
-    const button4 = document.createElement("button");
-    button4.type = "button";
-    button4.setAttribute("data-anybandui-sidebar-page", "");
-    button4.setAttribute("aria-label", `Show status page ${String((plan.page + 1) % plan.pages + 1)} of ${String(plan.pages)}`);
-    Object.assign(button4.style, {
+    const button5 = document.createElement("button");
+    button5.type = "button";
+    button5.setAttribute("data-anybandui-sidebar-page", "");
+    button5.setAttribute("aria-label", `Show status page ${String((plan.page + 1) % plan.pages + 1)} of ${String(plan.pages)}`);
+    Object.assign(button5.style, {
       appearance: "none",
       background: "transparent",
       border: "1px solid #686878",
@@ -2405,15 +2405,15 @@ function paintSidebar(rt, section2, frame) {
       padding: "0 0.35em"
     });
     paintBitmapButtonLabel(
-      button4,
+      button5,
       `${String(plan.page + 1)}/${String(plan.pages)} >`,
       "#d8d87c",
       cellWidth,
       cellHeight,
       dpr
     );
-    button4.addEventListener("click", () => turnSidebarPage(rt, 1));
-    sidebar.body.appendChild(button4);
+    button5.addEventListener("click", () => turnSidebarPage(rt, 1));
+    sidebar.body.appendChild(button5);
   }
 }
 function cameraOrigin(snapshot, point) {
@@ -2996,8 +2996,8 @@ function renderMessageLog(mount, model, options = {}) {
   const draw = () => {
     list.replaceChildren();
     const match = search.value.toLocaleLowerCase();
-    const compact = mount.closest(".compact") !== null;
-    const selected = compact ? "all" : filter.value || "all";
+    const compact2 = mount.closest(".compact") !== null;
+    const selected = compact2 ? "all" : filter.value || "all";
     if (!model.messages.length) {
       node(list, "div", "muted", "No messages yet.");
       return;
@@ -3006,7 +3006,7 @@ function renderMessageLog(mount, model, options = {}) {
       if (message.text.trim() === "") continue;
       const bucket = messageKind(message);
       if (selected !== "all" && (bucket === "system" ? "other" : bucket) !== selected) continue;
-      if (!compact && !message.text.toLocaleLowerCase().includes(match)) continue;
+      if (!compact2 && !message.text.toLocaleLowerCase().includes(match)) continue;
       const row = node(list, "div", "message");
       node(row, "span", "body", messageLine(message));
       row.style.color = message.color ?? ink[bucket];
@@ -4167,18 +4167,18 @@ function hoverCardContent(core, state, grid) {
   return { kind, text, title: KIND_TITLE[kind] };
 }
 var hoverCardsWired = false;
-function positionHoverCard(el8, clientX, clientY) {
+function positionHoverCard(el9, clientX, clientY) {
   const GAP = 14;
   const vw = window.innerWidth;
   const vh = window.innerHeight;
-  const w = el8.offsetWidth;
-  const h = el8.offsetHeight;
+  const w = el9.offsetWidth;
+  const h = el9.offsetHeight;
   let left = clientX + GAP;
   let top = clientY + GAP;
   if (left + w > vw) left = clientX - GAP - w;
   if (top + h > vh) top = clientY - GAP - h;
-  el8.style.left = `${String(Math.max(0, left))}px`;
-  el8.style.top = `${String(Math.max(0, top))}px`;
+  el9.style.left = `${String(Math.max(0, left))}px`;
+  el9.style.top = `${String(Math.max(0, top))}px`;
 }
 var HOVER_CARD_CELL_HEIGHT = 14;
 var HOVER_CARD_CELL_WIDTH = HOVER_CARD_CELL_HEIGHT * (16 / 24);
@@ -5050,19 +5050,19 @@ function renderEquipmentPortrait(parent, slots, worn, selectedKey, onSelect) {
   extras.className = "extras";
   const selected = Math.max(0, cards.findIndex((card) => card.key === selectedKey));
   cards.forEach((card, index) => {
-    const button4 = el2(card.row === null ? extras : body, "button");
-    button4.type = "button";
-    button4.className = card.row === null ? "slotcard" : `slotcard ${card.right ? "right" : "left"}`;
-    if (card.row !== null) button4.style.gridRow = String(card.row + 1);
-    button4.setAttribute("aria-pressed", String(card.key === selectedKey));
-    if (index === selected) button4.dataset["focus"] = "portrait-slot";
-    const title = el2(button4, "b", card.label);
+    const button5 = el2(card.row === null ? extras : body, "button");
+    button5.type = "button";
+    button5.className = card.row === null ? "slotcard" : `slotcard ${card.right ? "right" : "left"}`;
+    if (card.row !== null) button5.style.gridRow = String(card.row + 1);
+    button5.setAttribute("aria-pressed", String(card.key === selectedKey));
+    if (index === selected) button5.dataset["focus"] = "portrait-slot";
+    const title = el2(button5, "b", card.label);
     if (!card.item) title.className = "muted";
-    const name = el2(button4, "span", card.item ?? "Empty");
+    const name = el2(button5, "span", card.item ?? "Empty");
     if (card.colour) name.style.color = card.colour;
     if (!card.item) name.className = "muted";
-    if (card.inscription) button4.title = card.inscription;
-    button4.addEventListener("click", () => onSelect(card.key));
+    if (card.inscription) button5.title = card.inscription;
+    button5.addEventListener("click", () => onSelect(card.key));
   });
   wrap.addEventListener("keydown", (event) => {
     const next = stepSelection(cards.length, cards.findIndex((card2) => card2.key === selectedKey), event.key);
@@ -5772,12 +5772,12 @@ function renderCharacterSheet(parent, data, page, onPage) {
   tabs.className = "tabs";
   tabs.setAttribute("role", "tablist");
   SHEET_PAGES.forEach((name2, index) => {
-    const button4 = el4(tabs, "button", name2);
-    button4.type = "button";
-    button4.setAttribute("role", "tab");
-    button4.setAttribute("aria-selected", String(index === page));
-    button4.dataset["focus"] = pageFocus(index);
-    button4.addEventListener("click", () => onPage(index));
+    const button5 = el4(tabs, "button", name2);
+    button5.type = "button";
+    button5.setAttribute("role", "tab");
+    button5.setAttribute("aria-selected", String(index === page));
+    button5.dataset["focus"] = pageFocus(index);
+    button5.addEventListener("click", () => onPage(index));
   });
   tabs.addEventListener("keydown", (event) => {
     const next = stepSheetPage(page, event.key);
@@ -5930,10 +5930,10 @@ function renderThemeEditor(parent, draft, note, onPreview, onRebuild, onSave, on
   const presets = el5(parent, "div");
   presets.className = "tabs";
   for (const [id, label2] of THEME_CHOICES) {
-    const button4 = el5(presets, "button", label2);
-    button4.type = "button";
-    button4.setAttribute("aria-pressed", String(draft.preset === id && !draft.invert_dungeon && draft.rounding === THEMES[id].rounding && draft.background === THEMES[id].background));
-    button4.addEventListener("click", () => {
+    const button5 = el5(presets, "button", label2);
+    button5.type = "button";
+    button5.setAttribute("aria-pressed", String(draft.preset === id && !draft.invert_dungeon && draft.rounding === THEMES[id].rounding && draft.background === THEMES[id].background));
+    button5.addEventListener("click", () => {
       const theme = THEMES[id];
       draft.preset = id;
       draft.background = theme.background;
@@ -6217,10 +6217,10 @@ function installMapMouse(ctx) {
     menu.style.borderRadius = `${Math.round(theme.rounding * 0.6)}px`;
     const buttons = menu.querySelectorAll("button");
     for (let index = 0; index < buttons.length; index += 1) {
-      const button4 = buttons[index];
-      if (!button4) continue;
-      button4.style.background = theme.surface;
-      button4.style.color = theme.text;
+      const button5 = buttons[index];
+      if (!button5) continue;
+      button5.style.background = theme.surface;
+      button5.style.color = theme.text;
     }
   };
   const stopTheme2 = onThemeChange((next) => {
@@ -6280,18 +6280,18 @@ function installMapMouse(ctx) {
     menuToken = snap.token;
     menuPromptId = snap.prompt?.promptId ?? null;
     for (const action of actions) {
-      const button4 = document.createElement("button");
-      button4.type = "button";
-      button4.setAttribute("role", "menuitem");
-      button4.textContent = action.label;
-      button4.style.cssText = `display:block;width:100%;text-align:left;background:${theme.surface};color:${theme.text};border:0;padding:3px 9px;cursor:pointer;font:inherit`;
-      button4.addEventListener("pointerenter", () => {
-        button4.style.background = paintColours(theme).hover;
+      const button5 = document.createElement("button");
+      button5.type = "button";
+      button5.setAttribute("role", "menuitem");
+      button5.textContent = action.label;
+      button5.style.cssText = `display:block;width:100%;text-align:left;background:${theme.surface};color:${theme.text};border:0;padding:3px 9px;cursor:pointer;font:inherit`;
+      button5.addEventListener("pointerenter", () => {
+        button5.style.background = paintColours(theme).hover;
       });
-      button4.addEventListener("pointerleave", () => {
-        button4.style.background = theme.surface;
+      button5.addEventListener("pointerleave", () => {
+        button5.style.background = theme.surface;
       });
-      button4.addEventListener("click", () => {
+      button5.addEventListener("click", () => {
         const current = ctx.snapshot?.() ?? null;
         if (!menuAt || !current || !menuToken || !sameToken(menuToken, current.token) || menuPromptId !== (current.prompt?.promptId ?? null)) {
           hide();
@@ -6311,7 +6311,7 @@ function installMapMouse(ctx) {
         } else runMenuAction(ctx, selected, action.label);
         hide();
       });
-      menu.appendChild(button4);
+      menu.appendChild(button5);
     }
     menu.style.display = "block";
     menu.style.left = `${Math.min(event.clientX, window.innerWidth - menu.offsetWidth)}px`;
@@ -7116,13 +7116,13 @@ ${snap?.core.player?.race ?? ""}`;
         }
         if (restMode === 1 && (!Number.isInteger(turns) || turns < 1 || turns > 9999)) el6(box, "p", "Enter between 1 and 9999 turns.");
         el6(box, "p", "Danger interrupts rest normally.");
-        const confirm = button2(box, "Rest", () => {
+        const confirm2 = button2(box, "Rest", () => {
           const count = restMode === 1 ? turns : restMode;
           if (!(asking ? answerRest(ctx, snap, count) : rest(ctx, snap, count))) fail("Rest unavailable.");
           else restOpen = false;
           paint(true);
         });
-        confirm.disabled = restMode === 1 && (!Number.isInteger(turns) || turns < 1 || turns > 9999);
+        confirm2.disabled = restMode === 1 && (!Number.isInteger(turns) || turns < 1 || turns > 9999);
         button2(box, "Cancel", () => {
           if (asking) answerRest(ctx, snap, null);
           restOpen = false;
@@ -7641,7 +7641,7 @@ function installStores(ctx) {
           over = !about && !selling && quantity.gold !== void 0 && sum > quantity.gold;
           total.className = over ? "unaffordable" : "";
         }
-        confirm.disabled = !valid || over;
+        confirm2.disabled = !valid || over;
       };
       input.addEventListener("input", () => {
         amount = Number(input.value);
@@ -7655,7 +7655,7 @@ function installStores(ctx) {
       input.addEventListener("keydown", (event) => {
         if (event.key === "Enter") {
           event.stopPropagation();
-          if (!confirm.disabled) reply(amount);
+          if (!confirm2.disabled) reply(amount);
         }
       });
       for (const [label2, value2] of [["One", 1], ["Half", Math.max(1, Math.floor(quantity.max / 2))], ["All", quantity.max]]) button3(actions2, label2, () => {
@@ -7663,8 +7663,8 @@ function installStores(ctx) {
         input.value = String(value2);
         update();
       });
-      const confirm = button3(actions2, "OK", () => {
-        if (!confirm.disabled) reply(amount);
+      const confirm2 = button3(actions2, "OK", () => {
+        if (!confirm2.disabled) reply(amount);
       });
       button3(actions2, "Cancel", () => reply({ action: "cancel" }));
       update();
@@ -8539,6 +8539,1326 @@ function coexistingFlags(flags, mods, log) {
   return Object.freeze({ ...flags, ...Object.fromEntries(yielded.map((feature) => [feature.flag, false])) });
 }
 
+// src/menus/dialog.ts
+var DIALOG_CSS = `:host{color:var(--anyband-text);font:var(--anyband-font-size)/var(--anyband-line) var(--anyband-font)}
+.dialog{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);box-sizing:border-box;width:max-content;min-width:min(320px,calc(100vw - 24px));max-width:min(900px,calc(100vw - 24px));max-height:calc(100vh - 24px);overflow:auto;padding:10px 12px;background:var(--anyband-surface);border:1px solid var(--anyband-accent);border-radius:var(--anyband-rounding)}
+.dialog.wide{width:min(900px,calc(100vw - 24px))}
+h2{margin:0 0 6px;font-size:1.15em}h3{margin:8px 0 4px;font-size:1em;opacity:.8;text-transform:uppercase;letter-spacing:.05em}
+p{margin:4px 0}
+button{font:inherit;color:var(--anyband-text);background:var(--anyband-background);border:1px solid var(--anyband-accent);border-radius:3px;padding:3px 8px;cursor:pointer}
+button:disabled{opacity:.45;cursor:default}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--anyband-accent)}
+input,select{font:inherit;color:var(--anyband-text);background:var(--anyband-background);border:1px solid var(--anyband-accent);border-radius:3px;padding:3px 6px}
+.actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.muted{opacity:.65}.error{color:#e8806f}
+.tabs{display:flex;gap:5px;flex-wrap:wrap;margin:8px 0}
+.tabs button[aria-selected="true"]{border-width:2px}
+table{width:100%;border-collapse:collapse}td,th{padding:2px 6px;border-bottom:1px solid var(--anyband-accent);text-align:left;vertical-align:top}
+th{opacity:.8;font-weight:normal}
+.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:6px;margin:8px 0}
+.metric{border:1px solid var(--anyband-accent);border-radius:calc(var(--anyband-rounding) * .6);padding:4px 6px}
+.metric .label{display:block;opacity:.65;font-size:.85em;text-transform:uppercase}
+.metric .value{display:block;font-size:1.2em}`;
+var serial = 0;
+function openDialog(ctx, spec) {
+  const ui = ctx.ui;
+  if (!ui?.openPanel) return null;
+  let panel;
+  serial += 1;
+  try {
+    panel = ui.openPanel({ id: `${spec.id}-${serial}`, modal: true, label: spec.label });
+  } catch (error) {
+    ctx.log(`${spec.label}: the panel could not open (${error instanceof Error ? error.message : String(error)})`);
+    return null;
+  }
+  const root = panel.root;
+  applyTheme(root, themeFromPrefs(ctx.prefs?.get()));
+  const style = root.ownerDocument.createElement("style");
+  style.textContent = `${DIALOG_CSS}${spec.css ?? ""}`;
+  root.appendChild(style);
+  const body = root.ownerDocument.createElement("section");
+  body.className = `dialog${spec.className ? ` ${spec.className}` : ""}`;
+  body.setAttribute("role", "dialog");
+  body.setAttribute("aria-label", spec.label);
+  root.appendChild(body);
+  const stopTheme2 = onThemeChange((theme) => applyTheme(root, theme));
+  let open = true;
+  let byPlayer = false;
+  void panel.closed.then(() => {
+    if (open) byPlayer = true;
+    open = false;
+    stopTheme2();
+  });
+  return {
+    root,
+    body,
+    closed: panel.closed,
+    dismissedByPlayer: () => byPlayer,
+    isOpen: () => open,
+    close: () => {
+      if (!open) return;
+      open = false;
+      stopTheme2();
+      panel.close();
+    }
+  };
+}
+function el8(parent, tag, text, className) {
+  const child = parent.ownerDocument.createElement(tag);
+  if (text !== void 0) child.textContent = text;
+  if (className) child.className = className;
+  parent.appendChild(child);
+  return child;
+}
+function button4(parent, label2, onClick, focusKey) {
+  const node2 = el8(parent, "button", label2);
+  node2.type = "button";
+  if (focusKey) node2.dataset["focus"] = focusKey;
+  node2.addEventListener("click", () => {
+    if (!node2.disabled) onClick();
+  });
+  return node2;
+}
+function stepFocus(items, current, key, axis = "vertical") {
+  const forward = axis === "horizontal" ? ["ArrowRight"] : axis === "vertical" ? ["ArrowDown"] : ["ArrowDown", "ArrowRight"];
+  const back = axis === "horizontal" ? ["ArrowLeft"] : axis === "vertical" ? ["ArrowUp"] : ["ArrowUp", "ArrowLeft"];
+  const ends = key === "Home" ? 0 : key === "End" ? items.length - 1 : null;
+  if (!forward.includes(key) && !back.includes(key) && ends === null) return null;
+  if (!items.length) return null;
+  const at = current ? items.indexOf(current) : -1;
+  const next = ends !== null ? ends : at < 0 ? 0 : forward.includes(key) ? Math.min(items.length - 1, at + 1) : Math.max(0, at - 1);
+  items[next]?.focus();
+  return next;
+}
+function metric(parent, label2, value2, tooltip) {
+  const box = el8(parent, "div", void 0, "metric");
+  el8(box, "span", label2, "label");
+  el8(box, "span", value2, "value");
+  if (tooltip) box.title = tooltip;
+  return box;
+}
+function formatWhen(ms) {
+  if (!Number.isFinite(ms) || ms <= 0) return "Unknown";
+  const date = new Date(ms);
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+function matches(text, query) {
+  return text.toLowerCase().includes(query.toLowerCase());
+}
+
+// src/menus/confirm.ts
+function openConfirm(ctx, options) {
+  const dialog = openDialog(ctx, { id: "confirm", label: options.title, className: "confirm" });
+  if (!dialog) return { answer: Promise.resolve(false), opened: false, dismiss: () => {
+  } };
+  let settle = () => {
+  };
+  const answer = new Promise((resolve2) => {
+    settle = resolve2;
+  });
+  let done = false;
+  const finish = (value2) => {
+    if (done) return;
+    done = true;
+    dialog.close();
+    settle(value2);
+  };
+  void dialog.closed.then(() => finish(false));
+  el8(dialog.body, "h2", options.title);
+  el8(dialog.body, "p", options.message);
+  if (options.detail) el8(dialog.body, "p", options.detail, "muted");
+  const row = el8(dialog.body, "div", void 0, "actions");
+  const yes = button4(row, options.yes ?? "Yes", () => finish(true), "yes");
+  const no = button4(row, options.no ?? "No", () => finish(false), "no");
+  row.addEventListener("keydown", (event) => {
+    if (stepFocus([yes, no], dialog.root.activeElement, event.key, "horizontal") !== null) event.preventDefault();
+  });
+  dialog.body.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      finish(false);
+    }
+  });
+  (options.danger ? no : yes).focus();
+  return { answer, opened: true, dismiss: () => finish(false) };
+}
+function confirm(ctx, options) {
+  return openConfirm(ctx, options).answer;
+}
+function confirmPrompt(prompt) {
+  if (!prompt || typeof prompt !== "object") return null;
+  const p = prompt;
+  return p.kind === "confirm" && typeof p.promptId === "number" && typeof p.label === "string" ? p : null;
+}
+function installYesNoPrompts(ctx) {
+  if (ctx.flags?.["anybandui.yesNoPrompts"] !== true) return () => {
+  };
+  const read = ctx.snapshot, reply = ctx.prompt;
+  if (!read || !reply || !ctx.ui?.openPanel) {
+    ctx.log("yes/no prompts: this game has no prompt reply or panel seam");
+    return () => {
+    };
+  }
+  let shown = null;
+  let skipped = null;
+  const poll = () => {
+    let snap = null;
+    try {
+      snap = read();
+    } catch {
+      snap = null;
+    }
+    const prompt = snap && snap.phase !== "store" ? confirmPrompt(snap.prompt) : null;
+    if (shown && shown.id !== prompt?.promptId) {
+      const stale = shown;
+      shown = null;
+      stale.handle.dismiss();
+    }
+    if (!prompt || shown || skipped === prompt.promptId) return;
+    const id = prompt.promptId;
+    const handle = openConfirm(ctx, { title: "Angband asks", message: prompt.label.trim(), yes: "Yes", no: "No" });
+    if (!handle.opened) {
+      skipped = id;
+      return;
+    }
+    shown = { id, handle };
+    void handle.answer.then((value2) => {
+      if (shown?.id !== id) return;
+      shown = null;
+      try {
+        reply.reply(id, value2);
+      } catch (error) {
+        ctx.log(`yes/no prompts: reply refused (${String(error)})`);
+      }
+    });
+  };
+  const timer2 = globalThis.setInterval(poll, 200);
+  poll();
+  return () => {
+    globalThis.clearInterval(timer2);
+    const open = shown;
+    shown = null;
+    open?.handle.dismiss();
+  };
+}
+
+// src/menus/journal.ts
+var JOURNAL_CATEGORIES = ["All milestones", "Level-ups", "New depths", "Unique victories", "Artifacts"];
+var CATEGORY_KIND = [null, "level", "depth", "unique", "artifact"];
+function journalSymbol(kind) {
+  return kind === "level" ? "+" : kind === "depth" ? ">" : kind === "unique" ? "!" : kind === "artifact" ? "*" : kind === "ending" ? "X" : "@";
+}
+function journalTint(kind) {
+  return kind === "artifact" ? "#ebc266" : kind === "unique" || kind === "ending" ? "#e8806e" : kind === "depth" ? "#80bae3" : "#80c299";
+}
+function depthText(depth) {
+  return `Reached ${depth * 50} ft (dungeon level ${depth}).`;
+}
+function journalFromHistory(history, depths = []) {
+  const marks = [...depths].sort((a, b) => a.after - b.after);
+  const merged = [];
+  const levels = /* @__PURE__ */ new Set();
+  let d = 0;
+  const depthsUpTo = (count) => {
+    while (d < marks.length && marks[d].after <= count) {
+      const mark = marks[d++];
+      merged.push({ kind: "depth", text: depthText(mark.depth), turn: null, depth: mark.depth, level: mark.level, lost: false });
+    }
+  };
+  history.forEach((entry2, index) => {
+    depthsUpTo(index);
+    const kind = entry2.kind === "level" ? "level" : entry2.kind === "unique" ? "unique" : entry2.kind === "artifact" || entry2.kind === "artifact-unknown" ? "artifact" : "other";
+    if (kind === "level") {
+      if (levels.has(entry2.level)) return;
+      levels.add(entry2.level);
+    }
+    merged.push({ kind, text: entry2.text, turn: entry2.turn, depth: entry2.depth, level: entry2.level, lost: entry2.lost });
+  });
+  depthsUpTo(Number.POSITIVE_INFINITY);
+  return merged;
+}
+function endingText(report) {
+  if (report.outcome === "winner") return "Won the game.";
+  if (report.outcome === "retired") return "Retired.";
+  return `Killed by ${report.cause}.`;
+}
+function endingEntry(report) {
+  return { kind: "ending", text: endingText(report), turn: report.turn, depth: report.depth, level: report.level, lost: false };
+}
+function journalMeta(entry2) {
+  const where = `Lv ${entry2.level}  /  ${entry2.depth === 0 ? "Town" : `Depth ${entry2.depth}`}`;
+  return entry2.turn === null ? where : `${where}  /  Turn ${entry2.turn}`;
+}
+function newJournalFilter() {
+  return { search: "", newest: true, category: 0 };
+}
+function filterJournal(entries, filter) {
+  const kind = CATEGORY_KIND[filter.category] ?? null;
+  const shown = entries.filter((entry2) => (kind === null || entry2.kind === kind) && matches(entry2.text, filter.search));
+  return filter.newest ? shown.reverse() : shown;
+}
+var JOURNAL_CSS = `.journal-controls{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:6px 0}
+.timeline{list-style:none;margin:0;padding:0}
+.timeline li{display:grid;grid-template-columns:2em 1fr;gap:8px;margin:0 0 6px}
+.timeline .mark{display:flex;align-items:center;justify-content:center;height:2em;border:1px solid currentColor;border-radius:3px}
+.timeline .entry{border:1px solid var(--anyband-accent);border-radius:calc(var(--anyband-rounding) * .6);padding:3px 8px}
+.timeline .meta{display:block;font-size:.8em;opacity:.65}`;
+function createJournalView(parent, filter, focusPrefix = "journal") {
+  const controls = el8(parent, "div", void 0, "journal-controls");
+  const search = el8(controls, "input");
+  search.type = "search";
+  search.placeholder = "Search milestones";
+  search.setAttribute("aria-label", "Search milestones");
+  search.value = filter.search;
+  search.dataset["focus"] = `${focusPrefix}-search`;
+  const newestLabel = el8(controls, "label");
+  const newest = el8(newestLabel, "input");
+  newest.type = "checkbox";
+  newest.checked = filter.newest;
+  newest.dataset["focus"] = `${focusPrefix}-newest`;
+  el8(newestLabel, "span", " Newest first");
+  const category = el8(controls, "select");
+  category.setAttribute("aria-label", "Milestone type");
+  category.dataset["focus"] = `${focusPrefix}-category`;
+  JOURNAL_CATEGORIES.forEach((name, index) => {
+    const option = el8(category, "option", name);
+    option.value = String(index);
+  });
+  category.value = String(filter.category);
+  const list = el8(parent, "ol", void 0, "timeline");
+  let last = null;
+  const draw = () => {
+    list.replaceChildren();
+    if (last === null) {
+      el8(list, "li", "No journal was recorded for this run.", "muted");
+      return;
+    }
+    const shown = filterJournal(last, filter);
+    if (!shown.length) {
+      el8(list, "li", "No matching milestones yet.", "muted");
+      return;
+    }
+    for (const entry2 of shown) {
+      const item = el8(list, "li");
+      const mark = el8(item, "span", journalSymbol(entry2.kind), "mark");
+      mark.style.color = journalTint(entry2.kind);
+      mark.setAttribute("aria-hidden", "true");
+      const box = el8(item, "span", void 0, "entry");
+      el8(box, "span", entry2.lost ? `${entry2.text} (lost)` : entry2.text);
+      el8(box, "span", journalMeta(entry2), "meta");
+    }
+  };
+  search.addEventListener("input", () => {
+    filter.search = search.value;
+    draw();
+  });
+  newest.addEventListener("change", () => {
+    filter.newest = newest.checked;
+    draw();
+  });
+  category.addEventListener("change", () => {
+    filter.category = Number(category.value) || 0;
+    draw();
+  });
+  return { update(entries) {
+    last = entries;
+    draw();
+  } };
+}
+
+// src/menus/run-journal.ts
+var DEPTH_KEY = "journalDepths";
+var DEPTH_POLL_MS = 1e3;
+function readDepthMarks(store) {
+  let bag;
+  try {
+    bag = store?.get();
+  } catch {
+    return [];
+  }
+  const raw = bag && typeof bag === "object" ? bag[DEPTH_KEY] : void 0;
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((mark) => !!mark && typeof mark === "object" && Number.isFinite(mark.depth) && Number.isFinite(mark.level) && Number.isInteger(mark.after) && mark.after >= 0);
+}
+function recordDepth(ctx) {
+  const store = ctx.characterStore;
+  if (!store) return false;
+  let snap = null;
+  try {
+    snap = ctx.snapshot?.() ?? null;
+  } catch {
+    snap = null;
+  }
+  const player = snap?.core?.player;
+  const depth = player?.depth;
+  if (typeof depth !== "number" || depth <= 0) return false;
+  const marks = readDepthMarks(store);
+  if (marks.some((mark) => mark.depth >= depth)) return false;
+  let bag;
+  try {
+    bag = store.get();
+  } catch {
+    bag = null;
+  }
+  const root = bag && typeof bag === "object" && !Array.isArray(bag) ? bag : {};
+  let after = 0;
+  try {
+    after = ctx.character?.history().length ?? 0;
+  } catch {
+    after = 0;
+  }
+  try {
+    store.set({ ...root, [DEPTH_KEY]: [...marks, { depth, level: player?.level ?? 0, after }] });
+    return true;
+  } catch (error) {
+    ctx.log(`run journal: the depth could not be stored (${String(error)})`);
+    return false;
+  }
+}
+function installDepthRecorder(ctx) {
+  const events = ctx.events;
+  if (!ctx.characterStore) return () => {
+  };
+  const onLevel = () => {
+    recordDepth(ctx);
+  };
+  let listening = false;
+  if (events) {
+    try {
+      events.on("dungeonlevel", onLevel);
+      listening = true;
+    } catch {
+      ctx.log("run journal: this game does not report level changes, so new depths are read once a second");
+    }
+  }
+  const timer2 = ctx.snapshot ? globalThis.setInterval(onLevel, DEPTH_POLL_MS) : null;
+  if (!listening && timer2 === null) ctx.log("run journal: this game reports no depth, so new depths are not recorded");
+  recordDepth(ctx);
+  return () => {
+    if (timer2 !== null) globalThis.clearInterval(timer2);
+    if (listening) events?.off("dungeonlevel", onLevel);
+  };
+}
+function liveJournal(ctx) {
+  const character = ctx.character;
+  if (!character) return null;
+  let history = [];
+  try {
+    history = character.history();
+  } catch {
+    return null;
+  }
+  const entries = journalFromHistory(history, readDepthMarks(ctx.characterStore));
+  let report = null;
+  try {
+    report = character.runReport?.() ?? null;
+  } catch {
+    report = null;
+  }
+  if (report) entries.push(endingEntry(report));
+  return entries;
+}
+var CSS7 = `${DIALOG_CSS}${JOURNAL_CSS}
+.journal-pane{position:absolute;left:12px;right:12px;bottom:12px;max-height:calc(100vh - 24px);overflow:auto;padding:10px;background:var(--anyband-surface);border:1px solid var(--anyband-accent);border-radius:var(--anyband-rounding)}`;
+function installRunJournal(ctx) {
+  if (ctx.flags?.["anybandui.runJournal"] !== true) return () => {
+  };
+  if (!ctx.character) ctx.log("run journal: this game has no character history read");
+  let repaint = () => {
+  };
+  const surfaces = openSurfaces(
+    ctx,
+    [{ key: "run-journal", label: "Run journal", tab: "Character", minSize: { width: 320, height: 200 }, placement: { kind: "dock", target: "main", edge: "bottom" } }],
+    { id: "run-journal", label: "Run journal", className: "journal-pane" },
+    CSS7,
+    () => repaint()
+  );
+  if (!surfaces) {
+    ctx.log("run journal: panel seam unavailable");
+    return () => {
+    };
+  }
+  const filter = newJournalFilter();
+  let mount = null;
+  let view = null;
+  let actions = null;
+  let status = null;
+  let signature = "";
+  let closed = false;
+  let timer2 = null;
+  const stopTimer = () => {
+    if (timer2 !== null) {
+      globalThis.clearInterval(timer2);
+      timer2 = null;
+    }
+  };
+  const playAgain = async () => {
+    const report = ctx.character?.runReport?.() ?? null;
+    if (!report || !ctx.saves?.create) return;
+    const result = await ctx.saves.create({ like: report.birth });
+    if (!result.ok && status) status.textContent = result.reason;
+  };
+  const paint = (force = false) => {
+    if (closed) return;
+    const host = surfaces.mounts().get("run-journal");
+    if (!host) {
+      stopTimer();
+      return;
+    }
+    if (timer2 === null) timer2 = globalThis.setInterval(() => paint(), 200);
+    if (host !== mount) {
+      mount = host;
+      host.replaceChildren();
+      el8(host, "h3", "Run summary");
+      view = createJournalView(host, filter, "run-journal");
+      actions = el8(host, "div", void 0, "actions");
+      status = el8(host, "p", "", "muted");
+      signature = "";
+    }
+    const entries = liveJournal(ctx);
+    const ended = !!entries?.length && entries[entries.length - 1].kind === "ending";
+    const next = JSON.stringify([entries, ended]);
+    if (!force && next === signature) return;
+    signature = next;
+    view?.update(entries);
+    if (actions) {
+      actions.replaceChildren();
+      if (ended && ctx.saves?.create) button4(actions, "Play Again", () => {
+        void playAgain();
+      }, "play-again");
+    }
+  };
+  paint(true);
+  repaint = () => paint(true);
+  return () => {
+    closed = true;
+    stopTimer();
+    surfaces.close();
+  };
+}
+
+// src/menus/graveyard.ts
+var GRAVEYARD_KEY = "graveyard";
+var MAX_RECORDS = 20;
+var MAX_ARCHIVE_SIZE = 6e5;
+function runId(report) {
+  return `${report.endedAt}-${report.key ?? report.name}`;
+}
+function validRecord(value2) {
+  if (!value2 || typeof value2 !== "object") return false;
+  const record2 = value2;
+  const report = record2.report;
+  return typeof record2.id === "string" && !!report && typeof report === "object" && typeof report.name === "string" && typeof report.outcome === "string" && typeof report.endedAt === "number" && Array.isArray(report.history) && Array.isArray(report.messages) && Array.isArray(report.belongings) && !!report.birth && typeof report.birth === "object" && (record2.journal === null || Array.isArray(record2.journal));
+}
+function prefsRoot(prefs) {
+  let raw;
+  try {
+    raw = prefs?.get();
+  } catch {
+    raw = null;
+  }
+  return raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
+}
+function readArchive(prefs) {
+  const stored = prefsRoot(prefs)[GRAVEYARD_KEY];
+  const list = stored && typeof stored === "object" && Array.isArray(stored.records) ? stored.records : [];
+  const records = [];
+  const unreadable = [];
+  for (const entry2 of list) (validRecord(entry2) ? records : unreadable).push(entry2);
+  records.sort((a, b) => b.report.endedAt - a.report.endedAt);
+  return { records, unreadable };
+}
+function compact(record2, step) {
+  const report = { ...record2.report, belongings: record2.report.belongings.map((item) => ({ ...item, recall: null })) };
+  return { ...record2, report: step > 1 ? { ...report, sheet: null } : report };
+}
+function trimArchive(records, unreadable = []) {
+  const kept = [...records].sort((a, b) => b.report.endedAt - a.report.endedAt).slice(0, MAX_RECORDS);
+  const size = () => JSON.stringify([...kept, ...unreadable]).length;
+  while (kept.length > 1 && size() > MAX_ARCHIVE_SIZE) kept.pop();
+  for (let step = 1; step <= 2 && kept.length === 1 && size() > MAX_ARCHIVE_SIZE; step += 1) kept[0] = compact(kept[0], step);
+  return kept;
+}
+function archiveRun(prefs, record2) {
+  if (!prefs) return false;
+  try {
+    const { records, unreadable } = readArchive(prefs);
+    const merged = records.some((existing) => existing.id === record2.id) ? records : [record2, ...records];
+    const root = prefsRoot(prefs);
+    prefs.set({ ...root, [GRAVEYARD_KEY]: { v: 1, records: [...trimArchive(merged, unreadable), ...unreadable] } });
+    return readArchive(prefs).records.some((existing) => existing.id === record2.id);
+  } catch {
+    return false;
+  }
+}
+function recordFor(report, store) {
+  const journal = [...journalFromHistory(report.history, readDepthMarks(store)), endingEntry(report)];
+  return { id: runId(report), report, journal };
+}
+var UNREADABLE = "Some run records could not be read. They have been left untouched.";
+var NOT_ARCHIVED = "This run could not be added to the graveyard. Its summary is still available here.";
+var CSS8 = `${JOURNAL_CSS}
+.graveyard-head{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:6px}
+.runs button{background:none;border:none;padding:0;text-align:left;width:100%}
+.runs button:focus-visible{outline:2px solid var(--anyband-accent)}
+.verdict{color:#e6ad59;letter-spacing:.1em}
+.name{font-size:1.5em;margin:2px 0}
+.moments p:first-child{color:#ffa673}
+.split{display:grid;grid-template-columns:1.7fr 1fr;gap:10px}
+.belongings button{background:none;border:none;padding:0;text-align:left}
+.belongings tr[aria-selected="true"] td{background:rgba(128,128,128,.18)}
+.inspection{white-space:pre-wrap}`;
+function verdict(report) {
+  return report.outcome === "winner" ? "VICTORY" : report.outcome === "retired" ? "RETIRED" : "GAME OVER";
+}
+function runLabel(report) {
+  return `${report.name || "Unnamed"} - ${report.race} ${report.cls}`;
+}
+var POST_MORTEM_PAGES = ["Final moments", "Journal", "Final belongings", "Character sheet"];
+function locationLabel(location2) {
+  return location2 ? location2[0].toUpperCase() + location2.slice(1) : "";
+}
+function openPostMortem(ctx, record2, options) {
+  const dialog = openDialog(ctx, { id: "post-mortem", label: `${record2.report.name || "Unnamed"}: post-mortem`, className: "wide", css: CSS8 });
+  if (!dialog) return Promise.resolve();
+  const report = record2.report;
+  const body = dialog.body;
+  el8(body, "div", verdict(report), "verdict");
+  el8(body, "div", report.name || "Unnamed", "name");
+  el8(body, "p", `${report.race} ${report.cls}  |  Level ${report.level}  |  ${formatWhen(report.endedAt)}`);
+  el8(body, "p", report.outcome === "death" ? `Killed by ${report.cause}` : report.cause);
+  const metrics = el8(body, "div", void 0, "metrics");
+  metric(metrics, "Deepest", `${report.maxDepth} (${report.maxDepth * 50} ft)`);
+  metric(metrics, "Turns", String(report.turn));
+  metric(metrics, "Score", String(report.score), "Angband's calculated points. High-score eligibility remains governed by the engine.");
+  metric(metrics, "Gold", String(report.gold));
+  const archiveRow = el8(body, "div");
+  let notArchived = options.notArchived === true && !options.archived;
+  const drawArchive = () => {
+    archiveRow.replaceChildren();
+    if (!notArchived) return;
+    el8(archiveRow, "p", NOT_ARCHIVED, "error");
+    button4(archiveRow, "Retry archiving", () => {
+      notArchived = !archiveRun(ctx.prefs, record2);
+      drawArchive();
+    }, "retry");
+  };
+  drawArchive();
+  const tabs = el8(body, "div", void 0, "tabs");
+  tabs.setAttribute("role", "tablist");
+  const page = el8(body, "div");
+  const tabButtons = [];
+  let sheetPage = 0;
+  const journalFilter = newJournalFilter();
+  const show = (index, moveFocus = false) => {
+    tabButtons.forEach((tab, at) => tab.setAttribute("aria-selected", String(at === index)));
+    if (moveFocus) tabButtons[index]?.focus();
+    page.replaceChildren();
+    const name = POST_MORTEM_PAGES[index];
+    if (name === "Final moments") {
+      const moments = el8(page, "div", void 0, "moments");
+      const messages = [...report.messages].reverse();
+      if (!messages.length) el8(moments, "p", "No messages were recorded.", "muted");
+      for (const message of messages) el8(moments, "p", message.count > 1 ? `${message.text} (x${message.count})` : message.text);
+    } else if (name === "Journal") {
+      createJournalView(page, journalFilter, "post-mortem-journal").update(record2.journal);
+    } else if (name === "Final belongings") {
+      drawBelongings(page, report, dialog.root);
+    } else {
+      const sheet = el8(page, "div");
+      const draw = () => {
+        sheet.replaceChildren();
+        renderCharacterSheet(sheet, report.sheet, sheetPage, (next, focus) => {
+          sheetPage = next;
+          draw();
+          if (focus) sheet.querySelector(`[data-focus="sheet-page-${(SHEET_PAGES[next] ?? "Overview").toLowerCase()}"]`)?.focus();
+        });
+      };
+      draw();
+    }
+  };
+  POST_MORTEM_PAGES.forEach((name, index) => {
+    const tab = button4(tabs, name, () => show(index), `post-mortem-tab-${index}`);
+    tab.setAttribute("role", "tab");
+    tabButtons.push(tab);
+  });
+  tabs.addEventListener("keydown", (event) => {
+    const next = stepFocus(tabButtons, dialog.root.activeElement, event.key, "horizontal");
+    if (next === null) return;
+    event.preventDefault();
+    show(next, true);
+  });
+  const actions = el8(body, "div", void 0, "actions");
+  const leave = button4(actions, options.archived ? "Back to graveyard" : "Close", () => dialog.close(), "leave");
+  const status = el8(body, "p", "", "muted");
+  if (ctx.saves?.create) {
+    const create = ctx.saves.create.bind(ctx.saves);
+    button4(actions, options.archived ? "New character like this" : "Play Again", () => {
+      void create({ like: report.birth }).then((result) => {
+        if (!result.ok) status.textContent = result.reason;
+      });
+    }, "play-again");
+  }
+  show(0);
+  leave.focus();
+  return dialog.closed;
+}
+function drawBelongings(parent, report, root) {
+  const split = el8(parent, "div", void 0, "split");
+  const listSide = el8(split, "div");
+  const inspection = el8(split, "div", "Select an item to inspect its final, identified properties.", "inspection");
+  if (!report.belongings.length) {
+    el8(listSide, "p", "No belongings were recorded.", "muted");
+    return;
+  }
+  const table = el8(listSide, "table", void 0, "belongings");
+  const head = el8(el8(table, "thead"), "tr");
+  for (const name of ["Name", "Location", "Qty"]) el8(head, "th", name);
+  const rows = el8(table, "tbody");
+  const buttons = [];
+  const trs = [];
+  const select = (index) => {
+    const item = report.belongings[index];
+    if (!item) return;
+    trs.forEach((tr, at) => tr.setAttribute("aria-selected", String(at === index)));
+    inspection.replaceChildren();
+    if (!item.recall) {
+      el8(inspection, "p", "No description was recorded for this item.", "muted");
+      return;
+    }
+    el8(inspection, "h3", item.recall.title);
+    el8(inspection, "p", item.recall.text);
+  };
+  report.belongings.forEach((item, index) => {
+    const tr = el8(rows, "tr");
+    trs.push(tr);
+    const name = button4(el8(tr, "td"), item.name, () => select(index), `belonging-${index}`);
+    name.style.color = item.color;
+    buttons.push(name);
+    el8(tr, "td", locationLabel(item.location));
+    el8(tr, "td", String(item.quantity));
+  });
+  table.addEventListener("keydown", (event) => {
+    const next = stepFocus(buttons, root.activeElement, event.key);
+    if (next === null) return;
+    event.preventDefault();
+    select(next);
+  });
+}
+function openGraveyard(ctx, backLabel = "Back to characters") {
+  const dialog = openDialog(ctx, { id: "graveyard", label: "Graveyard", className: "wide", css: CSS8 });
+  if (!dialog) return Promise.resolve();
+  const body = dialog.body;
+  el8(body, "h2", "Graveyard");
+  const head = el8(body, "div", void 0, "graveyard-head");
+  const back = button4(head, backLabel, () => dialog.close(), "back");
+  const search = el8(head, "input");
+  search.type = "search";
+  search.placeholder = "Search characters";
+  search.setAttribute("aria-label", "Search characters");
+  search.dataset["focus"] = "search";
+  const { records, unreadable } = readArchive(ctx.prefs);
+  if (unreadable.length) el8(body, "p", UNREADABLE, "error");
+  const list = el8(body, "div");
+  let rowButtons = [];
+  const draw = () => {
+    list.replaceChildren();
+    rowButtons = [];
+    if (!records.length) {
+      el8(list, "p", "Your completed runs will appear here.", "muted");
+      return;
+    }
+    const shown = records.filter((record2) => matches(`${runLabel(record2.report)} ${record2.report.cause}`, search.value));
+    if (!shown.length) {
+      el8(list, "p", "No matching runs.", "muted");
+      return;
+    }
+    const table = el8(list, "table", void 0, "runs");
+    const header = el8(el8(table, "thead"), "tr");
+    for (const name of ["Character", "Outcome", "Depth", "Ended"]) el8(header, "th", name);
+    const rows = el8(table, "tbody");
+    for (const record2 of shown) {
+      const tr = el8(rows, "tr");
+      rowButtons.push(button4(el8(tr, "td"), runLabel(record2.report), () => {
+        void openPostMortem(ctx, record2, { archived: true });
+      }, `run-${record2.id}`));
+      el8(tr, "td", record2.report.outcome === "death" ? record2.report.cause : endingText(record2.report));
+      el8(tr, "td", String(record2.report.maxDepth));
+      el8(tr, "td", formatWhen(record2.report.endedAt));
+    }
+  };
+  search.addEventListener("input", draw);
+  list.addEventListener("keydown", (event) => {
+    if (stepFocus(rowButtons, dialog.root.activeElement, event.key) !== null) event.preventDefault();
+  });
+  search.addEventListener("keydown", (event) => {
+    if (event.key === "ArrowDown" && rowButtons.length) {
+      event.preventDefault();
+      rowButtons[0].focus();
+    }
+  });
+  draw();
+  (rowButtons[0] ?? back).focus();
+  return dialog.closed;
+}
+function installGraveyard(ctx) {
+  if (ctx.flags?.["anybandui.graveyard"] !== true) return () => {
+  };
+  const cleanups = [];
+  const character = ctx.character;
+  if (character?.onRunEnd) {
+    try {
+      cleanups.push(character.onRunEnd((report) => {
+        const record2 = recordFor(report, ctx.characterStore);
+        const stored = archiveRun(ctx.prefs, record2);
+        void openPostMortem(ctx, record2, { archived: false, notArchived: !stored });
+      }));
+    } catch (error) {
+      ctx.log(`graveyard: run end unavailable (${String(error)})`);
+    }
+  } else ctx.log("graveyard: this game does not report the end of a run");
+  try {
+    const ended = character?.runReport?.() ?? null;
+    if (ended && !readArchive(ctx.prefs).records.some((record2) => record2.id === runId(ended))) archiveRun(ctx.prefs, recordFor(ended, ctx.characterStore));
+  } catch {
+  }
+  if (ctx.title) {
+    try {
+      cleanups.push(ctx.title.registerRow({ label: "Graveyard", run: () => openGraveyard(ctx, "Back to title") }));
+    } catch (error) {
+      ctx.log(`graveyard: title row refused (${String(error)})`);
+    }
+  }
+  return () => {
+    for (const cleanup of cleanups.splice(0).reverse()) cleanup();
+  };
+}
+
+// src/menus/hall-of-fame.ts
+var HALL_OF_FAME_ID = "core:hall-of-fame";
+var HEADINGS = {
+  rank: "#",
+  points: "Points",
+  who: "Name",
+  race: "Race",
+  class: "Class",
+  level: "Level",
+  depth: "Depth",
+  how: "How it ended",
+  date: "Date",
+  gold: "Gold",
+  turns: "Turns"
+};
+var CSS9 = `.scores td.num,.scores th.num{text-align:right}
+.scores tr.you td{color:var(--anyband-accent);font-weight:bold}`;
+function cellText(cell) {
+  if (!cell) return "";
+  const current = cell.values?.["current"], max = cell.values?.["max"];
+  if (typeof current === "number" && typeof max === "number" && max > current) return `${current} (max ${max})`;
+  return cell.text;
+}
+function hallOfFamePart(ctx) {
+  if (ctx.flags?.["anybandui.hallOfFame"] !== true) return null;
+  return {
+    show(view) {
+      if (view.id !== HALL_OF_FAME_ID) return void 0;
+      const table = view.blocks.find((block) => block.kind === "table" && block.key === "scores");
+      if (!table) return void 0;
+      const dialog = openDialog(ctx, { id: "hall-of-fame", label: "Hall of Fame", className: "wide", css: CSS9 });
+      if (!dialog) return void 0;
+      const body = dialog.body;
+      el8(body, "h2", view.title);
+      const columns = table.columns.filter((column) => column.key !== "uid");
+      if (!table.rows.length) el8(body, "p", table.empty?.text ?? "No scores yet.", "muted");
+      else {
+        const grid = el8(body, "table", void 0, "scores");
+        const head = el8(el8(grid, "thead"), "tr");
+        for (const column of columns) el8(head, "th", column.label ?? HEADINGS[column.key] ?? column.key, column.align === "right" ? "num" : void 0);
+        const rows = el8(grid, "tbody");
+        for (const row of table.rows) {
+          const you = row.values?.["highlighted"] === 1;
+          const tr = el8(rows, "tr", void 0, you ? "you" : void 0);
+          if (you) tr.setAttribute("aria-current", "true");
+          for (const column of columns) el8(tr, "td", cellText(row.cells[column.key]), column.align === "right" ? "num" : void 0);
+        }
+      }
+      const actions = el8(body, "div", void 0, "actions");
+      const close = button4(actions, "Close", () => dialog.close(), "close");
+      body.addEventListener("keydown", (event) => {
+        if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+          event.preventDefault();
+          body.scrollTop += event.key === "ArrowDown" ? 40 : -40;
+        } else if (event.key === "Escape") {
+          event.preventDefault();
+          dialog.close();
+        }
+      });
+      close.focus();
+      return { dismissed: dialog.closed.then(() => void 0) };
+    }
+  };
+}
+
+// src/menus/presenters.ts
+function composeMenus(parts, log) {
+  const live = parts.filter((part) => part !== null);
+  if (!live.length) return void 0;
+  return {
+    ask(question) {
+      for (const part of live) {
+        try {
+          const answer = part.ask(question);
+          if (answer !== void 0) return answer;
+        } catch (error) {
+          log(`menus: ${question.id} declined after an error (${String(error)})`);
+          return void 0;
+        }
+      }
+      return void 0;
+    }
+  };
+}
+function composeScreens(parts, log) {
+  const live = parts.filter((part) => part !== null);
+  if (!live.length) return void 0;
+  return {
+    show(view, host) {
+      for (const part of live) {
+        try {
+          const shown = part.show(view, host);
+          if (shown !== void 0) return shown;
+        } catch (error) {
+          log(`screens: ${view.id} declined after an error (${String(error)})`);
+          return void 0;
+        }
+      }
+      return void 0;
+    }
+  };
+}
+
+// src/menus/save-dialogs.ts
+var NAME_LIMIT = 15;
+function nameProblem(entered) {
+  const name = entered.trim();
+  if (!name) return "Enter a name.";
+  if (name.length > NAME_LIMIT) return `Use ${NAME_LIMIT} characters or fewer.`;
+  return null;
+}
+function askRename(ctx, current) {
+  const dialog = openDialog(ctx, { id: "rename-save", label: "Rename save" });
+  if (!dialog) return Promise.resolve(null);
+  return new Promise((resolve2) => {
+    let done = false;
+    const finish = (value2) => {
+      if (done) return;
+      done = true;
+      dialog.close();
+      resolve2(value2);
+    };
+    void dialog.closed.then(() => finish(null));
+    el8(dialog.body, "h2", "Rename save");
+    el8(dialog.body, "p", `Rename ${current}`);
+    const label2 = el8(dialog.body, "label", "Save name ");
+    const input = el8(label2, "input");
+    input.type = "text";
+    input.value = current;
+    input.maxLength = 40;
+    input.dataset["focus"] = "name";
+    const problem = el8(dialog.body, "p", "", "muted");
+    const row = el8(dialog.body, "div", void 0, "actions");
+    const submit = () => {
+      if (nameProblem(input.value) === null) finish(input.value.trim());
+    };
+    const rename = button4(row, "Rename", submit, "rename");
+    const cancel = button4(row, "Cancel", () => finish(null), "cancel");
+    const check = () => {
+      const why = nameProblem(input.value);
+      problem.textContent = why ?? "";
+      rename.disabled = why !== null;
+    };
+    input.addEventListener("input", check);
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        submit();
+      }
+    });
+    row.addEventListener("keydown", (event) => {
+      if (stepFocus([rename, cancel], dialog.root.activeElement, event.key, "horizontal") !== null) event.preventDefault();
+    });
+    dialog.body.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        finish(null);
+      }
+    });
+    check();
+    input.focus();
+    input.select?.();
+  });
+}
+function confirmDeleteSave(ctx, name) {
+  return confirm(ctx, { title: "Delete save", message: `Permanently delete ${name}?`, detail: "This cannot be undone.", yes: "Delete save", no: "Cancel", danger: true });
+}
+
+// src/menus/save-cards.ts
+var CHARACTER_SELECT_ID = "core:character-select";
+function hsvToRgb(h, s, v) {
+  if (s === 0) return [v, v, v];
+  const scaled = h % 1 / (60 / 360);
+  const i = Math.floor(scaled), f = scaled - i;
+  const p = v * (1 - s), q = v * (1 - s * f), t = v * (1 - s * (1 - f));
+  switch (i) {
+    case 0:
+      return [v, t, p];
+    case 1:
+      return [q, v, p];
+    case 2:
+      return [p, v, t];
+    case 3:
+      return [p, q, v];
+    case 4:
+      return [t, p, v];
+    default:
+      return [v, p, q];
+  }
+}
+function accentColour(id, light) {
+  let hash = 2166136261;
+  for (const byte of new TextEncoder().encode(id)) {
+    hash ^= byte;
+    hash = Math.imul(hash, 16777619) >>> 0;
+  }
+  hash ^= hash >>> 16;
+  hash = Math.imul(hash, 2146121005) >>> 0;
+  hash ^= hash >>> 15;
+  hash = Math.imul(hash, 2221713035) >>> 0;
+  hash ^= hash >>> 16;
+  hash >>>= 0;
+  const hue = (hash & 16777215) / 16777216;
+  const scale = light ? 0.52 : 1;
+  const channels = hsvToRgb(hue, 55 / 183, 183 / 255).map((value2) => Math.round(Math.min(1, Math.max(0, value2 * scale)) * 255));
+  return `#${channels.map((value2) => value2.toString(16).padStart(2, "0")).join("")}`;
+}
+function statusLine(entry2) {
+  const where = entry2.dead ? "DEAD" : entry2.depth === 0 ? "IN TOWN" : `DEPTH ${entry2.depth}`;
+  return `${where}    /    LEVEL ${entry2.level}`;
+}
+function identity(entry2) {
+  return `${entry2.race} ${entry2.cls}`.trim();
+}
+var CSS10 = `.roster{display:grid;grid-template-columns:minmax(220px,.42fr) minmax(260px,.58fr);gap:12px}
+@media (max-width:640px){.roster{grid-template-columns:1fr}}
+.cards{display:flex;flex-direction:column;gap:6px;max-height:55vh;overflow:auto;margin:6px 0}
+.card{display:grid;grid-template-columns:2.4em 1fr;align-items:center;text-align:left;padding:6px 8px;border-radius:4px;background:var(--anyband-background)}
+.card .at{font-size:1.8em;text-align:center}
+.card .who{font-size:1.15em;display:block}
+.card .identity{display:block;opacity:.65}
+.card .status{display:block;font-size:.85em;letter-spacing:.04em}
+.roster-actions{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.roster-actions button{padding:10px 6px}
+.profile .emblem{font-size:3em;line-height:1.2}
+.profile .who{font-size:1.8em;margin:0}
+.label{opacity:.65;font-size:.85em;text-transform:uppercase;margin-top:8px}
+.primary{width:100%;padding:8px;margin-top:10px}
+.search{width:100%;box-sizing:border-box}`;
+function saveCardsPart(ctx) {
+  if (ctx.flags?.["anybandui.saveCards"] !== true) return null;
+  return {
+    ask(question) {
+      if (question.id !== CHARACTER_SELECT_ID || !ctx.saves || !ctx.ui?.openPanel) return void 0;
+      return runRoster(ctx, ctx.saves, question);
+    }
+  };
+}
+async function runRoster(ctx, saves, question) {
+  let listed;
+  try {
+    listed = await saves.list();
+  } catch {
+    return void 0;
+  }
+  if (!listed.ok) {
+    ctx.log(`save cards: ${listed.reason}`);
+    return void 0;
+  }
+  const questionIds = listed.entries.map((entry2) => entry2.id);
+  const commands = new Set(question.commands.filter((command) => !command.ctrl).map((command) => command.key));
+  const light = themeFromPrefs(ctx.prefs?.get()).light_styling;
+  let entries = listed.entries;
+  let selected = entries[0]?.id ?? null;
+  let search = "";
+  let status = "";
+  let busy = false;
+  let dialog = null;
+  return new Promise((resolve2) => {
+    let settled = false;
+    const answer = (value2) => {
+      if (settled) return;
+      settled = true;
+      dialog?.close();
+      resolve2(value2);
+    };
+    const refresh = async () => {
+      try {
+        const next = await saves.list();
+        if (next.ok) entries = next.entries;
+      } catch {
+      }
+      if (!entries.some((entry2) => entry2.id === selected)) selected = entries[0]?.id ?? null;
+    };
+    const chosen = () => entries.find((entry2) => entry2.id === selected);
+    const run = async (work) => {
+      if (busy) return;
+      busy = true;
+      draw();
+      try {
+        await work();
+      } finally {
+        busy = false;
+        if (dialog?.isOpen()) draw();
+      }
+    };
+    const report = (result, done) => {
+      status = result.ok ? done : result.reason;
+    };
+    const play = (entry2) => {
+      if (entry2.dead) {
+        if (!saves.create) return;
+        const create = saves.create.bind(saves);
+        void run(async () => {
+          status = "Starting a new character...";
+          const result = await create({ like: { race: entry2.race, cls: entry2.cls, name: entry2.name } });
+          if (!result.ok) status = result.reason;
+        });
+        return;
+      }
+      void run(async () => {
+        status = "Loading...";
+        const result = await saves.load(entry2.id);
+        if (!result.ok) status = result.reason;
+      });
+    };
+    const newCharacter = () => {
+      if (!saves.create) {
+        const row = question.choices[question.choices.length - 1];
+        if (row) answer({ kind: "choose", choice: row.id });
+        return;
+      }
+      const create = saves.create.bind(saves);
+      void run(async () => {
+        status = "Starting a new character...";
+        const result = await create();
+        if (!result.ok) status = result.reason;
+      });
+    };
+    const rename = (entry2) => {
+      void run(async () => {
+        const name = await askRename(ctx, entry2.name);
+        if (name === null || name === entry2.name) return;
+        report(await saves.rename(entry2.id, name), `Renamed to ${name}.`);
+        await refresh();
+      }).then(() => focus("rename"));
+    };
+    const remove = (entry2) => {
+      void run(async () => {
+        const who = entry2.name || "this character";
+        if (!await confirmDeleteSave(ctx, who)) return;
+        dialog?.close();
+        const result = await saves.delete(entry2.id);
+        report(result, `${who} was deleted.`);
+        await refresh();
+        if (!open()) answer({ kind: "cancel" });
+      }).then(() => focus(selected ? `card-${selected}` : "new"));
+    };
+    const graveyard = () => {
+      const show = ctx.graveyard;
+      if (!show) return;
+      void run(show).then(() => focus("graveyard"));
+    };
+    const command = (key, cursor) => answer({ kind: "command", key, cursor });
+    const focus = (key) => {
+      const target = dialog?.body.querySelector(`[data-focus="${key}"]`);
+      target?.focus();
+    };
+    let cards = null;
+    let profile = null;
+    let statusLineNode = null;
+    let extras = null;
+    let cardButtons = [];
+    const drawCards = () => {
+      if (!cards) return;
+      cards.replaceChildren();
+      cardButtons = [];
+      const shown = entries.filter((entry2) => matches(`${entry2.name} ${entry2.id} ${identity(entry2)}`, search));
+      if (!shown.length) {
+        el8(cards, "p", "No matching characters.", "muted");
+        return;
+      }
+      for (const entry2 of shown) {
+        const ink2 = accentColour(entry2.id, light);
+        const card = button4(cards, "", () => {
+          selected = entry2.id;
+          draw();
+          focus(`card-${entry2.id}`);
+        }, `card-${entry2.id}`);
+        card.className = "card";
+        card.style.borderColor = entry2.id === selected ? ink2 : "";
+        card.setAttribute("aria-pressed", String(entry2.id === selected));
+        card.setAttribute("aria-label", `${entry2.name}, ${identity(entry2)}, ${statusLine(entry2).replace(/\s+\/\s+/, ", ").toLowerCase()}`);
+        const at = el8(card, "span", "@", "at");
+        at.style.color = ink2;
+        const text = el8(card, "span");
+        el8(text, "span", entry2.name || "Unnamed", "who");
+        el8(text, "span", identity(entry2), "identity");
+        el8(text, "span", statusLine(entry2), "status").style.color = ink2;
+        cardButtons.push(card);
+      }
+    };
+    const drawProfile = () => {
+      if (!profile) return;
+      profile.replaceChildren();
+      const entry2 = chosen();
+      if (!entry2) return;
+      const ink2 = accentColour(entry2.id, light);
+      el8(profile, "div", "@", "emblem").style.color = ink2;
+      el8(profile, "p", entry2.name || "Unnamed", "who");
+      el8(profile, "p", identity(entry2) || "Character details unavailable.");
+      el8(profile, "h3", entry2.dead ? "Final character" : "Character summary");
+      const metrics = el8(profile, "div", void 0, "metrics");
+      metric(metrics, "Level", String(entry2.level));
+      metric(metrics, "Depth", entry2.depth === 0 ? "Town" : String(entry2.depth));
+      el8(profile, "div", "LAST SAVED", "label");
+      el8(profile, "p", formatWhen(entry2.lastPlayed));
+      const primary = button4(profile, entry2.dead ? "Play Again" : "Continue", () => play(entry2), "primary");
+      primary.className = "primary";
+      primary.disabled = busy || entry2.dead && !saves.create;
+      const row = el8(profile, "div", void 0, "actions");
+      const renameButton = button4(row, "Rename", () => rename(entry2), "rename");
+      renameButton.disabled = busy || entry2.dead;
+      button4(row, "Delete", () => remove(entry2), "delete").disabled = busy;
+    };
+    const drawExtras = () => {
+      if (!extras) return;
+      extras.replaceChildren();
+      const entry2 = chosen();
+      const cursor = entry2 ? questionIds.indexOf(entry2.id) : -1;
+      if (commands.has("X")) {
+        const exportButton = button4(extras, "Export character", () => command("X", cursor), "export");
+        exportButton.disabled = busy || !entry2 || entry2.dead || cursor < 0;
+      }
+      if (commands.has("M")) button4(extras, "Import character", () => command("M", Math.max(0, Math.min(cursor, questionIds.length))), "import").disabled = busy;
+      if (commands.has("W")) button4(extras, "Storage", () => command("W", Math.max(0, Math.min(cursor, questionIds.length))), "storage").disabled = busy;
+    };
+    function draw() {
+      drawCards();
+      drawProfile();
+      drawExtras();
+      if (statusLineNode) statusLineNode.textContent = status;
+    }
+    function build(target) {
+      const body = target.body;
+      el8(body, "h2", question.title || "Select a character");
+      if (question.subtitle) el8(body, "p", question.subtitle, "muted");
+      const layout = el8(body, "div", void 0, "roster");
+      const left = el8(layout, "div");
+      if (entries.length) {
+        const input = el8(left, "input", void 0, "search");
+        input.type = "search";
+        input.placeholder = "Find a character";
+        input.setAttribute("aria-label", "Find a character");
+        input.dataset["focus"] = "search";
+        input.value = search;
+        input.addEventListener("input", () => {
+          search = input.value;
+          drawCards();
+        });
+        input.addEventListener("keydown", (event) => {
+          if (event.key === "ArrowDown" && cardButtons.length) {
+            event.preventDefault();
+            cardButtons[0].focus();
+          }
+        });
+      }
+      cards = el8(left, "div", void 0, "cards");
+      if (!entries.length) el8(left, "p", "No saved characters.", "muted");
+      cards.addEventListener("keydown", (event) => {
+        const at = cardButtons.indexOf(target.root.activeElement);
+        if (event.key === "Enter" && at >= 0) {
+          event.preventDefault();
+          const entry2 = entries.find((candidate) => `card-${candidate.id}` === cardButtons[at].dataset["focus"]);
+          if (entry2 && !busy) {
+            selected = entry2.id;
+            play(entry2);
+          }
+          return;
+        }
+        if (event.key === "Delete" && at >= 0) {
+          event.preventDefault();
+          const entry2 = chosen();
+          if (entry2) remove(entry2);
+          return;
+        }
+        const next = stepFocus(cardButtons, target.root.activeElement, event.key);
+        if (next === null) return;
+        event.preventDefault();
+        const id = cardButtons[next]?.dataset["focus"]?.slice(5);
+        if (id) {
+          selected = id;
+          draw();
+          focus(`card-${id}`);
+        }
+      });
+      const rosterActions = el8(left, "div", void 0, "roster-actions");
+      if (ctx.graveyard) button4(rosterActions, "Graveyard", graveyard, "graveyard");
+      button4(rosterActions, "New character", newCharacter, "new");
+      profile = el8(layout, "div", void 0, "profile");
+      extras = el8(body, "div", void 0, "actions");
+      statusLineNode = el8(body, "p", "", "muted");
+      statusLineNode.setAttribute("role", "status");
+      draw();
+    }
+    function open() {
+      const next = openDialog(ctx, { id: "character-select", label: "Select a character", className: "wide", css: CSS10 });
+      dialog = next;
+      if (!next) return false;
+      void next.closed.then(() => {
+        if (next.dismissedByPlayer()) answer({ kind: "cancel" });
+      });
+      build(next);
+      return true;
+    }
+    if (!open()) {
+      settled = true;
+      resolve2(void 0);
+      return;
+    }
+    focus(selected ? `card-${selected}` : "new");
+  });
+}
+
+// src/menus/menus.ts
+function installMenus(ctx) {
+  const flags = ctx.flags ?? {};
+  const cleanups = [];
+  cleanups.push(installYesNoPrompts(ctx));
+  if (flags["anybandui.runJournal"] === true || flags["anybandui.graveyard"] === true) cleanups.push(installDepthRecorder(ctx));
+  cleanups.push(installRunJournal(ctx));
+  cleanups.push(installGraveyard(ctx));
+  return () => {
+    for (const cleanup of cleanups.splice(0).reverse()) cleanup();
+  };
+}
+function menuPresenter(ctx) {
+  const graveyard = ctx.flags?.["anybandui.graveyard"] === true ? () => openGraveyard(ctx) : void 0;
+  return composeMenus([saveCardsPart({ ...ctx, graveyard })], ctx.log);
+}
+function screenPresenter(ctx) {
+  return composeScreens([hallOfFamePart(ctx)], ctx.log);
+}
+
 // plugin.ts
 var quiverDisplay;
 var tileDisplay;
@@ -8592,6 +9912,7 @@ var plugin_default = {
       ...ctx.prefs ? { prefs: ctx.prefs } : {},
       ...ctx.display ? { display: ctx.display } : {}
     }));
+    displayCleanups.push(installMenus({ ...ctx, flags }));
     if (flags["anybandui.highContrast"] || flags["anybandui.colourblind"] || flags["anybandui.crt"] || theme.invert_dungeon) {
       installAccessibilityAccommodations({ flags, invertDungeon: theme.invert_dungeon, ...ctx.display ? { display: ctx.display } : {}, log: ctx.log });
     }
@@ -8713,6 +10034,14 @@ var plugin_default = {
     quiverDisplay = void 0;
     tileDisplay = void 0;
     tileFullOverviewApplied = false;
+  },
+  /** The save roster as cards. Undefined with the switch off, so Core asks every menu itself. */
+  menu(ctx) {
+    return menuPresenter({ ...ctx, flags: coexistingFlags(ctx.flags ?? {}, ctx.mods?.bind(ctx)) });
+  },
+  /** The hall of fame as a table. Undefined with the switch off, so Core draws every screen itself. */
+  screen(ctx) {
+    return screenPresenter({ ...ctx, flags: coexistingFlags(ctx.flags ?? {}, ctx.mods?.bind(ctx)) });
   },
   hud(ctx) {
     characterPane?.close();
