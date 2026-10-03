@@ -34,7 +34,11 @@
     "event:motion",
     "event:explosion",
     "event:bolt",
-    "event:driver-changed"
+    "event:driver-changed",
+    "state:knowledge.read",
+    "state:options.read",
+    "options:write",
+    "keymap:edit"
   ],
   "author": "WurliMonkhaven, neostryder",
   "license": "GPL-2.0-only",
@@ -258,7 +262,11 @@
     { "flag": "anybandui.crtSweep", "title": "CRT sweep", "description": "Draws a band of light moving down the dungeon view, brightest at the front and fading out behind it. The band stops when your system asks for reduced motion.", "default": false, "requiresReload": true },
     { "flag": "anybandui.characterSheet", "title": "Character sheet", "description": "Opens a read-only character sheet in its own panel: the panels, seven-column stat breakdown and flag grid the game's character screen draws, plus the background. Left and Right move between its pages while that list has focus.", "default": false, "requiresReload": true },
     { "flag": "anybandui.equipmentPortrait", "title": "Equipment portrait", "description": "Adds a Figure view on the equipment tab: an ASCII body with each worn item beside the part it covers. Slots the figure does not place stay listed under it. Up and Down move between slots while a slot has focus.", "default": false, "requiresReload": true },
-    { "flag": "anybandui.themeEditor", "title": "Theme", "description": "Opens a panel to edit the background, surface, text and accent colours and the corner rounding of the current theme, and to invert the dungeon view. Save stores the result as your custom theme.", "default": false, "requiresReload": true }
+    { "flag": "anybandui.themeEditor", "title": "Theme", "description": "Opens a panel to edit the background, surface, text and accent colours and the corner rounding of the current theme, and to invert the dungeon view. Save stores the result as your custom theme.", "default": false, "requiresReload": true },
+    { "flag": "anybandui.knowledgeBrowser", "title": "Knowledge browser", "description": "Opens a panel to browse what your character knows: objects, runes, artifacts, egos, monsters, terrain, traps and shapes. Search by name or group, pick a group, and read the recall page of each entry. Reading a page changes nothing in the game.", "default": false, "requiresReload": true },
+    { "flag": "anybandui.optionsEditor", "title": "Game options editor", "description": "Opens a panel with the game's options in groups, with a search box. You can change the interface options, the hit point warning and the two delays; birth, cheat and score options are shown but stay in the game's own menu. Changes take effect when you press Save, and Cancel throws them away.", "default": false, "requiresReload": true },
+    { "flag": "anybandui.keybindingEditor", "title": "Keybinding editor", "description": "Opens a panel listing your keymaps for the current keyset. Add one by pressing its key and typing the keys it presses, or change or remove one. Choosing a key tells you what it runs now. Changes take effect when you press Save.", "default": false, "requiresReload": true },
+    { "flag": "anybandui.settingsWindow", "title": "Settings window", "description": "Opens a panel that gathers this mod's settings in pages: the theme preset and the hover card delay, each with presets, and the strength of each effect. Its pages also open the theme, game options, keybinding and knowledge panels when those are on. Changes take effect when you press Save.", "default": false, "requiresReload": true }
   ],
   "repository": "https://github.com/neostryder/neo-angband-mod-anybandui"
 }

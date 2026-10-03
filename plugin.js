@@ -1,4 +1,4 @@
-// neo-angband-mod-anybandui - generated from plugin.ts by neo-angband-mod-build
+// p8-knowledge - generated from plugin.ts by neo-angband-mod-build
 // (@rpgm-tools/neo-angband-mod-sdk). Edit the TypeScript source, not this file.
 
 // src/view-model/adapter.ts
@@ -11,7 +11,7 @@ function value(frame, key, field) {
 function label(frame, key) {
   const item = entry(frame, key);
   if (!item || item.runs.length === 0) return void 0;
-  return item.runs.map((run) => run.text).join("").trim();
+  return item.runs.map((run2) => run2.text).join("").trim();
 }
 function feelingIndices(frame) {
   const values = entry(frame, "level_feeling")?.values;
@@ -68,8 +68,8 @@ function badgePayload(source, frame) {
     starving: "food"
   };
   const result = [];
-  for (const run of entry(frame, "tmd")?.runs ?? []) {
-    const text = run.text.trim();
+  for (const run2 of entry(frame, "tmd")?.runs ?? []) {
+    const text = run2.text.trim();
     if (!text || /^\d+\s*%$/.test(text)) continue;
     const key = aliases[text.toLowerCase()] ?? text.toLowerCase().replace(/[^a-z]/g, "");
     result.push({
@@ -874,7 +874,7 @@ function tintedGlyph(code, fg) {
   return glyph;
 }
 function paintBitmapLine(canvas, runs, cellWidth, cellHeight, dpr) {
-  const chars = runs.reduce((n, run) => n + [...run.text].length, 0);
+  const chars = runs.reduce((n, run2) => n + [...run2.text].length, 0);
   const cellWDevice = cellWidth * dpr;
   const cellHDevice = Math.max(1, Math.round(cellHeight * dpr));
   const edge = (i) => Math.round(i * cellWDevice);
@@ -888,16 +888,16 @@ function paintBitmapLine(canvas, runs, cellWidth, cellHeight, dpr) {
   if (!ctx) return cssWidth;
   ctx.imageSmoothingEnabled = false;
   let col = 0;
-  for (const run of runs) {
-    for (const char of run.text) {
+  for (const run2 of runs) {
+    for (const char of run2.text) {
       const code = char.codePointAt(0) ?? 32;
       const left = edge(col);
       const width = edge(col + 1) - left;
-      const glyph = tintedGlyph(code, run.css);
+      const glyph = tintedGlyph(code, run2.css);
       if (glyph) {
         ctx.drawImage(glyph, left, 0, width, cellHDevice);
       } else {
-        ctx.fillStyle = run.css;
+        ctx.fillStyle = run2.css;
         ctx.font = `${String(Math.round(cellHDevice * 0.82))}px ${BITMAP_FALLBACK_STACK}`;
         ctx.fillText(char, left, cellHDevice * 0.9);
       }
@@ -928,8 +928,8 @@ function wrapBitmapParagraphs(text, maxChars) {
     (paragraph) => paragraph.trim() === "" ? [""] : wrapBitmapText(paragraph, maxChars)
   );
 }
-function styleAsScreenReaderOnly(el8) {
-  Object.assign(el8.style, {
+function styleAsScreenReaderOnly(el9) {
+  Object.assign(el9.style, {
     position: "absolute",
     width: "1px",
     height: "1px",
@@ -948,19 +948,19 @@ function bitmapTextBlock(lines, cellWidth, cellHeight, dpr) {
     wrap.appendChild(canvas);
   }
   const label2 = document.createElement("span");
-  label2.textContent = lines.map((runs) => runs.map((run) => run.text).join("")).join(" ");
+  label2.textContent = lines.map((runs) => runs.map((run2) => run2.text).join("")).join(" ");
   styleAsScreenReaderOnly(label2);
   wrap.appendChild(label2);
   return wrap;
 }
-function paintBitmapButtonLabel(button4, text, css, cellWidth, cellHeight, dpr) {
-  button4.replaceChildren();
-  if (!button4.hasAttribute("aria-label")) button4.setAttribute("aria-label", text);
+function paintBitmapButtonLabel(button5, text, css, cellWidth, cellHeight, dpr) {
+  button5.replaceChildren();
+  if (!button5.hasAttribute("aria-label")) button5.setAttribute("aria-label", text);
   const canvas = document.createElement("canvas");
   canvas.setAttribute("aria-hidden", "true");
   canvas.style.display = "block";
   paintBitmapLine(canvas, [{ text, css }], cellWidth, cellHeight, dpr);
-  button4.appendChild(canvas);
+  button5.appendChild(canvas);
 }
 
 // src/paint.ts
@@ -2308,7 +2308,7 @@ function paintSidebar(rt, section2, frame) {
     for (const entry2 of visible) {
       totalRows += sidebarRowGap(frame.layout, scanRow, entry2.screen?.row) + 1;
       if (entry2.screen) scanRow = entry2.screen.row;
-      maxChars = Math.max(maxChars, entry2.runs.reduce((n, run) => n + [...run.text].length, 0));
+      maxChars = Math.max(maxChars, entry2.runs.reduce((n, run2) => n + [...run2.text].length, 0));
     }
     const heightScale = pixels.height / Math.max(1, totalRows * cellHeight);
     const widthScale = pixels.width / Math.max(1, maxChars * cellWidth);
@@ -2377,7 +2377,7 @@ function paintSidebar(rt, section2, frame) {
     paintBitmapLine(canvas, entry2.runs, cellWidth, cellHeight, dpr);
     row.appendChild(canvas);
     const label2 = document.createElement("span");
-    label2.textContent = entry2.runs.map((run) => run.text).join("");
+    label2.textContent = entry2.runs.map((run2) => run2.text).join("");
     Object.assign(label2.style, {
       position: "absolute",
       width: "1px",
@@ -2390,11 +2390,11 @@ function paintSidebar(rt, section2, frame) {
     sidebar.body.appendChild(row);
   }
   if (plan.pages > 1) {
-    const button4 = document.createElement("button");
-    button4.type = "button";
-    button4.setAttribute("data-anybandui-sidebar-page", "");
-    button4.setAttribute("aria-label", `Show status page ${String((plan.page + 1) % plan.pages + 1)} of ${String(plan.pages)}`);
-    Object.assign(button4.style, {
+    const button5 = document.createElement("button");
+    button5.type = "button";
+    button5.setAttribute("data-anybandui-sidebar-page", "");
+    button5.setAttribute("aria-label", `Show status page ${String((plan.page + 1) % plan.pages + 1)} of ${String(plan.pages)}`);
+    Object.assign(button5.style, {
       appearance: "none",
       background: "transparent",
       border: "1px solid #686878",
@@ -2405,15 +2405,15 @@ function paintSidebar(rt, section2, frame) {
       padding: "0 0.35em"
     });
     paintBitmapButtonLabel(
-      button4,
+      button5,
       `${String(plan.page + 1)}/${String(plan.pages)} >`,
       "#d8d87c",
       cellWidth,
       cellHeight,
       dpr
     );
-    button4.addEventListener("click", () => turnSidebarPage(rt, 1));
-    sidebar.body.appendChild(button4);
+    button5.addEventListener("click", () => turnSidebarPage(rt, 1));
+    sidebar.body.appendChild(button5);
   }
 }
 function cameraOrigin(snapshot, point) {
@@ -4167,18 +4167,18 @@ function hoverCardContent(core, state, grid) {
   return { kind, text, title: KIND_TITLE[kind] };
 }
 var hoverCardsWired = false;
-function positionHoverCard(el8, clientX, clientY) {
+function positionHoverCard(el9, clientX, clientY) {
   const GAP = 14;
   const vw = window.innerWidth;
   const vh = window.innerHeight;
-  const w = el8.offsetWidth;
-  const h = el8.offsetHeight;
+  const w = el9.offsetWidth;
+  const h = el9.offsetHeight;
   let left = clientX + GAP;
   let top = clientY + GAP;
   if (left + w > vw) left = clientX - GAP - w;
   if (top + h > vh) top = clientY - GAP - h;
-  el8.style.left = `${String(Math.max(0, left))}px`;
-  el8.style.top = `${String(Math.max(0, top))}px`;
+  el9.style.left = `${String(Math.max(0, left))}px`;
+  el9.style.top = `${String(Math.max(0, top))}px`;
 }
 var HOVER_CARD_CELL_HEIGHT = 14;
 var HOVER_CARD_CELL_WIDTH = HOVER_CARD_CELL_HEIGHT * (16 / 24);
@@ -5050,19 +5050,19 @@ function renderEquipmentPortrait(parent, slots, worn, selectedKey, onSelect) {
   extras.className = "extras";
   const selected = Math.max(0, cards.findIndex((card) => card.key === selectedKey));
   cards.forEach((card, index) => {
-    const button4 = el2(card.row === null ? extras : body, "button");
-    button4.type = "button";
-    button4.className = card.row === null ? "slotcard" : `slotcard ${card.right ? "right" : "left"}`;
-    if (card.row !== null) button4.style.gridRow = String(card.row + 1);
-    button4.setAttribute("aria-pressed", String(card.key === selectedKey));
-    if (index === selected) button4.dataset["focus"] = "portrait-slot";
-    const title = el2(button4, "b", card.label);
+    const button5 = el2(card.row === null ? extras : body, "button");
+    button5.type = "button";
+    button5.className = card.row === null ? "slotcard" : `slotcard ${card.right ? "right" : "left"}`;
+    if (card.row !== null) button5.style.gridRow = String(card.row + 1);
+    button5.setAttribute("aria-pressed", String(card.key === selectedKey));
+    if (index === selected) button5.dataset["focus"] = "portrait-slot";
+    const title = el2(button5, "b", card.label);
     if (!card.item) title.className = "muted";
-    const name = el2(button4, "span", card.item ?? "Empty");
+    const name = el2(button5, "span", card.item ?? "Empty");
     if (card.colour) name.style.color = card.colour;
     if (!card.item) name.className = "muted";
-    if (card.inscription) button4.title = card.inscription;
-    button4.addEventListener("click", () => onSelect(card.key));
+    if (card.inscription) button5.title = card.inscription;
+    button5.addEventListener("click", () => onSelect(card.key));
   });
   wrap.addEventListener("keydown", (event) => {
     const next = stepSelection(cards.length, cards.findIndex((card2) => card2.key === selectedKey), event.key);
@@ -5464,20 +5464,20 @@ function installItems(ctx) {
     const ref = inspectRef(model, item);
     const inspection = ref === null ? null : ctx.inspect?.inspectItem(ref);
     if (!inspection || !same(inspection.token, model.token)) return;
-    for (const block of inspectionBlocks(inspection)) {
-      if (!block.heading) {
-        el3(mount, "p", block.body).className = "info";
+    for (const block2 of inspectionBlocks(inspection)) {
+      if (!block2.heading) {
+        el3(mount, "p", block2.body).className = "info";
         continue;
       }
       const details = el3(mount, "details");
-      details.open = !folded.has(block.heading);
+      details.open = !folded.has(block2.heading);
       details.addEventListener("toggle", () => {
-        if (details.open) folded.delete(block.heading);
-        else folded.add(block.heading);
+        if (details.open) folded.delete(block2.heading);
+        else folded.add(block2.heading);
       });
-      const summary = el3(details, "summary", block.heading);
-      if (block.lead) summary.className = "lead";
-      if (block.body) el3(details, "p", block.body).className = "info";
+      const summary = el3(details, "summary", block2.heading);
+      if (block2.lead) summary.className = "lead";
+      if (block2.body) el3(details, "p", block2.body).className = "info";
     }
   };
   const itemButton = (cell, item, badge) => {
@@ -5772,12 +5772,12 @@ function renderCharacterSheet(parent, data, page, onPage) {
   tabs.className = "tabs";
   tabs.setAttribute("role", "tablist");
   SHEET_PAGES.forEach((name2, index) => {
-    const button4 = el4(tabs, "button", name2);
-    button4.type = "button";
-    button4.setAttribute("role", "tab");
-    button4.setAttribute("aria-selected", String(index === page));
-    button4.dataset["focus"] = pageFocus(index);
-    button4.addEventListener("click", () => onPage(index));
+    const button5 = el4(tabs, "button", name2);
+    button5.type = "button";
+    button5.setAttribute("role", "tab");
+    button5.setAttribute("aria-selected", String(index === page));
+    button5.dataset["focus"] = pageFocus(index);
+    button5.addEventListener("click", () => onPage(index));
   });
   tabs.addEventListener("keydown", (event) => {
     const next = stepSheetPage(page, event.key);
@@ -5877,6 +5877,24 @@ function installCharacterSheet(ctx) {
   };
 }
 
+// src/menus/openers.ts
+var openers = /* @__PURE__ */ new Map();
+function registerOpener(key, open) {
+  openers.set(key, open);
+  return () => {
+    if (openers.get(key) === open) openers.delete(key);
+  };
+}
+function openMenu(key) {
+  const open = openers.get(key);
+  if (!open) return false;
+  open();
+  return true;
+}
+function hasOpener(key) {
+  return openers.has(key);
+}
+
 // src/theme-editor.ts
 var CSS4 = `:host{color:var(--anyband-text);font:var(--anyband-font-size)/var(--anyband-line) var(--anyband-font)}
 .theme{position:absolute;right:12px;top:12px;width:min(420px,44vw);max-height:calc(100vh - 24px);overflow:auto;padding:10px;background:var(--anyband-surface);border:1px solid var(--anyband-accent);border-radius:var(--anyband-rounding)}
@@ -5930,10 +5948,10 @@ function renderThemeEditor(parent, draft, note, onPreview, onRebuild, onSave, on
   const presets = el5(parent, "div");
   presets.className = "tabs";
   for (const [id, label2] of THEME_CHOICES) {
-    const button4 = el5(presets, "button", label2);
-    button4.type = "button";
-    button4.setAttribute("aria-pressed", String(draft.preset === id && !draft.invert_dungeon && draft.rounding === THEMES[id].rounding && draft.background === THEMES[id].background));
-    button4.addEventListener("click", () => {
+    const button5 = el5(presets, "button", label2);
+    button5.type = "button";
+    button5.setAttribute("aria-pressed", String(draft.preset === id && !draft.invert_dungeon && draft.rounding === THEMES[id].rounding && draft.background === THEMES[id].background));
+    button5.addEventListener("click", () => {
       const theme = THEMES[id];
       draft.preset = id;
       draft.background = theme.background;
@@ -5991,6 +6009,15 @@ function renderThemeEditor(parent, draft, note, onPreview, onRebuild, onSave, on
   drop.addEventListener("click", onDrop);
   if (note) el5(parent, "p", note).className = "note";
 }
+function broadcastTheme(ctx, theme) {
+  try {
+    ctx.display?.setChromeTheme?.(chromeThemeFor(theme));
+  } catch (err) {
+    ctx.log(`Could not repaint the window frames: ${err instanceof Error ? err.message : String(err)}`);
+  }
+  installAccessibilityAccommodations({ flags: ctx.flags ?? {}, invertDungeon: theme.invert_dungeon, ...ctx.display ? { display: ctx.display } : {}, log: ctx.log });
+  notifyThemeChange(theme);
+}
 function installThemeEditor(ctx) {
   if (ctx.flags?.["anybandui.themeEditor"] !== true) return () => {
   };
@@ -6011,6 +6038,10 @@ function installThemeEditor(ctx) {
     return () => {
     };
   }
+  const stopOpener = registerOpener("theme-editor", () => {
+    surfaces.focus("theme-editor");
+    repaint();
+  });
   let mount = null;
   let closed = false;
   const tokens = () => themeFromPrefs(customFromDraft(draft) ? { theme: draft.preset, customTheme: customFromDraft(draft) } : { theme: draft.preset });
@@ -6025,13 +6056,7 @@ function installThemeEditor(ctx) {
   const applySaved = (theme) => {
     const root = paintedRoot();
     if (root) applyTheme(root, theme);
-    try {
-      ctx.display?.setChromeTheme?.(chromeThemeFor(theme));
-    } catch (err) {
-      ctx.log(`Could not repaint the window frames: ${err instanceof Error ? err.message : String(err)}`);
-    }
-    installAccessibilityAccommodations({ flags: ctx.flags ?? {}, invertDungeon: theme.invert_dungeon, ...ctx.display ? { display: ctx.display } : {}, log: ctx.log });
-    notifyThemeChange(theme);
+    broadcastTheme(ctx, theme);
   };
   const paint = () => {
     if (closed) return;
@@ -6077,326 +6102,1024 @@ function installThemeEditor(ctx) {
   repaint = () => paint();
   return () => {
     closed = true;
+    stopOpener();
     surfaces.close();
   };
 }
 
-// src/map-mouse.ts
-function ready(snap) {
-  return !!snap && snap.phase === "play" && !snap.messagePending && !snap.prompt && !!snap.core.player;
-}
-function sameToken(a, b) {
-  return a.epoch === b.epoch && a.revision === b.revision;
-}
-function walkIntent(player, at) {
-  const dx = at.x - player.x, dy = at.y - player.y;
-  if (dx === 0 && dy === 0) return null;
-  if (Math.max(Math.abs(dx), Math.abs(dy)) === 1) {
-    return { kind: "command", command: { code: "walk", dir: 5 + Math.sign(dx) - 3 * Math.sign(dy) } };
+// src/menus/keys.ts
+function listStep(key, index, length) {
+  if (length <= 0) return null;
+  const at = index < 0 ? -1 : Math.min(index, length - 1);
+  switch (key) {
+    case "ArrowDown":
+      return at < 0 ? 0 : Math.min(length - 1, at + 1);
+    case "ArrowUp":
+      return at < 0 ? 0 : Math.max(0, at - 1);
+    case "Home":
+      return 0;
+    case "End":
+      return length - 1;
+    case "PageDown":
+      return at < 0 ? 0 : Math.min(length - 1, at + 10);
+    case "PageUp":
+      return at < 0 ? 0 : Math.max(0, at - 10);
+    default:
+      return null;
   }
-  return { kind: "travel", x: at.x, y: at.y };
 }
-function clickIntent(player, at, modifiers = {}) {
-  if (modifiers.shift && modifiers.ctrl) return null;
-  if (modifiers.ctrl) return { kind: "travel", x: at.x, y: at.y, modifiers: { ctrl: true } };
-  if (modifiers.shift) {
-    const adjacent = Math.max(Math.abs(at.x - player.x), Math.abs(at.y - player.y)) === 1;
-    return adjacent ? { kind: "travel", x: at.x, y: at.y, modifiers: { shift: true } } : null;
-  }
-  return walkIntent(player, at);
+function swallow(event) {
+  event.preventDefault();
+  event.stopPropagation?.();
 }
-var PRE_MODIFIER_REFUSAL = "malformed travel destination";
-var TILE_ACTION_LABELS = {
-  tunnel: "Tunnel",
-  open: "Open",
-  close: "Close",
-  disarm: "Disarm",
-  ascend: "Go up the stairs",
-  descend: "Go down the stairs",
-  pickup: "Pick up"
-};
-var DIRECTED_CODES = /* @__PURE__ */ new Set(["tunnel", "open", "close", "disarm"]);
-function tileMenuActions(ctx, snap, at) {
-  if (snap.prompt?.kind === "target") return ctx.prompt ? [{ label: "Select tile", promptAction: "select" }, { label: "Cancel", promptAction: "cancel" }] : [];
-  if (!ready(snap)) return [];
-  const actions = [];
-  const walk = walkIntent(snap.core.player.grid, at);
-  if (walk) actions.push({ label: "Walk here", intent: walk });
-  actions.push({ label: "Look", intent: { kind: "command", command: { code: "look", args: { x: at.x, y: at.y } } } });
-  actions.push({ label: "Target", intent: { kind: "target", ...at } });
-  const known = ctx.knownLevel?.();
-  if (known && sameToken(known.token, snap.token) && known.cells.some((cell) => cell.x === at.x && cell.y === at.y && cell.remembered.objects.length > 0)) {
-    actions.push({ label: "Pick up", pickup: true });
+function el6(parent, tag, text) {
+  const child = parent.ownerDocument.createElement(tag);
+  if (text !== void 0) child.textContent = text;
+  parent.appendChild(child);
+  return child;
+}
+function button2(parent, label2, focus, onClick) {
+  const node2 = el6(parent, "button", label2);
+  node2.type = "button";
+  node2.dataset["focus"] = focus;
+  node2.addEventListener("click", onClick);
+  return node2;
+}
+function matches(text, query) {
+  return text.toLowerCase().includes(query.trim().toLowerCase());
+}
+
+// src/menus/menu-surface.ts
+var MENU_CSS = `:host{color:var(--anyband-text);font:var(--anyband-font-size)/var(--anyband-line) var(--anyband-font)}
+.menu{position:absolute;right:12px;top:12px;width:min(620px,62vw);max-height:calc(100vh - 24px);overflow:auto;padding:10px;background:var(--anyband-surface);border:1px solid var(--anyband-accent);border-radius:var(--anyband-rounding);box-sizing:border-box}
+h2{margin:0 0 6px;font-size:inherit;color:var(--anyband-accent)}
+button,input,select{font:inherit;color:var(--anyband-text);background:var(--anyband-background);border:1px solid var(--anyband-accent);border-radius:3px;padding:3px 6px}
+button{cursor:pointer}button:disabled{opacity:.45;cursor:default}
+button:focus-visible,input:focus-visible,select:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--anyband-accent)}
+[aria-pressed=true],[aria-selected=true]{background:var(--anyband-accent);color:var(--anyband-background)}
+.tabs,.actions,.controls{display:flex;gap:5px;flex-wrap:wrap;margin:6px 0;align-items:center}
+.controls input[type=search]{flex:1 1 55%}
+.section{margin:10px 0 4px;padding-bottom:2px;color:var(--anyband-accent);border-bottom:1px solid var(--anyband-accent)}
+.list{display:flex;flex-direction:column;gap:1px}
+.row{display:flex;gap:8px;justify-content:space-between;text-align:left;border-color:transparent;background:transparent}
+.row .cells{opacity:.85}
+.field{display:flex;gap:8px;align-items:center;justify-content:space-between;margin:3px 0}
+.field .name{opacity:.6;font-size:.9em}
+.split{display:grid;grid-template-columns:minmax(150px,38%) 1fr;gap:10px;align-items:start}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav .group{margin-top:6px;opacity:.6}
+.detail{padding:4px;border-left:1px solid var(--anyband-accent);min-height:4em;white-space:normal}
+.detail pre{margin:0;white-space:pre}
+.detail table{border-collapse:collapse}.detail td,.detail th{padding:0 6px 0 0;text-align:left}
+.muted{opacity:.7}.warn{color:var(--anyband-accent);font-weight:bold}
+.confirm{margin:8px 0;padding:8px;border:1px solid var(--anyband-accent);background:var(--anyband-background);border-radius:var(--anyband-rounding)}
+.note{margin-top:6px}`;
+function findFocus(mount, key) {
+  for (const node2 of Array.from(mount.querySelectorAll("[data-focus]"))) {
+    if (node2.dataset["focus"] === key) return node2;
   }
-  const offered = ctx.inspect?.tileActions?.(at);
-  if (offered && sameToken(offered.token, snap.token)) {
-    const player = snap.core.player.grid;
-    const dx = at.x - player.x, dy = at.y - player.y;
-    const dir = 5 + Math.sign(dx) - 3 * Math.sign(dy);
-    for (const code of offered.codes) {
-      const label2 = TILE_ACTION_LABELS[code];
-      if (!label2 || actions.some((action) => action.label === label2)) continue;
-      if (code === "pickup") actions.push({ label: label2, pickup: true });
-      else actions.push({ label: label2, intent: { kind: "command", command: DIRECTED_CODES.has(code) ? { code, dir } : { code } } });
+  return null;
+}
+function openMenuSurface(ctx, spec, render) {
+  let closed = false;
+  let shown = false;
+  let paint = (_focus) => {
+  };
+  const surfaces = openSurfaces(ctx, [spec], { id: spec.key, label: spec.label, className: "menu" }, MENU_CSS, () => paint());
+  if (!surfaces) return null;
+  const stopOpener = registerOpener(spec.key, () => {
+    surfaces.focus(spec.key);
+    paint(spec.firstFocus);
+  });
+  paint = (focusKey) => {
+    if (closed) return;
+    const mount = surfaces.mounts().get(spec.key);
+    if (!mount) {
+      if (shown) {
+        shown = false;
+        spec.onHidden?.();
+      }
+      return;
+    }
+    shown = true;
+    const root = mount.getRootNode();
+    const active = root.activeElement ?? null;
+    const kept = active && mount.contains(active) ? active.dataset?.["focus"] : void 0;
+    const target = focusKey === null ? void 0 : focusKey ?? kept;
+    const caret = focusKey === void 0 && active && typeof active.selectionStart === "number" ? [active.selectionStart, active.selectionEnd ?? null] : null;
+    mount.replaceChildren();
+    const frame = mount.ownerDocument.createElement("div");
+    mount.appendChild(frame);
+    render(frame);
+    if (!target) return;
+    const field = findFocus(mount, target);
+    field?.focus();
+    if (field && caret && typeof field.setSelectionRange === "function") {
+      try {
+        field.setSelectionRange(caret[0], caret[1]);
+      } catch {
+      }
+    }
+  };
+  paint();
+  return {
+    repaint: (focusKey) => paint(focusKey),
+    mounted: () => !closed && surfaces.mounts().has(spec.key),
+    close: () => {
+      if (closed) return;
+      closed = true;
+      stopOpener();
+      surfaces.close();
+    }
+  };
+}
+
+// src/menus/screen-view.ts
+function run(parent, text, color) {
+  const span = el6(parent, "span", text);
+  if (color) span.style.color = color;
+}
+function block(parent, item) {
+  if (item.kind === "text") {
+    for (const paragraph of item.paragraphs) {
+      const p = el6(parent, "p");
+      if (item.color) p.style.color = item.color;
+      for (const part of paragraph) run(p, part.text, part.color);
+    }
+    return;
+  }
+  if (item.kind === "lines") {
+    const pre = el6(parent, "pre");
+    item.lines.forEach((line, index) => {
+      if (index > 0) pre.appendChild(pre.ownerDocument.createTextNode("\n"));
+      if (line.runs && line.runs.length > 0) for (const part of line.runs) run(pre, part.text, part.color);
+      else run(pre, line.text, line.color);
+    });
+    return;
+  }
+  if (item.kind === "art") {
+    const pre = el6(parent, "pre", item.lines.join("\n"));
+    if (item.color) pre.style.color = item.color;
+    for (const field of item.fields ?? []) el6(parent, "p", field.text);
+    return;
+  }
+  if (item.caption) {
+    const caption = el6(parent, "p");
+    run(caption, item.caption.text, item.caption.color);
+  }
+  if (item.rows.length === 0) {
+    if (item.empty) {
+      const empty = el6(parent, "p");
+      run(empty, item.empty.text, item.empty.color);
+    }
+    return;
+  }
+  const table = el6(parent, "table");
+  if (item.columns.some((column) => column.label)) {
+    const head = el6(table, "tr");
+    for (const column of item.columns) {
+      const cell = el6(head, "th", column.label ?? "");
+      if (item.headerColor) cell.style.color = item.headerColor;
     }
   }
-  return actions;
-}
-function clickTile(ctx, at, modifiers = {}) {
-  if (!playerIsDriving(ctx)) return false;
-  const snap = ctx.snapshot?.() ?? null;
-  if (snap?.prompt?.kind === "target") return !!ctx.prompt?.reply(snap.prompt.promptId, { action: "move", ...at }).accepted;
-  if (!ready(snap) || !snap || !ctx.intent) return false;
-  const player = snap.core.player.grid;
-  const intent = clickIntent(player, at, modifiers);
-  if (!intent) return false;
-  const result = ctx.intent.submit(snap.token, intent);
-  if (result.accepted) return true;
-  if (intent.kind !== "travel" || !intent.modifiers || result.reason !== PRE_MODIFIER_REFUSAL) return false;
-  const plain = walkIntent(player, at);
-  return !!plain && ctx.intent.submit(snap.token, plain).accepted;
-}
-function runMenuAction(ctx, at, label2) {
-  if (!playerIsDriving(ctx)) return false;
-  const snap = ctx.snapshot?.() ?? null;
-  if (!snap) return false;
-  const action = tileMenuActions(ctx, snap, at).find((item) => item.label === label2);
-  if (!action) return false;
-  if (action.promptAction) return !!ctx.prompt?.reply(snap.prompt.promptId, { action: action.promptAction }).accepted;
-  if (!ctx.intent) return false;
-  if (action.pickup) {
-    const grid = snap.core.player.grid;
-    if (grid.x === at.x && grid.y === at.y) return ctx.intent.submit(snap.token, { kind: "command", command: { code: "pickup" } }).accepted;
-    const travel = { kind: "travel", ...at };
-    return ctx.intent.submit(snap.token, travel).accepted;
+  for (const row of item.rows) {
+    const tr = el6(table, "tr");
+    if (row.color) tr.style.color = row.color;
+    for (const column of item.columns) {
+      const value2 = row.cells[column.key];
+      const td = el6(tr, "td", value2?.text ?? "");
+      if (value2?.color) td.style.color = value2.color;
+      if (column.align === "right") td.style.textAlign = "right";
+    }
   }
-  return !!action.intent && ctx.intent.submit(snap.token, action.intent).accepted;
 }
-function finishPickup(ctx, at, previous) {
-  if (!playerIsDriving(ctx)) return false;
-  const next = ctx.snapshot?.() ?? null;
-  if (!ready(next) || !next || sameToken(previous.token, next.token) || !ctx.intent) return false;
-  const grid = next.core.player.grid;
-  if (grid.x !== at.x || grid.y !== at.y) return false;
-  const level = ctx.knownLevel?.();
-  if (!level || !sameToken(level.token, next.token) || !level.cells.some((cell) => cell.x === at.x && cell.y === at.y && cell.remembered.objects.length > 0)) return false;
-  return ctx.intent.submit(next.token, { kind: "command", command: { code: "pickup" } }).accepted;
+function renderScreenView(parent, view) {
+  for (const item of view.blocks) block(parent, item);
 }
-function aimingPath(ctx, snap, hovered) {
-  if (snap?.prompt?.kind !== "target" && snap?.prompt?.kind !== "direction") return [];
-  if (snap.prompt.kind === "target") return snap.prompt.path;
-  const cursor = hovered;
-  const path = cursor ? ctx.inspect?.projectionPath?.(cursor) : null;
-  return path && sameToken(path.token, snap.token) ? path.grids : [];
+
+// src/menus/knowledge-browser.ts
+var KNOWLEDGE_KEY = "knowledge-browser";
+var REFRESH_MS = 1e3;
+function visibleEntries(list, group, search) {
+  const out = [];
+  for (const g of list?.groups ?? []) {
+    if (group && g.name !== group) continue;
+    for (const entry2 of g.entries) if (matches(`${entry2.name} ${g.name}`, search)) out.push({ group: g.name, entry: entry2 });
+  }
+  return out;
 }
-function walkingPath(ctx, snap, hovered) {
-  if (!ready(snap) || !snap || !hovered) return [];
-  const path = ctx.inspect?.travelPath?.(hovered);
-  return path && sameToken(path.token, snap.token) ? path.grids : [];
-}
-function installMapMouse(ctx) {
-  const flags = ctx.flags;
-  if (!flags["anybandui.clickToWalk"] && !flags["anybandui.dungeonActions"] && !flags["anybandui.aimPath"] && !flags["anybandui.walkRoutePreview"]) return () => {
+var entryFocus = (id) => `entry:${id}`;
+var tabFocus = (id) => `tab:${id}`;
+function installKnowledgeBrowser(ctx) {
+  if (ctx.flags?.["anybandui.knowledgeBrowser"] !== true) return () => {
   };
-  if (!ctx.display || !ctx.snapshot || typeof document === "undefined" || typeof window === "undefined") {
-    ctx.log?.("map mouse: display or snapshot unavailable");
+  if (!ctx.knowledge) ctx.log("knowledge browser: this game does not share its knowledge lists");
+  const state = { category: "", group: "", search: "", selected: null };
+  let signature = "";
+  let timer2 = null;
+  const read = () => {
+    const seam = ctx.knowledge;
+    if (!seam) return { categories: [], list: null, visible: [], recall: null, error: "This game does not share its knowledge lists." };
+    try {
+      const categories = seam.categories();
+      if (!categories.some((c) => c.id === state.category)) {
+        state.category = (categories.find((c) => c.count > 0) ?? categories[0])?.id ?? "";
+        state.group = "";
+        state.selected = null;
+      }
+      const list = state.category ? seam.list(state.category) : null;
+      if (state.group && !list?.groups.some((g) => g.name === state.group)) state.group = "";
+      const visible = visibleEntries(list, state.group, state.search);
+      if (!visible.some((v) => v.entry.id === state.selected)) state.selected = visible[0]?.entry.id ?? null;
+      const recall = state.selected ? seam.recall(state.category, state.selected) : null;
+      return { categories, list, visible, recall, error: "" };
+    } catch (err) {
+      return { categories: [], list: null, visible: [], recall: null, error: `The knowledge lists could not be read: ${err instanceof Error ? err.message : String(err)}` };
+    }
+  };
+  let surface = null;
+  const repaint = (focusKey) => surface?.repaint(focusKey);
+  const choose = (category, focusKey) => {
+    if (category === state.category) {
+      repaint(focusKey);
+      return;
+    }
+    state.category = category;
+    state.group = "";
+    state.selected = null;
+    repaint(focusKey);
+  };
+  const render = (mount) => {
+    const model = read();
+    signature = JSON.stringify([state, model]);
+    el6(mount, "h2", "Knowledge");
+    if (model.error) {
+      el6(mount, "p", model.error).className = "muted";
+      return;
+    }
+    const tabs = el6(mount, "div");
+    tabs.className = "tabs";
+    tabs.setAttribute("role", "tablist");
+    const usable = model.categories.filter((c) => c.count > 0 || c.id === state.category);
+    for (const category of model.categories) {
+      const tab = button2(tabs, category.title, tabFocus(category.id), () => choose(category.id, tabFocus(category.id)));
+      tab.setAttribute("role", "tab");
+      tab.setAttribute("aria-selected", String(category.id === state.category));
+      tab.disabled = category.count === 0 && category.id !== state.category;
+    }
+    tabs.addEventListener("keydown", (event) => {
+      const at = usable.findIndex((c) => c.id === state.category);
+      if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+        swallow(event);
+        const next = usable[(at + (event.key === "ArrowRight" ? 1 : usable.length - 1)) % usable.length];
+        if (next) choose(next.id, tabFocus(next.id));
+      } else if (event.key === "ArrowDown") {
+        swallow(event);
+        repaint(state.selected ? entryFocus(state.selected) : "search");
+      }
+    });
+    const controls = el6(mount, "div");
+    controls.className = "controls";
+    const search = el6(controls, "input");
+    search.type = "search";
+    search.placeholder = "Search by name or group";
+    search.value = state.search;
+    search.dataset["focus"] = "search";
+    search.setAttribute("aria-label", "Search knowledge");
+    search.addEventListener("input", () => {
+      state.search = search.value;
+      repaint();
+    });
+    search.addEventListener("keydown", (event) => {
+      if (event.key === "ArrowDown" || event.key === "Enter") {
+        swallow(event);
+        if (state.selected) repaint(entryFocus(state.selected));
+      } else if (event.key === "Escape") {
+        swallow(event);
+        repaint(tabFocus(state.category));
+      }
+    });
+    const groups = el6(controls, "select");
+    groups.dataset["focus"] = "group";
+    groups.setAttribute("aria-label", "Group");
+    const all = el6(groups, "option", "All groups");
+    all.value = "";
+    for (const g of model.list?.groups ?? []) {
+      const option = el6(groups, "option", g.name);
+      option.value = g.name;
+    }
+    groups.value = state.group;
+    groups.addEventListener("change", () => {
+      state.group = groups.value;
+      repaint();
+    });
+    groups.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        swallow(event);
+        repaint(tabFocus(state.category));
+      }
+    });
+    const split = el6(mount, "div");
+    split.className = "split";
+    const left = el6(split, "div");
+    const count = model.visible.length;
+    el6(left, "p", `${count} ${count === 1 ? "entry" : "entries"}`).className = "muted";
+    const list = el6(left, "div");
+    list.className = "list";
+    list.setAttribute("role", "listbox");
+    list.setAttribute("aria-label", model.list?.title ?? "Entries");
+    if (count === 0) {
+      const empty = (model.list?.groups.length ?? 0) === 0 ? "No entries discovered yet. Your knowledge grows as you explore." : "No matching entries.";
+      el6(left, "p", empty).className = "muted";
+    }
+    let lastGroup = "";
+    for (const { group, entry: entry2 } of model.visible) {
+      if (!state.group && group !== lastGroup) {
+        el6(list, "div", group).className = "section";
+        lastGroup = group;
+      }
+      const row = button2(list, "", entryFocus(entry2.id), () => {
+        state.selected = entry2.id;
+        repaint(entryFocus(entry2.id));
+      });
+      row.className = "row";
+      row.setAttribute("role", "option");
+      row.setAttribute("aria-selected", String(entry2.id === state.selected));
+      const name = el6(row, "span", entry2.name);
+      name.style.color = entry2.color;
+      if (entry2.cells && entry2.cells.length > 0) {
+        const cells = el6(row, "span");
+        cells.className = "cells";
+        for (const cell of entry2.cells) {
+          const part = el6(cells, "span", ` ${cell.text}`);
+          part.style.color = cell.color;
+        }
+      }
+    }
+    list.addEventListener("keydown", (event) => {
+      const ids = model.visible.map((v) => v.entry.id);
+      const at = state.selected ? ids.indexOf(state.selected) : -1;
+      const next = listStep(event.key, at, ids.length);
+      if (next !== null) {
+        swallow(event);
+        state.selected = ids[next] ?? null;
+        repaint(state.selected ? entryFocus(state.selected) : void 0);
+        return;
+      }
+      if (event.key === "ArrowRight" || event.key === "Enter") {
+        swallow(event);
+        repaint("detail");
+        return;
+      }
+      if (event.key === "Escape") {
+        swallow(event);
+        repaint("search");
+      }
+    });
+    const detail = el6(split, "div");
+    detail.className = "detail";
+    detail.tabIndex = 0;
+    detail.dataset["focus"] = "detail";
+    detail.setAttribute("aria-live", "polite");
+    if (!state.selected) el6(detail, "p", "Select an entry to read about it.").className = "muted";
+    else if (!model.recall) el6(detail, "p", "Nothing more is known about this yet.").className = "muted";
+    else renderScreenView(detail, model.recall);
+    detail.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" || event.key === "ArrowLeft") {
+        swallow(event);
+        repaint(state.selected ? entryFocus(state.selected) : "search");
+      }
+    });
+  };
+  surface = openMenuSurface(ctx, { key: KNOWLEDGE_KEY, label: "Knowledge", tab: "Knowledge", minSize: { width: 420, height: 260 }, placement: { kind: "dock", target: "main", edge: "right" }, firstFocus: "search" }, render);
+  if (!surface) {
+    ctx.log("knowledge browser: panel seam unavailable");
     return () => {
     };
   }
-  const display = ctx.display;
-  let theme = themeFromPrefs(ctx.prefs?.get());
-  const menu = document.createElement("div");
-  menu.setAttribute("role", "menu");
-  menu.setAttribute("aria-label", "Dungeon actions");
-  menu.style.cssText = `display:none;position:fixed;z-index:1002;background:${theme.surface};color:${theme.text};border:1px solid ${paintColours(theme).border};border-radius:${Math.round(theme.rounding * 0.6)}px;padding:4px;font:${PAINT_FONT_SIZE}px/${PAINT_LINE_HEIGHT}px ${PAINT_FONT}`;
-  const paintMenu = () => {
-    const colours2 = paintColours(theme);
-    menu.style.background = theme.surface;
-    menu.style.color = theme.text;
-    menu.style.border = `1px solid ${colours2.border}`;
-    menu.style.borderRadius = `${Math.round(theme.rounding * 0.6)}px`;
-    const buttons = menu.querySelectorAll("button");
-    for (let index = 0; index < buttons.length; index += 1) {
-      const button4 = buttons[index];
-      if (!button4) continue;
-      button4.style.background = theme.surface;
-      button4.style.color = theme.text;
-    }
+  timer2 = globalThis.setInterval(() => {
+    if (!surface?.mounted()) return;
+    const before = signature;
+    const model = read();
+    if (JSON.stringify([state, model]) !== before) repaint();
+  }, REFRESH_MS);
+  return () => {
+    if (timer2 !== null) globalThis.clearInterval(timer2);
+    timer2 = null;
+    surface?.close();
+    surface = null;
   };
-  const stopTheme2 = onThemeChange((next) => {
-    theme = next;
-    paintMenu();
+}
+
+// src/menus/inline-confirm.ts
+var CONFIRM_YES = "confirm-yes";
+var CONFIRM_NO = "confirm-no";
+function renderConfirm(parent, confirmation, onClose) {
+  const box = el6(parent, "div");
+  box.className = "confirm";
+  box.setAttribute("role", "alertdialog");
+  box.setAttribute("aria-label", confirmation.question);
+  el6(box, "p", confirmation.question);
+  const row = el6(box, "div");
+  row.className = "actions";
+  const yes = () => {
+    onClose();
+    confirmation.onYes();
+  };
+  const yesButton = button2(row, confirmation.yes, CONFIRM_YES, yes);
+  const noButton = button2(row, "No", CONFIRM_NO, onClose);
+  box.addEventListener("keydown", (event) => {
+    const key = event.key;
+    if (key === "Escape" || key === "n" || key === "N") {
+      swallow(event);
+      onClose();
+      return;
+    }
+    if (key === "y" || key === "Y") {
+      swallow(event);
+      yes();
+      return;
+    }
+    if (key === "ArrowLeft" || key === "ArrowRight" || key === "Tab") {
+      swallow(event);
+      const root = box.getRootNode();
+      (root.activeElement === yesButton ? noButton : yesButton).focus();
+    }
   });
-  const canvas = document.createElement("canvas");
-  canvas.setAttribute("aria-hidden", "true");
-  canvas.style.cssText = "position:fixed;inset:0;pointer-events:none;z-index:49";
-  document.body.append(menu, canvas);
-  let menuAt = null;
-  let menuToken = null;
-  let menuPromptId = null;
-  let pickupAt = null;
-  let pickupSnap = null;
-  let targetAt = null;
-  let targetPromptId = null;
-  let hovered = null;
-  const hide = () => {
-    menu.style.display = "none";
-    menu.replaceChildren();
-    menuAt = null;
+  return box;
+}
+
+// src/menus/options-editor.ts
+var OPTIONS_KEY = "options-editor";
+var GROUP_OF = {
+  rogue_like_commands: "Input and targeting",
+  use_old_target: "Input and targeting",
+  mouse_movement: "Input and targeting",
+  disturb_near: "Input and targeting",
+  autoexplore_commands: "Input and targeting",
+  pickup_always: "Items",
+  pickup_inven: "Items",
+  show_flavors: "Items",
+  show_damage: "Messages",
+  auto_more: "Messages",
+  notify_recharge: "Messages",
+  show_target: "Display",
+  highlight_player: "Display",
+  solid_walls: "Display",
+  hybrid_walls: "Display",
+  view_yellow_light: "Display",
+  animate_flicker: "Display",
+  center_player: "Display",
+  purple_uniques: "Display",
+  hp_changes_color: "Display",
+  effective_speed: "Display"
+};
+var GROUPS = ["Input and targeting", "Items", "Messages", "Display", "Other"];
+var READ_ONLY_PAGES = [["birth", "Birth options"], ["cheat", "Cheat options"], ["score", "Score options"]];
+function optionGroup(name) {
+  return GROUP_OF[name] ?? "Other";
+}
+var NUMBER_SETTINGS = [
+  { key: "hitpointWarn", label: "Low hit point warning", help: "Warns you when your hit points fall below this share of the maximum.", max: 9, scale: 10, unit: "%" },
+  { key: "delayFactor", label: "Animation delay", help: "How long the game pauses on each step of a missile or spell animation.", max: 255, scale: 1, unit: " ms" },
+  { key: "lazymoveDelay", label: "Movement key delay", help: "How long the game waits to combine two direction keys into a diagonal. 0 turns this off.", max: 255, scale: 1, unit: " ms" }
+];
+function draftFromView(view) {
+  return {
+    values: Object.fromEntries(view.entries.map((entry2) => [entry2.name, entry2.value])),
+    hitpointWarn: view.hitpointWarn,
+    delayFactor: view.delayFactor,
+    lazymoveDelay: view.lazymoveDelay
   };
-  const locate = (event) => {
-    const snap = display.snapshot();
-    const input = ctx.snapshot?.() ?? null;
-    if (snap.mode !== "play" && !(snap.mode === "modal" && (input?.prompt?.kind === "target" || input?.prompt?.kind === "direction"))) return null;
-    const grid = hoverGrid(snap, { x: event.clientX, y: event.clientY });
-    return grid && grid.x < snap.level.width && grid.y < snap.level.height ? grid : null;
+}
+function draftChanges(view, draft) {
+  const values = {};
+  for (const entry2 of view.entries) {
+    const next = draft.values[entry2.name];
+    if (entry2.writable && next !== void 0 && next !== entry2.value) values[entry2.name] = next;
+  }
+  return {
+    ...Object.keys(values).length > 0 ? { values } : {},
+    ...draft.hitpointWarn !== view.hitpointWarn ? { hitpointWarn: draft.hitpointWarn } : {},
+    ...draft.delayFactor !== view.delayFactor ? { delayFactor: draft.delayFactor } : {},
+    ...draft.lazymoveDelay !== view.lazymoveDelay ? { lazymoveDelay: draft.lazymoveDelay } : {}
   };
-  const onClick = (event) => {
-    if (event.button !== 0) return;
-    if (menu.contains(event.target)) return;
-    hide();
-    if (!flags["anybandui.clickToWalk"]) return;
-    const at = locate(event);
-    const prompt = ctx.snapshot?.()?.prompt;
-    if (at && clickTile(ctx, at, { shift: event.shiftKey, ctrl: event.ctrlKey })) {
-      if (prompt?.kind === "target") {
-        targetAt = at;
-        targetPromptId = prompt.promptId;
-      }
-      event.preventDefault();
-      event.stopImmediatePropagation();
+}
+function changeCount(change) {
+  return Object.keys(change.values ?? {}).length + ["hitpointWarn", "delayFactor", "lazymoveDelay"].filter((key) => change[key] !== void 0).length;
+}
+var optionFocus = (name) => `opt:${name}`;
+function installOptionsEditor(ctx) {
+  if (ctx.flags?.["anybandui.optionsEditor"] !== true) return () => {
+  };
+  if (!ctx.options) ctx.log("options editor: this game does not share its options");
+  let view = null;
+  let draft = null;
+  let search = "";
+  let note = "";
+  let confirm = null;
+  const writable = typeof ctx.options?.set === "function";
+  const reload = () => {
+    try {
+      view = ctx.options?.get() ?? null;
+    } catch (err) {
+      view = null;
+      note = `The options could not be read: ${err instanceof Error ? err.message : String(err)}`;
     }
+    draft = view ? draftFromView(view) : null;
   };
-  const onContext = (event) => {
-    hide();
-    if (!flags["anybandui.dungeonActions"]) return;
-    const at = locate(event), snap = ctx.snapshot?.() ?? null;
-    if (!at || !snap || !playerIsDriving(ctx) || !(ready(snap) || snap.prompt?.kind === "target")) return;
-    const actions = tileMenuActions(ctx, snap, at);
-    if (!actions.length) return;
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    menuAt = at;
-    menuToken = snap.token;
-    menuPromptId = snap.prompt?.promptId ?? null;
-    for (const action of actions) {
-      const button4 = document.createElement("button");
-      button4.type = "button";
-      button4.setAttribute("role", "menuitem");
-      button4.textContent = action.label;
-      button4.style.cssText = `display:block;width:100%;text-align:left;background:${theme.surface};color:${theme.text};border:0;padding:3px 9px;cursor:pointer;font:inherit`;
-      button4.addEventListener("pointerenter", () => {
-        button4.style.background = paintColours(theme).hover;
+  reload();
+  const pending = () => view && draft ? draftChanges(view, draft) : {};
+  let surface = null;
+  const repaint = (focusKey) => surface?.repaint(focusKey);
+  const ask = (next) => {
+    confirm = next;
+    repaint(CONFIRM_NO);
+  };
+  const save = () => {
+    const change = pending();
+    const count = changeCount(change);
+    if (count === 0 || !ctx.options?.set) return;
+    ask({ question: `Save ${count} changed ${count === 1 ? "option" : "options"}? This replaces the game's current values.`, yes: "Save", onYes: () => {
+      let result;
+      try {
+        result = ctx.options.set(change);
+      } catch (err) {
+        result = { ok: false, reason: err instanceof Error ? err.message : String(err) };
+      }
+      if (result.ok) {
+        reload();
+        note = "Saved.";
+      } else note = result.reason;
+      repaint("save");
+    } });
+  };
+  const cancel = (focusKey = "cancel") => {
+    if (changeCount(pending()) === 0) {
+      reload();
+      note = "";
+      repaint(focusKey);
+      return;
+    }
+    ask({ question: "Throw away your changes to the options?", yes: "Discard", onYes: () => {
+      reload();
+      note = "Changes discarded.";
+      repaint(focusKey);
+    } });
+  };
+  const render = (mount) => {
+    el6(mount, "h2", "Game options");
+    if (!view || !draft) {
+      el6(mount, "p", note || "This game does not share its options.").className = "muted";
+      return;
+    }
+    const current = view;
+    const edits = draft;
+    el6(mount, "p", writable ? "For this character. Your changes are a draft until you press Save, and Cancel throws them away." : "This game lets this mod read the options but not change them.").className = "muted";
+    const searchBox = el6(mount, "input");
+    searchBox.type = "search";
+    searchBox.placeholder = "Search options";
+    searchBox.value = search;
+    searchBox.dataset["focus"] = "search";
+    searchBox.setAttribute("aria-label", "Search options");
+    searchBox.addEventListener("input", () => {
+      search = searchBox.value;
+      repaint();
+    });
+    const body = el6(mount, "div");
+    body.className = "list";
+    let any = false;
+    const toggles = (entries, group, readOnly) => {
+      const shown = entries.filter((entry2) => matches(`${entry2.description} ${entry2.name} ${group}`, search));
+      if (shown.length === 0) return;
+      any = true;
+      el6(body, "div", readOnly ? `${group} (read only)` : group).className = "section";
+      for (const entry2 of shown) {
+        const row = el6(body, "label");
+        row.className = "field";
+        const box = el6(row, "input");
+        box.type = "checkbox";
+        box.checked = edits.values[entry2.name] ?? entry2.value;
+        box.disabled = readOnly || !entry2.writable || !writable;
+        box.dataset["focus"] = optionFocus(entry2.name);
+        box.setAttribute("aria-label", entry2.description);
+        box.addEventListener("change", () => {
+          edits.values[entry2.name] = box.checked;
+          note = "";
+          repaint();
+        });
+        const text = el6(row, "span", entry2.description);
+        text.style.flex = "1";
+        el6(row, "span", entry2.name).className = "name";
+      }
+    };
+    for (const group of GROUPS) toggles(current.entries.filter((entry2) => entry2.page === "interface" && optionGroup(entry2.name) === group), group, false);
+    const numbers = NUMBER_SETTINGS.filter((setting) => matches(`${setting.label} ${setting.help} Warnings and timing`, search));
+    if (numbers.length > 0) {
+      any = true;
+      el6(body, "div", "Warnings and timing").className = "section";
+    }
+    for (const setting of numbers) {
+      const row = el6(body, "label");
+      row.className = "field";
+      row.title = setting.help;
+      el6(row, "span", setting.label);
+      const range = el6(row, "input");
+      range.type = "range";
+      range.min = "0";
+      range.max = String(setting.max);
+      range.step = "1";
+      range.value = String(edits[setting.key]);
+      range.disabled = !writable;
+      range.dataset["focus"] = `num:${setting.key}`;
+      range.setAttribute("aria-label", setting.label);
+      const readout = el6(row, "span", `${edits[setting.key] * setting.scale}${setting.unit}`);
+      range.addEventListener("input", () => {
+        const next = Math.round(Number(range.value));
+        if (!Number.isFinite(next)) return;
+        edits[setting.key] = Math.max(0, Math.min(setting.max, next));
+        readout.textContent = `${edits[setting.key] * setting.scale}${setting.unit}`;
+        note = "";
       });
-      button4.addEventListener("pointerleave", () => {
-        button4.style.background = theme.surface;
+      range.addEventListener("change", () => repaint());
+    }
+    for (const [page, title] of READ_ONLY_PAGES) toggles(current.entries.filter((entry2) => entry2.page === page), title, true);
+    if (!any) el6(body, "p", "No matching options.").className = "muted";
+    body.addEventListener("keydown", (event) => {
+      if (confirm || event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+      const controls = Array.from(body.querySelectorAll("[data-focus]"));
+      const root = body.getRootNode();
+      const at = controls.findIndex((node2) => node2 === root.activeElement);
+      const next = controls[event.key === "ArrowDown" ? Math.min(controls.length - 1, at + 1) : Math.max(0, at - 1)];
+      if (next) {
+        swallow(event);
+        next.focus();
+      }
+    });
+    const count = changeCount(pending());
+    if (confirm) {
+      const active = confirm;
+      renderConfirm(mount, active, () => {
+        confirm = null;
+        repaint(writable ? "save" : "search");
       });
-      button4.addEventListener("click", () => {
-        const current = ctx.snapshot?.() ?? null;
-        if (!menuAt || !current || !menuToken || !sameToken(menuToken, current.token) || menuPromptId !== (current.prompt?.promptId ?? null)) {
-          hide();
+    }
+    const actions = el6(mount, "div");
+    actions.className = "actions";
+    if (writable) {
+      const saveButton = button2(actions, count > 0 ? `Save (${count})` : "Save", "save", save);
+      saveButton.disabled = count === 0 || confirm !== null;
+      button2(actions, "Cancel", "cancel", () => {
+        cancel();
+      }).disabled = confirm !== null;
+    }
+    if (note) el6(mount, "p", note).className = "note";
+    mount.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape" || confirm || changeCount(pending()) === 0) return;
+      swallow(event);
+      cancel(writable ? "cancel" : "search");
+    });
+  };
+  surface = openMenuSurface(ctx, { key: OPTIONS_KEY, label: "Game options", tab: "Settings", minSize: { width: 360, height: 240 }, placement: { kind: "dock", target: "main", edge: "right" }, firstFocus: "search" }, render);
+  if (!surface) {
+    ctx.log("options editor: panel seam unavailable");
+    return () => {
+    };
+  }
+  return () => {
+    surface?.close();
+    surface = null;
+  };
+}
+
+// src/menus/keybinding-editor.ts
+var KEYBINDINGS_KEY = "keybinding-editor";
+function draftFromList(list) {
+  return new Map(list.map((binding) => [binding.trigger, { action: binding.action, owner: binding.owner }]));
+}
+function bindingDiff(original, draft) {
+  const before = draftFromList(original);
+  const remove = [...before.keys()].filter((trigger) => !draft.has(trigger));
+  const set = [...draft].filter(([trigger, binding]) => {
+    const stored = before.get(trigger);
+    return stored?.action !== binding.action || stored.owner !== null && binding.owner === null;
+  }).map(([trigger, binding]) => [trigger, binding.action]);
+  return { remove, set };
+}
+function conflictNote(trigger, draft, editing) {
+  const current = draft.get(trigger);
+  if (current) {
+    const owner = current.owner ? ` It was set by the ${current.owner} mod, and saving makes it yours.` : "";
+    const replaces = trigger === editing ? "" : " This keymap replaces it.";
+    return `Currently: ${trigger} runs ${current.action}.${replaces}${owner}`;
+  }
+  if (/^[0-9]$/u.test(trigger)) return `Currently: ${trigger} moves your character or enters a number. A keymap here replaces that.`;
+  return `Currently: ${trigger} has no keymap. A keymap runs instead of the game's own command for that key.`;
+}
+var rowFocus = (trigger) => `key:${trigger}`;
+function installKeybindingEditor(ctx) {
+  if (ctx.flags?.["anybandui.keybindingEditor"] !== true) return () => {
+  };
+  if (!ctx.keybindings) ctx.log("keybinding editor: this game does not share its keymaps");
+  let keyset = "original";
+  let original = [];
+  let draft = /* @__PURE__ */ new Map();
+  let selected = null;
+  let form = null;
+  let confirm = null;
+  let search = "";
+  let note = "";
+  let closed = false;
+  let captureRun = 0;
+  const reload = () => {
+    const seam = ctx.keybindings;
+    if (!seam) return;
+    try {
+      keyset = seam.keyset();
+      original = seam.list();
+    } catch (err) {
+      original = [];
+      note = `The keymaps could not be read: ${err instanceof Error ? err.message : String(err)}`;
+    }
+    draft = draftFromList(original);
+    form = null;
+  };
+  reload();
+  const changes = () => {
+    const diff = bindingDiff(original, draft);
+    return diff.remove.length + diff.set.length;
+  };
+  let surface = null;
+  const repaint = (focusKey) => surface?.repaint(focusKey);
+  const ask = (next) => {
+    confirm = next;
+    repaint(CONFIRM_NO);
+  };
+  const capture = () => {
+    const seam = ctx.keybindings;
+    if (!seam || !form) return;
+    form.capturing = true;
+    form.error = "";
+    const run2 = ++captureRun;
+    repaint(null);
+    void seam.capture().then((key) => {
+      if (closed || run2 !== captureRun || !form) return;
+      form.capturing = false;
+      if (key === null) {
+        if (form.trigger === null) {
+          form = null;
+          repaint(selected ? rowFocus(selected) : "add");
           return;
         }
-        const selected = menuAt;
-        if (action.promptAction === "select" && current.prompt?.kind === "target") {
-          if (ctx.prompt?.reply(current.prompt.promptId, { action: "move", ...selected }).accepted) {
-            targetAt = selected;
-            targetPromptId = current.prompt.promptId;
-          }
-        } else if (action.pickup && current.core.player && (current.core.player.grid.x !== selected.x || current.core.player.grid.y !== selected.y)) {
-          if (runMenuAction(ctx, selected, action.label)) {
-            pickupAt = selected;
-            pickupSnap = current;
-          }
-        } else runMenuAction(ctx, selected, action.label);
-        hide();
-      });
-      menu.appendChild(button4);
-    }
-    menu.style.display = "block";
-    menu.style.left = `${Math.min(event.clientX, window.innerWidth - menu.offsetWidth)}px`;
-    menu.style.top = `${Math.min(event.clientY, window.innerHeight - menu.offsetHeight)}px`;
-    menu.firstElementChild?.focus();
-  };
-  const onKey = (event) => {
-    if (event.key === "Escape") hide();
-  };
-  const onMove = (event) => {
-    hovered = locate(event);
-  };
-  const render = () => {
-    if (pickupAt && pickupSnap) {
-      const next = ctx.snapshot?.() ?? null;
-      if (next && !sameToken(next.token, pickupSnap.token)) {
-        finishPickup(ctx, pickupAt, pickupSnap);
-        pickupAt = null;
-        pickupSnap = null;
+        repaint("action");
+        return;
       }
-    }
-    if (targetAt && targetPromptId !== null) {
-      const next = ctx.snapshot?.()?.prompt;
-      if (!next || next.kind !== "target") {
-        targetAt = null;
-        targetPromptId = null;
-      } else if (next.promptId !== targetPromptId && next.cursor?.x === targetAt.x && next.cursor.y === targetAt.y) {
-        if (playerIsDriving(ctx)) ctx.prompt?.reply(next.promptId, { action: "select" });
-        targetAt = null;
-        targetPromptId = null;
-      }
-    }
-    if (!flags["anybandui.aimPath"] && !flags["anybandui.walkRoutePreview"]) return;
-    const ratio = window.devicePixelRatio || 1;
-    const width = Math.ceil(window.innerWidth * ratio), height = Math.ceil(window.innerHeight * ratio);
-    if (canvas.width !== width || canvas.height !== height) {
-      canvas.width = width;
-      canvas.height = height;
-      canvas.style.width = `${window.innerWidth}px`;
-      canvas.style.height = `${window.innerHeight}px`;
-    }
-    const paint = canvas.getContext("2d");
-    if (!paint) return;
-    paint.setTransform(1, 0, 0, 1, 0, 0);
-    paint.clearRect(0, 0, width, height);
-    const snap = ctx.snapshot?.() ?? null;
-    const path = snap?.prompt ? flags["anybandui.aimPath"] ? aimingPath(ctx, snap, hovered) : [] : flags["anybandui.walkRoutePreview"] ? walkingPath(ctx, snap, hovered) : [];
-    const view = display.snapshot();
-    const rect = view.mode === "play" || view.mode === "modal" && (snap?.prompt?.kind === "target" || snap?.prompt?.kind === "direction") ? mapProjection(view) : null;
-    if (!rect || !path.length) return;
-    paint.scale(ratio, ratio);
-    paint.beginPath();
-    paint.rect(rect.x, rect.y, rect.width, rect.height);
-    paint.clip();
-    paint.strokeStyle = "#f0cd64";
-    paint.lineWidth = 2;
-    paint.beginPath();
-    path.forEach((grid, index) => {
-      const x = rect.x + (grid.x - view.viewport.origin.x + 0.5) * rect.width / view.viewport.size.width;
-      const y = rect.y + (grid.y - view.viewport.origin.y + 0.5) * rect.height / view.viewport.size.height;
-      if (index === 0) paint.moveTo(x, y);
-      else paint.lineTo(x, y);
+      form.trigger = key;
+      repaint("action");
+    }, () => {
+      if (closed || run2 !== captureRun || !form) return;
+      form.capturing = false;
+      form.error = "The key could not be read.";
+      repaint("capture");
     });
-    paint.stroke();
   };
-  window.addEventListener("click", onClick, true);
-  window.addEventListener("mousemove", onMove, true);
-  window.addEventListener("contextmenu", onContext, true);
-  window.addEventListener("keydown", onKey);
-  const timer2 = window.setInterval(render, 100);
+  const dropCapture = () => {
+    if (!form?.capturing) return;
+    captureRun++;
+    form.capturing = false;
+    if (form.trigger === null) form = null;
+    const seam = ctx.keybindings;
+    try {
+      seam?.cancelCapture?.();
+    } catch {
+    }
+  };
+  const openForm = (binding) => {
+    form = binding ? { trigger: binding[0], action: binding[1].action, editing: binding[0], capturing: false, error: "" } : { trigger: null, action: "", editing: null, capturing: false, error: "" };
+    if (binding) repaint("action");
+    else capture();
+  };
+  const closeForm = () => {
+    if (form?.capturing) return;
+    form = null;
+    repaint(selected ? rowFocus(selected) : "add");
+  };
+  const applyForm = () => {
+    if (!form) return;
+    if (!form.trigger) {
+      form.error = "Press a key for this keymap first.";
+      repaint("capture");
+      return;
+    }
+    const action = form.action.trim();
+    if (!action) {
+      form.error = "Type the keys this keymap presses.";
+      repaint("action");
+      return;
+    }
+    if (form.editing && form.editing !== form.trigger) draft.delete(form.editing);
+    draft.set(form.trigger, { action, owner: null });
+    selected = form.trigger;
+    form = null;
+    note = "";
+    repaint(rowFocus(selected));
+  };
+  const removeRow = (trigger) => {
+    const triggers = [...draft.keys()];
+    const at = triggers.indexOf(trigger);
+    draft.delete(trigger);
+    const rest2 = [...draft.keys()];
+    selected = rest2[Math.min(at, rest2.length - 1)] ?? null;
+    note = "";
+    repaint(selected ? rowFocus(selected) : "add");
+  };
+  const save = () => {
+    const seam = ctx.keybindings;
+    const diff = bindingDiff(original, draft);
+    const count = diff.remove.length + diff.set.length;
+    if (!seam || count === 0) return;
+    ask({ question: `Save ${count} ${count === 1 ? "change" : "changes"} to your ${keyset} keymaps? This replaces what is stored now.`, yes: "Save", onYes: () => {
+      let failed = [];
+      try {
+        if (seam.keyset() !== keyset) {
+          note = "The keyset changed while you were editing. Cancel, then make your changes again.";
+          repaint("cancel");
+          return;
+        }
+        for (const trigger of diff.remove) seam.remove(trigger);
+        failed = diff.set.filter(([trigger, action]) => !seam.set(trigger, action)).map(([trigger]) => trigger);
+      } catch (err) {
+        note = `The keymaps could not be saved: ${err instanceof Error ? err.message : String(err)}`;
+        repaint("save");
+        return;
+      }
+      reload();
+      note = failed.length > 0 ? `The game refused a keymap for ${failed.join(", ")}.` : "Saved.";
+      repaint("save");
+    } });
+  };
+  const cancel = () => {
+    if (changes() === 0) {
+      reload();
+      note = "";
+      repaint("add");
+      return;
+    }
+    ask({ question: "Throw away your changes to the keymaps?", yes: "Discard", onYes: () => {
+      reload();
+      note = "Changes discarded.";
+      repaint("add");
+    } });
+  };
+  const clearKeyset = () => {
+    for (const [trigger, binding] of [...draft]) if (binding.owner === null) draft.delete(trigger);
+    selected = null;
+    note = "Your keymaps are removed from the draft. Save to apply this, or Cancel to keep them.";
+    repaint("save");
+  };
+  const render = (mount) => {
+    el6(mount, "h2", "Keybindings");
+    if (!ctx.keybindings) {
+      el6(mount, "p", "This game does not share its keymaps.").className = "muted";
+      return;
+    }
+    el6(mount, "p", `Keyset: ${keyset === "roguelike" ? "Roguelike" : "Original"}. The roguelike keys option chooses which one is active. Your changes apply when you press Save.`).className = "muted";
+    if (form) {
+      const active = form;
+      const box = el6(mount, "div");
+      box.className = "confirm";
+      el6(box, "div", active.editing ? "Change keymap" : "New keymap").className = "section";
+      if (active.capturing) {
+        el6(box, "p", "Press the key to bind. Escape cancels.").setAttribute("role", "status");
+      } else {
+        el6(box, "p", `Key: ${active.trigger ?? "none yet"}`);
+        if (active.trigger) el6(box, "p", conflictNote(active.trigger, draft, active.editing)).className = "warn";
+      }
+      const field = el6(box, "label");
+      field.className = "field";
+      el6(field, "span", "Keys it presses");
+      const input = el6(field, "input");
+      input.type = "text";
+      input.placeholder = "Such as R&[Enter]";
+      input.value = active.action;
+      input.dataset["focus"] = "action";
+      input.disabled = active.capturing;
+      input.setAttribute("aria-label", "Keys the keymap presses");
+      input.addEventListener("input", () => {
+        active.action = input.value;
+      });
+      input.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          swallow(event);
+          applyForm();
+        }
+      });
+      if (active.error) el6(box, "p", active.error).className = "warn";
+      const actions2 = el6(box, "div");
+      actions2.className = "actions";
+      button2(actions2, "Use this key", "apply", applyForm).disabled = active.capturing;
+      button2(actions2, active.trigger ? "Choose another key" : "Choose a key", "capture", capture).disabled = active.capturing;
+      button2(actions2, "Cancel keymap", "form-cancel", closeForm).disabled = active.capturing;
+      box.addEventListener("keydown", (event) => {
+        if (active.capturing) return;
+        if (event.key === "Escape") {
+          swallow(event);
+          closeForm();
+        }
+      });
+    }
+    const controls = el6(mount, "div");
+    controls.className = "controls";
+    const searchBox = el6(controls, "input");
+    searchBox.type = "search";
+    searchBox.placeholder = "Search keys and actions";
+    searchBox.value = search;
+    searchBox.dataset["focus"] = "search";
+    searchBox.setAttribute("aria-label", "Search keymaps");
+    searchBox.addEventListener("input", () => {
+      search = searchBox.value;
+      repaint();
+    });
+    button2(controls, "Add keymap", "add", () => openForm(null)).disabled = form !== null || confirm !== null;
+    const rows = [...draft].filter(([trigger, binding]) => matches(`${trigger} ${binding.action} ${binding.owner ?? ""}`, search));
+    const list = el6(mount, "div");
+    list.className = "list";
+    list.setAttribute("role", "listbox");
+    list.setAttribute("aria-label", "Keymaps");
+    if (rows.length === 0) el6(list, "p", draft.size === 0 ? "No keymaps in this keyset yet." : "No matching keymaps.").className = "muted";
+    for (const [trigger, binding] of rows) {
+      const row = button2(list, "", rowFocus(trigger), () => {
+        selected = trigger;
+        openForm([trigger, binding]);
+      });
+      row.disabled = form?.capturing === true;
+      row.className = "row";
+      row.setAttribute("role", "option");
+      row.setAttribute("aria-selected", String(trigger === selected));
+      el6(row, "span", trigger);
+      el6(row, "span", binding.action);
+      el6(row, "span", binding.owner ? `from ${binding.owner}` : "yours").className = "muted";
+      row.addEventListener("focus", () => {
+        selected = trigger;
+      });
+    }
+    list.addEventListener("keydown", (event) => {
+      if (form || confirm) return;
+      const triggers = rows.map(([trigger]) => trigger);
+      const root = list.getRootNode();
+      const focused = root.activeElement?.dataset?.["focus"];
+      const current = focused?.startsWith("key:") ? focused.slice(4) : selected;
+      const at = current ? triggers.indexOf(current) : -1;
+      const next = listStep(event.key, at, triggers.length);
+      if (next !== null) {
+        swallow(event);
+        selected = triggers[next] ?? null;
+        repaint(selected ? rowFocus(selected) : void 0);
+        return;
+      }
+      if ((event.key === "Delete" || event.key === "Backspace") && current && draft.has(current)) {
+        swallow(event);
+        removeRow(current);
+      }
+    });
+    if (confirm) renderConfirm(mount, confirm, () => {
+      confirm = null;
+      repaint("save");
+    });
+    const count = changes();
+    const actions = el6(mount, "div");
+    actions.className = "actions";
+    const busy = form !== null || confirm !== null;
+    button2(actions, count > 0 ? `Save (${count})` : "Save", "save", save).disabled = count === 0 || busy;
+    button2(actions, "Cancel", "cancel", cancel).disabled = busy;
+    button2(actions, "Remove my keymaps", "clear", clearKeyset).disabled = busy || ![...draft.values()].some((binding) => binding.owner === null);
+    if (selected && draft.has(selected) && !busy) {
+      const chosen = selected;
+      button2(actions, `Remove ${chosen}`, "remove", () => removeRow(chosen));
+    }
+    if (note) el6(mount, "p", note).className = "note";
+    mount.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape" || form || confirm || changes() === 0) return;
+      swallow(event);
+      cancel();
+    });
+  };
+  surface = openMenuSurface(ctx, { key: KEYBINDINGS_KEY, label: "Keybindings", tab: "Settings", minSize: { width: 360, height: 240 }, placement: { kind: "dock", target: "main", edge: "right" }, firstFocus: "add", onHidden: dropCapture }, render);
+  if (!surface) {
+    ctx.log("keybinding editor: panel seam unavailable");
+    return () => {
+    };
+  }
   return () => {
-    stopTheme2();
-    window.clearInterval(timer2);
-    window.removeEventListener("click", onClick, true);
-    window.removeEventListener("mousemove", onMove, true);
-    window.removeEventListener("contextmenu", onContext, true);
-    window.removeEventListener("keydown", onKey);
-    hide();
-    menu.remove();
-    canvas.remove();
+    dropCapture();
+    closed = true;
+    surface?.close();
+    surface = null;
   };
 }
 
 // src/view-model/spells.ts
-var sameToken2 = (a, b) => a.epoch === b.epoch && a.revision === b.revision;
+var sameToken = (a, b) => a.epoch === b.epoch && a.revision === b.revision;
 var itemKey = (item) => item.kindId ?? `${item.tval}:${item.sval}`;
 function bookFor(snap, item, books, inspect) {
   if (!books.some((book) => book.tval === item.tval)) return null;
@@ -6407,7 +7130,7 @@ function bookFor(snap, item, books, inspect) {
     } catch {
       mapped = null;
     }
-    if (!mapped || !sameToken2(mapped.token, snap.token)) return null;
+    if (!mapped || !sameToken(mapped.token, snap.token)) return null;
     return books[mapped.bookIndex] ?? null;
   }
   const siblings = books.filter((book) => book.tval === item.tval);
@@ -6423,7 +7146,7 @@ function adaptSpells(snap, inspect) {
     if (!book || books.some((entry2) => entry2.key === itemKey(item))) continue;
     const spells = book.spells.map((spell) => {
       const info = inspect?.spellInfo?.(spell.sidx);
-      const detail = info && sameToken2(info.token, snap.token) ? info : null;
+      const detail = info && sameToken(info.token, snap.token) ? info : null;
       const canCast = !!detail?.canCastNow && spell.learned && !spell.forgotten;
       const eligible = spell.studyEligible ?? (!spell.learned && !spell.forgotten && spell.level <= (player.level ?? 0));
       const canStudy = eligible && learnable !== 0;
@@ -6445,172 +7168,6 @@ function adaptSpells(snap, inspect) {
   return { token: snap.token, books, learnable };
 }
 
-// src/spell-actions.ts
-function actionReady(ctx, snap) {
-  const next = ctx.snapshot?.();
-  return !!next && sameToken2(next.token, snap.token) && next.phase === "play" && !next.prompt && !next.messagePending && playerIsDriving(ctx);
-}
-function castSpell(ctx, snap, spell) {
-  if (!spell.canCast || !actionReady(ctx, snap)) return false;
-  return ctx.intent?.submit(snap.token, { kind: "command", command: { code: "cast", args: { spell: spell.index } } }).accepted ?? false;
-}
-function studySpell(ctx, snap, book, spell) {
-  if (!book.spells.some((entry2) => entry2.canStudy) || book.chooseSpells && !spell.canStudy || !actionReady(ctx, snap)) return false;
-  return ctx.intent?.submit(snap.token, { kind: "command", command: { code: "study", args: book.chooseSpells ? { handle: book.handle, spell: spell.index } : { handle: book.handle } } }).accepted ?? false;
-}
-function answerSpell(ctx, snap, index) {
-  const next = ctx.snapshot?.();
-  if (snap.prompt?.kind !== "spell" || !next || !sameToken2(next.token, snap.token) || next.prompt?.promptId !== snap.prompt.promptId || !playerIsDriving(ctx)) return false;
-  if (!snap.prompt.choices.some((choice) => choice.index === index)) return false;
-  return ctx.prompt?.reply(snap.prompt.promptId, index).accepted ?? false;
-}
-function cancelSpell(ctx, snap) {
-  const next = ctx.snapshot?.();
-  if (snap.prompt?.kind !== "spell" || !next || !sameToken2(next.token, snap.token) || next.prompt?.promptId !== snap.prompt.promptId || !playerIsDriving(ctx) || !ctx.prompt?.reply) return false;
-  return ctx.prompt.reply(snap.prompt.promptId, { action: "cancel" }).accepted ?? false;
-}
-var validRest = (count) => [-3, -2, -1].includes(count) || Number.isInteger(count) && count >= 1 && count <= 9999;
-function rest(ctx, snap, count) {
-  if (!actionReady(ctx, snap) || !validRest(count)) return false;
-  return ctx.intent?.submit(snap.token, { kind: "command", command: { code: "rest", args: { count } } }).accepted ?? false;
-}
-function restPrompt(snap) {
-  const prompt = snap?.prompt;
-  return prompt?.kind === "text" && prompt.tag === "rest" ? prompt : null;
-}
-function restAnswer(count) {
-  if (!validRest(count)) return null;
-  return count === -2 ? "&" : count === -1 ? "*" : count === -3 ? "!" : String(count);
-}
-function answerRest(ctx, snap, count) {
-  const prompt = restPrompt(snap), next = ctx.snapshot?.();
-  if (!prompt || !next || restPrompt(next)?.promptId !== prompt.promptId || !playerIsDriving(ctx) || !ctx.prompt?.reply) return false;
-  if (count === null) {
-    const cancel = ctx.prompt.reply(prompt.promptId, { action: "cancel" });
-    if (cancel.accepted) return true;
-  }
-  const answer = count === null ? "" : restAnswer(count);
-  if (answer === null || answer.length > prompt.maxLength) return false;
-  return ctx.prompt.reply(prompt.promptId, answer).accepted ?? false;
-}
-function stopResting(ctx) {
-  const next = ctx.snapshot?.();
-  if (!next?.resting?.active || !playerIsDriving(ctx)) return false;
-  return ctx.intent?.submit(next.token, { kind: "stop-resting" }).accepted ?? false;
-}
-
-// src/quickbar.ts
-var COMMAND_LABELS = Object.freeze({
-  hold: "Stay still",
-  pickup: "Pick up",
-  descend: "Go down stairs",
-  ascend: "Go up stairs",
-  explore: "Explore",
-  "navigate-down": "Walk to down stairs",
-  "navigate-up": "Walk to up stairs",
-  "fire-at-nearest": "Fire at nearest",
-  look: "Look around"
-});
-var TILE_COMMANDS = /* @__PURE__ */ new Set(["pickup", "ascend", "descend"]);
-var verbLabel = (verb) => verb.charAt(0).toUpperCase() + verb.slice(1);
-function catalogueCommands(ctx) {
-  let catalogue = null;
-  try {
-    catalogue = ctx.intent?.catalogue?.() ?? null;
-  } catch {
-    catalogue = null;
-  }
-  return (catalogue?.commands ?? []).filter((entry2) => entry2.phase === "play" && entry2.args.startsWith("args?") && entry2.code !== "rest").flatMap((entry2) => {
-    const verb = typeof entry2.verb === "string" && entry2.verb.length > 0 ? verbLabel(entry2.verb) : null;
-    const table = Object.hasOwn(COMMAND_LABELS, entry2.code) ? COMMAND_LABELS[entry2.code] : null;
-    const name = verb ?? table;
-    return name ? [{ type: "command", code: entry2.code, name }] : [];
-  });
-}
-var slotIndex = (code, shift, ctrl) => {
-  if (!/^Digit[0-9]$/.test(code)) return -1;
-  return (ctrl ? 20 : shift ? 10 : 0) + (Number(code.slice(-1)) + 9) % 10;
-};
-function quickbarOwnsKey(enabled, snap, code, shift, ctrl, menuOpen) {
-  return enabled && !menuOpen && !!snap && snap.phase === "play" && !snap.prompt && !snap.messagePending && slotIndex(code, shift, ctrl) >= 0;
-}
-function readSlots(raw, character) {
-  const root = raw && typeof raw === "object" ? raw : {};
-  const profiles = root["quickbar"] && typeof root["quickbar"] === "object" ? root["quickbar"] : {};
-  const slots = profiles[character];
-  return Array.from({ length: 30 }, (_, i) => {
-    const entry2 = Array.isArray(slots) ? slots[i] : null;
-    if (!entry2 || typeof entry2 !== "object") return null;
-    const b = entry2;
-    if (b.type === "spell" && typeof b.key === "string" && Number.isInteger(b.index) && typeof b.name === "string") return b;
-    if (b.type === "item" && typeof b.key === "string" && ["quaff", "read", "aim-wand", "activate"].includes(String(b.code)) && typeof b.name === "string") return b;
-    if (b.type === "command" && typeof b.name === "string" && b.name.length > 0 && typeof b.code === "string") return b;
-    return null;
-  });
-}
-function writeSlots(ctx, character, slots) {
-  if (!ctx.prefs?.set) return;
-  const raw = ctx.prefs.get();
-  const root = raw && typeof raw === "object" ? raw : {};
-  const profiles = root["quickbar"] && typeof root["quickbar"] === "object" ? root["quickbar"] : {};
-  ctx.prefs.set({ ...root, quickbar: { ...profiles, [character]: slots } });
-}
-function migrateSlots(raw, from, to) {
-  const root = raw && typeof raw === "object" ? raw : {};
-  const profiles = root["quickbar"] && typeof root["quickbar"] === "object" ? root["quickbar"] : {};
-  if (from === to || !Array.isArray(profiles[from]) || Object.hasOwn(profiles, to)) return null;
-  const { [from]: moved, ...rest2 } = profiles;
-  return { ...root, quickbar: { ...rest2, [to]: moved } };
-}
-function itemBindings(snap, ctx) {
-  const codes = ["quaff", "read", "aim-wand", "activate"];
-  return (snap.core.inventory ?? []).flatMap((item) => codes.filter((code) => {
-    const result = ctx.inspect?.itemTester?.(code);
-    return result?.token.epoch === snap.token.epoch && result.token.revision === snap.token.revision && result.items.some((entry2) => "handle" in entry2 && entry2.handle === item.handle);
-  }).map((code) => ({ type: "item", key: itemKey(item), code, name: item.label })));
-}
-function resolve(snap, binding, spells, ctx) {
-  if (!binding) return { label: "Empty", detail: "Right-click to assign.", usable: false };
-  if (binding.type === "command" && binding.code === "rest") return { label: "Rest", detail: "Rest until fully recovered.", usable: true, command: { code: "rest", args: { count: -2 } } };
-  if (binding.type === "command") {
-    const listed = catalogueCommands(ctx).find((entry2) => entry2.code === binding.code);
-    const name = listed?.name ?? COMMAND_LABELS[binding.code] ?? binding.name;
-    if (!listed) return { label: name, detail: "This command is not available in this game.", usable: false };
-    let usable2 = true;
-    const grid = snap.core.player?.grid;
-    if (TILE_COMMANDS.has(binding.code) && grid && ctx.inspect?.tileActions) {
-      const actions = ctx.inspect.tileActions(grid);
-      if (actions && actions.token.epoch === snap.token.epoch && actions.token.revision === snap.token.revision) usable2 = actions.codes.includes(binding.code);
-    }
-    return { label: name, detail: usable2 ? `${name}.` : `${name}. Not possible on this square.`, usable: usable2, ...usable2 ? { command: { code: binding.code } } : {} };
-  }
-  if (binding.type === "spell") {
-    const book = spells?.books.find((b) => b.key === binding.key);
-    const spell = book?.spells.find((s) => s.index === binding.index && s.name === binding.name);
-    if (!spell) return { label: binding.name, detail: "Spellbook no longer carried.", usable: false };
-    return {
-      label: spell.name,
-      amount: `${spell.mana} SP`,
-      detail: `Mana ${spell.mana}, fail ${spell.fail}%. ${spell.state}. ${spell.description}`,
-      usable: spell.canCast,
-      ...spell.canCast ? { command: { code: "cast", args: { spell: spell.index } } } : {}
-    };
-  }
-  const item = snap.core.inventory?.find((entry2) => itemKey(entry2) === binding.key);
-  if (!item) return { label: binding.name, detail: "Item no longer carried.", usable: false };
-  const tester = ctx.inspect?.itemTester?.(binding.code);
-  const usable = !!tester && tester.token.epoch === snap.token.epoch && tester.token.revision === snap.token.revision && tester.items.some((entry2) => "handle" in entry2 && entry2.handle === item.handle);
-  const inspection = ctx.inspect?.inspectItem?.(item.handle);
-  const description = inspection?.token.epoch === snap.token.epoch && inspection.token.revision === snap.token.revision ? ` ${inspection.text.slice(0, 600)}` : "";
-  const charge = binding.code === "aim-wand" ? ` Charges ${item.pval ?? 0}.` : binding.code === "activate" ? ` Recharge ${item.timeout ?? 0}.` : "";
-  return { label: item.label, amount: binding.code === "aim-wand" ? `${item.pval ?? 0} charges` : binding.code === "activate" ? item.timeout ? "Recharging" : "Ready" : `${item.number} carried`, detail: `${item.number} carried.${charge}${description}`, usable, ...usable ? { command: { code: binding.code, args: { handle: item.handle } } } : {} };
-}
-function activate(ctx, snap, binding) {
-  if (!actionReady(ctx, snap)) return false;
-  const resolved = resolve(snap, binding, adaptSpells(snap, ctx.inspect), ctx);
-  return !!resolved.usable && !!resolved.command && !!ctx.intent?.submit(snap.token, { kind: "command", command: resolved.command }).accepted;
-}
-
 // src/blast-preview.ts
 var ELEMENT_COLORS = Object.freeze({
   FIRE: ["rgba(245,110,40,.12)", "rgba(250,130,60,.8)"],
@@ -6626,7 +7183,7 @@ var DEFAULT_COLORS = ["rgba(245,185,70,.095)", "rgba(245,190,80,.745)"];
 var elementEdgeColour = (element) => (element ? ELEMENT_COLORS[element]?.[1] : void 0) ?? DEFAULT_COLORS[1];
 function blastGrids(ctx, snap, hovered) {
   const blast = snap?.activeBlast, prompt = snap?.prompt;
-  if (!snap || !blast || !sameToken2(blast.token, snap.token) || blast.radius < 1) return null;
+  if (!snap || !blast || !sameToken(blast.token, snap.token) || blast.radius < 1) return null;
   if (prompt?.kind !== "target" && prompt?.kind !== "direction") return null;
   const at = (prompt.kind === "target" ? prompt.cursor : null) ?? hovered;
   if (!at) return null;
@@ -6636,7 +7193,7 @@ function blastGrids(ctx, snap, hovered) {
   } catch {
     area = null;
   }
-  if (!area || !sameToken2(area.token, snap.token) || !area.grids.length) return null;
+  if (!area || !sameToken(area.token, snap.token) || !area.grids.length) return null;
   return { grids: area.grids, element: area.element ?? blast.element ?? null };
 }
 function installBlastPreview(ctx) {
@@ -6707,994 +7264,6 @@ function installBlastPreview(ctx) {
     window.clearInterval(timer2);
     window.removeEventListener("mousemove", onMove, true);
     canvas.remove();
-  };
-}
-
-// src/phase4.ts
-var CSS5 = `:host{color:var(--anyband-text);font:var(--anyband-font-size)/var(--anyband-line) var(--anyband-font)}.phase4{position:fixed;left:12px;bottom:12px;width:min(680px,calc(100vw - 24px));max-height:55vh;overflow:auto;padding:10px;background:var(--anyband-surface);border:1px solid var(--anyband-accent);border-radius:var(--anyband-rounding);pointer-events:auto}button,select,input{font:inherit;color:var(--anyband-text);background:var(--anyband-background);border:1px solid var(--anyband-accent);border-radius:3px;padding:4px}button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--anyband-accent)}button:disabled{opacity:.45}table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:3px;border-bottom:1px solid var(--anyband-accent)}.slots{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:3px}.slot{min-height:42px;overflow:hidden;word-break:break-word}.muted{opacity:.55}.row{width:100%;text-align:left;border:0;background:transparent}.menu{margin:6px 0;padding:6px;border:1px solid var(--anyband-accent)}.menu button{margin:2px}.hint{font-size:12px}`;
-function el6(parent, tag, content) {
-  const node2 = parent.ownerDocument.createElement(tag);
-  if (content !== void 0) node2.textContent = content;
-  parent.append(node2);
-  return node2;
-}
-function button2(parent, label2, callback) {
-  const node2 = el6(parent, "button", label2);
-  node2.type = "button";
-  node2.addEventListener("click", callback);
-  return node2;
-}
-var keys = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"];
-function drawIcon(parent, style) {
-  const svg = parent.ownerDocument.createElementNS("http://www.w3.org/2000/svg", "svg");
-  svg.setAttribute("viewBox", "0 0 24 24");
-  svg.setAttribute("width", "22");
-  svg.setAttribute("height", "22");
-  svg.setAttribute("aria-hidden", "true");
-  const path = parent.ownerDocument.createElementNS("http://www.w3.org/2000/svg", "path");
-  path.setAttribute("d", style === "potion" ? "M9 2h6v3h-1v5l5 8c1 2 0 4-2 4H7c-2 0-3-2-2-4l5-8V5H9z" : style === "scroll" ? "M5 3h13v14a4 4 0 0 1-4 4H6a3 3 0 0 1-3-3c0-2 1-3 3-3h8M6 15V3" : "M4 20 19 4l2 2L6 22z");
-  path.setAttribute("fill", "none");
-  path.setAttribute("stroke", "currentColor");
-  path.setAttribute("stroke-width", "1.5");
-  svg.append(path);
-  parent.prepend(svg);
-}
-function lineageFor(ctx) {
-  try {
-    return ctx.character?.key?.() || null;
-  } catch {
-    return null;
-  }
-}
-function fingerprintFor(ctx) {
-  const player = ctx.state?.actor?.player;
-  if (!player || typeof player.race?.name !== "string" || typeof player.cls?.name !== "string" || typeof player.auBirth !== "number" || typeof player.htBirth !== "number" || typeof player.wtBirth !== "number") return null;
-  return characterKey({ raceName: player.race.name, clsName: player.cls.name, auBirth: player.auBirth, htBirth: player.htBirth, wtBirth: player.wtBirth });
-}
-function characterFor(ctx) {
-  return lineageFor(ctx) ?? fingerprintFor(ctx);
-}
-function adoptLineage(ctx, snap) {
-  const lineage = lineageFor(ctx), fingerprint = fingerprintFor(ctx), player = snap?.core.player;
-  if (!lineage || !fingerprint || !ctx.prefs?.set || !player?.race || !player.cls || !fingerprint.startsWith(`${player.race}|${player.cls}|`)) return false;
-  const moved = migrateSlots(ctx.prefs.get(), fingerprint, lineage);
-  if (moved) ctx.prefs.set(moved);
-  return !!moved;
-}
-var assignLabel = (binding) => binding.type === "command" ? binding.name : binding.type === "spell" ? `Cast: ${binding.name}` : `${binding.code === "quaff" ? "Drink" : binding.code === "read" ? "Read" : binding.code === "aim-wand" ? "Aim" : "Activate"}: ${binding.name}`;
-function restingText(resting) {
-  if (typeof resting.mode === "string") {
-    if (resting.mode === "turns") {
-      const left = resting.turnsRemaining ?? 0;
-      const total = resting.turnsRequested ?? left;
-      if (left <= 0) return "Resting.";
-      return `Resting: ${left} of ${total} turns left.`;
-    }
-    if (resting.mode === "complete") return "Resting until fully recovered.";
-    if (resting.mode === "all-points") return "Resting until hit points and mana are full.";
-    if (resting.mode === "some-points") return "Resting until hit points or mana are full.";
-  }
-  return "Resting.";
-}
-function installPhase4(ctx) {
-  const flags = ctx.flags ?? {};
-  const spellOn = flags["anybandui.spells"] === true;
-  const quickOn = flags["anybandui.quickbar"] === true;
-  const restOn = flags["anybandui.restDialog"] === true;
-  const blastCleanup = flags["anybandui.blastPreview"] ? installBlastPreview(ctx) : () => {
-  };
-  if (!spellOn && !quickOn && !restOn) return blastCleanup;
-  if (!ctx.snapshot) {
-    ctx.log("phase 4: snapshot seam unavailable");
-    return blastCleanup;
-  }
-  let repaint = () => {
-  };
-  const surfaces = openSurfaces(ctx, [
-    ...spellOn ? [{ key: "spells", label: "Spells", tab: "Spells", minSize: { width: 280, height: 220 }, placement: { kind: "dock", target: "main", edge: "right" } }] : [],
-    ...quickOn ? [{ key: "quickbar", label: "Quickbar", tab: "Bar", minSize: { width: 320, height: 60 }, placement: { kind: "dock", target: "main", edge: "bottom" }, fitHeight: 140 }] : [],
-    ...restOn ? [{ key: "rest", label: "Rest", tab: "Rest", minSize: { width: 220, height: 120 }, placement: { kind: "dock", target: "main", edge: "right" } }] : []
-  ], { id: "phase4", label: "Spells and quickbar", className: "phase4" }, CSS5, () => repaint());
-  if (!surfaces) {
-    ctx.log("phase 4: panel seam unavailable");
-    return blastCleanup;
-  }
-  let bookKey = "", spellIndex = -1, menu = -1, customize = -1, restOpen = false, restMode = -2, turns = 10, promptChoice = -1, error = "", signature = "", closed = false;
-  let appearance = { style: "automatic", text: "", color: "#7abaf4" };
-  let adopted = "";
-  const identify = (snap) => {
-    const pair = `${lineageFor(ctx) ?? ""}
-${fingerprintFor(ctx) ?? ""}
-${snap?.core.player?.race ?? ""}`;
-    if (pair !== adopted) {
-      adopted = pair;
-      adoptLineage(ctx, snap);
-    }
-    return characterFor(ctx);
-  };
-  let character = identify(ctx.snapshot?.());
-  let slots = character ? readSlots(ctx.prefs?.get(), character) : Array(30).fill(null);
-  const save = () => {
-    if (character) writeSlots(ctx, character, slots);
-  };
-  const fail = (message) => {
-    if (playerIsDriving(ctx)) error = message;
-  };
-  const assign = (index, binding) => {
-    const next = [...slots];
-    next[index] = binding;
-    slots = next;
-    save();
-    menu = -1;
-    paint(true);
-  };
-  const paint = (force = false) => {
-    if (closed) return;
-    const mounts = surfaces.mounts();
-    const spellMount = spellOn ? mounts.get("spells") : void 0, quickMount = quickOn ? mounts.get("quickbar") : void 0, restMount = restOn ? mounts.get("rest") : void 0;
-    if (!mounts.size) return;
-    const snap = ctx.snapshot?.();
-    const key = identify(snap);
-    if (key !== character) {
-      character = key;
-      slots = key ? readSlots(ctx.prefs?.get(), key) : Array(30).fill(null);
-    }
-    const model = snap ? adaptSpells(snap, ctx.inspect) : null;
-    const sig = JSON.stringify([[...mounts.keys()], snap, slots, bookKey, spellIndex, menu, customize, appearance, restOpen, restMode, turns, promptChoice, error]);
-    if (!force && sig === signature) return;
-    signature = sig;
-    for (const target of mounts.values()) target.replaceChildren();
-    if (!snap) {
-      for (const target of mounts.values()) el6(target, "p", "Game state unavailable.");
-      return;
-    }
-    if (spellOn && spellMount) {
-      el6(spellMount, "h2", "Spells");
-      if (model?.learnable) el6(spellMount, "p", model.learnable === 1 ? "You can learn 1 new spell." : `You can learn ${model.learnable} new spells.`);
-      if (!model) el6(spellMount, "p", "Spell list unavailable.");
-      else if (!model.books.length) el6(spellMount, "p", "No readable spellbooks carried.");
-      else {
-        const picker = el6(spellMount, "select");
-        picker.setAttribute("aria-label", "Spellbook");
-        for (const book2 of model.books) {
-          const opt = el6(picker, "option", book2.name);
-          opt.value = book2.key;
-        }
-        if (!model.books.some((book2) => book2.key === bookKey)) bookKey = model.books[0].key;
-        picker.value = bookKey;
-        picker.addEventListener("change", () => {
-          bookKey = picker.value;
-          spellIndex = -1;
-          paint(true);
-        });
-        const book = model.books.find((entry2) => entry2.key === bookKey);
-        const table = el6(spellMount, "table");
-        const head = el6(table, "tr");
-        for (const label2 of ["Spell", "Mana", "Fail", "State"]) el6(head, "th", label2);
-        for (const spell of book.spells) {
-          const row = el6(table, "tr");
-          if (!spell.canCast && !spell.canStudy) row.className = "muted";
-          const cell = el6(row, "td");
-          const pick = button2(cell, spell.name, () => {
-            spellIndex = spell.index;
-            paint(true);
-          });
-          pick.className = "row";
-          pick.title = spell.name;
-          pick.draggable = quickOn;
-          pick.addEventListener("dblclick", () => {
-            if (castSpell(ctx, snap, spell)) error = "";
-            paint(true);
-          });
-          pick.addEventListener("dragstart", (event) => {
-            if (quickOn) event.dataTransfer?.setData("application/x-anybandui-binding", JSON.stringify({ type: "spell", key: book.key, index: spell.index, name: spell.name }));
-          });
-          pick.addEventListener("contextmenu", (event) => {
-            if (!quickOn) return;
-            event.preventDefault();
-            menu = -2;
-            spellIndex = spell.index;
-            paint(true);
-          });
-          el6(row, "td", String(spell.mana));
-          el6(row, "td", `${spell.fail}%`);
-          el6(row, "td", spell.state);
-        }
-        const selected = book.spells.find((entry2) => entry2.index === spellIndex) ?? book.spells[0];
-        if (selected) {
-          const cast = button2(spellMount, "Cast", () => {
-            if (!castSpell(ctx, snap, selected)) fail("Cast unavailable.");
-            paint(true);
-          });
-          cast.disabled = !selected.canCast || !ctx.intent?.submit;
-          const study = button2(spellMount, book.chooseSpells ? "Study" : "Study book", () => {
-            if (!studySpell(ctx, snap, book, selected)) fail("Study unavailable.");
-            paint(true);
-          });
-          study.disabled = !(book.chooseSpells ? selected.canStudy : book.spells.some((entry2) => entry2.canStudy)) || !ctx.intent?.submit;
-          if (!book.chooseSpells) study.title = "Your class learns a random eligible spell from this book.";
-          el6(spellMount, "h3", selected.name);
-          el6(spellMount, "p", `Level ${selected.level}. Mana ${selected.mana}. Failure ${selected.fail}%. ${selected.state}.`);
-          if (selected.canCast && (snap.core.player?.sp ?? 0) < selected.mana) el6(spellMount, "p", "Not enough mana. Confirmation may be required.");
-          el6(spellMount, "p", selected.description);
-          if (selected.infoLine) el6(spellMount, "p", `Info: ${selected.infoLine}`);
-          if (quickOn && menu === -2) {
-            const box = el6(spellMount, "div");
-            box.className = "menu";
-            el6(box, "strong", "Assign spell to quickbar");
-            for (let i = 0; i < 30; i++) button2(box, `${i < 10 ? "" : i < 20 ? "Shift+" : "Ctrl+"}${keys[i % 10]}`, () => assign(i, { type: "spell", key: book.key, index: selected.index, name: selected.name }));
-          }
-        }
-      }
-      if (snap.prompt?.kind === "spell" && ctx.prompt?.reply && playerIsDriving(ctx)) {
-        const prompt = snap.prompt;
-        const box = el6(spellMount, "div");
-        box.className = "menu";
-        el6(box, "h3", "Choose spell");
-        el6(box, "p", prompt.label);
-        for (const choice of prompt.choices) button2(box, choice.name, () => {
-          promptChoice = choice.index;
-          paint(true);
-        });
-        button2(box, "Choose", () => {
-          if (!answerSpell(ctx, snap, promptChoice)) fail("Choice unavailable.");
-          paint(true);
-        });
-        button2(box, "Cancel", () => {
-          if (cancelSpell(ctx, snap)) promptChoice = -1;
-          else fail("Press Escape to cancel.");
-          paint(true);
-        });
-      }
-    }
-    if (quickOn && quickMount && snap.phase === "play") {
-      el6(quickMount, "h2", "Quickbar");
-      if (!character) el6(quickMount, "p", "Assignments last for this game session.");
-      for (let row = 0; row < 3; row++) {
-        el6(quickMount, "h3", row === 0 ? "Number keys" : row === 1 ? "Shift and number" : "Ctrl and number");
-        const line = el6(quickMount, "div");
-        line.className = "slots";
-        for (let col = 0; col < 10; col++) {
-          const index = row * 10 + col;
-          const binding = slots[index] ?? null;
-          const result = resolve(snap, binding, model, ctx);
-          const custom = binding?.appearance;
-          const shown = custom?.style === "text" && custom.text ? custom.text : result.label;
-          const slot = button2(line, `${keys[col]} ${shown}${result.amount ? ` - ${result.amount}` : ""}`, () => {
-            if (!activate(ctx, snap, binding)) fail(result.detail);
-            paint(true);
-          });
-          slot.className = "slot" + (result.usable ? "" : " muted");
-          slot.title = `Quickbar ${row === 0 ? "" : row === 1 ? "Shift+" : "Ctrl+"}${keys[col]}. ${result.detail}`;
-          if (custom?.color && /^#[0-9a-f]{6}$/i.test(custom.color)) slot.style.borderColor = custom.color;
-          if (custom && ["potion", "scroll", "wand"].includes(custom.style)) drawIcon(slot, custom.style);
-          slot.setAttribute("aria-label", slot.title);
-          slot.addEventListener("contextmenu", (event) => {
-            event.preventDefault();
-            menu = index;
-            paint(true);
-          });
-          slot.addEventListener("dragstart", (event) => {
-            if (binding) event.dataTransfer?.setData("application/x-anybandui-slot", JSON.stringify({ index, binding }));
-          });
-          slot.draggable = !!binding;
-          slot.addEventListener("dragover", (event) => {
-            event.preventDefault();
-          });
-          slot.addEventListener("drop", (event) => {
-            event.preventDefault();
-            const origin = event.dataTransfer?.getData("application/x-anybandui-slot");
-            const external = event.dataTransfer?.getData("application/x-anybandui-binding");
-            if (origin) {
-              try {
-                const parsed = JSON.parse(origin);
-                if (parsed.index >= 0 && parsed.index < 30 && JSON.stringify(slots[parsed.index]) === JSON.stringify(parsed.binding)) {
-                  const next = [...slots];
-                  [next[index], next[parsed.index]] = [next[parsed.index] ?? null, next[index] ?? null];
-                  slots = next;
-                  save();
-                  paint(true);
-                }
-              } catch {
-              }
-            } else if (external) {
-              try {
-                const parsed = JSON.parse(external);
-                if (parsed.type === "spell" && model?.books.some((book) => book.key === parsed.key && book.spells.some((spell) => spell.index === parsed.index))) assign(index, parsed);
-              } catch {
-              }
-            }
-          });
-        }
-      }
-      if (menu >= 0) {
-        const box = el6(quickMount, "div");
-        box.className = "menu";
-        el6(box, "strong", `Assign ${keys[menu % 10]}`);
-        if (slots[menu]) button2(box, "Customize", () => {
-          customize = menu;
-          appearance = slots[menu]?.appearance ?? { style: "automatic", text: "", color: "#7abaf4" };
-          menu = -1;
-          paint(true);
-        });
-        button2(box, "Rest until recovered", () => assign(menu, { type: "command", code: "rest", name: "Rest" }));
-        for (const binding of catalogueCommands(ctx)) button2(box, assignLabel(binding), () => assign(menu, binding));
-        for (const binding of itemBindings(snap, ctx)) {
-          const choice = button2(box, assignLabel(binding), () => assign(menu, binding));
-          choice.draggable = true;
-          choice.addEventListener("dragstart", (event) => event.dataTransfer?.setData("application/x-anybandui-binding", JSON.stringify(binding)));
-        }
-        for (const book of model?.books ?? []) for (const spell of book.spells) button2(box, `Cast: ${spell.name}`, () => assign(menu, { type: "spell", key: book.key, index: spell.index, name: spell.name }));
-        button2(box, "Clear", () => assign(menu, null));
-        button2(box, "Close", () => {
-          menu = -1;
-          paint(true);
-        });
-      }
-      if (customize >= 0 && slots[customize]) {
-        const box = el6(quickMount, "div");
-        box.className = "menu";
-        el6(box, "h3", "Customize slot");
-        const style = el6(box, "select");
-        style.setAttribute("aria-label", "Appearance");
-        for (const [value2, label2] of [["automatic", "Automatic"], ["text", "Custom text"], ["potion", "Potion icon"], ["scroll", "Scroll icon"], ["wand", "Wand icon"]]) {
-          const opt = el6(style, "option", label2);
-          opt.value = value2;
-        }
-        style.value = appearance.style;
-        style.addEventListener("change", () => {
-          appearance = { ...appearance, style: style.value };
-          paint(true);
-        });
-        const input = el6(box, "input");
-        input.value = appearance.text;
-        input.placeholder = "Text wraps to fit the slot.";
-        input.setAttribute("aria-label", "Slot text");
-        input.addEventListener("input", () => {
-          appearance = { ...appearance, text: input.value.slice(0, 60) };
-        });
-        const color = el6(box, "input");
-        color.type = "color";
-        color.value = appearance.color;
-        color.setAttribute("aria-label", "Slot color");
-        color.addEventListener("input", () => {
-          appearance = { ...appearance, color: color.value };
-        });
-        button2(box, "Reset appearance", () => {
-          appearance = { style: "automatic", text: "", color: "#7abaf4" };
-          paint(true);
-        });
-        button2(box, "Save and close", () => {
-          const binding = slots[customize];
-          if (binding) assign(customize, { ...binding, appearance });
-          customize = -1;
-          paint(true);
-        });
-        button2(box, "Cancel", () => {
-          customize = -1;
-          paint(true);
-        });
-      }
-    }
-    const asking = restPrompt(snap) && ctx.prompt?.reply && playerIsDriving(ctx) ? restPrompt(snap) : null;
-    const resting = snap.resting?.active ? snap.resting : null;
-    if (restOn && restMount && (snap.phase === "play" || asking || resting)) {
-      if (resting) {
-        const status = el6(restMount, "p", restingText(resting));
-        status.setAttribute("role", "status");
-        const stop = button2(restMount, "Stop resting", () => {
-          if (!stopResting(ctx)) fail("Stop unavailable.");
-          paint(true);
-        });
-        stop.disabled = !ctx.intent?.submit || !playerIsDriving(ctx);
-      } else if (!asking) button2(restMount, "Rest", () => {
-        restOpen = !restOpen;
-        paint(true);
-      });
-      if (restOpen && !resting || asking) {
-        const box = el6(restMount, "div");
-        box.className = "menu";
-        el6(box, "h3", "Rest");
-        for (const [count, label2, description] of [[-2, "Fully recovered", "Recover HP and mana and wait out harmful conditions."], [-1, "HP and mana", "Stop when both are full."], [-3, "HP or mana", "Stop as soon as either is full."], [1, "Number of turns", "Rest for a set number of turns."]]) {
-          const choice = button2(box, label2, () => {
-            restMode = count;
-            paint(true);
-          });
-          choice.setAttribute("aria-pressed", String(restMode === count));
-          el6(box, "p", description);
-        }
-        if (restMode === 1) {
-          const input = el6(box, "input");
-          input.type = "number";
-          input.min = "1";
-          input.max = "9999";
-          input.value = String(turns);
-          input.setAttribute("aria-label", "Turns");
-          input.addEventListener("input", () => {
-            turns = Number(input.value);
-          });
-        }
-        if (restMode === 1 && (!Number.isInteger(turns) || turns < 1 || turns > 9999)) el6(box, "p", "Enter between 1 and 9999 turns.");
-        el6(box, "p", "Danger interrupts rest normally.");
-        const confirm = button2(box, "Rest", () => {
-          const count = restMode === 1 ? turns : restMode;
-          if (!(asking ? answerRest(ctx, snap, count) : rest(ctx, snap, count))) fail("Rest unavailable.");
-          else restOpen = false;
-          paint(true);
-        });
-        confirm.disabled = restMode === 1 && (!Number.isInteger(turns) || turns < 1 || turns > 9999);
-        button2(box, "Cancel", () => {
-          if (asking) answerRest(ctx, snap, null);
-          restOpen = false;
-          paint(true);
-        });
-      }
-    }
-    const first = spellMount ?? quickMount ?? restMount;
-    if (error && first) {
-      const p = el6(first, "p", error);
-      p.setAttribute("role", "status");
-    }
-    if (quickMount) surfaces.fit("quickbar", quickMount.getBoundingClientRect().height + 16);
-  };
-  const keydown = (event) => {
-    if (!quickOn || menu >= 0 || customize >= 0 || restOpen || event.repeat || event.altKey || event.metaKey || event.defaultPrevented || event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement || event.target instanceof HTMLElement && event.target.isContentEditable) return;
-    const index = slotIndex(event.code, event.shiftKey, event.ctrlKey);
-    const snap = ctx.snapshot?.();
-    if (!quickbarOwnsKey(quickOn, snap ?? null, event.code, event.shiftKey, event.ctrlKey, menu >= 0 || restOpen) || !snap || !actionReady(ctx, snap)) return;
-    const binding = slots[index] ?? null;
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    if (resolve(snap, binding, adaptSpells(snap, ctx.inspect), ctx).usable) activate(ctx, snap, binding);
-    paint(true);
-  };
-  paint(true);
-  window.addEventListener("keydown", keydown, true);
-  const timer2 = window.setInterval(() => paint(), 200);
-  repaint = () => paint(true);
-  return () => {
-    closed = true;
-    window.clearInterval(timer2);
-    window.removeEventListener("keydown", keydown, true);
-    surfaces.close();
-    blastCleanup();
-  };
-}
-
-// src/view-model/stores.ts
-var same2 = (a, b) => a.epoch === b.epoch && a.revision === b.revision;
-var STORE_NAMES = {
-  STORE_GENERAL: "General Store",
-  STORE_ARMOR: "Armoury",
-  STORE_WEAPON: "Weapon Smiths",
-  STORE_BOOK: "Bookseller",
-  STORE_ALCHEMY: "Alchemy Shop",
-  STORE_MAGIC: "Magic Shop",
-  STORE_BLACK: "Black Market",
-  HOME: "Home"
-};
-function storeName(featName) {
-  const known = STORE_NAMES[featName];
-  if (known) return known;
-  const words = featName.replace(/^STORE_/, "").toLowerCase().replace(/_/g, " ");
-  return words.charAt(0).toUpperCase() + words.slice(1);
-}
-function bookForStock(item, books) {
-  const sameTval = books.filter((book) => book.tval === item.tval);
-  const text = `${item.name ?? ""} ${item.label}`.toLowerCase();
-  const named = sameTval.filter((book) => book.name.length > 0 && text.includes(book.name.toLowerCase())).sort((a, b) => b.name.length - a.name.length);
-  if (named.length === 0) return null;
-  if (named.length > 1 && named[0].name.length === named[1].name.length) return null;
-  return named[0];
-}
-function stockSpells(item, books) {
-  const book = bookForStock(item, books ?? []);
-  if (!book || book.spells.length === 0) return void 0;
-  return book.spells.map((spell) => ({
-    index: spell.sidx,
-    name: spell.name,
-    level: spell.level,
-    mana: spell.mana,
-    fail: spell.chance ?? spell.fail,
-    learned: spell.learned,
-    infoLine: spell.infoLine
-  }));
-}
-function adaptStore(snap, known) {
-  if (snap.phase !== "store" || !snap.core.stores || !snap.core.player || !snap.core.inventory) return null;
-  const status = snap.storeStatus && same2(snap.storeStatus.token, snap.token) ? snap.storeStatus : null;
-  const cell = known && same2(known.token, snap.token) ? known.cells.find((entry2) => entry2.x === snap.core.player.grid.x && entry2.y === snap.core.player.grid.y) : null;
-  const feat = status?.feat ?? cell?.remembered.feat;
-  if (feat === void 0) return null;
-  const index = snap.core.stores.findIndex((store2) => store2.feat === feat);
-  if (index < 0) return null;
-  const store = snap.core.stores[index];
-  const items = adaptItems(snap);
-  const quotes = new Map(status?.inventory.map((entry2) => [entry2.handle, entry2]));
-  const located = status !== null && status.inventory.some((entry2) => entry2.location !== void 0);
-  const byHandle = new Map((items?.rows ?? []).map((item) => [item.handle, item]));
-  const pack = located ? status.inventory.map((entry2) => {
-    const item = byHandle.get(entry2.handle);
-    return {
-      key: entry2.handle,
-      quantity: item?.quantity ?? 1,
-      colour: item?.colour ?? "inherit",
-      // PROSE
-      label: item?.label ?? "Item",
-      // PROSE
-      location: entry2.location === "equipment" ? "Equipment" : entry2.location === "quiver" ? "Quiver" : "Pack",
-      eligible: entry2.eligible,
-      ...entry2.eligible && entry2.price !== null ? { price: entry2.price } : {}
-    };
-  }) : (items?.rows ?? []).map((item) => {
-    const quote = quotes.get(item.handle);
-    return {
-      key: item.handle,
-      label: item.label,
-      quantity: item.quantity,
-      colour: item.colour,
-      location: item.location === "pack" ? "Pack" : "Equipment",
-      eligible: quote?.eligible ?? true,
-      ...quote && quote.eligible && quote.price !== null ? { price: quote.price } : {}
-    };
-  });
-  return {
-    token: snap.token,
-    index,
-    name: store.isHome ? "Home" : storeName(store.featName),
-    owner: store.isHome ? "" : store.owner.name,
-    home: store.isHome,
-    ...snap.core.player.gold === void 0 ? {} : { gold: snap.core.player.gold },
-    ready: status?.ready ?? true,
-    noSelling: status?.noSelling ?? false,
-    transactionPrompts: status !== null,
-    // ItemView.name, when published, is the game's own object name; label is the kind's raw template.
-    stock: store.stock.map((item) => {
-      const spells = stockSpells(item, snap.core.spellbooks);
-      return {
-        key: item.index,
-        kind: itemKey(item),
-        label: item.name ?? item.label,
-        quantity: item.number,
-        colour: item.artifact ? "#e89e42" : item.ego ? "#80b891" : "inherit",
-        eligible: true,
-        ...item.price === void 0 ? {} : { price: item.price },
-        ...spells ? { spells } : {}
-      };
-    }),
-    pack,
-    prompt: snap.prompt
-  };
-}
-
-// src/panels/stores.ts
-var CSS6 = `:host{color:var(--anyband-text);font:var(--anyband-font-size)/var(--anyband-line) var(--anyband-font)}.store{position:absolute;inset:12px;overflow:auto;padding:10px;background:var(--anyband-surface);border:1px solid var(--anyband-accent);border-radius:var(--anyband-rounding);pointer-events:auto}.sides{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.side{min-width:0;overflow:auto}h2,h3{color:var(--anyband-accent);border-bottom:1px solid var(--anyband-accent)}table{width:100%;border-collapse:collapse}th{text-align:left}td,th{padding:3px;border-bottom:1px solid var(--anyband-accent)}button,input{font:inherit;color:var(--anyband-text);background:var(--anyband-background);border:1px solid var(--anyband-accent);border-radius:3px;padding:3px 6px}button{cursor:pointer}button:disabled{cursor:default;opacity:.5}button:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid var(--anyband-accent)}.row{width:100%;text-align:left;border:0;background:transparent}.row[aria-pressed=true]{background:var(--anyband-accent);color:var(--anyband-background)!important}.actions{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}.prompt{border:1px solid var(--anyband-accent);padding:8px;max-width:30em}.prompt input{width:100%}.muted{opacity:.65}.gain{color:#80b891}.loss,.error,.unaffordable{color:#ff7559}details{margin:8px 0}summary{color:var(--anyband-accent);cursor:pointer}@media(max-width:650px){.sides{grid-template-columns:1fr}}`;
-var same3 = (a, b) => a.epoch === b.epoch && a.revision === b.revision;
-function el7(parent, tag, value2) {
-  const node2 = parent.ownerDocument.createElement(tag);
-  if (value2 !== void 0) node2.textContent = value2;
-  parent.appendChild(node2);
-  return node2;
-}
-function button3(parent, label2, click) {
-  const node2 = el7(parent, "button", label2);
-  node2.type = "button";
-  node2.addEventListener("click", click);
-  return node2;
-}
-var REFUSED = { accepted: false, quiet: false };
-var STANDING_DOWN = { accepted: false, quiet: true };
-function outcome(result) {
-  return { accepted: result.accepted, quiet: !result.accepted && result.code === "controller-owned" };
-}
-function tradeAllowed(model, side, row) {
-  if (!row || !model.transactionPrompts || !model.ready || model.prompt || !row.eligible) return false;
-  return side === "pack" || model.home || row.price === void 0 || model.gold === void 0 || row.price <= model.gold;
-}
-function storeAction(ctx, model, side, key) {
-  const snap = ctx.snapshot?.();
-  if (!snap || snap.phase !== "store" || snap.prompt || !same3(snap.token, model.token) || !model.ready || !ctx.intent?.submit) return REFUSED;
-  if (!playerIsDriving(ctx)) return STANDING_DOWN;
-  if (side !== "leave" && !tradeAllowed(model, side, (side === "stock" ? model.stock : model.pack).find((row) => row.key === key))) return REFUSED;
-  const command = side === "leave" ? { code: "shop-exit" } : side === "stock" ? { code: "shop-buy", args: { index: key } } : { code: "shop-sell", args: { handle: key } };
-  return outcome(ctx.intent.submit(snap.token, { kind: "command", command }));
-}
-function storePromptReply(ctx, model, answer) {
-  const snap = ctx.snapshot?.();
-  if (!snap || snap.phase !== "store" || !same3(snap.token, model.token) || !snap.prompt || snap.prompt.promptId !== model.prompt?.promptId || !ctx.prompt?.reply) return REFUSED;
-  if (!playerIsDriving(ctx)) return STANDING_DOWN;
-  const cancel = typeof answer === "object" && answer.action === "cancel";
-  if (snap.prompt.kind === "quantity") {
-    const quantity = snap.prompt;
-    if (!cancel && (typeof answer !== "number" || !Number.isInteger(answer) || answer < quantity.min || answer > quantity.max)) return REFUSED;
-  } else if (snap.prompt.kind === "confirm") {
-    if (!cancel && typeof answer !== "boolean") return REFUSED;
-  } else return REFUSED;
-  return outcome(ctx.prompt.reply(snap.prompt.promptId, answer));
-}
-function storeComparisons(ctx, model, side, key) {
-  if (ctx.inspect?.compareLoadoutSlots) {
-    try {
-      const result = ctx.inspect.compareLoadoutSlots(side === "stock" ? { from: "store", store: model.index, index: key } : { from: "gear", handle: key });
-      if (result) return same3(result.token, model.token) ? result.slots.map((entry2) => ({ name: entry2.name, sim: entry2.comparison })) : [];
-    } catch {
-    }
-  }
-  const sim = compareItem(ctx, model.token, side === "stock" ? { store: model.index, index: key } : key);
-  return sim ? [{ name: "", sim }] : [];
-}
-function storeInspection(ctx, model, side, key) {
-  if (!ctx.inspect?.inspectItem) return null;
-  let result;
-  try {
-    result = ctx.inspect.inspectItem(side === "stock" ? { store: model.index, index: key } : key);
-  } catch {
-    return null;
-  }
-  if (!result || !same3(result.token, model.token)) return null;
-  if (side === "stock" && !result.sections) return null;
-  return result;
-}
-function cleanLabel(label2) {
-  return (label2 ?? "").replace(/\s*\[[^\]]*\]\s*$/u, "").replace(/\s*\(0-\d+, \*=all\)/u, "").replace(/[\s:]+$/u, "").trim();
-}
-function installStores(ctx) {
-  const flags = ctx.flags ?? {};
-  if (!Object.entries(flags).some(([flag, on2]) => flag.startsWith("anybandui.store") && on2)) return () => {
-  };
-  if (!ctx.ui?.openPanel || !ctx.snapshot) {
-    ctx.log("stores: panel or snapshot seam unavailable");
-    return () => {
-    };
-  }
-  let panel = null;
-  let stopTheme2 = null;
-  let stockSelection = null, packSelection = null, unchanged = false, amount = 1, lastPrompt = -1, split = 50;
-  let browsing = null, spellPick = -1;
-  let place = "", signature = "", error = "";
-  let pending = null;
-  let mount = null;
-  const on = (part) => flags[`anybandui.store${part}`] === true;
-  const read = () => {
-    const snap = ctx.snapshot?.();
-    if (snap?.phase !== "store") return null;
-    return adaptStore(snap, ctx.knownLevel?.() ?? null);
-  };
-  const paint = (force = false) => {
-    const model = read();
-    if (!model) {
-      if (panel) {
-        stopTheme2?.();
-        stopTheme2 = null;
-        panel.close();
-        panel = null;
-        mount = null;
-      }
-      pending = null;
-      return;
-    }
-    if (!panel) {
-      panel = ctx.ui.openPanel({ id: "store", modal: false, label: "Store" });
-      applyTheme(panel.root, themeFromPrefs(ctx.prefs?.get()));
-      const open = panel;
-      stopTheme2 = onThemeChange((theme) => {
-        if (panel) applyTheme(open.root, theme);
-      });
-      el7(panel.root, "style", CSS6);
-      mount = el7(panel.root, "section");
-      mount.className = "store";
-    }
-    const name = `${model.index}:${model.name}`;
-    if (name !== place) {
-      place = name;
-      stockSelection = null;
-      packSelection = null;
-      error = "";
-      pending = null;
-      browsing = null;
-    }
-    if (browsing) {
-      const kind = browsing.kind;
-      const book = model.stock.find((row) => row.key === browsing.key && row.kind === kind) ?? model.stock.find((row) => row.kind === kind && row.spells);
-      if (!book) browsing = null;
-      else if (book.key !== browsing.key) {
-        browsing = { key: book.key, kind };
-        stockSelection = book.key;
-      }
-    }
-    if (!model.stock.some((row) => row.key === stockSelection)) {
-      stockSelection = null;
-      browsing = null;
-    }
-    if (!model.pack.some((row) => row.key === packSelection)) packSelection = null;
-    if (pending) {
-      if (model.prompt) pending.seen = true;
-      else if (pending.seen) pending = null;
-    }
-    const asked = model.prompt?.kind === "quantity" ? model.prompt : null;
-    if (pending && asked?.unitPrice !== void 0) pending.unitPrice = asked.unitPrice;
-    const next = JSON.stringify([model, stockSelection, packSelection, unchanged, error, pending, browsing, spellPick]);
-    if (!force && next === signature) return;
-    signature = next;
-    const host = mount;
-    host.replaceChildren();
-    const width = el7(host, "input");
-    width.type = "range";
-    width.min = "25";
-    width.max = "75";
-    width.value = String(split);
-    width.setAttribute("aria-label", "Stock column width");
-    width.title = "Resize stock and inventory columns";
-    width.addEventListener("input", () => {
-      split = Number(width.value);
-      sides.style.gridTemplateColumns = `${split}% ${100 - split}%`;
-    });
-    const sides = el7(host, "div");
-    sides.className = "sides";
-    sides.style.gridTemplateColumns = `${split}% ${100 - split}%`;
-    const show = (result, failure) => {
-      error = result.accepted || result.quiet ? "" : failure;
-    };
-    const action = (side, key) => {
-      const result = storeAction(ctx, model, side, key);
-      if (result.accepted && side !== "leave" && key !== void 0) pending = { side, key, amount: 1, seen: false };
-      show(result, "The store cannot do that right now.");
-      paint(true);
-    };
-    const draw = (side) => {
-      const box = el7(sides, "section");
-      box.className = "side";
-      el7(box, "h2", side === "stock" ? `${model.name}${model.owner ? ` - ${model.owner}` : ""}` : `Your inventory${model.gold === void 0 ? "" : ` (Gold: ${model.gold})`}`);
-      if (side === "pack" && model.noSelling && !model.home) {
-        const note = el7(box, "p", "Stores take items as gifts and pay no gold for them.");
-        note.className = "muted";
-      }
-      const rows = side === "stock" ? model.stock : model.pack;
-      const selected = side === "stock" ? stockSelection : packSelection;
-      const prices = on("Prices") && !model.home && !(side === "pack" && model.noSelling);
-      const table = el7(box, "table");
-      const head = el7(table, "tr");
-      for (const label2 of ["Item", "Qty", ...side === "pack" ? ["Location"] : [], ...prices ? [side === "stock" ? "Gold each" : "Offer each"] : []]) el7(head, "th", label2);
-      if (!rows.length) el7(box, "p", side === "stock" ? "No stock here." : "No items in your pack.");
-      for (const row of rows) {
-        const tr = el7(table, "tr");
-        const cell = el7(tr, "td");
-        if (!row.eligible) tr.className = "muted";
-        const pick = button3(cell, row.label, () => {
-          if (side === "stock") {
-            if (stockSelection !== row.key) browsing = null;
-            stockSelection = row.key;
-          } else packSelection = row.key;
-          paint(true);
-        });
-        pick.className = "row";
-        pick.style.color = row.colour;
-        pick.title = row.eligible ? row.label : `${row.label}. This store will not buy it.`;
-        pick.setAttribute("aria-pressed", String(selected === row.key));
-        el7(tr, "td", String(row.quantity));
-        if (side === "pack") el7(tr, "td", row.location ?? "Pack");
-        if (prices) {
-          const price = el7(tr, "td", row.price === void 0 ? "" : String(row.price));
-          if (side === "stock" && row.price !== void 0 && model.gold !== void 0 && row.price > model.gold) price.className = "unaffordable";
-        }
-      }
-      if (on("Transactions")) {
-        const actions = el7(box, "div");
-        actions.className = "actions";
-        const label2 = side === "stock" ? model.home ? "Retrieve" : "Buy" : model.home ? "Stash" : model.noSelling ? "Give" : "Sell";
-        const active = rows.find((row) => row.key === selected);
-        const drive = playerIsDriving(ctx);
-        const submit = button3(actions, label2, () => action(side, selected ?? void 0));
-        submit.disabled = !drive || !ctx.intent?.submit || !tradeAllowed(model, side, active);
-        if (!model.transactionPrompts) submit.title = "This version of the game cannot run store trades from here.";
-        else if (active && !active.eligible) submit.title = "This store will not buy that item.";
-        else if (side === "stock" && active && !model.home && active.price !== void 0 && model.gold !== void 0 && active.price > model.gold) submit.title = "You cannot afford this.";
-        if (side === "stock") {
-          const leave = button3(actions, model.home ? "Leave home" : "Leave store", () => action("leave"));
-          leave.disabled = !drive || !ctx.intent?.submit || !model.ready || !!model.prompt;
-        }
-        if (side === "stock" && model.transactionPrompts && !model.ready && !model.prompt) {
-          const wait = el7(box, "p", "Waiting for the store.");
-          wait.className = "muted";
-        }
-      }
-      el7(box, "h3", "Inspection");
-      const chosen = rows.find((row) => row.key === selected);
-      if (!chosen) {
-        const empty = el7(box, "p", "Select an item to inspect it.");
-        empty.className = "muted";
-        return;
-      }
-      el7(box, "strong", chosen.label).style.color = chosen.colour;
-      if (on("Comparison")) {
-        const slots = storeComparisons(ctx, model, side, chosen.key);
-        for (const slot of slots) {
-          if (slots.length > 1 && slot.name) el7(box, "h4", slot.name.charAt(0).toUpperCase() + slot.name.slice(1));
-          renderItemComparison(box, slot.sim, unchanged, (value2) => {
-            unchanged = value2;
-            paint(true);
-          });
-        }
-      }
-      const inspection = storeInspection(ctx, model, side, chosen.key);
-      if (inspection) {
-        const details = el7(box, "details");
-        details.open = true;
-        el7(details, "summary", inspection.title);
-        const parts = inspection.sections?.filter((part) => part.kind !== "title");
-        if (parts) for (const part of parts) el7(details, "p", part.text);
-        else el7(details, "p", inspection.text);
-      }
-      if (side === "stock" && chosen.spells && chosen.spells.length > 0) {
-        const spells = chosen.spells;
-        button3(box, "Browse spells", () => {
-          browsing = { key: chosen.key, kind: chosen.kind };
-          if (!spells.some((spell) => spell.index === spellPick)) spellPick = spells[0].index;
-          paint(true);
-        });
-        if (browsing?.key === chosen.key) {
-          const detail = (index) => {
-            try {
-              const info2 = ctx.inspect?.spellInfo?.(index);
-              return info2 && same3(info2.token, model.token) ? info2 : null;
-            } catch {
-              return null;
-            }
-          };
-          const table2 = el7(box, "table");
-          const head2 = el7(table2, "tr");
-          for (const label2 of ["Spell", "Level", "Mana", "Fail"]) el7(head2, "th", label2);
-          for (const spell of spells) {
-            const tr = el7(table2, "tr");
-            const cell = el7(tr, "td");
-            button3(cell, spell.name, () => {
-              spellPick = spell.index;
-              paint(true);
-            });
-            el7(tr, "td", String(spell.level));
-            el7(tr, "td", String(spell.mana));
-            el7(tr, "td", `${detail(spell.index)?.failChance ?? spell.fail}%`);
-          }
-          const shown = spells.find((spell) => spell.index === spellPick) ?? spells[0];
-          const info = detail(shown.index);
-          el7(box, "p", `Level ${shown.level}. Mana ${shown.mana}. Failure ${info?.failChance ?? shown.fail}%.`);
-          if (shown.infoLine) el7(box, "p", shown.infoLine);
-          if (info?.description) el7(box, "p", info.description);
-          button3(box, "Close", () => {
-            browsing = null;
-            paint(true);
-          });
-        }
-      }
-    };
-    draw("stock");
-    draw("pack");
-    if (model.prompt) drawPrompt(host, model);
-    if (error) {
-      const line = el7(host, "p", error);
-      line.className = "error";
-    }
-  };
-  const drawPrompt = (host, model) => {
-    const prompt = model.prompt;
-    const box = el7(host, "section");
-    box.className = "prompt";
-    const interactive = on("Prompts") && !!ctx.prompt?.reply && (prompt.kind === "quantity" || prompt.kind === "confirm");
-    if (!interactive) {
-      el7(box, "p", cleanLabel(prompt.label) || "The game is asking a question.");
-      const hint = el7(box, "p", "Answer it with the keyboard.");
-      hint.className = "muted";
-      return;
-    }
-    const reply = (answer) => {
-      const result = storePromptReply(ctx, model, answer);
-      if (result.accepted) {
-        if (typeof answer === "number" && pending) pending.amount = answer;
-        if (typeof answer !== "number" && answer !== true) pending = null;
-      }
-      error = result.accepted || result.quiet ? "" : "That answer was not accepted.";
-      paint(true);
-    };
-    const selling = pending?.side === "pack";
-    if (prompt.kind === "quantity") {
-      const quantity = prompt;
-      if (quantity.promptId !== lastPrompt) {
-        lastPrompt = quantity.promptId;
-        amount = Math.max(1, Math.min(quantity.max, quantity.defaultValue));
-      }
-      const low = Math.max(1, quantity.min);
-      el7(box, "h3", "How many?");
-      const text2 = cleanLabel(quantity.label);
-      if (text2) el7(box, "p", text2);
-      el7(box, "p", `Up to ${quantity.max}`);
-      const priced = quantity.unitPrice !== void 0 && !(selling && model.noSelling);
-      if (selling && model.noSelling) el7(box, "p", "The store pays no gold for this.");
-      if (priced) el7(box, "p", `${selling ? "Offer" : "Price"} each: ${quantity.unitPrice} gold`);
-      const total = priced ? el7(box, "p") : null;
-      if (quantity.gold !== void 0) el7(box, "p", `Your gold: ${quantity.gold}`);
-      const input = el7(box, "input");
-      input.type = "number";
-      input.min = String(low);
-      input.max = String(quantity.max);
-      input.value = String(amount);
-      input.setAttribute("aria-label", "Amount");
-      const slider = quantity.max > 1 ? el7(box, "input") : null;
-      if (slider) {
-        slider.type = "range";
-        slider.min = String(low);
-        slider.max = String(quantity.max);
-        slider.value = String(amount);
-        slider.setAttribute("aria-label", "Quantity");
-      }
-      const actions2 = el7(box, "div");
-      actions2.className = "actions";
-      const update = () => {
-        const valid = Number.isInteger(amount) && amount >= low && amount <= quantity.max;
-        if (slider) slider.value = String(amount);
-        let over = false;
-        if (total) {
-          const exact = quantity.totals?.[amount];
-          const hasExact = typeof exact === "number";
-          const sum = hasExact ? exact : amount === 1 && quantity.totalPrice !== void 0 ? quantity.totalPrice : quantity.unitPrice * amount;
-          const about = !hasExact && amount !== 1;
-          total.textContent = valid ? `Total: ${about ? "about " : ""}${sum} gold` : "";
-          over = !about && !selling && quantity.gold !== void 0 && sum > quantity.gold;
-          total.className = over ? "unaffordable" : "";
-        }
-        confirm.disabled = !valid || over;
-      };
-      input.addEventListener("input", () => {
-        amount = Number(input.value);
-        update();
-      });
-      slider?.addEventListener("input", () => {
-        amount = Number(slider.value);
-        input.value = String(amount);
-        update();
-      });
-      input.addEventListener("keydown", (event) => {
-        if (event.key === "Enter") {
-          event.stopPropagation();
-          if (!confirm.disabled) reply(amount);
-        }
-      });
-      for (const [label2, value2] of [["One", 1], ["Half", Math.max(1, Math.floor(quantity.max / 2))], ["All", quantity.max]]) button3(actions2, label2, () => {
-        amount = value2;
-        input.value = String(value2);
-        update();
-      });
-      const confirm = button3(actions2, "OK", () => {
-        if (!confirm.disabled) reply(amount);
-      });
-      button3(actions2, "Cancel", () => reply({ action: "cancel" }));
-      update();
-      return;
-    }
-    el7(box, "h3", pending && !model.home ? selling ? "Accept this offer?" : "Accept this price?" : "Confirm");
-    const text = cleanLabel(prompt.label);
-    if (text) el7(box, "p", text);
-    const price = prompt.price;
-    if (pending && !model.home) {
-      const row = (pending.side === "stock" ? model.stock : model.pack).find((entry2) => entry2.key === pending.key);
-      const unit = pending.unitPrice ?? row?.price;
-      if (selling && model.noSelling) el7(box, "p", "You get no gold for this.");
-      else if (price !== void 0) el7(box, "p", `${selling ? "You receive" : "Price"}: ${price} gold`);
-      else if (unit !== void 0) el7(box, "p", `${selling ? "You receive" : "Price"}: ${pending.amount === 1 ? "" : "about "}${unit * pending.amount} gold`);
-    }
-    const actions = el7(box, "div");
-    actions.className = "actions";
-    button3(actions, "Accept", () => reply(true));
-    button3(actions, "Decline", () => reply(false));
-    button3(actions, "Cancel", () => reply({ action: "cancel" }));
-  };
-  paint(true);
-  const timer2 = globalThis.setInterval(() => paint(), 200);
-  return () => {
-    globalThis.clearInterval(timer2);
-    stopTheme2?.();
-    stopTheme2 = null;
-    panel?.close();
-    panel = null;
   };
 }
 
@@ -8502,6 +8071,1846 @@ function installEffects(ctx) {
   };
 }
 
+// src/menus/settings-window.ts
+var SETTINGS_KEY = "settings-window";
+var STRENGTH_GROUPS = [
+  ["Atmosphere and milestones", [
+    { id: "anybandui.lowHealthStrength", title: "Low health tint strength", flag: "anybandui.lowHealthEffect" },
+    { id: "anybandui.sceneFadeStrength", title: "Scene fade strength", flag: "anybandui.sceneFade" },
+    { id: "anybandui.levelFlashStrength", title: "Level flash strength", flag: "anybandui.levelFlash" },
+    { id: "anybandui.deathStrength", title: "Death burst strength", flag: "anybandui.deathEffect" }
+  ]],
+  ["Movement and combat", [
+    { id: "anybandui.walkSlideStrength", title: "Walk slide strength", flag: "anybandui.walkSlide" },
+    { id: "anybandui.blinkRippleStrength", title: "Teleport ripple strength", flag: "anybandui.blinkRipple" },
+    { id: "anybandui.boltGlyphsStrength", title: "Bolt glyph strength", flag: "anybandui.boltGlyphs" },
+    { id: "anybandui.coneWashStrength", title: "Breath cone strength", flag: "anybandui.coneWash" },
+    { id: "anybandui.spellEffectsStrength", title: "Combat ring strength", flag: "anybandui.spellEffects" },
+    { id: "anybandui.damageNumbersStrength", title: "Damage number strength", flag: "anybandui.damageNumbers" }
+  ]],
+  ["Dungeon indicators", [
+    { id: "anybandui.itemGlowStrength", title: "Floor item glow strength", flag: "anybandui.itemGlow" },
+    { id: "anybandui.presenceHazeStrength", title: "Presence haze strength", flag: "anybandui.presenceHaze" },
+    { id: "anybandui.stairEmbersStrength", title: "Stair ember strength", flag: "anybandui.stairEmbers" },
+    { id: "anybandui.lavaEmbersStrength", title: "Lava ember strength", flag: "anybandui.lavaEmbers" },
+    { id: "anybandui.recallRingStrength", title: "Recall ring strength", flag: "anybandui.recallRing" },
+    { id: "anybandui.sleepMarksStrength", title: "Sleep mark strength", flag: "anybandui.sleepMarks" },
+    { id: "anybandui.fearMarksStrength", title: "Fear mark strength", flag: "anybandui.fearMarks" }
+  ]],
+  ["CRT effects", [
+    { id: "anybandui.crtStrength", title: "CRT strength", flag: "anybandui.crt" },
+    { id: "anybandui.crtGlowStrength", title: "Phosphor glow strength", flag: "anybandui.crtGlow" },
+    { id: "anybandui.crtFringeStrength", title: "Colour fringe strength", flag: "anybandui.crtFringe" },
+    { id: "anybandui.crtSweepStrength", title: "CRT sweep strength", flag: "anybandui.crtSweep" }
+  ]]
+];
+var STRENGTH_PRESETS = [["Subtle", 30], ["Classic", 60], ["Vivid", 80], ["Zero Cool", 100]];
+var HOVER_PRESETS = [["Quick", 250], ["Standard", 550], ["Patient", 1e3]];
+function cueKindsFor(id) {
+  return Object.entries(STRENGTH_SETTINGS).filter(([, setting]) => setting === id).map(([kind]) => kind);
+}
+var PAGES = [
+  { id: "interaction", group: "Play", title: "Interaction", summary: "How the mouse and hover cards behave." },
+  { id: "keys", group: "Play", title: "Keybindings", summary: "Your keymaps for the current keyset.", opens: { key: KEYBINDINGS_KEY, flag: "anybandui.keybindingEditor", switchTitle: "Keybinding editor" } },
+  { id: "options", group: "Play", title: "Game options", summary: "The game's own options for this character.", opens: { key: OPTIONS_KEY, flag: "anybandui.optionsEditor", switchTitle: "Game options editor" } },
+  { id: "knowledge", group: "Play", title: "Knowledge", summary: "What your character has learned about the world.", opens: { key: KNOWLEDGE_KEY, flag: "anybandui.knowledgeBrowser", switchTitle: "Knowledge browser" } },
+  { id: "theme", group: "Presentation", title: "Theme", summary: "The colours of this mod's panels and window frames." },
+  { id: "effects", group: "Presentation", title: "Effects", summary: "How strongly each dungeon effect is drawn." }
+];
+function draftFromSettings(settings) {
+  const strengths = {};
+  for (const [, members] of STRENGTH_GROUPS) for (const setting of members) {
+    const stored = cueKindsFor(setting.id).map((kind) => settings.effects[kind]).find((value2) => typeof value2 === "number");
+    strengths[setting.id] = stored ?? 100;
+  }
+  return { theme: settings.theme, keepCustom: settings.customTheme !== null, hoverDelayMs: settings.hoverDelayMs, strengths };
+}
+function rebaseDraft(base, draft, fresh) {
+  const themeTouched = draft.theme !== base.theme || draft.keepCustom !== base.keepCustom;
+  const strengths = {};
+  for (const id of /* @__PURE__ */ new Set([...Object.keys(fresh.strengths), ...Object.keys(draft.strengths)])) {
+    const value2 = draft.strengths[id] === base.strengths[id] ? fresh.strengths[id] : draft.strengths[id];
+    if (value2 !== void 0) strengths[id] = value2;
+  }
+  return {
+    theme: themeTouched ? draft.theme : fresh.theme,
+    keepCustom: themeTouched ? draft.keepCustom : fresh.keepCustom,
+    hoverDelayMs: draft.hoverDelayMs === base.hoverDelayMs ? fresh.hoverDelayMs : draft.hoverDelayMs,
+    strengths
+  };
+}
+function settingsPatch(current, draft, writeStrengths) {
+  const patch = {};
+  if (draft.theme !== current.theme) patch.theme = draft.theme;
+  if (!draft.keepCustom && current.customTheme !== null) patch.customTheme = null;
+  if (draft.hoverDelayMs !== current.hoverDelayMs) patch.hoverDelayMs = draft.hoverDelayMs;
+  if (writeStrengths) {
+    const effects = { ...current.effects };
+    let moved = false;
+    for (const [id, value2] of Object.entries(draft.strengths)) for (const kind of cueKindsFor(id)) {
+      if ((current.effects[kind] ?? 100) === value2) continue;
+      effects[kind] = value2;
+      moved = true;
+    }
+    if (moved) patch.effects = effects;
+  }
+  return patch;
+}
+var pageFocus2 = (id) => `page:${id}`;
+function installSettingsWindow(ctx) {
+  if (ctx.flags?.["anybandui.settingsWindow"] !== true) return () => {
+  };
+  const current = () => validateSettings(ctx.prefs?.get());
+  const gameOwnsStrengths = ctx.settings !== void 0;
+  let base = draftFromSettings(current());
+  let draft = draftFromSettings(current());
+  const rebase = () => {
+    const fresh = draftFromSettings(current());
+    if (JSON.stringify(fresh) === JSON.stringify(base)) return;
+    draft = rebaseDraft(base, draft, fresh);
+    base = fresh;
+  };
+  const reset = () => {
+    base = draftFromSettings(current());
+    draft = draftFromSettings(current());
+  };
+  let page = PAGES[0].id;
+  let confirm = null;
+  let note = "";
+  let surface = null;
+  const repaint = (focusKey) => surface?.repaint(focusKey);
+  const pending = () => {
+    rebase();
+    return settingsPatch(current(), draft, !gameOwnsStrengths);
+  };
+  const changed = () => Object.keys(pending()).length > 0;
+  const ask = (next) => {
+    confirm = next;
+    repaint(CONFIRM_NO);
+  };
+  const commit = () => {
+    if (!ctx.prefs) {
+      note = "This game does not keep this mod's settings.";
+      repaint("save");
+      return;
+    }
+    const before = JSON.stringify(themeFromPrefs(ctx.prefs.get()));
+    const store = createSettingsStore({ prefs: ctx.prefs });
+    store.set(pending());
+    reset();
+    const theme = themeFromPrefs(ctx.prefs?.get());
+    if (JSON.stringify(theme) !== before) broadcastTheme(ctx, theme);
+    note = "Saved.";
+    repaint("save");
+  };
+  const save = () => {
+    if (!changed()) return;
+    if (pending().customTheme === null) {
+      ask({ question: "Saving removes your custom theme colours. Save anyway?", yes: "Save", onYes: commit });
+      return;
+    }
+    commit();
+  };
+  const cancel = (focusKey) => {
+    if (!changed()) {
+      reset();
+      note = "";
+      repaint(focusKey);
+      return;
+    }
+    ask({ question: "Throw away your changes to these settings?", yes: "Discard", onYes: () => {
+      reset();
+      note = "Changes discarded.";
+      repaint(focusKey);
+    } });
+  };
+  const renderPage = (parent, info) => {
+    el6(parent, "div", info.title).className = "section";
+    el6(parent, "p", info.summary).className = "muted";
+    let first = true;
+    const mark = (node2) => {
+      if (first) {
+        node2.dataset["first"] = "true";
+        first = false;
+      }
+      return node2;
+    };
+    if (info.opens) {
+      const opens = info.opens;
+      if (ctx.flags?.[opens.flag] === true && hasOpener(opens.key)) {
+        mark(button2(parent, `Open ${info.title}`, `open:${info.id}`, () => {
+          if (!openMenu(opens.key)) {
+            note = `${info.title} is not open.`;
+            repaint();
+          }
+        }));
+      } else el6(parent, "p", `Turn on ${opens.switchTitle} on the Mods screen to use it here.`);
+      return;
+    }
+    if (info.id === "interaction") {
+      const presets = el6(parent, "div");
+      presets.className = "tabs";
+      for (const [label2, ms] of HOVER_PRESETS) {
+        const node2 = mark(button2(presets, `${label2} (${ms} ms)`, `hover:${label2}`, () => {
+          draft.hoverDelayMs = ms;
+          note = "";
+          repaint(`hover:${label2}`);
+        }));
+        node2.setAttribute("aria-pressed", String(draft.hoverDelayMs === ms));
+      }
+      const row = el6(parent, "label");
+      row.className = "field";
+      el6(row, "span", "Hover card delay");
+      const range = el6(row, "input");
+      range.type = "range";
+      range.min = "0";
+      range.max = "5000";
+      range.step = "50";
+      range.value = String(draft.hoverDelayMs);
+      range.dataset["focus"] = "hover-delay";
+      range.setAttribute("aria-label", "Hover card delay");
+      const readout = el6(row, "span", `${draft.hoverDelayMs} ms`);
+      range.addEventListener("input", () => {
+        const next = Math.round(Number(range.value));
+        if (!Number.isFinite(next)) return;
+        draft.hoverDelayMs = Math.max(0, Math.min(5e3, next));
+        readout.textContent = `${draft.hoverDelayMs} ms`;
+      });
+      range.addEventListener("change", () => repaint());
+      el6(parent, "p", "How long the pointer rests on a tile before its hover card opens.").className = "muted";
+      return;
+    }
+    if (info.id === "theme") {
+      const presets = el6(parent, "div");
+      presets.className = "tabs";
+      for (const [id, label2] of THEME_CHOICES) {
+        const node2 = mark(button2(presets, label2, `theme:${id}`, () => {
+          draft.theme = id;
+          draft.keepCustom = false;
+          note = "";
+          repaint(`theme:${id}`);
+        }));
+        node2.setAttribute("aria-pressed", String(draft.theme === id && !draft.keepCustom));
+      }
+      if (current().customTheme) {
+        const row = el6(parent, "label");
+        row.className = "field";
+        const box = el6(row, "input");
+        box.type = "checkbox";
+        box.checked = draft.keepCustom;
+        box.dataset["focus"] = "keep-custom";
+        box.setAttribute("aria-label", "Use my custom theme");
+        box.addEventListener("change", () => {
+          draft.keepCustom = box.checked;
+          repaint();
+        });
+        el6(row, "span", "Use my custom theme").style.flex = "1";
+      }
+      if (ctx.flags?.["anybandui.themeEditor"] === true && hasOpener("theme-editor")) {
+        button2(parent, "Edit colours", "open:theme-editor", () => {
+          openMenu("theme-editor");
+        });
+      } else el6(parent, "p", "Turn on Theme on the Mods screen to edit the colours.").className = "muted";
+      return;
+    }
+    if (gameOwnsStrengths) el6(parent, "p", "The game keeps these on its Mods screen, under this mod. Change them there.").className = "muted";
+    else {
+      const presets = el6(parent, "div");
+      presets.className = "tabs";
+      for (const [label2, value2] of STRENGTH_PRESETS) {
+        const node2 = mark(button2(presets, label2, `strength:${label2}`, () => {
+          for (const id of Object.keys(draft.strengths)) draft.strengths[id] = value2;
+          note = "";
+          repaint(`strength:${label2}`);
+        }));
+        node2.setAttribute("aria-pressed", String(Object.values(draft.strengths).every((v) => v === value2)));
+      }
+      el6(parent, "p", "A preset sets every effect to the same strength.").className = "muted";
+    }
+    for (const [group, members] of STRENGTH_GROUPS) {
+      el6(parent, "div", group).className = "section";
+      for (const setting of members) {
+        const on = ctx.flags?.[setting.flag] === true;
+        const row = el6(parent, "label");
+        row.className = "field";
+        el6(row, "span", on ? setting.title : `${setting.title} (effect off)`).style.flex = "1";
+        if (gameOwnsStrengths) {
+          let value2;
+          try {
+            value2 = ctx.settings?.get(setting.id);
+          } catch {
+            value2 = void 0;
+          }
+          el6(row, "span", typeof value2 === "number" ? `${value2}%` : "100%");
+          continue;
+        }
+        const range = el6(row, "input");
+        range.type = "range";
+        range.min = "0";
+        range.max = "100";
+        range.step = "10";
+        range.value = String(draft.strengths[setting.id] ?? 100);
+        range.dataset["focus"] = `strength:${setting.id}`;
+        range.setAttribute("aria-label", setting.title);
+        const readout = el6(row, "span", `${draft.strengths[setting.id] ?? 100}%`);
+        range.addEventListener("input", () => {
+          const next = Math.round(Number(range.value) / 10) * 10;
+          if (!Number.isFinite(next)) return;
+          draft.strengths[setting.id] = Math.max(0, Math.min(100, next));
+          readout.textContent = `${draft.strengths[setting.id]}%`;
+        });
+        range.addEventListener("change", () => repaint());
+      }
+    }
+  };
+  const render = (mount) => {
+    rebase();
+    el6(mount, "h2", "Settings");
+    const split = el6(mount, "div");
+    split.className = "split";
+    const nav = el6(split, "div");
+    nav.className = "nav";
+    nav.setAttribute("role", "tablist");
+    nav.setAttribute("aria-orientation", "vertical");
+    let group = "";
+    for (const info2 of PAGES) {
+      if (info2.group !== group) {
+        el6(nav, "div", info2.group === "Play" ? "PLAY" : "PRESENTATION").className = "group";
+        group = info2.group;
+      }
+      const tab = button2(nav, info2.title, pageFocus2(info2.id), () => {
+        page = info2.id;
+        repaint(pageFocus2(info2.id));
+      });
+      tab.setAttribute("role", "tab");
+      tab.setAttribute("aria-selected", String(info2.id === page));
+    }
+    el6(nav, "p", "Changes apply when you save.").className = "muted";
+    const content = el6(split, "div");
+    content.className = "page";
+    const info = PAGES.find((p) => p.id === page) ?? PAGES[0];
+    renderPage(content, info);
+    nav.addEventListener("keydown", (event) => {
+      if (confirm) return;
+      const at = PAGES.findIndex((p) => p.id === page);
+      const next = listStep(event.key, at, PAGES.length);
+      if (next !== null) {
+        swallow(event);
+        page = PAGES[next].id;
+        repaint(pageFocus2(page));
+        return;
+      }
+      if (event.key === "ArrowRight" || event.key === "Enter") {
+        const first = Array.from(content.querySelectorAll("[data-focus]")).find((node2) => node2.dataset["first"] === "true") ?? content.querySelector("[data-focus]");
+        if (first) {
+          swallow(event);
+          first.focus();
+        }
+        return;
+      }
+      if (event.key === "Escape" && changed()) {
+        swallow(event);
+        cancel(pageFocus2(page));
+      }
+    });
+    content.addEventListener("keydown", (event) => {
+      if (confirm || event.key !== "Escape") return;
+      swallow(event);
+      repaint(pageFocus2(page));
+    });
+    if (confirm) renderConfirm(mount, confirm, () => {
+      confirm = null;
+      repaint("save");
+    });
+    const actions = el6(mount, "div");
+    actions.className = "actions";
+    const busy = confirm !== null;
+    button2(actions, "Save", "save", save).disabled = busy || !changed();
+    button2(actions, "Cancel", "cancel", () => cancel("cancel")).disabled = busy;
+    if (note) el6(mount, "p", note).className = "note";
+  };
+  surface = openMenuSurface(ctx, { key: SETTINGS_KEY, label: "Settings", tab: "Settings", minSize: { width: 420, height: 260 }, placement: { kind: "dock", target: "main", edge: "right" }, firstFocus: pageFocus2(page) }, render);
+  if (!surface) {
+    ctx.log("settings window: panel seam unavailable");
+    return () => {
+    };
+  }
+  const stopTheme2 = onThemeChange(() => repaint());
+  return () => {
+    stopTheme2();
+    surface?.close();
+    surface = null;
+  };
+}
+
+// src/map-mouse.ts
+function ready(snap) {
+  return !!snap && snap.phase === "play" && !snap.messagePending && !snap.prompt && !!snap.core.player;
+}
+function sameToken2(a, b) {
+  return a.epoch === b.epoch && a.revision === b.revision;
+}
+function walkIntent(player, at) {
+  const dx = at.x - player.x, dy = at.y - player.y;
+  if (dx === 0 && dy === 0) return null;
+  if (Math.max(Math.abs(dx), Math.abs(dy)) === 1) {
+    return { kind: "command", command: { code: "walk", dir: 5 + Math.sign(dx) - 3 * Math.sign(dy) } };
+  }
+  return { kind: "travel", x: at.x, y: at.y };
+}
+function clickIntent(player, at, modifiers = {}) {
+  if (modifiers.shift && modifiers.ctrl) return null;
+  if (modifiers.ctrl) return { kind: "travel", x: at.x, y: at.y, modifiers: { ctrl: true } };
+  if (modifiers.shift) {
+    const adjacent = Math.max(Math.abs(at.x - player.x), Math.abs(at.y - player.y)) === 1;
+    return adjacent ? { kind: "travel", x: at.x, y: at.y, modifiers: { shift: true } } : null;
+  }
+  return walkIntent(player, at);
+}
+var PRE_MODIFIER_REFUSAL = "malformed travel destination";
+var TILE_ACTION_LABELS = {
+  tunnel: "Tunnel",
+  open: "Open",
+  close: "Close",
+  disarm: "Disarm",
+  ascend: "Go up the stairs",
+  descend: "Go down the stairs",
+  pickup: "Pick up"
+};
+var DIRECTED_CODES = /* @__PURE__ */ new Set(["tunnel", "open", "close", "disarm"]);
+function tileMenuActions(ctx, snap, at) {
+  if (snap.prompt?.kind === "target") return ctx.prompt ? [{ label: "Select tile", promptAction: "select" }, { label: "Cancel", promptAction: "cancel" }] : [];
+  if (!ready(snap)) return [];
+  const actions = [];
+  const walk = walkIntent(snap.core.player.grid, at);
+  if (walk) actions.push({ label: "Walk here", intent: walk });
+  actions.push({ label: "Look", intent: { kind: "command", command: { code: "look", args: { x: at.x, y: at.y } } } });
+  actions.push({ label: "Target", intent: { kind: "target", ...at } });
+  const known = ctx.knownLevel?.();
+  if (known && sameToken2(known.token, snap.token) && known.cells.some((cell) => cell.x === at.x && cell.y === at.y && cell.remembered.objects.length > 0)) {
+    actions.push({ label: "Pick up", pickup: true });
+  }
+  const offered = ctx.inspect?.tileActions?.(at);
+  if (offered && sameToken2(offered.token, snap.token)) {
+    const player = snap.core.player.grid;
+    const dx = at.x - player.x, dy = at.y - player.y;
+    const dir = 5 + Math.sign(dx) - 3 * Math.sign(dy);
+    for (const code of offered.codes) {
+      const label2 = TILE_ACTION_LABELS[code];
+      if (!label2 || actions.some((action) => action.label === label2)) continue;
+      if (code === "pickup") actions.push({ label: label2, pickup: true });
+      else actions.push({ label: label2, intent: { kind: "command", command: DIRECTED_CODES.has(code) ? { code, dir } : { code } } });
+    }
+  }
+  return actions;
+}
+function clickTile(ctx, at, modifiers = {}) {
+  if (!playerIsDriving(ctx)) return false;
+  const snap = ctx.snapshot?.() ?? null;
+  if (snap?.prompt?.kind === "target") return !!ctx.prompt?.reply(snap.prompt.promptId, { action: "move", ...at }).accepted;
+  if (!ready(snap) || !snap || !ctx.intent) return false;
+  const player = snap.core.player.grid;
+  const intent = clickIntent(player, at, modifiers);
+  if (!intent) return false;
+  const result = ctx.intent.submit(snap.token, intent);
+  if (result.accepted) return true;
+  if (intent.kind !== "travel" || !intent.modifiers || result.reason !== PRE_MODIFIER_REFUSAL) return false;
+  const plain = walkIntent(player, at);
+  return !!plain && ctx.intent.submit(snap.token, plain).accepted;
+}
+function runMenuAction(ctx, at, label2) {
+  if (!playerIsDriving(ctx)) return false;
+  const snap = ctx.snapshot?.() ?? null;
+  if (!snap) return false;
+  const action = tileMenuActions(ctx, snap, at).find((item) => item.label === label2);
+  if (!action) return false;
+  if (action.promptAction) return !!ctx.prompt?.reply(snap.prompt.promptId, { action: action.promptAction }).accepted;
+  if (!ctx.intent) return false;
+  if (action.pickup) {
+    const grid = snap.core.player.grid;
+    if (grid.x === at.x && grid.y === at.y) return ctx.intent.submit(snap.token, { kind: "command", command: { code: "pickup" } }).accepted;
+    const travel = { kind: "travel", ...at };
+    return ctx.intent.submit(snap.token, travel).accepted;
+  }
+  return !!action.intent && ctx.intent.submit(snap.token, action.intent).accepted;
+}
+function finishPickup(ctx, at, previous) {
+  if (!playerIsDriving(ctx)) return false;
+  const next = ctx.snapshot?.() ?? null;
+  if (!ready(next) || !next || sameToken2(previous.token, next.token) || !ctx.intent) return false;
+  const grid = next.core.player.grid;
+  if (grid.x !== at.x || grid.y !== at.y) return false;
+  const level = ctx.knownLevel?.();
+  if (!level || !sameToken2(level.token, next.token) || !level.cells.some((cell) => cell.x === at.x && cell.y === at.y && cell.remembered.objects.length > 0)) return false;
+  return ctx.intent.submit(next.token, { kind: "command", command: { code: "pickup" } }).accepted;
+}
+function aimingPath(ctx, snap, hovered) {
+  if (snap?.prompt?.kind !== "target" && snap?.prompt?.kind !== "direction") return [];
+  if (snap.prompt.kind === "target") return snap.prompt.path;
+  const cursor = hovered;
+  const path = cursor ? ctx.inspect?.projectionPath?.(cursor) : null;
+  return path && sameToken2(path.token, snap.token) ? path.grids : [];
+}
+function walkingPath(ctx, snap, hovered) {
+  if (!ready(snap) || !snap || !hovered) return [];
+  const path = ctx.inspect?.travelPath?.(hovered);
+  return path && sameToken2(path.token, snap.token) ? path.grids : [];
+}
+function installMapMouse(ctx) {
+  const flags = ctx.flags;
+  if (!flags["anybandui.clickToWalk"] && !flags["anybandui.dungeonActions"] && !flags["anybandui.aimPath"] && !flags["anybandui.walkRoutePreview"]) return () => {
+  };
+  if (!ctx.display || !ctx.snapshot || typeof document === "undefined" || typeof window === "undefined") {
+    ctx.log?.("map mouse: display or snapshot unavailable");
+    return () => {
+    };
+  }
+  const display = ctx.display;
+  let theme = themeFromPrefs(ctx.prefs?.get());
+  const menu = document.createElement("div");
+  menu.setAttribute("role", "menu");
+  menu.setAttribute("aria-label", "Dungeon actions");
+  menu.style.cssText = `display:none;position:fixed;z-index:1002;background:${theme.surface};color:${theme.text};border:1px solid ${paintColours(theme).border};border-radius:${Math.round(theme.rounding * 0.6)}px;padding:4px;font:${PAINT_FONT_SIZE}px/${PAINT_LINE_HEIGHT}px ${PAINT_FONT}`;
+  const paintMenu = () => {
+    const colours2 = paintColours(theme);
+    menu.style.background = theme.surface;
+    menu.style.color = theme.text;
+    menu.style.border = `1px solid ${colours2.border}`;
+    menu.style.borderRadius = `${Math.round(theme.rounding * 0.6)}px`;
+    const buttons = menu.querySelectorAll("button");
+    for (let index = 0; index < buttons.length; index += 1) {
+      const button5 = buttons[index];
+      if (!button5) continue;
+      button5.style.background = theme.surface;
+      button5.style.color = theme.text;
+    }
+  };
+  const stopTheme2 = onThemeChange((next) => {
+    theme = next;
+    paintMenu();
+  });
+  const canvas = document.createElement("canvas");
+  canvas.setAttribute("aria-hidden", "true");
+  canvas.style.cssText = "position:fixed;inset:0;pointer-events:none;z-index:49";
+  document.body.append(menu, canvas);
+  let menuAt = null;
+  let menuToken = null;
+  let menuPromptId = null;
+  let pickupAt = null;
+  let pickupSnap = null;
+  let targetAt = null;
+  let targetPromptId = null;
+  let hovered = null;
+  const hide = () => {
+    menu.style.display = "none";
+    menu.replaceChildren();
+    menuAt = null;
+  };
+  const locate = (event) => {
+    const snap = display.snapshot();
+    const input = ctx.snapshot?.() ?? null;
+    if (snap.mode !== "play" && !(snap.mode === "modal" && (input?.prompt?.kind === "target" || input?.prompt?.kind === "direction"))) return null;
+    const grid = hoverGrid(snap, { x: event.clientX, y: event.clientY });
+    return grid && grid.x < snap.level.width && grid.y < snap.level.height ? grid : null;
+  };
+  const onClick = (event) => {
+    if (event.button !== 0) return;
+    if (menu.contains(event.target)) return;
+    hide();
+    if (!flags["anybandui.clickToWalk"]) return;
+    const at = locate(event);
+    const prompt = ctx.snapshot?.()?.prompt;
+    if (at && clickTile(ctx, at, { shift: event.shiftKey, ctrl: event.ctrlKey })) {
+      if (prompt?.kind === "target") {
+        targetAt = at;
+        targetPromptId = prompt.promptId;
+      }
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }
+  };
+  const onContext = (event) => {
+    hide();
+    if (!flags["anybandui.dungeonActions"]) return;
+    const at = locate(event), snap = ctx.snapshot?.() ?? null;
+    if (!at || !snap || !playerIsDriving(ctx) || !(ready(snap) || snap.prompt?.kind === "target")) return;
+    const actions = tileMenuActions(ctx, snap, at);
+    if (!actions.length) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    menuAt = at;
+    menuToken = snap.token;
+    menuPromptId = snap.prompt?.promptId ?? null;
+    for (const action of actions) {
+      const button5 = document.createElement("button");
+      button5.type = "button";
+      button5.setAttribute("role", "menuitem");
+      button5.textContent = action.label;
+      button5.style.cssText = `display:block;width:100%;text-align:left;background:${theme.surface};color:${theme.text};border:0;padding:3px 9px;cursor:pointer;font:inherit`;
+      button5.addEventListener("pointerenter", () => {
+        button5.style.background = paintColours(theme).hover;
+      });
+      button5.addEventListener("pointerleave", () => {
+        button5.style.background = theme.surface;
+      });
+      button5.addEventListener("click", () => {
+        const current = ctx.snapshot?.() ?? null;
+        if (!menuAt || !current || !menuToken || !sameToken2(menuToken, current.token) || menuPromptId !== (current.prompt?.promptId ?? null)) {
+          hide();
+          return;
+        }
+        const selected = menuAt;
+        if (action.promptAction === "select" && current.prompt?.kind === "target") {
+          if (ctx.prompt?.reply(current.prompt.promptId, { action: "move", ...selected }).accepted) {
+            targetAt = selected;
+            targetPromptId = current.prompt.promptId;
+          }
+        } else if (action.pickup && current.core.player && (current.core.player.grid.x !== selected.x || current.core.player.grid.y !== selected.y)) {
+          if (runMenuAction(ctx, selected, action.label)) {
+            pickupAt = selected;
+            pickupSnap = current;
+          }
+        } else runMenuAction(ctx, selected, action.label);
+        hide();
+      });
+      menu.appendChild(button5);
+    }
+    menu.style.display = "block";
+    menu.style.left = `${Math.min(event.clientX, window.innerWidth - menu.offsetWidth)}px`;
+    menu.style.top = `${Math.min(event.clientY, window.innerHeight - menu.offsetHeight)}px`;
+    menu.firstElementChild?.focus();
+  };
+  const onKey = (event) => {
+    if (event.key === "Escape") hide();
+  };
+  const onMove = (event) => {
+    hovered = locate(event);
+  };
+  const render = () => {
+    if (pickupAt && pickupSnap) {
+      const next = ctx.snapshot?.() ?? null;
+      if (next && !sameToken2(next.token, pickupSnap.token)) {
+        finishPickup(ctx, pickupAt, pickupSnap);
+        pickupAt = null;
+        pickupSnap = null;
+      }
+    }
+    if (targetAt && targetPromptId !== null) {
+      const next = ctx.snapshot?.()?.prompt;
+      if (!next || next.kind !== "target") {
+        targetAt = null;
+        targetPromptId = null;
+      } else if (next.promptId !== targetPromptId && next.cursor?.x === targetAt.x && next.cursor.y === targetAt.y) {
+        if (playerIsDriving(ctx)) ctx.prompt?.reply(next.promptId, { action: "select" });
+        targetAt = null;
+        targetPromptId = null;
+      }
+    }
+    if (!flags["anybandui.aimPath"] && !flags["anybandui.walkRoutePreview"]) return;
+    const ratio = window.devicePixelRatio || 1;
+    const width = Math.ceil(window.innerWidth * ratio), height = Math.ceil(window.innerHeight * ratio);
+    if (canvas.width !== width || canvas.height !== height) {
+      canvas.width = width;
+      canvas.height = height;
+      canvas.style.width = `${window.innerWidth}px`;
+      canvas.style.height = `${window.innerHeight}px`;
+    }
+    const paint = canvas.getContext("2d");
+    if (!paint) return;
+    paint.setTransform(1, 0, 0, 1, 0, 0);
+    paint.clearRect(0, 0, width, height);
+    const snap = ctx.snapshot?.() ?? null;
+    const path = snap?.prompt ? flags["anybandui.aimPath"] ? aimingPath(ctx, snap, hovered) : [] : flags["anybandui.walkRoutePreview"] ? walkingPath(ctx, snap, hovered) : [];
+    const view = display.snapshot();
+    const rect = view.mode === "play" || view.mode === "modal" && (snap?.prompt?.kind === "target" || snap?.prompt?.kind === "direction") ? mapProjection(view) : null;
+    if (!rect || !path.length) return;
+    paint.scale(ratio, ratio);
+    paint.beginPath();
+    paint.rect(rect.x, rect.y, rect.width, rect.height);
+    paint.clip();
+    paint.strokeStyle = "#f0cd64";
+    paint.lineWidth = 2;
+    paint.beginPath();
+    path.forEach((grid, index) => {
+      const x = rect.x + (grid.x - view.viewport.origin.x + 0.5) * rect.width / view.viewport.size.width;
+      const y = rect.y + (grid.y - view.viewport.origin.y + 0.5) * rect.height / view.viewport.size.height;
+      if (index === 0) paint.moveTo(x, y);
+      else paint.lineTo(x, y);
+    });
+    paint.stroke();
+  };
+  window.addEventListener("click", onClick, true);
+  window.addEventListener("mousemove", onMove, true);
+  window.addEventListener("contextmenu", onContext, true);
+  window.addEventListener("keydown", onKey);
+  const timer2 = window.setInterval(render, 100);
+  return () => {
+    stopTheme2();
+    window.clearInterval(timer2);
+    window.removeEventListener("click", onClick, true);
+    window.removeEventListener("mousemove", onMove, true);
+    window.removeEventListener("contextmenu", onContext, true);
+    window.removeEventListener("keydown", onKey);
+    hide();
+    menu.remove();
+    canvas.remove();
+  };
+}
+
+// src/spell-actions.ts
+function actionReady(ctx, snap) {
+  const next = ctx.snapshot?.();
+  return !!next && sameToken(next.token, snap.token) && next.phase === "play" && !next.prompt && !next.messagePending && playerIsDriving(ctx);
+}
+function castSpell(ctx, snap, spell) {
+  if (!spell.canCast || !actionReady(ctx, snap)) return false;
+  return ctx.intent?.submit(snap.token, { kind: "command", command: { code: "cast", args: { spell: spell.index } } }).accepted ?? false;
+}
+function studySpell(ctx, snap, book, spell) {
+  if (!book.spells.some((entry2) => entry2.canStudy) || book.chooseSpells && !spell.canStudy || !actionReady(ctx, snap)) return false;
+  return ctx.intent?.submit(snap.token, { kind: "command", command: { code: "study", args: book.chooseSpells ? { handle: book.handle, spell: spell.index } : { handle: book.handle } } }).accepted ?? false;
+}
+function answerSpell(ctx, snap, index) {
+  const next = ctx.snapshot?.();
+  if (snap.prompt?.kind !== "spell" || !next || !sameToken(next.token, snap.token) || next.prompt?.promptId !== snap.prompt.promptId || !playerIsDriving(ctx)) return false;
+  if (!snap.prompt.choices.some((choice) => choice.index === index)) return false;
+  return ctx.prompt?.reply(snap.prompt.promptId, index).accepted ?? false;
+}
+function cancelSpell(ctx, snap) {
+  const next = ctx.snapshot?.();
+  if (snap.prompt?.kind !== "spell" || !next || !sameToken(next.token, snap.token) || next.prompt?.promptId !== snap.prompt.promptId || !playerIsDriving(ctx) || !ctx.prompt?.reply) return false;
+  return ctx.prompt.reply(snap.prompt.promptId, { action: "cancel" }).accepted ?? false;
+}
+var validRest = (count) => [-3, -2, -1].includes(count) || Number.isInteger(count) && count >= 1 && count <= 9999;
+function rest(ctx, snap, count) {
+  if (!actionReady(ctx, snap) || !validRest(count)) return false;
+  return ctx.intent?.submit(snap.token, { kind: "command", command: { code: "rest", args: { count } } }).accepted ?? false;
+}
+function restPrompt(snap) {
+  const prompt = snap?.prompt;
+  return prompt?.kind === "text" && prompt.tag === "rest" ? prompt : null;
+}
+function restAnswer(count) {
+  if (!validRest(count)) return null;
+  return count === -2 ? "&" : count === -1 ? "*" : count === -3 ? "!" : String(count);
+}
+function answerRest(ctx, snap, count) {
+  const prompt = restPrompt(snap), next = ctx.snapshot?.();
+  if (!prompt || !next || restPrompt(next)?.promptId !== prompt.promptId || !playerIsDriving(ctx) || !ctx.prompt?.reply) return false;
+  if (count === null) {
+    const cancel = ctx.prompt.reply(prompt.promptId, { action: "cancel" });
+    if (cancel.accepted) return true;
+  }
+  const answer = count === null ? "" : restAnswer(count);
+  if (answer === null || answer.length > prompt.maxLength) return false;
+  return ctx.prompt.reply(prompt.promptId, answer).accepted ?? false;
+}
+function stopResting(ctx) {
+  const next = ctx.snapshot?.();
+  if (!next?.resting?.active || !playerIsDriving(ctx)) return false;
+  return ctx.intent?.submit(next.token, { kind: "stop-resting" }).accepted ?? false;
+}
+
+// src/quickbar.ts
+var COMMAND_LABELS = Object.freeze({
+  hold: "Stay still",
+  pickup: "Pick up",
+  descend: "Go down stairs",
+  ascend: "Go up stairs",
+  explore: "Explore",
+  "navigate-down": "Walk to down stairs",
+  "navigate-up": "Walk to up stairs",
+  "fire-at-nearest": "Fire at nearest",
+  look: "Look around"
+});
+var TILE_COMMANDS = /* @__PURE__ */ new Set(["pickup", "ascend", "descend"]);
+var verbLabel = (verb) => verb.charAt(0).toUpperCase() + verb.slice(1);
+function catalogueCommands(ctx) {
+  let catalogue = null;
+  try {
+    catalogue = ctx.intent?.catalogue?.() ?? null;
+  } catch {
+    catalogue = null;
+  }
+  return (catalogue?.commands ?? []).filter((entry2) => entry2.phase === "play" && entry2.args.startsWith("args?") && entry2.code !== "rest").flatMap((entry2) => {
+    const verb = typeof entry2.verb === "string" && entry2.verb.length > 0 ? verbLabel(entry2.verb) : null;
+    const table = Object.hasOwn(COMMAND_LABELS, entry2.code) ? COMMAND_LABELS[entry2.code] : null;
+    const name = verb ?? table;
+    return name ? [{ type: "command", code: entry2.code, name }] : [];
+  });
+}
+var slotIndex = (code, shift, ctrl) => {
+  if (!/^Digit[0-9]$/.test(code)) return -1;
+  return (ctrl ? 20 : shift ? 10 : 0) + (Number(code.slice(-1)) + 9) % 10;
+};
+function quickbarOwnsKey(enabled, snap, code, shift, ctrl, menuOpen) {
+  return enabled && !menuOpen && !!snap && snap.phase === "play" && !snap.prompt && !snap.messagePending && slotIndex(code, shift, ctrl) >= 0;
+}
+function readSlots(raw, character) {
+  const root = raw && typeof raw === "object" ? raw : {};
+  const profiles = root["quickbar"] && typeof root["quickbar"] === "object" ? root["quickbar"] : {};
+  const slots = profiles[character];
+  return Array.from({ length: 30 }, (_, i) => {
+    const entry2 = Array.isArray(slots) ? slots[i] : null;
+    if (!entry2 || typeof entry2 !== "object") return null;
+    const b = entry2;
+    if (b.type === "spell" && typeof b.key === "string" && Number.isInteger(b.index) && typeof b.name === "string") return b;
+    if (b.type === "item" && typeof b.key === "string" && ["quaff", "read", "aim-wand", "activate"].includes(String(b.code)) && typeof b.name === "string") return b;
+    if (b.type === "command" && typeof b.name === "string" && b.name.length > 0 && typeof b.code === "string") return b;
+    return null;
+  });
+}
+function writeSlots(ctx, character, slots) {
+  if (!ctx.prefs?.set) return;
+  const raw = ctx.prefs.get();
+  const root = raw && typeof raw === "object" ? raw : {};
+  const profiles = root["quickbar"] && typeof root["quickbar"] === "object" ? root["quickbar"] : {};
+  ctx.prefs.set({ ...root, quickbar: { ...profiles, [character]: slots } });
+}
+function migrateSlots(raw, from, to) {
+  const root = raw && typeof raw === "object" ? raw : {};
+  const profiles = root["quickbar"] && typeof root["quickbar"] === "object" ? root["quickbar"] : {};
+  if (from === to || !Array.isArray(profiles[from]) || Object.hasOwn(profiles, to)) return null;
+  const { [from]: moved, ...rest2 } = profiles;
+  return { ...root, quickbar: { ...rest2, [to]: moved } };
+}
+function itemBindings(snap, ctx) {
+  const codes = ["quaff", "read", "aim-wand", "activate"];
+  return (snap.core.inventory ?? []).flatMap((item) => codes.filter((code) => {
+    const result = ctx.inspect?.itemTester?.(code);
+    return result?.token.epoch === snap.token.epoch && result.token.revision === snap.token.revision && result.items.some((entry2) => "handle" in entry2 && entry2.handle === item.handle);
+  }).map((code) => ({ type: "item", key: itemKey(item), code, name: item.label })));
+}
+function resolve(snap, binding, spells, ctx) {
+  if (!binding) return { label: "Empty", detail: "Right-click to assign.", usable: false };
+  if (binding.type === "command" && binding.code === "rest") return { label: "Rest", detail: "Rest until fully recovered.", usable: true, command: { code: "rest", args: { count: -2 } } };
+  if (binding.type === "command") {
+    const listed = catalogueCommands(ctx).find((entry2) => entry2.code === binding.code);
+    const name = listed?.name ?? COMMAND_LABELS[binding.code] ?? binding.name;
+    if (!listed) return { label: name, detail: "This command is not available in this game.", usable: false };
+    let usable2 = true;
+    const grid = snap.core.player?.grid;
+    if (TILE_COMMANDS.has(binding.code) && grid && ctx.inspect?.tileActions) {
+      const actions = ctx.inspect.tileActions(grid);
+      if (actions && actions.token.epoch === snap.token.epoch && actions.token.revision === snap.token.revision) usable2 = actions.codes.includes(binding.code);
+    }
+    return { label: name, detail: usable2 ? `${name}.` : `${name}. Not possible on this square.`, usable: usable2, ...usable2 ? { command: { code: binding.code } } : {} };
+  }
+  if (binding.type === "spell") {
+    const book = spells?.books.find((b) => b.key === binding.key);
+    const spell = book?.spells.find((s) => s.index === binding.index && s.name === binding.name);
+    if (!spell) return { label: binding.name, detail: "Spellbook no longer carried.", usable: false };
+    return {
+      label: spell.name,
+      amount: `${spell.mana} SP`,
+      detail: `Mana ${spell.mana}, fail ${spell.fail}%. ${spell.state}. ${spell.description}`,
+      usable: spell.canCast,
+      ...spell.canCast ? { command: { code: "cast", args: { spell: spell.index } } } : {}
+    };
+  }
+  const item = snap.core.inventory?.find((entry2) => itemKey(entry2) === binding.key);
+  if (!item) return { label: binding.name, detail: "Item no longer carried.", usable: false };
+  const tester = ctx.inspect?.itemTester?.(binding.code);
+  const usable = !!tester && tester.token.epoch === snap.token.epoch && tester.token.revision === snap.token.revision && tester.items.some((entry2) => "handle" in entry2 && entry2.handle === item.handle);
+  const inspection = ctx.inspect?.inspectItem?.(item.handle);
+  const description = inspection?.token.epoch === snap.token.epoch && inspection.token.revision === snap.token.revision ? ` ${inspection.text.slice(0, 600)}` : "";
+  const charge = binding.code === "aim-wand" ? ` Charges ${item.pval ?? 0}.` : binding.code === "activate" ? ` Recharge ${item.timeout ?? 0}.` : "";
+  return { label: item.label, amount: binding.code === "aim-wand" ? `${item.pval ?? 0} charges` : binding.code === "activate" ? item.timeout ? "Recharging" : "Ready" : `${item.number} carried`, detail: `${item.number} carried.${charge}${description}`, usable, ...usable ? { command: { code: binding.code, args: { handle: item.handle } } } : {} };
+}
+function activate(ctx, snap, binding) {
+  if (!actionReady(ctx, snap)) return false;
+  const resolved = resolve(snap, binding, adaptSpells(snap, ctx.inspect), ctx);
+  return !!resolved.usable && !!resolved.command && !!ctx.intent?.submit(snap.token, { kind: "command", command: resolved.command }).accepted;
+}
+
+// src/phase4.ts
+var CSS5 = `:host{color:var(--anyband-text);font:var(--anyband-font-size)/var(--anyband-line) var(--anyband-font)}.phase4{position:fixed;left:12px;bottom:12px;width:min(680px,calc(100vw - 24px));max-height:55vh;overflow:auto;padding:10px;background:var(--anyband-surface);border:1px solid var(--anyband-accent);border-radius:var(--anyband-rounding);pointer-events:auto}button,select,input{font:inherit;color:var(--anyband-text);background:var(--anyband-background);border:1px solid var(--anyband-accent);border-radius:3px;padding:4px}button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--anyband-accent)}button:disabled{opacity:.45}table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:3px;border-bottom:1px solid var(--anyband-accent)}.slots{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:3px}.slot{min-height:42px;overflow:hidden;word-break:break-word}.muted{opacity:.55}.row{width:100%;text-align:left;border:0;background:transparent}.menu{margin:6px 0;padding:6px;border:1px solid var(--anyband-accent)}.menu button{margin:2px}.hint{font-size:12px}`;
+function el7(parent, tag, content) {
+  const node2 = parent.ownerDocument.createElement(tag);
+  if (content !== void 0) node2.textContent = content;
+  parent.append(node2);
+  return node2;
+}
+function button3(parent, label2, callback) {
+  const node2 = el7(parent, "button", label2);
+  node2.type = "button";
+  node2.addEventListener("click", callback);
+  return node2;
+}
+var keys = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"];
+function drawIcon(parent, style) {
+  const svg = parent.ownerDocument.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("width", "22");
+  svg.setAttribute("height", "22");
+  svg.setAttribute("aria-hidden", "true");
+  const path = parent.ownerDocument.createElementNS("http://www.w3.org/2000/svg", "path");
+  path.setAttribute("d", style === "potion" ? "M9 2h6v3h-1v5l5 8c1 2 0 4-2 4H7c-2 0-3-2-2-4l5-8V5H9z" : style === "scroll" ? "M5 3h13v14a4 4 0 0 1-4 4H6a3 3 0 0 1-3-3c0-2 1-3 3-3h8M6 15V3" : "M4 20 19 4l2 2L6 22z");
+  path.setAttribute("fill", "none");
+  path.setAttribute("stroke", "currentColor");
+  path.setAttribute("stroke-width", "1.5");
+  svg.append(path);
+  parent.prepend(svg);
+}
+function lineageFor(ctx) {
+  try {
+    return ctx.character?.key?.() || null;
+  } catch {
+    return null;
+  }
+}
+function fingerprintFor(ctx) {
+  const player = ctx.state?.actor?.player;
+  if (!player || typeof player.race?.name !== "string" || typeof player.cls?.name !== "string" || typeof player.auBirth !== "number" || typeof player.htBirth !== "number" || typeof player.wtBirth !== "number") return null;
+  return characterKey({ raceName: player.race.name, clsName: player.cls.name, auBirth: player.auBirth, htBirth: player.htBirth, wtBirth: player.wtBirth });
+}
+function characterFor(ctx) {
+  return lineageFor(ctx) ?? fingerprintFor(ctx);
+}
+function adoptLineage(ctx, snap) {
+  const lineage = lineageFor(ctx), fingerprint = fingerprintFor(ctx), player = snap?.core.player;
+  if (!lineage || !fingerprint || !ctx.prefs?.set || !player?.race || !player.cls || !fingerprint.startsWith(`${player.race}|${player.cls}|`)) return false;
+  const moved = migrateSlots(ctx.prefs.get(), fingerprint, lineage);
+  if (moved) ctx.prefs.set(moved);
+  return !!moved;
+}
+var assignLabel = (binding) => binding.type === "command" ? binding.name : binding.type === "spell" ? `Cast: ${binding.name}` : `${binding.code === "quaff" ? "Drink" : binding.code === "read" ? "Read" : binding.code === "aim-wand" ? "Aim" : "Activate"}: ${binding.name}`;
+function restingText(resting) {
+  if (typeof resting.mode === "string") {
+    if (resting.mode === "turns") {
+      const left = resting.turnsRemaining ?? 0;
+      const total = resting.turnsRequested ?? left;
+      if (left <= 0) return "Resting.";
+      return `Resting: ${left} of ${total} turns left.`;
+    }
+    if (resting.mode === "complete") return "Resting until fully recovered.";
+    if (resting.mode === "all-points") return "Resting until hit points and mana are full.";
+    if (resting.mode === "some-points") return "Resting until hit points or mana are full.";
+  }
+  return "Resting.";
+}
+function installPhase4(ctx) {
+  const flags = ctx.flags ?? {};
+  const spellOn = flags["anybandui.spells"] === true;
+  const quickOn = flags["anybandui.quickbar"] === true;
+  const restOn = flags["anybandui.restDialog"] === true;
+  const blastCleanup = flags["anybandui.blastPreview"] ? installBlastPreview(ctx) : () => {
+  };
+  if (!spellOn && !quickOn && !restOn) return blastCleanup;
+  if (!ctx.snapshot) {
+    ctx.log("phase 4: snapshot seam unavailable");
+    return blastCleanup;
+  }
+  let repaint = () => {
+  };
+  const surfaces = openSurfaces(ctx, [
+    ...spellOn ? [{ key: "spells", label: "Spells", tab: "Spells", minSize: { width: 280, height: 220 }, placement: { kind: "dock", target: "main", edge: "right" } }] : [],
+    ...quickOn ? [{ key: "quickbar", label: "Quickbar", tab: "Bar", minSize: { width: 320, height: 60 }, placement: { kind: "dock", target: "main", edge: "bottom" }, fitHeight: 140 }] : [],
+    ...restOn ? [{ key: "rest", label: "Rest", tab: "Rest", minSize: { width: 220, height: 120 }, placement: { kind: "dock", target: "main", edge: "right" } }] : []
+  ], { id: "phase4", label: "Spells and quickbar", className: "phase4" }, CSS5, () => repaint());
+  if (!surfaces) {
+    ctx.log("phase 4: panel seam unavailable");
+    return blastCleanup;
+  }
+  let bookKey = "", spellIndex = -1, menu = -1, customize = -1, restOpen = false, restMode = -2, turns = 10, promptChoice = -1, error = "", signature = "", closed = false;
+  let appearance = { style: "automatic", text: "", color: "#7abaf4" };
+  let adopted = "";
+  const identify = (snap) => {
+    const pair = `${lineageFor(ctx) ?? ""}
+${fingerprintFor(ctx) ?? ""}
+${snap?.core.player?.race ?? ""}`;
+    if (pair !== adopted) {
+      adopted = pair;
+      adoptLineage(ctx, snap);
+    }
+    return characterFor(ctx);
+  };
+  let character = identify(ctx.snapshot?.());
+  let slots = character ? readSlots(ctx.prefs?.get(), character) : Array(30).fill(null);
+  const save = () => {
+    if (character) writeSlots(ctx, character, slots);
+  };
+  const fail = (message) => {
+    if (playerIsDriving(ctx)) error = message;
+  };
+  const assign = (index, binding) => {
+    const next = [...slots];
+    next[index] = binding;
+    slots = next;
+    save();
+    menu = -1;
+    paint(true);
+  };
+  const paint = (force = false) => {
+    if (closed) return;
+    const mounts = surfaces.mounts();
+    const spellMount = spellOn ? mounts.get("spells") : void 0, quickMount = quickOn ? mounts.get("quickbar") : void 0, restMount = restOn ? mounts.get("rest") : void 0;
+    if (!mounts.size) return;
+    const snap = ctx.snapshot?.();
+    const key = identify(snap);
+    if (key !== character) {
+      character = key;
+      slots = key ? readSlots(ctx.prefs?.get(), key) : Array(30).fill(null);
+    }
+    const model = snap ? adaptSpells(snap, ctx.inspect) : null;
+    const sig = JSON.stringify([[...mounts.keys()], snap, slots, bookKey, spellIndex, menu, customize, appearance, restOpen, restMode, turns, promptChoice, error]);
+    if (!force && sig === signature) return;
+    signature = sig;
+    for (const target of mounts.values()) target.replaceChildren();
+    if (!snap) {
+      for (const target of mounts.values()) el7(target, "p", "Game state unavailable.");
+      return;
+    }
+    if (spellOn && spellMount) {
+      el7(spellMount, "h2", "Spells");
+      if (model?.learnable) el7(spellMount, "p", model.learnable === 1 ? "You can learn 1 new spell." : `You can learn ${model.learnable} new spells.`);
+      if (!model) el7(spellMount, "p", "Spell list unavailable.");
+      else if (!model.books.length) el7(spellMount, "p", "No readable spellbooks carried.");
+      else {
+        const picker = el7(spellMount, "select");
+        picker.setAttribute("aria-label", "Spellbook");
+        for (const book2 of model.books) {
+          const opt = el7(picker, "option", book2.name);
+          opt.value = book2.key;
+        }
+        if (!model.books.some((book2) => book2.key === bookKey)) bookKey = model.books[0].key;
+        picker.value = bookKey;
+        picker.addEventListener("change", () => {
+          bookKey = picker.value;
+          spellIndex = -1;
+          paint(true);
+        });
+        const book = model.books.find((entry2) => entry2.key === bookKey);
+        const table = el7(spellMount, "table");
+        const head = el7(table, "tr");
+        for (const label2 of ["Spell", "Mana", "Fail", "State"]) el7(head, "th", label2);
+        for (const spell of book.spells) {
+          const row = el7(table, "tr");
+          if (!spell.canCast && !spell.canStudy) row.className = "muted";
+          const cell = el7(row, "td");
+          const pick = button3(cell, spell.name, () => {
+            spellIndex = spell.index;
+            paint(true);
+          });
+          pick.className = "row";
+          pick.title = spell.name;
+          pick.draggable = quickOn;
+          pick.addEventListener("dblclick", () => {
+            if (castSpell(ctx, snap, spell)) error = "";
+            paint(true);
+          });
+          pick.addEventListener("dragstart", (event) => {
+            if (quickOn) event.dataTransfer?.setData("application/x-anybandui-binding", JSON.stringify({ type: "spell", key: book.key, index: spell.index, name: spell.name }));
+          });
+          pick.addEventListener("contextmenu", (event) => {
+            if (!quickOn) return;
+            event.preventDefault();
+            menu = -2;
+            spellIndex = spell.index;
+            paint(true);
+          });
+          el7(row, "td", String(spell.mana));
+          el7(row, "td", `${spell.fail}%`);
+          el7(row, "td", spell.state);
+        }
+        const selected = book.spells.find((entry2) => entry2.index === spellIndex) ?? book.spells[0];
+        if (selected) {
+          const cast = button3(spellMount, "Cast", () => {
+            if (!castSpell(ctx, snap, selected)) fail("Cast unavailable.");
+            paint(true);
+          });
+          cast.disabled = !selected.canCast || !ctx.intent?.submit;
+          const study = button3(spellMount, book.chooseSpells ? "Study" : "Study book", () => {
+            if (!studySpell(ctx, snap, book, selected)) fail("Study unavailable.");
+            paint(true);
+          });
+          study.disabled = !(book.chooseSpells ? selected.canStudy : book.spells.some((entry2) => entry2.canStudy)) || !ctx.intent?.submit;
+          if (!book.chooseSpells) study.title = "Your class learns a random eligible spell from this book.";
+          el7(spellMount, "h3", selected.name);
+          el7(spellMount, "p", `Level ${selected.level}. Mana ${selected.mana}. Failure ${selected.fail}%. ${selected.state}.`);
+          if (selected.canCast && (snap.core.player?.sp ?? 0) < selected.mana) el7(spellMount, "p", "Not enough mana. Confirmation may be required.");
+          el7(spellMount, "p", selected.description);
+          if (selected.infoLine) el7(spellMount, "p", `Info: ${selected.infoLine}`);
+          if (quickOn && menu === -2) {
+            const box = el7(spellMount, "div");
+            box.className = "menu";
+            el7(box, "strong", "Assign spell to quickbar");
+            for (let i = 0; i < 30; i++) button3(box, `${i < 10 ? "" : i < 20 ? "Shift+" : "Ctrl+"}${keys[i % 10]}`, () => assign(i, { type: "spell", key: book.key, index: selected.index, name: selected.name }));
+          }
+        }
+      }
+      if (snap.prompt?.kind === "spell" && ctx.prompt?.reply && playerIsDriving(ctx)) {
+        const prompt = snap.prompt;
+        const box = el7(spellMount, "div");
+        box.className = "menu";
+        el7(box, "h3", "Choose spell");
+        el7(box, "p", prompt.label);
+        for (const choice of prompt.choices) button3(box, choice.name, () => {
+          promptChoice = choice.index;
+          paint(true);
+        });
+        button3(box, "Choose", () => {
+          if (!answerSpell(ctx, snap, promptChoice)) fail("Choice unavailable.");
+          paint(true);
+        });
+        button3(box, "Cancel", () => {
+          if (cancelSpell(ctx, snap)) promptChoice = -1;
+          else fail("Press Escape to cancel.");
+          paint(true);
+        });
+      }
+    }
+    if (quickOn && quickMount && snap.phase === "play") {
+      el7(quickMount, "h2", "Quickbar");
+      if (!character) el7(quickMount, "p", "Assignments last for this game session.");
+      for (let row = 0; row < 3; row++) {
+        el7(quickMount, "h3", row === 0 ? "Number keys" : row === 1 ? "Shift and number" : "Ctrl and number");
+        const line = el7(quickMount, "div");
+        line.className = "slots";
+        for (let col = 0; col < 10; col++) {
+          const index = row * 10 + col;
+          const binding = slots[index] ?? null;
+          const result = resolve(snap, binding, model, ctx);
+          const custom = binding?.appearance;
+          const shown = custom?.style === "text" && custom.text ? custom.text : result.label;
+          const slot = button3(line, `${keys[col]} ${shown}${result.amount ? ` - ${result.amount}` : ""}`, () => {
+            if (!activate(ctx, snap, binding)) fail(result.detail);
+            paint(true);
+          });
+          slot.className = "slot" + (result.usable ? "" : " muted");
+          slot.title = `Quickbar ${row === 0 ? "" : row === 1 ? "Shift+" : "Ctrl+"}${keys[col]}. ${result.detail}`;
+          if (custom?.color && /^#[0-9a-f]{6}$/i.test(custom.color)) slot.style.borderColor = custom.color;
+          if (custom && ["potion", "scroll", "wand"].includes(custom.style)) drawIcon(slot, custom.style);
+          slot.setAttribute("aria-label", slot.title);
+          slot.addEventListener("contextmenu", (event) => {
+            event.preventDefault();
+            menu = index;
+            paint(true);
+          });
+          slot.addEventListener("dragstart", (event) => {
+            if (binding) event.dataTransfer?.setData("application/x-anybandui-slot", JSON.stringify({ index, binding }));
+          });
+          slot.draggable = !!binding;
+          slot.addEventListener("dragover", (event) => {
+            event.preventDefault();
+          });
+          slot.addEventListener("drop", (event) => {
+            event.preventDefault();
+            const origin = event.dataTransfer?.getData("application/x-anybandui-slot");
+            const external = event.dataTransfer?.getData("application/x-anybandui-binding");
+            if (origin) {
+              try {
+                const parsed = JSON.parse(origin);
+                if (parsed.index >= 0 && parsed.index < 30 && JSON.stringify(slots[parsed.index]) === JSON.stringify(parsed.binding)) {
+                  const next = [...slots];
+                  [next[index], next[parsed.index]] = [next[parsed.index] ?? null, next[index] ?? null];
+                  slots = next;
+                  save();
+                  paint(true);
+                }
+              } catch {
+              }
+            } else if (external) {
+              try {
+                const parsed = JSON.parse(external);
+                if (parsed.type === "spell" && model?.books.some((book) => book.key === parsed.key && book.spells.some((spell) => spell.index === parsed.index))) assign(index, parsed);
+              } catch {
+              }
+            }
+          });
+        }
+      }
+      if (menu >= 0) {
+        const box = el7(quickMount, "div");
+        box.className = "menu";
+        el7(box, "strong", `Assign ${keys[menu % 10]}`);
+        if (slots[menu]) button3(box, "Customize", () => {
+          customize = menu;
+          appearance = slots[menu]?.appearance ?? { style: "automatic", text: "", color: "#7abaf4" };
+          menu = -1;
+          paint(true);
+        });
+        button3(box, "Rest until recovered", () => assign(menu, { type: "command", code: "rest", name: "Rest" }));
+        for (const binding of catalogueCommands(ctx)) button3(box, assignLabel(binding), () => assign(menu, binding));
+        for (const binding of itemBindings(snap, ctx)) {
+          const choice = button3(box, assignLabel(binding), () => assign(menu, binding));
+          choice.draggable = true;
+          choice.addEventListener("dragstart", (event) => event.dataTransfer?.setData("application/x-anybandui-binding", JSON.stringify(binding)));
+        }
+        for (const book of model?.books ?? []) for (const spell of book.spells) button3(box, `Cast: ${spell.name}`, () => assign(menu, { type: "spell", key: book.key, index: spell.index, name: spell.name }));
+        button3(box, "Clear", () => assign(menu, null));
+        button3(box, "Close", () => {
+          menu = -1;
+          paint(true);
+        });
+      }
+      if (customize >= 0 && slots[customize]) {
+        const box = el7(quickMount, "div");
+        box.className = "menu";
+        el7(box, "h3", "Customize slot");
+        const style = el7(box, "select");
+        style.setAttribute("aria-label", "Appearance");
+        for (const [value2, label2] of [["automatic", "Automatic"], ["text", "Custom text"], ["potion", "Potion icon"], ["scroll", "Scroll icon"], ["wand", "Wand icon"]]) {
+          const opt = el7(style, "option", label2);
+          opt.value = value2;
+        }
+        style.value = appearance.style;
+        style.addEventListener("change", () => {
+          appearance = { ...appearance, style: style.value };
+          paint(true);
+        });
+        const input = el7(box, "input");
+        input.value = appearance.text;
+        input.placeholder = "Text wraps to fit the slot.";
+        input.setAttribute("aria-label", "Slot text");
+        input.addEventListener("input", () => {
+          appearance = { ...appearance, text: input.value.slice(0, 60) };
+        });
+        const color = el7(box, "input");
+        color.type = "color";
+        color.value = appearance.color;
+        color.setAttribute("aria-label", "Slot color");
+        color.addEventListener("input", () => {
+          appearance = { ...appearance, color: color.value };
+        });
+        button3(box, "Reset appearance", () => {
+          appearance = { style: "automatic", text: "", color: "#7abaf4" };
+          paint(true);
+        });
+        button3(box, "Save and close", () => {
+          const binding = slots[customize];
+          if (binding) assign(customize, { ...binding, appearance });
+          customize = -1;
+          paint(true);
+        });
+        button3(box, "Cancel", () => {
+          customize = -1;
+          paint(true);
+        });
+      }
+    }
+    const asking = restPrompt(snap) && ctx.prompt?.reply && playerIsDriving(ctx) ? restPrompt(snap) : null;
+    const resting = snap.resting?.active ? snap.resting : null;
+    if (restOn && restMount && (snap.phase === "play" || asking || resting)) {
+      if (resting) {
+        const status = el7(restMount, "p", restingText(resting));
+        status.setAttribute("role", "status");
+        const stop = button3(restMount, "Stop resting", () => {
+          if (!stopResting(ctx)) fail("Stop unavailable.");
+          paint(true);
+        });
+        stop.disabled = !ctx.intent?.submit || !playerIsDriving(ctx);
+      } else if (!asking) button3(restMount, "Rest", () => {
+        restOpen = !restOpen;
+        paint(true);
+      });
+      if (restOpen && !resting || asking) {
+        const box = el7(restMount, "div");
+        box.className = "menu";
+        el7(box, "h3", "Rest");
+        for (const [count, label2, description] of [[-2, "Fully recovered", "Recover HP and mana and wait out harmful conditions."], [-1, "HP and mana", "Stop when both are full."], [-3, "HP or mana", "Stop as soon as either is full."], [1, "Number of turns", "Rest for a set number of turns."]]) {
+          const choice = button3(box, label2, () => {
+            restMode = count;
+            paint(true);
+          });
+          choice.setAttribute("aria-pressed", String(restMode === count));
+          el7(box, "p", description);
+        }
+        if (restMode === 1) {
+          const input = el7(box, "input");
+          input.type = "number";
+          input.min = "1";
+          input.max = "9999";
+          input.value = String(turns);
+          input.setAttribute("aria-label", "Turns");
+          input.addEventListener("input", () => {
+            turns = Number(input.value);
+          });
+        }
+        if (restMode === 1 && (!Number.isInteger(turns) || turns < 1 || turns > 9999)) el7(box, "p", "Enter between 1 and 9999 turns.");
+        el7(box, "p", "Danger interrupts rest normally.");
+        const confirm = button3(box, "Rest", () => {
+          const count = restMode === 1 ? turns : restMode;
+          if (!(asking ? answerRest(ctx, snap, count) : rest(ctx, snap, count))) fail("Rest unavailable.");
+          else restOpen = false;
+          paint(true);
+        });
+        confirm.disabled = restMode === 1 && (!Number.isInteger(turns) || turns < 1 || turns > 9999);
+        button3(box, "Cancel", () => {
+          if (asking) answerRest(ctx, snap, null);
+          restOpen = false;
+          paint(true);
+        });
+      }
+    }
+    const first = spellMount ?? quickMount ?? restMount;
+    if (error && first) {
+      const p = el7(first, "p", error);
+      p.setAttribute("role", "status");
+    }
+    if (quickMount) surfaces.fit("quickbar", quickMount.getBoundingClientRect().height + 16);
+  };
+  const keydown = (event) => {
+    if (!quickOn || menu >= 0 || customize >= 0 || restOpen || event.repeat || event.altKey || event.metaKey || event.defaultPrevented || event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement || event.target instanceof HTMLElement && event.target.isContentEditable) return;
+    const index = slotIndex(event.code, event.shiftKey, event.ctrlKey);
+    const snap = ctx.snapshot?.();
+    if (!quickbarOwnsKey(quickOn, snap ?? null, event.code, event.shiftKey, event.ctrlKey, menu >= 0 || restOpen) || !snap || !actionReady(ctx, snap)) return;
+    const binding = slots[index] ?? null;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    if (resolve(snap, binding, adaptSpells(snap, ctx.inspect), ctx).usable) activate(ctx, snap, binding);
+    paint(true);
+  };
+  paint(true);
+  window.addEventListener("keydown", keydown, true);
+  const timer2 = window.setInterval(() => paint(), 200);
+  repaint = () => paint(true);
+  return () => {
+    closed = true;
+    window.clearInterval(timer2);
+    window.removeEventListener("keydown", keydown, true);
+    surfaces.close();
+    blastCleanup();
+  };
+}
+
+// src/view-model/stores.ts
+var same2 = (a, b) => a.epoch === b.epoch && a.revision === b.revision;
+var STORE_NAMES = {
+  STORE_GENERAL: "General Store",
+  STORE_ARMOR: "Armoury",
+  STORE_WEAPON: "Weapon Smiths",
+  STORE_BOOK: "Bookseller",
+  STORE_ALCHEMY: "Alchemy Shop",
+  STORE_MAGIC: "Magic Shop",
+  STORE_BLACK: "Black Market",
+  HOME: "Home"
+};
+function storeName(featName) {
+  const known = STORE_NAMES[featName];
+  if (known) return known;
+  const words = featName.replace(/^STORE_/, "").toLowerCase().replace(/_/g, " ");
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+function bookForStock(item, books) {
+  const sameTval = books.filter((book) => book.tval === item.tval);
+  const text = `${item.name ?? ""} ${item.label}`.toLowerCase();
+  const named = sameTval.filter((book) => book.name.length > 0 && text.includes(book.name.toLowerCase())).sort((a, b) => b.name.length - a.name.length);
+  if (named.length === 0) return null;
+  if (named.length > 1 && named[0].name.length === named[1].name.length) return null;
+  return named[0];
+}
+function stockSpells(item, books) {
+  const book = bookForStock(item, books ?? []);
+  if (!book || book.spells.length === 0) return void 0;
+  return book.spells.map((spell) => ({
+    index: spell.sidx,
+    name: spell.name,
+    level: spell.level,
+    mana: spell.mana,
+    fail: spell.chance ?? spell.fail,
+    learned: spell.learned,
+    infoLine: spell.infoLine
+  }));
+}
+function adaptStore(snap, known) {
+  if (snap.phase !== "store" || !snap.core.stores || !snap.core.player || !snap.core.inventory) return null;
+  const status = snap.storeStatus && same2(snap.storeStatus.token, snap.token) ? snap.storeStatus : null;
+  const cell = known && same2(known.token, snap.token) ? known.cells.find((entry2) => entry2.x === snap.core.player.grid.x && entry2.y === snap.core.player.grid.y) : null;
+  const feat = status?.feat ?? cell?.remembered.feat;
+  if (feat === void 0) return null;
+  const index = snap.core.stores.findIndex((store2) => store2.feat === feat);
+  if (index < 0) return null;
+  const store = snap.core.stores[index];
+  const items = adaptItems(snap);
+  const quotes = new Map(status?.inventory.map((entry2) => [entry2.handle, entry2]));
+  const located = status !== null && status.inventory.some((entry2) => entry2.location !== void 0);
+  const byHandle = new Map((items?.rows ?? []).map((item) => [item.handle, item]));
+  const pack = located ? status.inventory.map((entry2) => {
+    const item = byHandle.get(entry2.handle);
+    return {
+      key: entry2.handle,
+      quantity: item?.quantity ?? 1,
+      colour: item?.colour ?? "inherit",
+      // PROSE
+      label: item?.label ?? "Item",
+      // PROSE
+      location: entry2.location === "equipment" ? "Equipment" : entry2.location === "quiver" ? "Quiver" : "Pack",
+      eligible: entry2.eligible,
+      ...entry2.eligible && entry2.price !== null ? { price: entry2.price } : {}
+    };
+  }) : (items?.rows ?? []).map((item) => {
+    const quote = quotes.get(item.handle);
+    return {
+      key: item.handle,
+      label: item.label,
+      quantity: item.quantity,
+      colour: item.colour,
+      location: item.location === "pack" ? "Pack" : "Equipment",
+      eligible: quote?.eligible ?? true,
+      ...quote && quote.eligible && quote.price !== null ? { price: quote.price } : {}
+    };
+  });
+  return {
+    token: snap.token,
+    index,
+    name: store.isHome ? "Home" : storeName(store.featName),
+    owner: store.isHome ? "" : store.owner.name,
+    home: store.isHome,
+    ...snap.core.player.gold === void 0 ? {} : { gold: snap.core.player.gold },
+    ready: status?.ready ?? true,
+    noSelling: status?.noSelling ?? false,
+    transactionPrompts: status !== null,
+    // ItemView.name, when published, is the game's own object name; label is the kind's raw template.
+    stock: store.stock.map((item) => {
+      const spells = stockSpells(item, snap.core.spellbooks);
+      return {
+        key: item.index,
+        kind: itemKey(item),
+        label: item.name ?? item.label,
+        quantity: item.number,
+        colour: item.artifact ? "#e89e42" : item.ego ? "#80b891" : "inherit",
+        eligible: true,
+        ...item.price === void 0 ? {} : { price: item.price },
+        ...spells ? { spells } : {}
+      };
+    }),
+    pack,
+    prompt: snap.prompt
+  };
+}
+
+// src/panels/stores.ts
+var CSS6 = `:host{color:var(--anyband-text);font:var(--anyband-font-size)/var(--anyband-line) var(--anyband-font)}.store{position:absolute;inset:12px;overflow:auto;padding:10px;background:var(--anyband-surface);border:1px solid var(--anyband-accent);border-radius:var(--anyband-rounding);pointer-events:auto}.sides{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.side{min-width:0;overflow:auto}h2,h3{color:var(--anyband-accent);border-bottom:1px solid var(--anyband-accent)}table{width:100%;border-collapse:collapse}th{text-align:left}td,th{padding:3px;border-bottom:1px solid var(--anyband-accent)}button,input{font:inherit;color:var(--anyband-text);background:var(--anyband-background);border:1px solid var(--anyband-accent);border-radius:3px;padding:3px 6px}button{cursor:pointer}button:disabled{cursor:default;opacity:.5}button:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid var(--anyband-accent)}.row{width:100%;text-align:left;border:0;background:transparent}.row[aria-pressed=true]{background:var(--anyband-accent);color:var(--anyband-background)!important}.actions{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}.prompt{border:1px solid var(--anyband-accent);padding:8px;max-width:30em}.prompt input{width:100%}.muted{opacity:.65}.gain{color:#80b891}.loss,.error,.unaffordable{color:#ff7559}details{margin:8px 0}summary{color:var(--anyband-accent);cursor:pointer}@media(max-width:650px){.sides{grid-template-columns:1fr}}`;
+var same3 = (a, b) => a.epoch === b.epoch && a.revision === b.revision;
+function el8(parent, tag, value2) {
+  const node2 = parent.ownerDocument.createElement(tag);
+  if (value2 !== void 0) node2.textContent = value2;
+  parent.appendChild(node2);
+  return node2;
+}
+function button4(parent, label2, click) {
+  const node2 = el8(parent, "button", label2);
+  node2.type = "button";
+  node2.addEventListener("click", click);
+  return node2;
+}
+var REFUSED = { accepted: false, quiet: false };
+var STANDING_DOWN = { accepted: false, quiet: true };
+function outcome(result) {
+  return { accepted: result.accepted, quiet: !result.accepted && result.code === "controller-owned" };
+}
+function tradeAllowed(model, side, row) {
+  if (!row || !model.transactionPrompts || !model.ready || model.prompt || !row.eligible) return false;
+  return side === "pack" || model.home || row.price === void 0 || model.gold === void 0 || row.price <= model.gold;
+}
+function storeAction(ctx, model, side, key) {
+  const snap = ctx.snapshot?.();
+  if (!snap || snap.phase !== "store" || snap.prompt || !same3(snap.token, model.token) || !model.ready || !ctx.intent?.submit) return REFUSED;
+  if (!playerIsDriving(ctx)) return STANDING_DOWN;
+  if (side !== "leave" && !tradeAllowed(model, side, (side === "stock" ? model.stock : model.pack).find((row) => row.key === key))) return REFUSED;
+  const command = side === "leave" ? { code: "shop-exit" } : side === "stock" ? { code: "shop-buy", args: { index: key } } : { code: "shop-sell", args: { handle: key } };
+  return outcome(ctx.intent.submit(snap.token, { kind: "command", command }));
+}
+function storePromptReply(ctx, model, answer) {
+  const snap = ctx.snapshot?.();
+  if (!snap || snap.phase !== "store" || !same3(snap.token, model.token) || !snap.prompt || snap.prompt.promptId !== model.prompt?.promptId || !ctx.prompt?.reply) return REFUSED;
+  if (!playerIsDriving(ctx)) return STANDING_DOWN;
+  const cancel = typeof answer === "object" && answer.action === "cancel";
+  if (snap.prompt.kind === "quantity") {
+    const quantity = snap.prompt;
+    if (!cancel && (typeof answer !== "number" || !Number.isInteger(answer) || answer < quantity.min || answer > quantity.max)) return REFUSED;
+  } else if (snap.prompt.kind === "confirm") {
+    if (!cancel && typeof answer !== "boolean") return REFUSED;
+  } else return REFUSED;
+  return outcome(ctx.prompt.reply(snap.prompt.promptId, answer));
+}
+function storeComparisons(ctx, model, side, key) {
+  if (ctx.inspect?.compareLoadoutSlots) {
+    try {
+      const result = ctx.inspect.compareLoadoutSlots(side === "stock" ? { from: "store", store: model.index, index: key } : { from: "gear", handle: key });
+      if (result) return same3(result.token, model.token) ? result.slots.map((entry2) => ({ name: entry2.name, sim: entry2.comparison })) : [];
+    } catch {
+    }
+  }
+  const sim = compareItem(ctx, model.token, side === "stock" ? { store: model.index, index: key } : key);
+  return sim ? [{ name: "", sim }] : [];
+}
+function storeInspection(ctx, model, side, key) {
+  if (!ctx.inspect?.inspectItem) return null;
+  let result;
+  try {
+    result = ctx.inspect.inspectItem(side === "stock" ? { store: model.index, index: key } : key);
+  } catch {
+    return null;
+  }
+  if (!result || !same3(result.token, model.token)) return null;
+  if (side === "stock" && !result.sections) return null;
+  return result;
+}
+function cleanLabel(label2) {
+  return (label2 ?? "").replace(/\s*\[[^\]]*\]\s*$/u, "").replace(/\s*\(0-\d+, \*=all\)/u, "").replace(/[\s:]+$/u, "").trim();
+}
+function installStores(ctx) {
+  const flags = ctx.flags ?? {};
+  if (!Object.entries(flags).some(([flag, on2]) => flag.startsWith("anybandui.store") && on2)) return () => {
+  };
+  if (!ctx.ui?.openPanel || !ctx.snapshot) {
+    ctx.log("stores: panel or snapshot seam unavailable");
+    return () => {
+    };
+  }
+  let panel = null;
+  let stopTheme2 = null;
+  let stockSelection = null, packSelection = null, unchanged = false, amount = 1, lastPrompt = -1, split = 50;
+  let browsing = null, spellPick = -1;
+  let place = "", signature = "", error = "";
+  let pending = null;
+  let mount = null;
+  const on = (part) => flags[`anybandui.store${part}`] === true;
+  const read = () => {
+    const snap = ctx.snapshot?.();
+    if (snap?.phase !== "store") return null;
+    return adaptStore(snap, ctx.knownLevel?.() ?? null);
+  };
+  const paint = (force = false) => {
+    const model = read();
+    if (!model) {
+      if (panel) {
+        stopTheme2?.();
+        stopTheme2 = null;
+        panel.close();
+        panel = null;
+        mount = null;
+      }
+      pending = null;
+      return;
+    }
+    if (!panel) {
+      panel = ctx.ui.openPanel({ id: "store", modal: false, label: "Store" });
+      applyTheme(panel.root, themeFromPrefs(ctx.prefs?.get()));
+      const open = panel;
+      stopTheme2 = onThemeChange((theme) => {
+        if (panel) applyTheme(open.root, theme);
+      });
+      el8(panel.root, "style", CSS6);
+      mount = el8(panel.root, "section");
+      mount.className = "store";
+    }
+    const name = `${model.index}:${model.name}`;
+    if (name !== place) {
+      place = name;
+      stockSelection = null;
+      packSelection = null;
+      error = "";
+      pending = null;
+      browsing = null;
+    }
+    if (browsing) {
+      const kind = browsing.kind;
+      const book = model.stock.find((row) => row.key === browsing.key && row.kind === kind) ?? model.stock.find((row) => row.kind === kind && row.spells);
+      if (!book) browsing = null;
+      else if (book.key !== browsing.key) {
+        browsing = { key: book.key, kind };
+        stockSelection = book.key;
+      }
+    }
+    if (!model.stock.some((row) => row.key === stockSelection)) {
+      stockSelection = null;
+      browsing = null;
+    }
+    if (!model.pack.some((row) => row.key === packSelection)) packSelection = null;
+    if (pending) {
+      if (model.prompt) pending.seen = true;
+      else if (pending.seen) pending = null;
+    }
+    const asked = model.prompt?.kind === "quantity" ? model.prompt : null;
+    if (pending && asked?.unitPrice !== void 0) pending.unitPrice = asked.unitPrice;
+    const next = JSON.stringify([model, stockSelection, packSelection, unchanged, error, pending, browsing, spellPick]);
+    if (!force && next === signature) return;
+    signature = next;
+    const host = mount;
+    host.replaceChildren();
+    const width = el8(host, "input");
+    width.type = "range";
+    width.min = "25";
+    width.max = "75";
+    width.value = String(split);
+    width.setAttribute("aria-label", "Stock column width");
+    width.title = "Resize stock and inventory columns";
+    width.addEventListener("input", () => {
+      split = Number(width.value);
+      sides.style.gridTemplateColumns = `${split}% ${100 - split}%`;
+    });
+    const sides = el8(host, "div");
+    sides.className = "sides";
+    sides.style.gridTemplateColumns = `${split}% ${100 - split}%`;
+    const show = (result, failure) => {
+      error = result.accepted || result.quiet ? "" : failure;
+    };
+    const action = (side, key) => {
+      const result = storeAction(ctx, model, side, key);
+      if (result.accepted && side !== "leave" && key !== void 0) pending = { side, key, amount: 1, seen: false };
+      show(result, "The store cannot do that right now.");
+      paint(true);
+    };
+    const draw = (side) => {
+      const box = el8(sides, "section");
+      box.className = "side";
+      el8(box, "h2", side === "stock" ? `${model.name}${model.owner ? ` - ${model.owner}` : ""}` : `Your inventory${model.gold === void 0 ? "" : ` (Gold: ${model.gold})`}`);
+      if (side === "pack" && model.noSelling && !model.home) {
+        const note = el8(box, "p", "Stores take items as gifts and pay no gold for them.");
+        note.className = "muted";
+      }
+      const rows = side === "stock" ? model.stock : model.pack;
+      const selected = side === "stock" ? stockSelection : packSelection;
+      const prices = on("Prices") && !model.home && !(side === "pack" && model.noSelling);
+      const table = el8(box, "table");
+      const head = el8(table, "tr");
+      for (const label2 of ["Item", "Qty", ...side === "pack" ? ["Location"] : [], ...prices ? [side === "stock" ? "Gold each" : "Offer each"] : []]) el8(head, "th", label2);
+      if (!rows.length) el8(box, "p", side === "stock" ? "No stock here." : "No items in your pack.");
+      for (const row of rows) {
+        const tr = el8(table, "tr");
+        const cell = el8(tr, "td");
+        if (!row.eligible) tr.className = "muted";
+        const pick = button4(cell, row.label, () => {
+          if (side === "stock") {
+            if (stockSelection !== row.key) browsing = null;
+            stockSelection = row.key;
+          } else packSelection = row.key;
+          paint(true);
+        });
+        pick.className = "row";
+        pick.style.color = row.colour;
+        pick.title = row.eligible ? row.label : `${row.label}. This store will not buy it.`;
+        pick.setAttribute("aria-pressed", String(selected === row.key));
+        el8(tr, "td", String(row.quantity));
+        if (side === "pack") el8(tr, "td", row.location ?? "Pack");
+        if (prices) {
+          const price = el8(tr, "td", row.price === void 0 ? "" : String(row.price));
+          if (side === "stock" && row.price !== void 0 && model.gold !== void 0 && row.price > model.gold) price.className = "unaffordable";
+        }
+      }
+      if (on("Transactions")) {
+        const actions = el8(box, "div");
+        actions.className = "actions";
+        const label2 = side === "stock" ? model.home ? "Retrieve" : "Buy" : model.home ? "Stash" : model.noSelling ? "Give" : "Sell";
+        const active = rows.find((row) => row.key === selected);
+        const drive = playerIsDriving(ctx);
+        const submit = button4(actions, label2, () => action(side, selected ?? void 0));
+        submit.disabled = !drive || !ctx.intent?.submit || !tradeAllowed(model, side, active);
+        if (!model.transactionPrompts) submit.title = "This version of the game cannot run store trades from here.";
+        else if (active && !active.eligible) submit.title = "This store will not buy that item.";
+        else if (side === "stock" && active && !model.home && active.price !== void 0 && model.gold !== void 0 && active.price > model.gold) submit.title = "You cannot afford this.";
+        if (side === "stock") {
+          const leave = button4(actions, model.home ? "Leave home" : "Leave store", () => action("leave"));
+          leave.disabled = !drive || !ctx.intent?.submit || !model.ready || !!model.prompt;
+        }
+        if (side === "stock" && model.transactionPrompts && !model.ready && !model.prompt) {
+          const wait = el8(box, "p", "Waiting for the store.");
+          wait.className = "muted";
+        }
+      }
+      el8(box, "h3", "Inspection");
+      const chosen = rows.find((row) => row.key === selected);
+      if (!chosen) {
+        const empty = el8(box, "p", "Select an item to inspect it.");
+        empty.className = "muted";
+        return;
+      }
+      el8(box, "strong", chosen.label).style.color = chosen.colour;
+      if (on("Comparison")) {
+        const slots = storeComparisons(ctx, model, side, chosen.key);
+        for (const slot of slots) {
+          if (slots.length > 1 && slot.name) el8(box, "h4", slot.name.charAt(0).toUpperCase() + slot.name.slice(1));
+          renderItemComparison(box, slot.sim, unchanged, (value2) => {
+            unchanged = value2;
+            paint(true);
+          });
+        }
+      }
+      const inspection = storeInspection(ctx, model, side, chosen.key);
+      if (inspection) {
+        const details = el8(box, "details");
+        details.open = true;
+        el8(details, "summary", inspection.title);
+        const parts = inspection.sections?.filter((part) => part.kind !== "title");
+        if (parts) for (const part of parts) el8(details, "p", part.text);
+        else el8(details, "p", inspection.text);
+      }
+      if (side === "stock" && chosen.spells && chosen.spells.length > 0) {
+        const spells = chosen.spells;
+        button4(box, "Browse spells", () => {
+          browsing = { key: chosen.key, kind: chosen.kind };
+          if (!spells.some((spell) => spell.index === spellPick)) spellPick = spells[0].index;
+          paint(true);
+        });
+        if (browsing?.key === chosen.key) {
+          const detail = (index) => {
+            try {
+              const info2 = ctx.inspect?.spellInfo?.(index);
+              return info2 && same3(info2.token, model.token) ? info2 : null;
+            } catch {
+              return null;
+            }
+          };
+          const table2 = el8(box, "table");
+          const head2 = el8(table2, "tr");
+          for (const label2 of ["Spell", "Level", "Mana", "Fail"]) el8(head2, "th", label2);
+          for (const spell of spells) {
+            const tr = el8(table2, "tr");
+            const cell = el8(tr, "td");
+            button4(cell, spell.name, () => {
+              spellPick = spell.index;
+              paint(true);
+            });
+            el8(tr, "td", String(spell.level));
+            el8(tr, "td", String(spell.mana));
+            el8(tr, "td", `${detail(spell.index)?.failChance ?? spell.fail}%`);
+          }
+          const shown = spells.find((spell) => spell.index === spellPick) ?? spells[0];
+          const info = detail(shown.index);
+          el8(box, "p", `Level ${shown.level}. Mana ${shown.mana}. Failure ${info?.failChance ?? shown.fail}%.`);
+          if (shown.infoLine) el8(box, "p", shown.infoLine);
+          if (info?.description) el8(box, "p", info.description);
+          button4(box, "Close", () => {
+            browsing = null;
+            paint(true);
+          });
+        }
+      }
+    };
+    draw("stock");
+    draw("pack");
+    if (model.prompt) drawPrompt(host, model);
+    if (error) {
+      const line = el8(host, "p", error);
+      line.className = "error";
+    }
+  };
+  const drawPrompt = (host, model) => {
+    const prompt = model.prompt;
+    const box = el8(host, "section");
+    box.className = "prompt";
+    const interactive = on("Prompts") && !!ctx.prompt?.reply && (prompt.kind === "quantity" || prompt.kind === "confirm");
+    if (!interactive) {
+      el8(box, "p", cleanLabel(prompt.label) || "The game is asking a question.");
+      const hint = el8(box, "p", "Answer it with the keyboard.");
+      hint.className = "muted";
+      return;
+    }
+    const reply = (answer) => {
+      const result = storePromptReply(ctx, model, answer);
+      if (result.accepted) {
+        if (typeof answer === "number" && pending) pending.amount = answer;
+        if (typeof answer !== "number" && answer !== true) pending = null;
+      }
+      error = result.accepted || result.quiet ? "" : "That answer was not accepted.";
+      paint(true);
+    };
+    const selling = pending?.side === "pack";
+    if (prompt.kind === "quantity") {
+      const quantity = prompt;
+      if (quantity.promptId !== lastPrompt) {
+        lastPrompt = quantity.promptId;
+        amount = Math.max(1, Math.min(quantity.max, quantity.defaultValue));
+      }
+      const low = Math.max(1, quantity.min);
+      el8(box, "h3", "How many?");
+      const text2 = cleanLabel(quantity.label);
+      if (text2) el8(box, "p", text2);
+      el8(box, "p", `Up to ${quantity.max}`);
+      const priced = quantity.unitPrice !== void 0 && !(selling && model.noSelling);
+      if (selling && model.noSelling) el8(box, "p", "The store pays no gold for this.");
+      if (priced) el8(box, "p", `${selling ? "Offer" : "Price"} each: ${quantity.unitPrice} gold`);
+      const total = priced ? el8(box, "p") : null;
+      if (quantity.gold !== void 0) el8(box, "p", `Your gold: ${quantity.gold}`);
+      const input = el8(box, "input");
+      input.type = "number";
+      input.min = String(low);
+      input.max = String(quantity.max);
+      input.value = String(amount);
+      input.setAttribute("aria-label", "Amount");
+      const slider = quantity.max > 1 ? el8(box, "input") : null;
+      if (slider) {
+        slider.type = "range";
+        slider.min = String(low);
+        slider.max = String(quantity.max);
+        slider.value = String(amount);
+        slider.setAttribute("aria-label", "Quantity");
+      }
+      const actions2 = el8(box, "div");
+      actions2.className = "actions";
+      const update = () => {
+        const valid = Number.isInteger(amount) && amount >= low && amount <= quantity.max;
+        if (slider) slider.value = String(amount);
+        let over = false;
+        if (total) {
+          const exact = quantity.totals?.[amount];
+          const hasExact = typeof exact === "number";
+          const sum = hasExact ? exact : amount === 1 && quantity.totalPrice !== void 0 ? quantity.totalPrice : quantity.unitPrice * amount;
+          const about = !hasExact && amount !== 1;
+          total.textContent = valid ? `Total: ${about ? "about " : ""}${sum} gold` : "";
+          over = !about && !selling && quantity.gold !== void 0 && sum > quantity.gold;
+          total.className = over ? "unaffordable" : "";
+        }
+        confirm.disabled = !valid || over;
+      };
+      input.addEventListener("input", () => {
+        amount = Number(input.value);
+        update();
+      });
+      slider?.addEventListener("input", () => {
+        amount = Number(slider.value);
+        input.value = String(amount);
+        update();
+      });
+      input.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          event.stopPropagation();
+          if (!confirm.disabled) reply(amount);
+        }
+      });
+      for (const [label2, value2] of [["One", 1], ["Half", Math.max(1, Math.floor(quantity.max / 2))], ["All", quantity.max]]) button4(actions2, label2, () => {
+        amount = value2;
+        input.value = String(value2);
+        update();
+      });
+      const confirm = button4(actions2, "OK", () => {
+        if (!confirm.disabled) reply(amount);
+      });
+      button4(actions2, "Cancel", () => reply({ action: "cancel" }));
+      update();
+      return;
+    }
+    el8(box, "h3", pending && !model.home ? selling ? "Accept this offer?" : "Accept this price?" : "Confirm");
+    const text = cleanLabel(prompt.label);
+    if (text) el8(box, "p", text);
+    const price = prompt.price;
+    if (pending && !model.home) {
+      const row = (pending.side === "stock" ? model.stock : model.pack).find((entry2) => entry2.key === pending.key);
+      const unit = pending.unitPrice ?? row?.price;
+      if (selling && model.noSelling) el8(box, "p", "You get no gold for this.");
+      else if (price !== void 0) el8(box, "p", `${selling ? "You receive" : "Price"}: ${price} gold`);
+      else if (unit !== void 0) el8(box, "p", `${selling ? "You receive" : "Price"}: ${pending.amount === 1 ? "" : "about "}${unit * pending.amount} gold`);
+    }
+    const actions = el8(box, "div");
+    actions.className = "actions";
+    button4(actions, "Accept", () => reply(true));
+    button4(actions, "Decline", () => reply(false));
+    button4(actions, "Cancel", () => reply({ action: "cancel" }));
+  };
+  paint(true);
+  const timer2 = globalThis.setInterval(() => paint(), 200);
+  return () => {
+    globalThis.clearInterval(timer2);
+    stopTheme2?.();
+    stopTheme2 = null;
+    panel?.close();
+    panel = null;
+  };
+}
+
 // src/mod-coexistence.ts
 var MOVED_FROM_QOL = [
   { flag: "anybandui.zoom", qolFlag: "qol.zoomPan", name: "zoom and pan" },
@@ -8590,6 +9999,15 @@ var plugin_default = {
       log: ctx.log,
       ...ctx.ui ? { ui: ctx.ui } : {},
       ...ctx.prefs ? { prefs: ctx.prefs } : {},
+      ...ctx.display ? { display: ctx.display } : {}
+    }));
+    const menuContext = { flags, log: ctx.log, ...ctx.ui ? { ui: ctx.ui } : {}, ...ctx.prefs ? { prefs: ctx.prefs } : {} };
+    displayCleanups.push(installKnowledgeBrowser({ ...menuContext, ...ctx.knowledge ? { knowledge: ctx.knowledge } : {} }));
+    displayCleanups.push(installOptionsEditor({ ...menuContext, ...ctx.options ? { options: ctx.options } : {} }));
+    displayCleanups.push(installKeybindingEditor({ ...menuContext, ...ctx.keybindings ? { keybindings: ctx.keybindings } : {} }));
+    displayCleanups.push(installSettingsWindow({
+      ...menuContext,
+      ...ctx.settings ? { settings: ctx.settings } : {},
       ...ctx.display ? { display: ctx.display } : {}
     }));
     if (flags["anybandui.highContrast"] || flags["anybandui.colourblind"] || flags["anybandui.crt"] || theme.invert_dungeon) {
