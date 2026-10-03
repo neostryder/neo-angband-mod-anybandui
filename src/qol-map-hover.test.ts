@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { GameState } from "@rpgm-tools/neo-angband-core";
-import { hoverCardContent, hoverCardText, hoverCellAt, hoverCaveGrid, hoverCaveGridInView, HOVER_DWELL_MS, TOUCH_HOLD_MS } from "./qol-map-hover.js";
+import { hoverCardContent, hoverCardText, hoverCellAt, hoverCaveGrid, hoverCaveGridInView, hoverDwellMs, TOUCH_HOLD_MS } from "./qol-map-hover.js";
 describe("qol.mapHoverCards: pixel/cell/cave geometry", () => {
   it("maps a client point to a cell, centred in a box with room to spare", () => {
     /* 800x480 box: scale = min(800/(16*80), 480/(24*24)) = min(0.625, 0.833) =
@@ -67,8 +67,9 @@ describe("qol.mapHoverCards: pixel/cell/cave geometry", () => {
 describe("qol.mapHoverCards: context-sensitive content", () => {
   const grid = { x: 5, y: 5 };
 
-  it("keeps the published dwell and hold timings", () => {
-    expect(HOVER_DWELL_MS).toBe(2000);
+  it("waits for the shared hover delay, which starts at 550 ms", () => {
+    expect(hoverDwellMs(undefined)).toBe(550);
+    expect(hoverDwellMs(() => ({ hoverDelayMs: 825 }))).toBe(825);
     expect(TOUCH_HOLD_MS).toBe(1000);
   });
 

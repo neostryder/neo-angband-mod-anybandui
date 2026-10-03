@@ -1,4 +1,5 @@
 import type { ViewModel } from "../view-model/protocol.js";
+import { appendPauseEmblem } from "./message-log.js";
 import { node } from "./panel-host.js";
 
 export function renderDungeonCard(mount: HTMLElement, model: ViewModel): void {
@@ -13,6 +14,8 @@ export function renderDungeonCard(mount: HTMLElement, model: ViewModel): void {
     if (tip) tile.dataset.tip = tip;
   }
   for (const [condition, label] of [[p.trap_detected, "Trap-detected area"], [p.recall, "Recall pending"], [p.descent, "Descent pending"], [p.resting, "Resting"], [p.running, "Running"], [p.repeat, `Repeating: ${p.repeat}`], [p.unignoring, "Showing ignored items"]] as const) {
-    if (condition) node(mount, "div", "", label);
+    if (!condition) continue;
+    if (label === "Resting") appendPauseEmblem(node(mount, "div"), "Resting");
+    else node(mount, "div", "", label);
   }
 }

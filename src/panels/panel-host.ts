@@ -17,13 +17,22 @@ export const PANEL_CSS = `
 .metric{text-align:center;border:1px solid var(--anyband-accent);border-radius:3px;padding:2px;min-width:0}.metric b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bar{height:6px;background:var(--anyband-background);border:1px solid var(--anyband-accent);margin-top:2px}.fill{height:100%}.stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));text-align:center}.drained{opacity:.55}
 .badges{display:flex;flex-wrap:wrap;gap:4px}.badge{border:1px solid currentColor;border-left-width:2px;padding:2px 5px;border-radius:3px}
-.muted{opacity:.55}.messages{overflow:auto}.message{white-space:pre-wrap}.ribbon{color:#f5bc5a;border:1px solid #f5bc5a;padding:2px 5px;pointer-events:none}
+.muted{opacity:.55}.messages{overflow:auto;max-height:min(24em,50vh)}.message{white-space:pre-wrap}.message .body{white-space:inherit}.ribbon{color:#f5bc5a;border:1px solid #f5bc5a;padding:2px 5px;pointer-events:none}
+.messages-filter{width:100%;background:var(--anyband-background);color:var(--anyband-text);border:1px solid var(--anyband-accent)}
+.pause{display:inline-flex;align-items:flex-end;gap:2px;height:1em;vertical-align:middle}.pause i,.pause b{display:inline-block;background:currentColor;font-style:normal;font-weight:normal}
+.pause i{width:.13em;height:.7em}.pause b{width:.16em;height:.16em;border-radius:50%;animation:anyband-breathe 1.1s ease-in-out infinite}
+.pause b:nth-child(4){animation-delay:.15s}.pause b:nth-child(5){animation-delay:.3s}
+@keyframes anyband-breathe{0%,100%{opacity:.35}50%{opacity:1}}
+.pause.still b{animation:none;opacity:.8}@media (prefers-reduced-motion:reduce){.pause b{animation:none;opacity:.8}}
+.sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.cut{flex:none;margin-left:.25em}
 .tip{display:none;position:absolute;z-index:2;max-width:26em;white-space:pre-wrap;pointer-events:none;background:var(--anyband-background);color:var(--anyband-text);border:1px solid var(--anyband-accent);border-radius:3px;padding:6px}
 input{width:100%;background:var(--anyband-background);color:var(--anyband-text);border:1px solid var(--anyband-accent)}
 .compact{display:flex;align-items:center;gap:10px;overflow:hidden;white-space:nowrap;padding:0 5px}.compact .group{display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden}.compact .group:empty{display:none}
-.compact .heading,.compact input{display:none}.compact .badges{flex-wrap:nowrap}.compact .badge{padding:0 4px}.compact .grid,.compact .metric-grid{display:flex;gap:8px}
-.compact .metric{border:0;padding:0;display:flex;gap:3px}.compact .metric b{display:inline}.compact .messages{overflow:hidden;min-width:0}
-.compact .message{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.compact .message~.message{display:none}.compact .ribbon{width:auto!important;flex:none}
+.compact .heading,.compact input,.compact .messages-filter{display:none}.compact .badges{flex-wrap:nowrap}.compact .badge{padding:0 4px}.compact .grid,.compact .metric-grid{display:flex;gap:8px}
+.compact .metric{border:0;padding:0;display:flex;gap:3px}.compact .metric b{display:inline}.compact .messages{overflow:hidden;max-height:none;min-width:0}
+.compact .message{display:flex;align-items:baseline;overflow:hidden;white-space:nowrap;min-width:0}.compact .message .body{overflow:hidden;white-space:nowrap;min-width:0;flex:1}
+.compact .message~.message{display:none}.compact .ribbon{width:auto!important;flex:none}
 `;
 
 /** A HUD region this short is one line, so its groups sit side by side without headings. */
@@ -69,7 +78,7 @@ function intersects(a: { col: number; row: number; cols: number; rows: number },
 export interface PanelSpec { readonly key: string; readonly render: PanelRender; readonly select: (model: ViewModel) => unknown }
 
 /** Fill a surface with one group per panel and a shared tooltip. render() redraws
- * only the panels whose selected data changed since the last call. */
+ * only the panels whose selected data or compact layout changed since the last call. */
 export function createPanelContent(surface: HTMLElement, panels: readonly PanelSpec[]): { render(model: ViewModel): void } {
   const mounts = panels.map(() => node(surface, "div", "group"));
   const tip = node(surface, "div", "tip");
@@ -85,7 +94,8 @@ export function createPanelContent(surface: HTMLElement, panels: readonly PanelS
   return {
     render(model) {
       panels.forEach((panel, index) => {
-        const signature = JSON.stringify(panel.select(model));
+        // A switch to or from one line redraws too: a compact panel draws differently.
+        const signature = JSON.stringify([surface.className, panel.select(model)]);
         if (signatures[index] === signature) return;
         signatures[index] = signature;
         panel.render(mounts[index]!, model);

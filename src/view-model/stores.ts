@@ -1,8 +1,13 @@
-import type { KnownLevel, StoreSnapshot, StoreView, InputToken } from "../seams.js";
+import type { KnownLevel, SpellbookView, StoreSnapshot, StoreView, InputToken } from "../seams.js";
 import { adaptItems, type ItemRow } from "./items.js";
+import { itemKey } from "./spells.js";
 
-/** `eligible` false greys a pack row out; `price` is the stock price or the one-item quote. */
-export interface StoreRow { readonly key: number; readonly label: string; readonly quantity: number; readonly colour: string; readonly location?: string; readonly price?: number; readonly eligible: boolean }
+/** One spell in a stocked book. `index` is the class spell index spellInfo reads; `fail` is the live percent when the engine sends it. */
+export interface StockSpell { readonly index: number; readonly name: string; readonly level: number; readonly mana: number; readonly fail: number; readonly learned: boolean; readonly infoLine: string }
+
+/** `eligible` false greys a pack row out; `price` is the stock price or the one-item quote.
+ * `kind` names a stock row's object kind, which survives the renumbering when a stack sells out. */
+export interface StoreRow { readonly key: number; readonly label: string; readonly quantity: number; readonly colour: string; readonly location?: string; readonly price?: number; readonly eligible: boolean; readonly kind?: string; readonly spells?: readonly StockSpell[] }
 export interface StoreModel { readonly token: InputToken; readonly index: number; readonly name: string; readonly owner: string; readonly home: boolean; readonly gold?: number; readonly ready: boolean; readonly noSelling: boolean; readonly transactionPrompts: boolean; readonly stock: readonly StoreRow[]; readonly pack: readonly StoreRow[]; readonly prompt: StoreSnapshot["prompt"] }
 const same = (a: InputToken, b: InputToken): boolean => a.epoch === b.epoch && a.revision === b.revision;
 
@@ -19,6 +24,29 @@ export function storeName(featName: string): string {
   if (known) return known;
   const words = featName.replace(/^STORE_/, "").toLowerCase().replace(/_/g, " ");
   return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+/* SpellbookView publishes tval and name, not sval, and bookForItem only
+ * answers a carried object. A book of that tval matches only when its name
+ * appears in the item's own name, since a store stocks other classes' books
+ * of the same tval. Several matches need a single longest name. */
+export function bookForStock(item: { readonly tval: number; readonly label: string; readonly name?: string }, books: readonly SpellbookView[]): SpellbookView | null {
+  const sameTval = books.filter((book) => book.tval === item.tval);
+  const text = `${item.name ?? ""} ${item.label}`.toLowerCase();
+  const named = sameTval.filter((book) => book.name.length > 0 && text.includes(book.name.toLowerCase()))
+    .sort((a, b) => b.name.length - a.name.length);
+  if (named.length === 0) return null;
+  if (named.length > 1 && named[0]!.name.length === named[1]!.name.length) return null;
+  return named[0]!;
+}
+
+function stockSpells(item: { readonly tval: number; readonly label: string; readonly name?: string }, books: readonly SpellbookView[] | null | undefined): readonly StockSpell[] | undefined {
+  const book = bookForStock(item, books ?? []);
+  if (!book || book.spells.length === 0) return undefined;
+  return book.spells.map((spell) => ({
+    index: spell.sidx, name: spell.name, level: spell.level, mana: spell.mana,
+    fail: spell.chance ?? spell.fail, learned: spell.learned, infoLine: spell.infoLine,
+  }));
 }
 
 // The store status read names the open store directly. Without it, the known
@@ -68,7 +96,11 @@ export function adaptStore(snap: StoreSnapshot, known: KnownLevel | null): Store
     ...(snap.core.player.gold === undefined ? {} : { gold: snap.core.player.gold }),
     ready: status?.ready ?? true, noSelling: status?.noSelling ?? false, transactionPrompts: status !== null,
         // ItemView.name, when published, is the game's own object name; label is the kind's raw template.
-    stock: store.stock.map((item) => ({ key: item.index, label: item.name ?? item.label, quantity: item.number,
-      colour: item.artifact ? "#e89e42" : item.ego ? "#80b891" : "inherit", eligible: true,
-      ...(item.price === undefined ? {} : { price: item.price }) })), pack, prompt: snap.prompt };
+    stock: store.stock.map((item) => {
+      const spells = stockSpells(item, snap.core.spellbooks);
+      return { key: item.index, kind: itemKey(item), label: item.name ?? item.label, quantity: item.number,
+        colour: item.artifact ? "#e89e42" : item.ego ? "#80b891" : "inherit", eligible: true,
+        ...(item.price === undefined ? {} : { price: item.price }),
+        ...(spells ? { spells } : {}) };
+    }), pack, prompt: snap.prompt };
 }

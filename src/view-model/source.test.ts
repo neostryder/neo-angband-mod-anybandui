@@ -32,16 +32,17 @@ describe("message history", () => {
     expect(messageHistory(["Only here."], undefined)).toEqual([{ text: "Only here.", count: undefined, category: undefined, color: undefined }]);
   });
 
-  it("takes counts and colors straight from the host log when present, newest first", () => {
+  it("keeps the host count and colour, and takes the core type when the text matches", () => {
     /* The host log is oldest first, as packages/web/src/input-snapshot.ts
-     * InputSnapshot.messages.log says; the source reverses it. */
+     * InputSnapshot.messages.log says; the source reverses it. The core count
+     * 99 must not replace the host count 3. */
     const log = coreLog([["You hit it.", 99, 99]]);
     expect(messageHistory(undefined, log, [
       { text: "You hit it.", count: 3, color: "#c88f5fb4" },
       { text: "You enter a maze.", count: 1, color: "#64a0b5b4" },
     ])).toEqual([
       { text: "You enter a maze.", count: 1, category: undefined, color: "#64a0b5b4" },
-      { text: "You hit it.", count: 3, category: undefined, color: "#c88f5fb4" },
+      { text: "You hit it.", count: 3, category: 99, color: "#c88f5fb4" },
     ]);
   });
 

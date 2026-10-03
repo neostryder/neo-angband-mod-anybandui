@@ -1,5 +1,6 @@
 import type { GameState } from "@rpgm-tools/neo-angband-core";
 import { bitmapTextBlock, wrapBitmapParagraphs, wrapBitmapText } from "./bitmap-text.js";
+import { validateSettings } from "./settings.js";
 import { twoFingerGestureActive, type DisplayLike } from "./zoom.js";
 
 interface HoverContext {
@@ -7,6 +8,7 @@ interface HoverContext {
   readonly core: unknown;
   readonly state?: GameState;
   readonly display?: DisplayLike;
+  readonly prefs?: { get(): unknown };
 }
 /*
  * "Hover cards on the Map overview" (anybandui.mapHoverCards): inspect one cell of
@@ -19,7 +21,7 @@ interface HoverContext {
  * overlay when one is mounted, otherwise a magnified sample of the terminal
  * cell on #game.
  *
- * INPUT. Mouse: dwell on one grid for HOVER_DWELL_MS, then show; leaving that
+ * INPUT. Mouse: dwell on one grid for the shared hover delay, then show; leaving that
  * grid closes the card. Touch/pen: hold one grid for TOUCH_HOLD_MS, then show;
  * the card stays until a tap elsewhere. Both paths stop the overview's own
  * window-capture pointerdown dismiss while the pointer is over a map cell, so
@@ -58,8 +60,10 @@ const TERM_ROWS = 24;
 /** font-16x24.ts FONT_16X24 - the default bitmap glyph's native pixel size. */
 const GLYPH_W = 16;
 const GLYPH_H = 24;
-/** Mouse dwell before a card opens (ms). */
-export const HOVER_DWELL_MS = 2000;
+/** The shared hover delay, read when the dwell timer starts so a settings change applies without reinstalling. */
+export function hoverDwellMs(read: (() => unknown) | undefined): number {
+  return validateSettings(read?.()).hoverDelayMs;
+}
 /** Touch/pen hold before a card opens (ms). */
 export const TOUCH_HOLD_MS = 1000;
 /** Magnified tile preview edge length inside the card (CSS px). */
@@ -721,7 +725,7 @@ export function installMapHoverCards(ctx: HoverContext): () => void {
       const still = resolveCaveGrid(lastClientX, lastClientY);
       if (!still || gridKey(still.grid) !== key) return;
       showAt(lastClientX, lastClientY, still);
-    }, HOVER_DWELL_MS);
+    }, hoverDwellMs(() => ctx.prefs?.get()));
   }, { signal: abort.signal });
   return () => {
     abort.abort();

@@ -91,13 +91,13 @@ This table compares each AnybandUI module on the `deluxe` branch with the port, 
 | --- | --- | --- | --- |
 | `quickbar.h` | Ported | Nothing. The port keeps 30 slots per character in three rows of ten, where AnybandUI keeps 10 on a save profile. | |
 | `spell_panel.h` | Ported | Nothing. | |
-| `store_panel.h`, `quantity_picker.h` | Partial | The quantity slider. OK stays enabled when the total costs more gold than the character has. A book in stock has no Browse spells button. | Mod build, phase 5. The quantity prompt already carries the maximum, the gold and the price of every amount. |
+| `store_panel.h`, `quantity_picker.h` | Ported | When the game sends no exact total for an amount, as it may for a stack of wands or staffs, OK stays enabled and the game's own gold check decides the buy. | |
 | `rest_dialog.h` | Ported | Nothing. | |
 | `blast_preview.h` | Ported | Nothing. | |
 | `item_comparison.h`, `item_description.h`, `item_rules.h`, `item_glow.h` | Partial | The blows, damage, range and breakage tiles in the description. The artifact glow is a circle where AnybandUI draws a sunburst. | Mod build, phases 3 and 7. |
-| `map_overview.h` | Ported | Hover on the map overview waits 2,000 ms (`HOVER_DWELL_MS` in `src/qol-map-hover.ts`) instead of the shared delay that starts at 550 ms. | Mod build, phase 2. |
+| `map_overview.h` | Ported | Nothing. | |
 | `dungeon_camera.h`, `dungeon_tooltip.h`, `dungeon_view.h` | Different | Zoom moves in whole-cell steps. AnybandUI zooms smoothly from 0.35 to 4. | Recorded under Quality of Life's display features. |
-| `message_history.h` | Partial | The All, Combat, Loot, System and Other filters. The log draws at most 20 lines and shows a repeat count on the newest line only. | Mod build, phase 1. |
+| `message_history.h` | Ported | There is no System filter: the core message log marks no line as a system message. | |
 | `status_effects.h` | Ported | Nothing. | |
 | `character_overview.h` | Ported | Nothing. The card has the XP bar and the stat tiles, with a mark on a drained stat. | |
 | `crt_renderer`, `crt_settings.h` | Partial | Every CRT part except the scanlines and one moving bar, including phosphor glow and colour fringing. | Mod build, phase 7. |
@@ -105,7 +105,7 @@ This table compares each AnybandUI module on the `deluxe` branch with the port, 
 | `combat_feedback.h`, `motion_feedback.h` | Partial | Floating damage and healing numbers, the one-tile slide when a creature walks, and the blink ripple. The port draws rings for hits, misses, healing, deaths and teleports, and skips walking. | Mod build, phase 7. `combat-outcome` carries `damage`, `heal` carries `amount`, and `motion` carries the start, the end and whether it was a walk or a teleport. |
 | `scene_presence.h` | Partial | Embers over remembered lava and stairs, and the recall ring. The port draws only the haze around visible uniques. | Mod build, phase 7. Known cells carry their terrain codes, and the dungeon card already reads recall. |
 | `projectile_feedback.h` | Partial | Bolt glyphs that follow the bolt's direction, and the cone wash for breaths. The port fills each seen blast cell with one colour. | Mod build, phase 7. Core emits a `bolt` event for every step with its origin, and `explosion` has an `arc` flag for cones. |
-| `dungeon_feedback.h` | Partial | The three-dot cue when a message is cut short, and the pause emblem of two bars and breathing dots. The port shows the words "Messages waiting" and "Resting". | Mod build, phase 1. |
+| `dungeon_feedback.h` | Ported | Nothing. | |
 | `floor_items.h` | Ported | Nothing. | |
 | `detached_panels.h`, `workspace_layout.h` | Partial | Undo and redo, and named saved layouts. Panels never open their own operating system window, as phase 6 records. | Core seam. A mod can read panel geometry but cannot set it, so undo and named layouts belong in the game's window manager (neostryder/neo-angband#287). |
 | `ui_theme.h` | Partial | The custom colour editor. The theme tokens store `invert_dungeon`, but nothing draws it. | Mod build, phase 8. |

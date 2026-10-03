@@ -8,6 +8,15 @@ An entry opens with one or more bracketed tags. `[Visible]` marks a change a pla
 
 ## [Unreleased]
 
+### Added
+
+- [Visible] [UI] **The message log filters and keeps every line.** All, Combat, Loot and Other sort the log by message type, the log scrolls back through every message instead of the last 20, and each repeated line shows its count. A message cut short ends in three dots, and the waiting-messages and resting signs are drawn as a small emblem.
+- [Visible] [UI] **A quantity slider and a spell browser in the stores.** Buying more than one item gives a slider beside the amount, and OK stays off while the exact total costs more gold than you carry. A spellbook in stock has a Browse spells button that lists its spells with your own chance of failure.
+
+### Changed
+
+- [Visible] [UI] **Hovering on the map overview waits for the shared hover delay instead of two seconds.**
+
 ## 1.1.0 - 2026-10-01
 
 ### Added
