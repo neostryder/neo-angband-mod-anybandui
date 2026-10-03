@@ -94,7 +94,7 @@ This table compares each AnybandUI module on the `deluxe` branch with the port, 
 | `store_panel.h`, `quantity_picker.h` | Ported | When the game sends no exact total for an amount, as it may for a stack of wands or staffs, OK stays enabled and the game's own gold check decides the buy. | |
 | `rest_dialog.h` | Ported | Nothing. | |
 | `blast_preview.h` | Ported | Nothing. | |
-| `item_comparison.h`, `item_description.h`, `item_rules.h`, `item_glow.h` | Partial | The blows, damage, range and breakage tiles in the description. | Needs a Core seam: the item description gives its combat values only as sentences. |
+| `item_comparison.h`, `item_description.h`, `item_rules.h`, `item_glow.h` | Partial | The blows, damage, range and breakage tiles in the description. | Needs a Core seam: the item description gives its combat values only as sentences (neostryder/neo-angband#360). |
 | `map_overview.h` | Ported | Nothing. | |
 | `dungeon_camera.h`, `dungeon_tooltip.h`, `dungeon_view.h` | Different | Zoom moves in whole-cell steps. AnybandUI zooms smoothly from 0.35 to 4. | Recorded under Quality of Life's display features. |
 | `message_history.h` | Ported | There is no System filter: the core message log marks no line as a system message. | |
