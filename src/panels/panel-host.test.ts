@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
 import type { HudFrame, HudSection } from "@rpgm-tools/neo-angband-mod-sdk";
 import type { ViewModel } from "../view-model/protocol.js";
-import { THEMES } from "../theme.js";
+import { notifyThemeChange, THEMES } from "../theme.js";
 import { createPanelHost } from "./panel-host.js";
 
 it("places a shadow panel, skips unchanged data, and hides under later overlapping regions", () => {
@@ -44,6 +44,12 @@ it("places a shadow panel, skips unchanged data, and hides under later overlappi
     expect(surface.className).toBe("surface");
     host.present(section, { stack: [base, { id: "modal", cells: { col: 5, row: 5, cols: 4, rows: 4 } }] } as unknown as HudFrame, model);
     expect(host.element.style.display).toBe("none");
+    (host.element as unknown as Stub & { isConnected?: boolean }).isConnected = true;
+    notifyThemeChange(THEMES["light-paper"]!);
+    expect((host.element as unknown as Stub).properties["--anyband-background"]).toBe(THEMES["light-paper"]!.background);
+    (host.element as unknown as Stub & { isConnected?: boolean }).isConnected = false;
+    notifyThemeChange(THEMES["amber-terminal"]!);
+    expect((host.element as unknown as Stub).properties["--anyband-background"]).toBe(THEMES["light-paper"]!.background);
   } finally {
     Object.assign(globalThis, { HTMLElement: originalElement });
   }

@@ -1,7 +1,7 @@
 import { hoverGrid } from "./hover-cards.js";
 import { mapProjection } from "./map-overview.js";
-import { validateSettings } from "./settings.js";
-import { THEMES } from "./theme.js";
+import { themeFromPrefs } from "./settings.js";
+import { onThemeChange } from "./theme.js";
 import { PAINT_FONT, PAINT_FONT_SIZE, PAINT_LINE_HEIGHT, paintColours } from "./paint.js";
 import type { Grid, InputSnapshot, MouseSeams, PlayerIntent } from "./seams.js";
 import type { ZoomDisplay } from "./zoom.js";
@@ -159,11 +159,26 @@ export function installMapMouse(ctx: MapMouseContext): () => void {
   if (!flags["anybandui.clickToWalk"] && !flags["anybandui.dungeonActions"] && !flags["anybandui.aimPath"] && !flags["anybandui.walkRoutePreview"]) return () => {};
   if (!ctx.display || !ctx.snapshot || typeof document === "undefined" || typeof window === "undefined") { ctx.log?.("map mouse: display or snapshot unavailable"); return () => {}; }
   const display = ctx.display;
-  const theme = THEMES[validateSettings(ctx.prefs?.get()).theme]!;
+  let theme = themeFromPrefs(ctx.prefs?.get());
   const menu = document.createElement("div");
   menu.setAttribute("role", "menu");
   menu.setAttribute("aria-label", "Dungeon actions");
   menu.style.cssText = `display:none;position:fixed;z-index:1002;background:${theme.surface};color:${theme.text};border:1px solid ${paintColours(theme).border};border-radius:${Math.round(theme.rounding * 0.6)}px;padding:4px;font:${PAINT_FONT_SIZE}px/${PAINT_LINE_HEIGHT}px ${PAINT_FONT}`;
+  const paintMenu = (): void => {
+    const colours = paintColours(theme);
+    menu.style.background = theme.surface;
+    menu.style.color = theme.text;
+    menu.style.border = `1px solid ${colours.border}`;
+    menu.style.borderRadius = `${Math.round(theme.rounding * 0.6)}px`;
+    const buttons = menu.querySelectorAll("button");
+    for (let index = 0; index < buttons.length; index += 1) {
+      const button = buttons[index];
+      if (!button) continue;
+      button.style.background = theme.surface;
+      button.style.color = theme.text;
+    }
+  };
+  const stopTheme = onThemeChange((next) => { theme = next; paintMenu(); });
   const canvas = document.createElement("canvas");
   canvas.setAttribute("aria-hidden", "true");
   canvas.style.cssText = "position:fixed;inset:0;pointer-events:none;z-index:49";
@@ -278,5 +293,5 @@ export function installMapMouse(ctx: MapMouseContext): () => void {
   window.addEventListener("contextmenu", onContext, true);
   window.addEventListener("keydown", onKey);
   const timer = window.setInterval(render, 100);
-  return () => { window.clearInterval(timer); window.removeEventListener("click", onClick, true); window.removeEventListener("mousemove", onMove, true); window.removeEventListener("contextmenu", onContext, true); window.removeEventListener("keydown", onKey); hide(); menu.remove(); canvas.remove(); };
+  return () => { stopTheme(); window.clearInterval(timer); window.removeEventListener("click", onClick, true); window.removeEventListener("mousemove", onMove, true); window.removeEventListener("contextmenu", onContext, true); window.removeEventListener("keydown", onKey); hide(); menu.remove(); canvas.remove(); };
 }

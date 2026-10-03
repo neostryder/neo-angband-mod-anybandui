@@ -54,6 +54,9 @@ A mouse-first desktop interface for Neo Angband, ported from Wurli Monkhaven's A
 | Sleeping creature marks | `anybandui.sleepMarks` | off | Puts a small mark above each sleeping creature you can see. |
 | Unique presence haze | `anybandui.presenceHaze` | off | Surrounds each unique creature you can see with a violet haze, heaviest around the one guarding the final quest, which is Morgoth unless a mod changes the quests. |
 | Combat rings and flashes | `anybandui.spellEffects` | off | Draws a brief ring where a spell is cast, where a blow or shot lands or misses, where a creature dies, where someone heals, and at both ends of a teleport. The squares a ball or breath hits flash in the colour of its element. Only things your character sees are drawn. |
+| Character sheet | `anybandui.characterSheet` | off | Opens a read-only character sheet in its own panel: the panels, seven-column stat breakdown and flag grid the game's character screen draws, plus the background. Left and Right move between its pages while that list has focus. |
+| Equipment portrait | `anybandui.equipmentPortrait` | off | Adds a Figure view on the equipment tab: an ASCII body with each worn item beside the part it covers. Slots the figure does not place stay listed under it. Up and Down move between slots while a slot has focus. |
+| Theme | `anybandui.themeEditor` | off | Opens a panel to edit the background, surface, text and accent colours and the corner rounding of the current theme, and to invert the dungeon view. Save stores the result as your custom theme. |
 
 
 ## Effect strength

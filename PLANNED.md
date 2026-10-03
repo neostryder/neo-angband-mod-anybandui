@@ -108,11 +108,11 @@ This table compares each AnybandUI module on the `deluxe` branch with the port, 
 | `dungeon_feedback.h` | Partial | The three-dot cue when a message is cut short, and the pause emblem of two bars and breathing dots. The port shows the words "Messages waiting" and "Resting". | Mod build, phase 1. |
 | `floor_items.h` | Ported | Nothing. | |
 | `detached_panels.h`, `workspace_layout.h` | Partial | Undo and redo, and named saved layouts. Panels never open their own operating system window, as phase 6 records. | Core seam. A mod can read panel geometry but cannot set it, so undo and named layouts belong in the game's window manager (neostryder/neo-angband#287). |
-| `ui_theme.h` | Partial | The custom colour editor. The theme tokens store `invert_dungeon`, but nothing draws it. | Mod build, phase 8. |
+| `ui_theme.h` | Ported | Nothing. | |
 | `tileset.cpp` | Different | No tileset code. Linoleum draws the tiles and this mod draws effects over them. | Recorded under Works with the other mods. |
 | `font_library.h` | Ported | Nothing. | |
-| `character_sheet.h` | Missing | The read-only character sheet with its seven-column stat breakdown. | Mod build, phase 8. `ctx.character.sheet()` returns the panels, stat rows and flag grid the character screen draws. |
-| `equipment_portrait.h` | Missing | The ASCII figure with worn items hung on it. | Mod build, phase 8. The equipment tab already has the slot names and worn items. |
+| `character_sheet.h` | Ported | Nothing. | |
+| `equipment_portrait.h` | Ported | Nothing. | |
 | `inventory_changes.h` | Ported | Nothing. | |
 | `scene_transitions.h` | Missing | The fade from the old screen on loading, taking stairs, entering a shop and dying. | Mod build, phase 7. |
 | `level_feedback.h` | Missing | The flash when the character passes the highest level reached this session. | Mod build, phase 7. `max_level` is in the player record. |

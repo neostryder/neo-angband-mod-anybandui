@@ -39,7 +39,7 @@
 
 import { bitmapTextBlock, paintBitmapButtonLabel, wrapBitmapText } from "./bitmap-text.js";
 import type { GameState, ModPanel, ModPluginContext, ModUi } from "@rpgm-tools/neo-angband-core";
-import { applyTheme, THEMES, type ThemeTokens } from "./theme.js";
+import { applyTheme, onThemeChange, THEMES, type ThemeTokens } from "./theme.js";
 import {
   readFirstEncounterPreference,
   withFirstEncounterPreference,
@@ -304,8 +304,17 @@ const AUTO_DISMISS_MS = 9000;
 let timer: ReturnType<typeof setInterval> | null = null;
 let queue: EncounterCardContent[] = [];
 let activePanel: PanelLike | null = null;
+let activeContent: EncounterCardContent | null = null;
 let activeTimeout: ReturnType<typeof setTimeout> | null = null;
 let activeTheme: Readonly<ThemeTokens> = THEMES["terminal-original"]!;
+let stopTheme: (() => void) | null = null;
+
+function showEncounter(theme: Readonly<ThemeTokens>): void {
+  activeTheme = theme;
+  if (!activePanel || !activeContent) return;
+  activePanel.root.replaceChildren();
+  drawCard(activePanel, activeContent, activeTheme);
+}
 
 function showNext(ui: UiLike): void {
   if (activePanel) return;
@@ -322,10 +331,13 @@ function showNext(ui: UiLike): void {
     return;
   }
   activePanel = panel;
+  activeContent = content;
   drawCard(panel, content, activeTheme);
 
   const advance = (): void => {
+    if (activePanel !== panel) return;
     activePanel = null;
+    activeContent = null;
     showNext(ui);
   };
   void panel.closed.then(advance);
@@ -486,6 +498,7 @@ export function installFirstEncounter(ctx: FirstEncounterContext): void {
   }
   const ui = ctx.ui;
   activeTheme = ctx.theme ?? THEMES["terminal-original"]!;
+  stopTheme = onThemeChange(showEncounter);
   const core = ctx.core;
   const key = characterKeyFor(ctx.state.actor.player);
   const notebook = readFirstEncounterNotebook(ctx.prefs?.get(), key);
@@ -529,6 +542,8 @@ export function installFirstEncounter(ctx: FirstEncounterContext): void {
 
 /** Stop polling and clear any card this feature still owns. */
 export function uninstallFirstEncounter(): void {
+  stopTheme?.();
+  stopTheme = null;
   if (timer !== null) {
     clearInterval(timer);
     timer = null;
@@ -539,5 +554,6 @@ export function uninstallFirstEncounter(): void {
   }
   activePanel?.close();
   activePanel = null;
+  activeContent = null;
   queue = [];
 }

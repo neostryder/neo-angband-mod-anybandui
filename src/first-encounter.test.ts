@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { notifyThemeChange, THEMES } from "./theme.js";
 import {
   artifactCardContent,
   carriedKnownArtifacts,
@@ -153,6 +154,64 @@ describe("installFirstEncounter", () => {
     uninstallFirstEncounter();
     vi.advanceTimersByTime(750);
     expect(openPanel).not.toHaveBeenCalled();
+  });
+
+  it("repaints an open card when the theme changes and stops when the feature does", () => {
+    vi.useFakeTimers();
+    class Host {
+      values: Record<string, string> = {};
+      isConnected = true;
+      style = { setProperty: (key: string, value: string) => { this.values[key] = value; } };
+    }
+    const host = new Host();
+    const element = (tag = "div") => {
+      const node = {
+        tag, style: {} as Record<string, string>, className: "", textContent: "", children: [] as unknown[],
+        width: 0, height: 0, host,
+        setAttribute() {}, getAttribute: () => null, hasAttribute: () => false,
+        addEventListener() {}, getContext: () => null,
+        append(...kids: unknown[]) { node.children.push(...kids); },
+        appendChild(kid: unknown) { node.children.push(kid); return kid; },
+        replaceChildren() { node.children = []; },
+        removeChild() {},
+      };
+      return node;
+    };
+    const root = element("root");
+    const original = globalThis.HTMLElement;
+    Object.assign(globalThis, { HTMLElement: Host });
+    vi.stubGlobal("document", { createElement: (tag: string) => element(tag), body: { appendChild() {} } });
+    vi.stubGlobal("window", { devicePixelRatio: 1 });
+    const openPanel = vi.fn(() => ({ root: root as unknown as ShadowRoot, closed: new Promise<void>(() => {}), close: () => {} }));
+    try {
+      installFirstEncounter({
+        core: {
+          monsterListCollect: () => ({ entries: [{ race: race() }] }),
+          liveObjectIsKnownArtifact: () => false,
+          fmtDepth: (depth: number) => `${depth}ft`,
+          colorToCss: () => "#fff",
+        },
+        state: {
+          chunk: { depth: 5 },
+          gear: { store: new Map() },
+          actor: { player: { race: { name: "Hobbit" }, cls: { name: "Rogue" }, auBirth: 100, htBirth: 40, wtBirth: 60 } },
+        },
+        ui: { openPanel },
+        theme: THEMES["terminal-original"]!,
+      });
+      vi.advanceTimersByTime(750);
+      expect(openPanel).toHaveBeenCalled();
+      expect(host.values["--anyband-background"]).toBe(THEMES["terminal-original"]!.background);
+      notifyThemeChange(THEMES["light-paper"]!);
+      expect(host.values["--anyband-background"]).toBe(THEMES["light-paper"]!.background);
+      uninstallFirstEncounter();
+      notifyThemeChange(THEMES["amber-terminal"]!);
+      expect(host.values["--anyband-background"]).toBe(THEMES["light-paper"]!.background);
+    } finally {
+      Object.assign(globalThis, { HTMLElement: original });
+      vi.unstubAllGlobals();
+      uninstallFirstEncounter();
+    }
   });
 
   it("threads ctx.tiles through to the queued card's tile lookup (neo-angband#256)", () => {

@@ -8,6 +8,10 @@ An entry opens with one or more bracketed tags. `[Visible]` marks a change a pla
 
 ## [Unreleased]
 
+### Added
+
+- [Visible] [UI] **A character sheet, an equipment portrait and a theme editor.** The character sheet opens in its own panel with the panels, seven-column stat breakdown and flag grid of the game's character screen, plus the background. The equipment tab gains a Figure view that hangs each worn item beside the part of an ASCII body it covers. The theme editor sets the background, surface, text and accent colours and the corner rounding, can invert the dungeon view, and saves the result as your custom theme.
+
 ## 1.1.0 - 2026-10-01
 
 ### Added

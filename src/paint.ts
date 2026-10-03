@@ -76,7 +76,7 @@ export function paintProperties(theme: Readonly<ThemeTokens>): Record<string, st
   };
 }
 
-const FRAMES = [".surface", ".items", ".phase4", ".store"].map((s) => `:host ${s}`).join(",");
+const FRAMES = [".surface", ".items", ".phase4", ".store", ".sheet", ".theme"].map((s) => `:host ${s}`).join(",");
 const TICK = "linear-gradient(var(--anyband-tick),var(--anyband-tick))";
 const CORNERS = ["left 2px top 2px", "right 2px top 2px", "left 2px bottom 2px", "right 2px bottom 2px"];
 
@@ -130,6 +130,7 @@ export function chromeThemeFor(theme: Readonly<ThemeTokens>): ChromeThemeRequest
 export const PAINTED_FEATURES = [
   "anybandui.sidebar", "anybandui.status", "anybandui.messages", "anybandui.itemsLists",
   "anybandui.spells", "anybandui.quickbar", "anybandui.restDialog", "anybandui.storeWindow",
+  "anybandui.characterSheet", "anybandui.equipmentPortrait", "anybandui.themeEditor",
 ] as const;
 
 export type ChromeDisplay = Pick<ModDisplay, "setChromeTheme">;

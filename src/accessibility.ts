@@ -7,7 +7,7 @@ const HIGH_CONTRAST_FILTER = "contrast(1.55) saturate(1.2)";
 const COLORBLIND_MATRIX = "0.812 0.199 -0.011 0 0 0 1 0 0 0 -0.188 0.199 0.989 0 0 0 0 0 1 0";
 
 interface VisualFilterDisplay {
-  setVisualFilter(filter: string | null, options?: { scope: "game" }): void;
+  setVisualFilter(filter: string | null, options?: { scope: "canvas" | "game" }): void;
   /** Present on engines that keep each mod's filter request apart (MOD_SEAMS 4q). */
   getVisualFilter?(): { readonly filter: string; readonly scope: "canvas" | "game" } | null;
 }
@@ -15,16 +15,33 @@ interface VisualFilterDisplay {
 /* Engines with getVisualFilter keep a filter request per mod and always take
  * the scope option, so a clear removes only this mod's filter. Older engines
  * hold one global filter and are told apart by the setter's arity, because
- * the first filter seam took no options. */
-function setFilter(display: VisualFilterDisplay, filter: string | null): void {
-  if (typeof display.getVisualFilter === "function" || display.setVisualFilter.length >= 2) display.setVisualFilter(filter, { scope: "game" });
+ * the first filter seam took no options. Canvas is that older scope, and it
+ * is still the dungeon view on a current engine. */
+function setFilter(display: VisualFilterDisplay, filter: string | null, scope: "canvas" | "game"): void {
+  if (typeof display.getVisualFilter === "function" || display.setVisualFilter.length >= 2) display.setVisualFilter(filter, { scope });
   else display.setVisualFilter(filter);
 }
 
 export interface AccessibilityContext {
   readonly flags: Readonly<Record<string, boolean>>;
+  /** Theme token. CSS invert(1) is ui_theme.h's XOR of the dungeon ink, alpha kept. */
+  readonly invertDungeon?: boolean;
   readonly display?: VisualFilterDisplay;
   readonly log?: (message: string) => void;
+}
+
+/**
+ * One filter for the host, which keeps a single request.
+ * Invert alone stays on the canvas, so panels keep their own colours. An
+ * accessibility filter already uses the game scope, and invert follows it
+ * so that filter still runs on the original colours.
+ */
+export function visualTreatment(flags: Readonly<Record<string, boolean>>, invertDungeon = false): { filter: string; scope: "canvas" | "game" } | null {
+  const access = accessibilityFilter(flags);
+  if (invertDungeon && access) return { filter: `${access} invert(1)`, scope: "game" };
+  if (invertDungeon) return { filter: "invert(1)", scope: "canvas" };
+  if (access) return { filter: access, scope: "game" };
+  return null;
 }
 
 /**
@@ -61,26 +78,30 @@ function ensureColorblindFilter(): void {
 }
 
 let configuredDisplay: VisualFilterDisplay | null = null;
+let configuredScope: "canvas" | "game" = "game";
 
 /** Apply the selected filter after the complete frame in text or tiles mode. */
 export function installAccessibilityAccommodations(ctx: AccessibilityContext): void {
   uninstallAccessibilityAccommodations();
-  const filter = accessibilityFilter(ctx.flags);
-  if (!filter) return;
+  const treatment = visualTreatment(ctx.flags, ctx.invertDungeon === true);
+  if (!treatment) return;
   if (!ctx.display) {
-    ctx.log?.("this game is too old for visual accessibility filters");
+    ctx.log?.(ctx.invertDungeon === true && !accessibilityFilter(ctx.flags) ? "this game is too old to invert the dungeon view" : "this game is too old for visual accessibility filters");
     return;
   }
   if (ctx.flags["anybandui.colourblind"] === true) ensureColorblindFilter();
   configuredDisplay = ctx.display;
+  configuredScope = treatment.scope;
   // The game scope covers host-owned panels; our HUD hosts mount directly in the page.
-  setFilter(ctx.display, filter);
-  setPanelHostVisualFilter(filter);
+  // A canvas-only invert does not, so those hosts keep the colours the theme set.
+  setFilter(ctx.display, treatment.filter, treatment.scope);
+  setPanelHostVisualFilter(treatment.scope === "game" ? treatment.filter : null);
 }
 
 export function uninstallAccessibilityAccommodations(): void {
   const display = configuredDisplay;
+  const scope = configuredScope;
   configuredDisplay = null;
-  if (display) setFilter(display, null);
+  if (display) setFilter(display, null, scope);
   setPanelHostVisualFilter(null);
 }

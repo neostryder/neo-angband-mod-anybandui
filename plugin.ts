@@ -25,8 +25,7 @@ import { renderDungeonCard } from "./src/panels/dungeon-card.js";
 import { renderDriverBadge, renderStatusBadges } from "./src/panels/status-badges.js";
 import { renderTrackedCreature } from "./src/panels/tracked-creature.js";
 import { renderMessageLog } from "./src/panels/message-log.js";
-import { validateSettings } from "./src/settings.js";
-import { THEMES } from "./src/theme.js";
+import { themeFromPrefs } from "./src/settings.js";
 import { installAccessibilityAccommodations, uninstallAccessibilityAccommodations } from "./src/accessibility.js";
 import { installFirstEncounter, uninstallFirstEncounter } from "./src/first-encounter.js";
 import { installZoomPan, releaseTileSettings, uninstallZoomPan, zoomPanHud, type ZoomPanContext } from "./src/zoom.js";
@@ -34,6 +33,8 @@ import { installHoverCards } from "./src/hover-cards.js";
 import { installMapHoverCards } from "./src/qol-map-hover.js";
 import { installMapOverview } from "./src/map-overview.js";
 import { installItems } from "./src/panels/items.js";
+import { installCharacterSheet } from "./src/panels/character-sheet.js";
+import { installThemeEditor } from "./src/theme-editor.js";
 import type { ItemsContext } from "./src/seams.js";
 import { installMapMouse } from "./src/map-mouse.js";
 import { installPhase4 } from "./src/phase4.js";
@@ -76,7 +77,8 @@ export default {
     }
     displayCleanups.push(installEffects({ flags, ...(ctx.snapshot ? { snapshot: ctx.snapshot } : {}), ...(ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {}), ...(ctx.events ? { events: ctx.events } : {}), ...(ctx.display?.snapshot ? { display: { snapshot: ctx.display.snapshot.bind(ctx.display) } } : {}), ...(ctx.prefs ? { prefs: ctx.prefs } : {}), ...(ctx.settings ? { settings: ctx.settings } : {}) }));
     /* The window frames around the cards take the same paint as the cards. */
-    displayCleanups.push(installChromePaint(ctx.display, flags, THEMES[validateSettings(ctx.prefs?.get()).theme]!, ctx.log));
+    const theme = themeFromPrefs(ctx.prefs?.get());
+    displayCleanups.push(installChromePaint(ctx.display, flags, theme, ctx.log));
     const liveCore = ctx.core, liveState = ctx.state;
     const itemContext: ItemsContext = { flags, log: ctx.log,
       ...(ctx.snapshot ? { snapshot: ctx.snapshot } : {}), ...(ctx.inspect ? { inspect: ctx.inspect } : {}),
@@ -85,8 +87,14 @@ export default {
       ...(liveCore && liveState ? { state: liveState, core: { createAgentView: () => liveCore.createAgentView(liveState), createAgentActions: () => liveCore.createAgentActions(liveState) } } : {}) };
     displayCleanups.push(installItems(itemContext));
     displayCleanups.push(installStores({ ...itemContext, ...(ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {}), ...(ctx.driver ? { driver: ctx.driver } : {}) }));
-    if (flags["anybandui.highContrast"] || flags["anybandui.colourblind"] || flags["anybandui.crt"]) {
-      installAccessibilityAccommodations({ flags, ...(ctx.display ? { display: ctx.display } : {}), log: ctx.log });
+    displayCleanups.push(installCharacterSheet({ flags, log: ctx.log,
+      ...(ctx.ui ? { ui: ctx.ui } : {}), ...(ctx.prefs ? { prefs: ctx.prefs } : {}),
+      ...(ctx.character ? { character: ctx.character } : {}) }));
+    displayCleanups.push(installThemeEditor({ flags, log: ctx.log,
+      ...(ctx.ui ? { ui: ctx.ui } : {}), ...(ctx.prefs ? { prefs: ctx.prefs } : {}),
+      ...(ctx.display ? { display: ctx.display } : {}) }));
+    if (flags["anybandui.highContrast"] || flags["anybandui.colourblind"] || flags["anybandui.crt"] || theme.invert_dungeon) {
+      installAccessibilityAccommodations({ flags, invertDungeon: theme.invert_dungeon, ...(ctx.display ? { display: ctx.display } : {}), log: ctx.log });
     }
     if (flags["anybandui.quiverItemization"]) {
       if (!ctx.display) ctx.log("this game is too old for display conveniences");
@@ -154,7 +162,7 @@ export default {
      * for why sightings are polled and stored in prefs by character. */
     if (flags["anybandui.firstEncounter"]) {
       if (ctx.core && ctx.state) {
-        const theme = THEMES[validateSettings(ctx.prefs?.get()).theme]!;
+        const theme = themeFromPrefs(ctx.prefs?.get());
         installFirstEncounter({ core: ctx.core, state: ctx.state, theme,
           ...(ctx.ui ? { ui: ctx.ui } : {}), ...(ctx.prefs ? { prefs: ctx.prefs } : {}),
           ...(ctx.tiles ? { tiles: ctx.tiles } : {}), log: ctx.log });
@@ -186,7 +194,7 @@ export default {
     const zoomSidebar = !enabled.sidebar && (ctx.flags["anybandui.zoom"] || ctx.flags["anybandui.enlargedDisplay"]);
     if (!enabled.sidebar && !enabled.status && !enabled.messages && !zoomSidebar) return undefined;
     const source = createSource(ctx);
-    const theme = THEMES[validateSettings(ctx.prefs?.get()).theme]!;
+    const theme = themeFromPrefs(ctx.prefs?.get());
     const output: { -readonly [K in keyof HudOwnership]: HudOwnership[K] } = {};
     const cardPanels: PanelSpec[] = [
       { key: "character", render: renderCharacterCard, select: (m) => { const p = m.player; return [p.name, p.race, p.class, p.title, p.hp, p.max_hp, p.sp, p.max_sp, p.food, p.food_max, p.experience, p.level_start_experience, p.next_level_experience, p.level, p.stats, p.gold, p.armour, p.speed, p.extra_moves]; } },

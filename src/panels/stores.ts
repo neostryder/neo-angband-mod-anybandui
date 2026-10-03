@@ -1,5 +1,5 @@
-import { applyTheme, THEMES } from "../theme.js";
-import { validateSettings } from "../settings.js";
+import { applyTheme, onThemeChange } from "../theme.js";
+import { themeFromPrefs } from "../settings.js";
 import type { InputToken, LoadoutSimulation, StoreConfirmPrompt, StoreContext, StoreInspectResult, StorePromptAnswer, StoreQuantityPrompt, StoreReplyResult } from "../seams.js";
 import { adaptStore, type StoreModel, type StoreRow } from "../view-model/stores.js";
 import { compareItem } from "../view-model/items.js";
@@ -93,6 +93,7 @@ export function installStores(ctx: StoreContext): () => void {
   if (!Object.entries(flags).some(([flag, on]) => flag.startsWith("anybandui.store") && on)) return () => {};
   if (!ctx.ui?.openPanel || !ctx.snapshot) { ctx.log("stores: panel or snapshot seam unavailable"); return () => {}; }
   let panel: ReturnType<NonNullable<NonNullable<StoreContext["ui"]>["openPanel"]>> | null = null;
+  let stopTheme: (() => void) | null = null;
   let stockSelection: number | null = null, packSelection: number | null = null, unchanged = false, amount = 1, lastPrompt = -1, split = 50;
   let place = "", signature = "", error = "";
   let pending: PendingTrade | null = null;
@@ -105,10 +106,16 @@ export function installStores(ctx: StoreContext): () => void {
   };
   const paint = (force = false): void => {
     const model = read();
-    if (!model) { if (panel) { panel.close(); panel = null; mount = null; } pending = null; return; }
+    if (!model) {
+      if (panel) { stopTheme?.(); stopTheme = null; panel.close(); panel = null; mount = null; }
+      pending = null;
+      return;
+    }
     if (!panel) {
       panel = ctx.ui!.openPanel({ id: "store", modal: false, label: "Store" });
-      applyTheme(panel.root, THEMES[validateSettings(ctx.prefs?.get()).theme]);
+      applyTheme(panel.root, themeFromPrefs(ctx.prefs?.get()));
+      const open = panel;
+      stopTheme = onThemeChange((theme) => { if (panel) applyTheme(open.root, theme); });
       el(panel.root, "style", CSS);
       mount = el(panel.root, "section"); mount.className = "store";
     }
@@ -288,5 +295,5 @@ export function installStores(ctx: StoreContext): () => void {
   };
   paint(true);
   const timer = globalThis.setInterval(() => paint(), 200);
-  return () => { globalThis.clearInterval(timer); panel?.close(); panel = null; };
+  return () => { globalThis.clearInterval(timer); stopTheme?.(); stopTheme = null; panel?.close(); panel = null; };
 }

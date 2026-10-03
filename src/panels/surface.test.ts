@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PanelKindSpec, PanelMount, PanelState } from "../seams.js";
+import { notifyThemeChange, THEMES } from "../theme.js";
 import { interfaceScale, openSurfaces, PANE_FILL_CSS } from "./surface.js";
 
 class Node {
@@ -75,6 +76,44 @@ describe("mod card surfaces", () => {
 
   it("declines without a panel seam", () => {
     expect(openSurfaces({ log: vi.fn() }, specs, overlay, "", vi.fn())).toBeNull();
+  });
+
+  it("reapplies a saved theme and drops the watch when the surface closes", () => {
+    class Host {
+      values: Record<string, string> = {};
+      style = { setProperty: (key: string, value: string) => { this.values[key] = value; } };
+    }
+    class Root {
+      children: Root[] = [];
+      className = "";
+      textContent = "";
+      style: Record<string, string> = {};
+      constructor(readonly host: Host) {}
+      get ownerDocument() { return { createElement: (): Root => new Root(this.host) }; }
+      appendChild(child: Root): Root { this.children.push(child); return child; }
+    }
+    Object.assign(globalThis, { HTMLElement: Host });
+    const host = new Host();
+    let resolveClosed: () => void = () => {};
+    const panel = { root: new Root(host) as unknown as ShadowRoot, closed: new Promise<void>((resolve) => { resolveClosed = resolve; }), close: () => resolveClosed() };
+    const surfaces = openSurfaces({ log: vi.fn(), ui: { openPanel: () => panel } }, specs, overlay, "", () => {})!;
+    expect(host.values["--anyband-background"]).toBe(THEMES["terminal-original"]!.background);
+    notifyThemeChange(THEMES["light-paper"]!);
+    expect(host.values["--anyband-background"]).toBe(THEMES["light-paper"]!.background);
+    surfaces.close();
+    notifyThemeChange(THEMES["amber-terminal"]!);
+    expect(host.values["--anyband-background"]).toBe(THEMES["light-paper"]!.background);
+    const paneHost = new Host();
+    const registered: PanelKindSpec[] = [];
+    const pane = openSurfaces({ log: vi.fn(), ui: { registerPanelKind: (spec: PanelKindSpec) => { registered.push(spec); return () => {}; } } }, [specs[0]!], overlay, "", () => {})!;
+    const mounted = new Root(paneHost);
+    const unmount = registered[0]!.mount({ id: "x", root: mounted as unknown as ShadowRoot, bounds: { width: 200, height: 100 }, active: true, focused: false, onStateChange: () => () => {}, requestFocus: () => {}, requestClose: () => {}, setFitHeight: () => {} });
+    notifyThemeChange(THEMES["amber-terminal"]!);
+    expect(paneHost.values["--anyband-background"]).toBe(THEMES["amber-terminal"]!.background);
+    if (typeof unmount === "function") unmount();
+    notifyThemeChange(THEMES["light-paper"]!);
+    expect(paneHost.values["--anyband-background"]).toBe(THEMES["amber-terminal"]!.background);
+    pane.close();
   });
 
   it("follows the zoom feature's interface step and stays at 100% without zoom", () => {
