@@ -52,7 +52,13 @@ A mouse-first desktop interface for Neo Angband, ported from Wurli Monkhaven's A
 | Floor item glow | `anybandui.itemGlow` | off | Makes a soft glow around items you know about on the floor: gold for an artifact, red for a known curse, and blue for a rune you have not learned yet. |
 | Glow shows hidden magic | `anybandui.itemGlowReveals` | off | The floor item glow also marks what you have not found out yet: an unidentified artifact, a hidden curse, or runes you have never seen. It tells you things the game normally keeps from you, and it needs the floor item glow turned on. Off by default. |
 | Sleeping creature marks | `anybandui.sleepMarks` | off | Puts a small mark above each sleeping creature you can see. |
+| Frightened creature marks | `anybandui.fearMarks` | off | Puts an exclamation mark above each frightened creature you can see. With reduced motion on, the mark does not bob. |
 | Unique presence haze | `anybandui.presenceHaze` | off | Surrounds each unique creature you can see with a violet haze, heaviest around the one guarding the final quest, which is Morgoth unless a mod changes the quests. |
+| Damage numbers | `anybandui.damageNumbers` | off | Shows the hit points a blow takes away, or healing restores, as a number over that square. Only what your character sees is drawn. |
+| Walk slide | `anybandui.walkSlide` | off | Draws a mark that travels the one tile a creature you can see walks. Under reduced motion it simply appears on the new square. |
+| Teleport ripple | `anybandui.blinkRipple` | off | Draws a ring that spreads from a teleport you can see. |
+| Bolt glyphs | `anybandui.boltGlyphs` | off | Draws a glyph on each square a bolt or beam passes through, pointing the way it travels, in the colour of its element. Only squares your character sees are drawn, and with reduced motion the whole path shows at once. |
+| Breath cone | `anybandui.coneWash` | off | Washes each square of a breath you can see in its element's colour, spreading outward from the centre. While this is on, a breath uses the wash instead of the flat flash. |
 | Combat rings and flashes | `anybandui.spellEffects` | off | Draws a brief ring where a spell is cast, where a blow or shot lands or misses, where a creature dies, where someone heals, and at both ends of a teleport. The squares a ball or breath hits flash in the colour of its element. Only things your character sees are drawn. |
 
 
@@ -67,9 +73,15 @@ On a version of the game with numeric mod settings, each effect has a strength s
 | Death burst strength | `anybandui.deathStrength` | 100% | How bright the burst is when your character dies. |
 | Floor item glow strength | `anybandui.itemGlowStrength` | 100% | How bright the glow is around artifacts, cursed items and unlearned runes on the floor. |
 | Sleep mark strength | `anybandui.sleepMarksStrength` | 100% | How clearly the marks show over sleeping creatures. |
+| Fear mark strength | `anybandui.fearMarksStrength` | 100% | How clearly the marks show over frightened creatures. |
+| Damage number strength | `anybandui.damageNumbersStrength` | 100% | Sets the brightness of the floating damage and healing numbers. |
+| Walk slide strength | `anybandui.walkSlideStrength` | 100% | Dims or brightens the mark that follows a walking creature. |
+| Teleport ripple strength | `anybandui.blinkRippleStrength` | 100% | How visible the ring around a teleport is. |
+| Bolt glyph strength | `anybandui.boltGlyphsStrength` | 100% | Brightness of the glyphs a bolt or beam leaves behind. |
+| Breath cone strength | `anybandui.coneWashStrength` | 100% | How strong the wash is across a breath. |
 | Presence haze strength | `anybandui.presenceHazeStrength` | 100% | How thick the violet haze is around unique creatures. |
 | Combat ring strength | `anybandui.spellEffectsStrength` | 100% | How bright the combat rings and the blast flashes are. |
 
 ## What it needs
 
-`ui:sidebar.replace`, `ui:status.replace`, `ui:messages.replace`, `display:filter` (used by the CRT colour treatment), `ui:panel.mount`, `state:map.read`, `state:interaction.read`, `state:inventory.read`, `state:floor.read`, `state:player.read`, `state:spells.read`, `state:stores.read`, `input:intent`, `input:prompt.reply`, `event:combat-outcome`, `event:heal`, `event:motion`, `event:explosion`, and `event:driver-changed`, `state:messages.read`, `state:monsters.read`.
+`ui:sidebar.replace`, `ui:status.replace`, `ui:messages.replace`, `display:filter` (used by the CRT colour treatment), `ui:panel.mount`, `state:map.read`, `state:interaction.read`, `state:inventory.read`, `state:floor.read`, `state:player.read`, `state:spells.read`, `state:stores.read`, `input:intent`, `input:prompt.reply`, `event:combat-outcome`, `event:heal`, `event:motion`, `event:explosion`, `event:bolt`, and `event:driver-changed`, `state:messages.read`, `state:monsters.read`.

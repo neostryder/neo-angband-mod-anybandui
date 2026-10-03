@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { actorGrid, blastCues, chooseEffectMotion, eventCue, effectGrids, actualAura, healthIntensity } from "./effects.js";
+import { actorGrid, blastCues, blinkCues, boltCue, boltGlyph, chooseEffectMotion, coneCues, eventCue, effectGrids, actualAura, healthIntensity, markGrids, nextBoltDelay, numberCues, rippleAlpha, rippleCells, slidePlace, walkCues } from "./effects.js";
 import type { EffectSnapshot, KnownLevel } from "./seams.js";
-const flags = ["anybandui.crt", "anybandui.lowHealthEffect", "anybandui.deathEffect", "anybandui.itemGlow", "anybandui.sleepMarks", "anybandui.presenceHaze", "anybandui.spellEffects"];
+const flags = ["anybandui.crt", "anybandui.lowHealthEffect", "anybandui.deathEffect", "anybandui.itemGlow", "anybandui.sleepMarks", "anybandui.fearMarks", "anybandui.presenceHaze", "anybandui.damageNumbers", "anybandui.walkSlide", "anybandui.blinkRipple", "anybandui.boltGlyphs", "anybandui.coneWash", "anybandui.spellEffects"];
 describe("phase 7 effects", () => {
   it("selects visible sleeping, unique and known artifact grids", () => {
     const s = { core: { monsters: [{ id: 1, race: "Morgoth, Lord of Darkness", raceIndex: 1, grid: {x:2,y:3}, visible: true, hp: 4, maxHp: 4, asleep: true, level: 100, raceFlags: ["UNIQUE"] }] } } as unknown as EffectSnapshot;
     // An older engine: no unique or finalGuardian flags and no aura, so the race flag, the name and the artifact field decide.
-    expect(effectGrids(s, { token: {epoch:1,revision:1}, levelId: 1, depth: 1, width: 10, height: 10, cells: [{x:4,y:5,visible:true,remembered:{feat:1,traps:[],objects:[{sensed:false,aware:true,kindIndex:1,aura:"artifact"}]}}] })).toEqual({ asleep:[{x:2,y:3}], uniques:[{ grid:{x:2,y:3}, final:true }], glows:[{ grid:{x:4,y:5}, aura:"artifact" }] });
+    expect(effectGrids(s, { token: {epoch:1,revision:1}, levelId: 1, depth: 1, width: 10, height: 10, cells: [{x:4,y:5,visible:true,remembered:{feat:1,traps:[],objects:[{sensed:false,aware:true,kindIndex:1,aura:"artifact"}]}}] })).toEqual({ asleep:[{x:2,y:3}], afraid:[], uniques:[{ grid:{x:2,y:3}, final:true }], glows:[{ grid:{x:4,y:5}, aura:"artifact" }] });
   });
   it("reads unique, finalGuardian and aura where the engine has them", () => {
     const monster = (id: number, x: number, extra: object) => ({ id, race: "Grip, Farmer Maggot's Dog", raceIndex: id, grid: {x,y:1}, visible: true, hp: 5, maxHp: 5, asleep: false, level: 2, raceFlags: [], ...extra });
@@ -42,6 +42,7 @@ describe("phase 7 effects", () => {
     expect(eventCue({event:"combat-outcome",attacker:"player",kind:"melee",hit:false,died:false,grid:{x:1,y:2},seen:true})[0]?.kind).toBe("miss");
     expect(eventCue({event:"combat-outcome",attacker:"player",kind:"spell",hit:true,died:true,grid:{x:1,y:2},seen:true}, () => ({ x: 0, y: 2 })).map(c=>c.kind)).toEqual(["cast","death"]);
     expect(eventCue({event:"motion",kind:"teleport",from:{x:1,y:1},to:{x:2,y:2},seen:true})).toHaveLength(2);
+    expect(eventCue({event:"motion",kind:"walk",from:{x:1,y:1},to:{x:1,y:2},seen:true})).toEqual([]);
     expect(eventCue({event:"heal",grid:{x:1,y:1},seen:false})).toEqual([]);
   });
   it("finds an event's creature on the current snapshot", () => {
@@ -52,7 +53,69 @@ describe("phase 7 effects", () => {
     expect(actorGrid(s, 9)).toBeNull();
   });
   it("uses static reduced-motion cues and declares every flag in combination coverage", () => {
-    expect(chooseEffectMotion(true)).toBe("static"); expect(chooseEffectMotion(false)).toBe("motion"); expect(flags).toHaveLength(7);
+    expect(chooseEffectMotion(true)).toBe("static"); expect(chooseEffectMotion(false)).toBe("motion"); expect(flags).toHaveLength(13);
+  });
+  it("marks a visible frightened creature, and lets the exclamation mark replace the sleep mark", () => {
+    const monster = (id: number, x: number, extra: object) => ({ id, race: "White worm", raceIndex: id, grid: { x, y: 1 }, visible: true, hp: 5, maxHp: 5, asleep: false, afraid: false, level: 2, raceFlags: [], ...extra });
+    const s = { core: { monsters: [monster(1, 1, { afraid: true }), monster(2, 2, { asleep: true, afraid: true }), monster(3, 3, { afraid: true, visible: false }), monster(4, 4, { asleep: true })] } } as unknown as EffectSnapshot;
+    const grids = effectGrids(s, null);
+    expect(grids.afraid).toEqual([{ x: 1, y: 1 }, { x: 2, y: 1 }]);
+    expect(grids.asleep).toEqual([{ x: 2, y: 1 }, { x: 4, y: 1 }]);
+    expect(markGrids(grids.asleep, grids.afraid, true)).toEqual({ sleep: [{ x: 4, y: 1 }], fear: [{ x: 1, y: 1 }, { x: 2, y: 1 }] });
+    expect(markGrids(grids.asleep, grids.afraid, false).fear).toEqual([]);
+    expect(markGrids(grids.asleep, grids.afraid, false).sleep).toEqual(grids.asleep);
+  });
+  it("floats a seen damage or healing amount over that square", () => {
+    expect(numberCues({ event: "combat-outcome", hit: true, damage: 12, grid: { x: 3, y: 4 }, seen: true, target: 7 })).toEqual([{ grid: { x: 3, y: 4 }, kind: "number", text: "-12", colour: "#ffce63", life: 720 }]);
+    expect(numberCues({ event: "combat-outcome", hit: true, damage: 4, grid: { x: 1, y: 1 }, seen: true, target: "player" })[0]).toMatchObject({ text: "-4", colour: "#ff6152" });
+    expect(numberCues({ event: "heal", amount: 8, grid: { x: 1, y: 1 }, seen: true })[0]).toMatchObject({ text: "+8", colour: "#64ffa0" });
+    expect(numberCues({ event: "combat-outcome", hit: false, damage: 0, grid: { x: 1, y: 1 }, seen: true, target: 2 })).toEqual([]);
+    expect(numberCues({ event: "combat-outcome", hit: true, damage: 5, grid: { x: 1, y: 1 }, seen: false, target: 2 })).toEqual([]);
+    expect(numberCues({ event: "heal", amount: 0, grid: { x: 1, y: 1 }, seen: true })).toEqual([]);
+  });
+  it("slides one adjacent step and ripples a seen teleport", () => {
+    expect(walkCues({ who: 4, from: { x: 2, y: 2 }, to: { x: 3, y: 2 }, kind: "walk", seen: true })).toEqual([{ grid: { x: 3, y: 2 }, from: { x: 2, y: 2 }, kind: "slide", life: 100 }]);
+    expect(walkCues({ who: "player", from: { x: 2, y: 2 }, to: { x: 3, y: 3 }, kind: "walk", seen: true })).toHaveLength(1);
+    expect(walkCues({ who: 4, from: { x: 2, y: 2 }, to: { x: 4, y: 2 }, kind: "walk", seen: true })).toEqual([]);
+    expect(walkCues({ who: 4, from: { x: 2, y: 2 }, to: { x: 3, y: 2 }, kind: "walk", seen: false })).toEqual([]);
+    expect(walkCues({ who: 4, from: { x: 2, y: 2 }, to: { x: 8, y: 8 }, kind: "teleport", seen: true })).toEqual([]);
+    expect(walkCues({ who: 4, from: { x: 2, y: 2 }, to: { x: 3, y: 2 }, kind: "walk", seen: true }, (p) => p.x !== 2)).toEqual([]);
+    expect(slidePlace({ x: 0, y: 0 }, { x: 1, y: 0 }, 0)).toEqual({ x: 0, y: 0 });
+    expect(slidePlace({ x: 0, y: 0 }, { x: 1, y: 0 }, 1)).toEqual({ x: 1, y: 0 });
+    expect(slidePlace({ x: 0, y: 0 }, { x: 1, y: 0 }, 0.5).x).toBeCloseTo(0.75);
+    expect(blinkCues({ who: "player", from: { x: 1, y: 1 }, to: { x: 6, y: 4 }, kind: "teleport", seen: true })).toEqual([{ grid: { x: 6, y: 4 }, kind: "ripple", life: 340, span: 3.8 }]);
+    expect(blinkCues({ who: 2, from: { x: 1, y: 1 }, to: { x: 2, y: 1 }, kind: "walk", seen: true })).toEqual([]);
+    expect(blinkCues({ who: 2, from: { x: 1, y: 1 }, to: { x: 6, y: 4 }, kind: "teleport", seen: false })).toEqual([]);
+    expect(rippleAlpha(0, 0, 0)).toBeCloseTo(0.3);
+    expect(rippleAlpha(2, 0, 0)).toBe(0);
+    const cells = rippleCells({ x: 1, y: 1 }, { cells: [{ x: 1, y: 1, visible: true }, { x: 2, y: 1, visible: true }, { x: 8, y: 8, visible: true }, { x: 1, y: 2, visible: false }] }, 1);
+    expect(cells).toEqual([{ x: 1, y: 1 }, { x: 2, y: 1 }]);
+    expect(rippleCells({ x: 1, y: 1 }, { cells: [{ x: 1, y: 1, visible: false }] }, 1)).toEqual([]);
+  });
+  it("follows each bolt step's direction and washes a breath outward", () => {
+    expect(boltGlyph(1, 0, "FIRE", 4, 1)).toBe("-");
+    expect(boltGlyph(0, 1, "FIRE", 4, 1)).toBe("|");
+    expect(boltGlyph(1, 1, "FIRE", 4, 1)).toBe("\\");
+    expect(boltGlyph(-1, 1, "FIRE", 4, 1)).toBe("/");
+    expect(boltGlyph(1, 0, "ELEC", 1, 1)).toBe("*");
+    expect(boltGlyph(1, 0, "ELEC", 2, 1)).toBe("~");
+    const step = boltCue({ projType: 0, element: "FIRE", drawing: false, seen: true, beam: false, ox: 3, oy: 1, x: 4, y: 1 }, 40);
+    expect(step).toMatchObject({ grid: { x: 4, y: 1 }, from: { x: 3, y: 1 }, kind: "bolt", glyph: "-", delay: 40, life: 200 });
+    expect(step?.colour).toBeTruthy();
+    expect(boltCue({ projType: 0, element: "FIRE", drawing: false, seen: false, beam: false, ox: 3, oy: 1, x: 4, y: 1 })).toBeNull();
+    const state = { count: 0, at: 0 };
+    expect(nextBoltDelay(100, false, state)).toBe(0);
+    expect(nextBoltDelay(110, false, state)).toBe(40);
+    expect(nextBoltDelay(120, true, state)).toBe(0);
+    expect(nextBoltDelay(200, false, state)).toBe(0);
+    const breath = coneCues({ projType: 0, element: "COLD", arc: true, radius: 3, numGrids: 3, distanceToGrid: [0, 1, 3], drawing: false, blastGrid: [{ x: 1, y: 1 }, { x: 2, y: 1 }, { x: 4, y: 1 }], playerSeesGrid: [true, false, true], centre: { x: 1, y: 1 } });
+    expect(breath.map((c) => c.grid)).toEqual([{ x: 1, y: 1 }, { x: 4, y: 1 }]);
+    expect(breath[0]).toMatchObject({ kind: "cone", glyph: "+", distance: 0, delay: 0 });
+    expect(breath[1]!.delay ?? -1).toBeGreaterThan(breath[0]!.delay ?? 0);
+    expect(breath[0]!.colour).not.toBe(coneCues({ projType: 0, element: "FIRE", arc: true, radius: 1, numGrids: 1, distanceToGrid: [0], drawing: false, blastGrid: [{ x: 1, y: 1 }], playerSeesGrid: [true], centre: { x: 1, y: 1 } })[0]!.colour);
+    expect(coneCues({ projType: 0, element: "FIRE", arc: true, radius: 1, numGrids: 1, distanceToGrid: [0], drawing: false, blastGrid: [{ x: 1, y: 1 }], playerSeesGrid: [true], centre: { x: 1, y: 1 } })[0]!.glyph).toBe("^");
+    expect(coneCues({ projType: 0, element: "FIRE", arc: false, radius: 2, numGrids: 1, distanceToGrid: [1], drawing: false, blastGrid: [{ x: 1, y: 1 }], playerSeesGrid: [true], centre: { x: 1, y: 1 } })).toEqual([]);
+    expect(coneCues({ projType: 0, element: "ACID", arc: true, radius: 1, numGrids: 500, distanceToGrid: Array(500).fill(1), drawing: false, blastGrid: Array.from({ length: 500 }, (_, x) => ({ x, y: 0 })), playerSeesGrid: Array(500).fill(true), centre: { x: 0, y: 0 } })).toHaveLength(200);
   });
 });
 
@@ -74,6 +137,126 @@ describe("effect event subscription", () => {
       expect(handlers.size).toBe(0);
     } finally { Object.assign(globalThis, { document: saved.document, requestAnimationFrame: saved.raf, cancelAnimationFrame: saved.caf }); }
   });
+
+  it("subscribes a switch only to the events that switch draws", async () => {
+    const { installEffects } = await import("./effects.js");
+    const handlers = new Map<string, (...args: unknown[]) => void>();
+    const g = new Proxy({}, { get: () => () => {}, set: () => true });
+    const canvas = { style: {}, setAttribute: () => {}, getContext: () => g, remove: () => {} };
+    const saved = { document: globalThis.document, raf: globalThis.requestAnimationFrame, caf: globalThis.cancelAnimationFrame };
+    Object.assign(globalThis, { document: { createElement: () => canvas, body: { append: () => {} } }, requestAnimationFrame: () => 1, cancelAnimationFrame: () => {} });
+    try {
+      const stopNumbers = installEffects({ flags: { "anybandui.damageNumbers": true }, display: { snapshot: () => ({}) as never },
+        events: { on: (name, fn) => { handlers.set(name, fn as (...args: unknown[]) => void); }, off: (name) => { handlers.delete(name); } } });
+      expect([...handlers.keys()].sort()).toEqual(["combat-outcome", "heal"]);
+      stopNumbers();
+      const stopBolt = installEffects({ flags: { "anybandui.boltGlyphs": true, "anybandui.coneWash": true }, display: { snapshot: () => ({}) as never },
+        events: { on: (name, fn) => { handlers.set(name, fn as (...args: unknown[]) => void); }, off: (name) => { handlers.delete(name); } } });
+      expect([...handlers.keys()].sort()).toEqual(["bolt", "explosion"]);
+      expect(() => handlers.get("bolt")!("bolt", { projType: 0, element: "FIRE", drawing: false, seen: false, beam: false, ox: 0, oy: 0, x: 1, y: 0 })).not.toThrow();
+      expect(() => handlers.get("explosion")!("explosion", { arc: false, element: "FIRE", blastGrid: [{ x: 1, y: 1 }], playerSeesGrid: [true], distanceToGrid: [0], centre: { x: 1, y: 1 }, projType: 0, radius: 1, numGrids: 1, drawing: false })).not.toThrow();
+      stopBolt();
+      expect(handlers.size).toBe(0);
+    } finally { Object.assign(globalThis, { document: saved.document, requestAnimationFrame: saved.raf, cancelAnimationFrame: saved.caf }); }
+  });
+});
+
+describe("effects in text mode", () => {
+  it("draws the fear mark and the bolt glyph as text on their cells", async () => {
+    const { installEffects } = await import("./effects.js");
+    const texts: { text: string; x: number; y: number }[] = [];
+    const ops: string[] = [];
+    const g = new Proxy({}, {
+      get: (_target, prop) => (...args: unknown[]) => {
+        ops.push(String(prop));
+        if (prop === "fillText") texts.push({ text: String(args[0]), x: Number(args[1]), y: Number(args[2]) });
+      },
+      set: () => true,
+    });
+    const frames: FrameRequestCallback[] = [];
+    const canvas = { style: {} as Record<string, string>, width: 0, height: 0, setAttribute() {}, getContext: () => g, remove() {} };
+    const view = {
+      mode: "play" as const, grid: { cols: 80, rows: 24, cellWidth: 8, cellHeight: 16 }, layout: "left" as const,
+      viewport: { origin: { x: 0, y: 0 }, size: { width: 10, height: 10 } }, level: { width: 20, height: 20 },
+      regions: { map: { pixels: { x: 0, y: 0, width: 100, height: 100 } } },
+    };
+    const snap = { phase: "play", core: { monsters: [{ id: 1, race: "White worm", raceIndex: 1, grid: { x: 2, y: 3 }, visible: true, hp: 4, maxHp: 4, asleep: true, afraid: true, level: 2, raceFlags: [] }] } };
+    const saved = { document: globalThis.document, raf: globalThis.requestAnimationFrame, caf: globalThis.cancelAnimationFrame, matchMedia: globalThis.matchMedia, devicePixelRatio: globalThis.devicePixelRatio };
+    Object.assign(globalThis, {
+      document: { createElement: () => canvas, body: { append: () => {} } },
+      requestAnimationFrame: (cb: FrameRequestCallback) => { frames.push(cb); return frames.length; },
+      cancelAnimationFrame: () => {},
+      matchMedia: () => ({ matches: true }),
+      devicePixelRatio: 1,
+    });
+    try {
+      const handlers = new Map<string, (...args: unknown[]) => void>();
+      const stop = installEffects({
+        flags: { "anybandui.fearMarks": true, "anybandui.sleepMarks": true, "anybandui.boltGlyphs": true },
+        display: { snapshot: () => view as never }, snapshot: () => snap as never,
+        events: { on: (name, fn) => { handlers.set(name, fn as (...args: unknown[]) => void); }, off: (name) => { handlers.delete(name); } },
+      });
+      handlers.get("bolt")!("bolt", { projType: 0, element: "FIRE", drawing: false, seen: true, beam: false, ox: 3, oy: 1, x: 4, y: 1 });
+      const started = performance.now();
+      frames[0]!(started);
+      frames[0]!(started + 300);
+      const fear = texts.filter((t) => t.text === "!");
+      const bolt = texts.filter((t) => t.text === "-");
+      expect(fear.length).toBeGreaterThan(0);
+      expect(bolt.length).toBeGreaterThan(0);
+      expect(fear[0]!.x).toBeCloseTo(25);
+      expect(fear[0]!.y).toBeCloseTo(30.8);
+      expect(fear[1]!.y).toBeCloseTo(fear[0]!.y);
+      expect(bolt[0]!.x).toBeCloseTo(45);
+      expect(bolt[0]!.y).toBeCloseTo(15);
+      expect(ops).not.toContain("drawImage");
+      expect(ops).not.toContain("moveTo");
+      stop();
+    } finally {
+      Object.assign(globalThis, { document: saved.document, requestAnimationFrame: saved.raf, cancelAnimationFrame: saved.caf, matchMedia: saved.matchMedia, devicePixelRatio: saved.devicePixelRatio });
+    }
+  });
+
+  it("bobs the fear mark unless reduced motion is on", async () => {
+    const { installEffects } = await import("./effects.js");
+    const ys = async (reduced: boolean): Promise<number[]> => {
+      const found: number[] = [];
+      const g = new Proxy({}, {
+        get: (_target, prop) => (...args: unknown[]) => { if (prop === "fillText" && args[0] === "!") found.push(Number(args[2])); },
+        set: () => true,
+      });
+      const frames: FrameRequestCallback[] = [];
+      const canvas = { style: {} as Record<string, string>, width: 0, height: 0, setAttribute() {}, getContext: () => g, remove() {} };
+      const view = {
+        mode: "play" as const, grid: { cols: 80, rows: 24, cellWidth: 8, cellHeight: 16 }, layout: "left" as const,
+        viewport: { origin: { x: 0, y: 0 }, size: { width: 10, height: 10 } }, level: { width: 20, height: 20 },
+        regions: { map: { pixels: { x: 0, y: 0, width: 100, height: 100 } } },
+      };
+      const snap = { core: { monsters: [{ id: 1, grid: { x: 2, y: 3 }, visible: true, afraid: true, asleep: false, raceFlags: [] }] } };
+      Object.assign(globalThis, {
+        document: { createElement: () => canvas, body: { append: () => {} } },
+        requestAnimationFrame: (cb: FrameRequestCallback) => { frames.push(cb); return frames.length; },
+        cancelAnimationFrame: () => {},
+        matchMedia: () => ({ matches: reduced }),
+        devicePixelRatio: 1,
+      });
+      const stop = installEffects({ flags: { "anybandui.fearMarks": true }, display: { snapshot: () => view as never }, snapshot: () => snap as never });
+      frames[0]!(0);
+      const next = frames[frames.length - 1]!;
+      next(300);
+      stop();
+      return found;
+    };
+    const saved = { document: globalThis.document, raf: globalThis.requestAnimationFrame, caf: globalThis.cancelAnimationFrame, matchMedia: globalThis.matchMedia, devicePixelRatio: globalThis.devicePixelRatio };
+    try {
+      const still = await ys(true);
+      const moving = await ys(false);
+      expect(still[0]).toBeCloseTo(still[1]!);
+      expect(moving[0]).not.toBeCloseTo(moving[1]!);
+    } finally {
+      Object.assign(globalThis, { document: saved.document, requestAnimationFrame: saved.raf, cancelAnimationFrame: saved.caf, matchMedia: saved.matchMedia, devicePixelRatio: saved.devicePixelRatio });
+    }
+  });
 });
 
 describe("effect strength", () => {
@@ -86,6 +269,12 @@ describe("effect strength", () => {
     expect(effectStrength(settings, {}, "hit")).toBe(0);
     expect(effectStrength(settings, {}, "blast")).toBe(0);
     expect(STRENGTH_SETTINGS["death"]).toBe("anybandui.deathStrength");
+    expect(STRENGTH_SETTINGS["fearMarks"]).toBe("anybandui.fearMarksStrength");
+    expect(STRENGTH_SETTINGS["number"]).toBe("anybandui.damageNumbersStrength");
+    expect(STRENGTH_SETTINGS["slide"]).toBe("anybandui.walkSlideStrength");
+    expect(STRENGTH_SETTINGS["ripple"]).toBe("anybandui.blinkRippleStrength");
+    expect(STRENGTH_SETTINGS["bolt"]).toBe("anybandui.boltGlyphsStrength");
+    expect(STRENGTH_SETTINGS["cone"]).toBe("anybandui.coneWashStrength");
     // An engine without numeric settings, or one that has not stored a value: the mod's own prefs, then full strength.
     expect(effectStrength(undefined, { crt: 90 }, "crt")).toBe(90);
     expect(effectStrength(settings, {}, "sleepMarks")).toBe(100);

@@ -8,6 +8,10 @@ An entry opens with one or more bracketed tags. `[Visible]` marks a change a pla
 
 ## [Unreleased]
 
+### Added
+
+- [Visible] [UI] **More combat and movement effects: fear marks, damage numbers, walking slides, a teleport ripple, bolt trails and breath cones.** A frightened creature shows a `!` where a sleeping one shows its mark. Damage floats up red over your character and gold over a creature, and healing floats up green. A creature you can see slides into the square it steps to, and a ripple spreads from where a teleport lands. A bolt leaves a trail that points the way it flew, and a breath washes outward from where it starts. Each has its own switch and strength and starts off, and the moving ones hold still when your system asks for reduced motion.
+
 ## 1.1.0 - 2026-10-01
 
 ### Added

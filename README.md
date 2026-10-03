@@ -25,7 +25,7 @@ The effects (CRT scanlines, item glows, sleeping-monster marks, the presence haz
 | Items | Searchable pack, equipment and quiver lists, the game's full description of the selected item, action buttons, a comparison table for gear, and your ignore settings and inscriptions. |
 | Stores | Store stock and your pack side by side, with prices, descriptions, the comparison table, and buttons that go through the store's own quantity and price questions. |
 | Spells | Every book's spells with mana, fail rate and status in one table. Cast or study with a click, answer the game's own aiming question, and see the blast footprint while aiming. A rest dialog offers the game's rest choices. |
-| Effects | CRT screen treatment, a low-health tint, the death burst, glows on floor items, rising z marks over sleeping monsters, a haze around uniques, and combat rings. Each has its own switch and a strength setting, and all of them respect the system's reduced-motion setting. |
+| Effects | CRT screen treatment, a low-health tint, the death burst, glows on floor items, marks over sleeping and frightened creatures, a haze around uniques, combat rings, damage numbers, a one-tile walk slide, a teleport ripple, bolt glyphs and a breath wash. Each has its own switch and a strength setting, and all of them respect the system's reduced-motion setting. |
 
 ## Installing
 

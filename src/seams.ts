@@ -8,7 +8,7 @@ export type CoreSnapshot = Partial<Pick<HostInputSnapshot["core"], "inventory" |
 export type EffectMonsterView = MonsterView;
 export type EffectSnapshot = InputSnapshot;
 export type EventActor = GameEventMap["combat-outcome"]["target"];
-export type EffectEventMap = Pick<GameEventMap, "combat-outcome" | "heal" | "motion" | "explosion">;
+export type EffectEventMap = Pick<GameEventMap, "combat-outcome" | "heal" | "motion" | "explosion" | "bolt">;
 export type EffectContext = Partial<Pick<ModPluginContext, "flags" | "knownLevel" | "events" | "prefs">> & { readonly snapshot?: () => EffectSnapshot | null; readonly display?: Pick<NonNullable<ModPluginContext["display"]>, "snapshot">; readonly settings?: ModSettings };
 export type ModSettings = Pick<NonNullable<ModPluginContext["settings"]>, "get"> & Partial<Omit<NonNullable<ModPluginContext["settings"]>, "get">>;
 export type PromptBase = import("@rpgm-tools/neo-angband-core").PromptBase;

@@ -1,4 +1,4 @@
-// neo-angband-mod-anybandui - generated from plugin.ts by neo-angband-mod-build
+// p7-combat - generated from plugin.ts by neo-angband-mod-build
 // (@rpgm-tools/neo-angband-mod-sdk). Edit the TypeScript source, not this file.
 
 // src/view-model/adapter.ts
@@ -6675,9 +6675,10 @@ function actualAura(o) {
   return magical ? "rune" : void 0;
 }
 function effectGrids(s, known, revealHidden = false) {
-  const asleep = [], uniques = [], glows = [];
+  const asleep = [], afraid = [], uniques = [], glows = [];
   for (const m of s?.core.monsters ?? []) if (m.visible) {
     if (m.asleep) asleep.push(m.grid);
+    if (m.afraid) afraid.push(m.grid);
     if (m.unique ?? m.raceFlags.includes("UNIQUE")) uniques.push({ grid: m.grid, final: m.finalGuardian ?? m.race === "Morgoth, Lord of Darkness" });
   }
   for (const c of known?.cells ?? []) {
@@ -6697,7 +6698,12 @@ function effectGrids(s, known, revealHidden = false) {
     const aura = AURA_ORDER.find((a) => auras.has(a));
     if (aura) glows.push({ grid: { x: c.x, y: c.y }, aura });
   }
-  return { asleep, uniques, glows };
+  return { asleep, afraid, uniques, glows };
+}
+function markGrids(asleep, afraid, fearOn) {
+  if (!fearOn) return { sleep: [...asleep], fear: [] };
+  const fearAt = new Set(afraid.map((p) => `${p.x},${p.y}`));
+  return { sleep: asleep.filter((p) => !fearAt.has(`${p.x},${p.y}`)), fear: [...afraid] };
 }
 function actorGrid(s, who) {
   if (who === null) return null;
@@ -6721,12 +6727,89 @@ function blastCues(e, limit = 200) {
   });
   return out;
 }
+var NUMBER_COLOUR = { heal: "#64ffa0", player: "#ff6152", monster: "#ffce63" };
+function numberCues(e) {
+  if (!e.seen || !e.grid) return [];
+  if (e.event === "heal") {
+    if (!(typeof e.amount === "number" && e.amount > 0)) return [];
+    return [{ grid: e.grid, kind: "number", text: `+${e.amount}`, colour: NUMBER_COLOUR.heal, life: 720 }];
+  }
+  if (!e.hit || !(typeof e.damage === "number" && e.damage > 0)) return [];
+  return [{ grid: e.grid, kind: "number", text: `-${e.damage}`, colour: e.target === "player" ? NUMBER_COLOUR.player : NUMBER_COLOUR.monster, life: 720 }];
+}
+function walkCues(e, visible = () => true) {
+  if (!e?.seen || e.kind !== "walk" || !e.from || !e.to || !visible(e.from)) return [];
+  if (Math.max(Math.abs(e.to.x - e.from.x), Math.abs(e.to.y - e.from.y)) !== 1) return [];
+  return [{ grid: e.to, from: e.from, kind: "slide", life: 100 }];
+}
+function slidePlace(from, to, t) {
+  const clamped = t < 0 ? 0 : t > 1 ? 1 : t;
+  const remain = (1 - clamped) * (1 - clamped);
+  return { x: to.x + (from.x - to.x) * remain, y: to.y + (from.y - to.y) * remain };
+}
+function blinkCues(e) {
+  if (!e?.seen || e.kind !== "teleport" || !e.to) return [];
+  return [{ grid: e.to, kind: "ripple", life: 340, span: 3.8 }];
+}
+function rippleAlpha(distance, radius, age) {
+  return Math.max(0, 1 - Math.abs(distance - radius) / 0.85) * (1 - age) * 0.3;
+}
+function rippleCells(centre, known, radius) {
+  const out = [];
+  for (const c of known?.cells ?? []) {
+    if (c.visible !== true) continue;
+    if (Math.hypot(c.x - centre.x, c.y - centre.y) <= radius + 0.85) out.push({ x: c.x, y: c.y });
+  }
+  return out;
+}
+function boltGlyph(dx, dy, element, x, y) {
+  if (element === "ELEC") return (x + y) % 2 ? "~" : "*";
+  if (dy === 0) return dx === 0 ? "*" : "-";
+  if (dx === 0) return "|";
+  return dx * dy > 0 ? "\\" : "/";
+}
+function boltCue(e, delay = 0) {
+  if (!e?.seen || typeof e.x !== "number" || typeof e.y !== "number" || typeof e.ox !== "number" || typeof e.oy !== "number") return null;
+  return {
+    grid: { x: e.x, y: e.y },
+    from: { x: e.ox, y: e.oy },
+    kind: "bolt",
+    delay,
+    life: 200,
+    glyph: boltGlyph(e.x - e.ox, e.y - e.oy, e.element ?? "", e.x, e.y),
+    colour: elementEdgeColour(e.element)
+  };
+}
+function nextBoltDelay(now, reduced, state) {
+  if (now - state.at > 50) {
+    state.count = 0;
+    state.at = now;
+  }
+  const delay = reduced ? 0 : Math.min(state.count, 48) * 40;
+  state.count += 1;
+  return delay;
+}
+var CONE_GLYPH = { COLD: "+", ICE: "+", ELEC: "*", POIS: "~", ACID: "~" };
+function coneCues(e, limit = 200) {
+  if (!e?.arc || !Array.isArray(e.blastGrid) || !Array.isArray(e.playerSeesGrid)) return [];
+  const colour = elementEdgeColour(e.element);
+  const glyph = CONE_GLYPH[e.element] ?? "^";
+  const span = Math.max(1, e.radius || 0);
+  const out = [];
+  e.blastGrid.forEach((grid, i) => {
+    if (out.length >= limit || !e.playerSeesGrid[i]) return;
+    const distance = Array.isArray(e.distanceToGrid) ? e.distanceToGrid[i] ?? 0 : 0;
+    out.push({ grid: { x: grid.x, y: grid.y }, kind: "cone", colour, glyph, distance, span, delay: 240 * distance / span, life: 360 });
+  });
+  return out;
+}
 var STRENGTH_SETTINGS = {
   crt: "anybandui.crtStrength",
   lowHealth: "anybandui.lowHealthStrength",
   death: "anybandui.deathStrength",
   itemGlow: "anybandui.itemGlowStrength",
   sleepMarks: "anybandui.sleepMarksStrength",
+  fearMarks: "anybandui.fearMarksStrength",
   presenceHaze: "anybandui.presenceHazeStrength",
   cast: "anybandui.spellEffectsStrength",
   hit: "anybandui.spellEffectsStrength",
@@ -6734,7 +6817,12 @@ var STRENGTH_SETTINGS = {
   heal: "anybandui.spellEffectsStrength",
   departure: "anybandui.spellEffectsStrength",
   arrival: "anybandui.spellEffectsStrength",
-  blast: "anybandui.spellEffectsStrength"
+  blast: "anybandui.spellEffectsStrength",
+  number: "anybandui.damageNumbersStrength",
+  slide: "anybandui.walkSlideStrength",
+  ripple: "anybandui.blinkRippleStrength",
+  bolt: "anybandui.boltGlyphsStrength",
+  cone: "anybandui.coneWashStrength"
 };
 function effectStrength(settings, stored, key) {
   const id = STRENGTH_SETTINGS[key];
@@ -6749,7 +6837,7 @@ function effectStrength(settings, stored, key) {
 }
 function installEffects(ctx) {
   const flags = ctx.flags ?? {};
-  const enabled = ["anybandui.crt", "anybandui.lowHealthEffect", "anybandui.deathEffect", "anybandui.itemGlow", "anybandui.sleepMarks", "anybandui.presenceHaze", "anybandui.spellEffects"].some((x) => flags[x]);
+  const enabled = ["anybandui.crt", "anybandui.lowHealthEffect", "anybandui.deathEffect", "anybandui.itemGlow", "anybandui.sleepMarks", "anybandui.fearMarks", "anybandui.presenceHaze", "anybandui.damageNumbers", "anybandui.walkSlide", "anybandui.blinkRipple", "anybandui.boltGlyphs", "anybandui.coneWash", "anybandui.spellEffects"].some((x) => flags[x]);
   const display = ctx.display;
   if (!enabled || !display || typeof document === "undefined") return () => {
   };
@@ -6777,19 +6865,41 @@ function installEffects(ctx) {
     request();
   };
   const add = (e) => push(eventCue(e, (who) => actorGrid(ctx.snapshot?.() ?? null, who)));
-  const combat = (_type, e) => add({ event: "combat-outcome", ...e });
-  const heal = (_type, e) => add({ event: "heal", ...e });
-  const motion = (_type, e) => add({ event: "motion", ...e });
-  const explosion = (_type, e) => {
-    if (Array.isArray(e?.blastGrid) && Array.isArray(e.playerSeesGrid)) push(blastCues(e));
+  const spell = flags["anybandui.spellEffects"] === true, numbers = flags["anybandui.damageNumbers"] === true;
+  const slides = flags["anybandui.walkSlide"] === true, ripples = flags["anybandui.blinkRipple"] === true;
+  const bolts = flags["anybandui.boltGlyphs"] === true, cones = flags["anybandui.coneWash"] === true;
+  const boltState = { count: 0, at: 0 };
+  const combat = (_type, e) => {
+    if (spell) add({ event: "combat-outcome", ...e });
+    if (numbers) push(numberCues({ event: "combat-outcome", ...e }));
   };
-  const listen = flags["anybandui.spellEffects"] === true;
-  if (listen) {
+  const heal = (_type, e) => {
+    if (spell) add({ event: "heal", ...e });
+    if (numbers) push(numberCues({ event: "heal", ...e }));
+  };
+  const motion = (_type, e) => {
+    if (spell) add({ event: "motion", ...e });
+    if (slides) push(walkCues(e, (p) => (ctx.knownLevel?.()?.cells ?? []).some((c) => c.x === p.x && c.y === p.y && c.visible === true)));
+    if (ripples) push(blinkCues(e));
+  };
+  const explosion = (_type, e) => {
+    if (!e || !Array.isArray(e.blastGrid) || !Array.isArray(e.playerSeesGrid)) return;
+    if (e.arc && cones) push(coneCues(e));
+    else if (spell) push(blastCues(e));
+  };
+  const bolt = (_type, e) => {
+    const delay = nextBoltDelay(performance.now(), reduced(), boltState);
+    const cue = boltCue(e, delay);
+    if (cue) push([cue]);
+  };
+  const listenCombat = spell || numbers, listenMotion = spell || slides || ripples, listenBlast = spell || cones, listenBolt = bolts;
+  if (listenCombat) {
     ctx.events?.on("combat-outcome", combat);
     ctx.events?.on("heal", heal);
-    ctx.events?.on("motion", motion);
-    ctx.events?.on("explosion", explosion);
   }
+  if (listenMotion) ctx.events?.on("motion", motion);
+  if (listenBlast) ctx.events?.on("explosion", explosion);
+  if (listenBolt) ctx.events?.on("bolt", bolt);
   function request() {
     if (!raf) raf = requestAnimationFrame(draw);
   }
@@ -6842,7 +6952,8 @@ function installEffects(ctx) {
     wasDead = dead;
     const known = ctx.knownLevel?.() ?? null, grids = effectGrids(snap, known, flags["anybandui.itemGlowReveals"] === true);
     if (flags["anybandui.itemGlow"]) for (const glow of grids.glows) paint(glow.grid, AURA_COLOURS[glow.aura], intensity("itemGlow"));
-    if (flags["anybandui.sleepMarks"]) for (const p of grids.asleep) {
+    const marked = markGrids(grids.asleep, grids.afraid, flags["anybandui.fearMarks"] === true && intensity("fearMarks") > 0);
+    if (flags["anybandui.sleepMarks"]) for (const p of marked.sleep) {
       const q = cell(p);
       g.strokeStyle = `rgba(190,220,255,${intensity("sleepMarks")})`;
       g.lineWidth = 1.5;
@@ -6852,10 +6963,26 @@ function installEffects(ctx) {
       g.lineTo(q.x + 3, q.y - cellH * 0.38);
       g.stroke();
     }
+    if (flags["anybandui.fearMarks"]) for (const p of marked.fear) {
+      const q = cell(p);
+      const bob = staticMode ? 0 : Math.sin(now / 200) * cellH * 0.06;
+      g.globalAlpha = intensity("fearMarks");
+      g.fillStyle = "#f5ba69";
+      g.font = `${Math.max(12, cellH * 0.55)}px sans-serif`;
+      g.textAlign = "center";
+      g.textBaseline = "middle";
+      g.fillText("!", q.x, q.y - cellH * 0.42 + bob);
+      g.globalAlpha = 1;
+    }
     if (flags["anybandui.presenceHaze"]) for (const u of grids.uniques) paint(u.grid, "#b45cff", intensity("presenceHaze") * (u.final ? 1 : 0.65));
     let active = false;
     for (const c of cues) {
-      const age = (now - c.started) / 650;
+      const life = c.life ?? 650, delay = staticMode ? 0 : c.delay ?? 0, elapsed = now - c.started - delay;
+      if (elapsed < 0) {
+        active = true;
+        continue;
+      }
+      const age = elapsed / life;
       if (age >= (staticMode ? 0.08 : 1)) continue;
       active = true;
       const q = cell(c.grid), a = staticMode ? 0.45 : (1 - age) * c.strength / 100;
@@ -6866,15 +6993,64 @@ function installEffects(ctx) {
         g.globalAlpha = 1;
         continue;
       }
+      if (c.kind === "number") {
+        const rise = staticMode ? 0 : age * cellH * 0.65;
+        g.globalAlpha = a;
+        g.fillStyle = c.colour ?? "#ffce63";
+        g.font = `${Math.max(13, cellH * 0.7)}px sans-serif`;
+        g.textAlign = "center";
+        g.textBaseline = "bottom";
+        g.fillText(c.text ?? "", q.x, q.y - cellH * 0.15 - rise);
+        g.globalAlpha = 1;
+        continue;
+      }
+      if (c.kind === "slide" && c.from) {
+        const at = slidePlace(c.from, c.grid, staticMode ? 1 : age);
+        const s = cell(at);
+        g.globalAlpha = a;
+        g.fillStyle = "#d7e6f5";
+        g.beginPath();
+        g.arc(s.x, s.y, Math.max(3, cellW * 0.22), 0, Math.PI * 2);
+        g.fill();
+        g.globalAlpha = 1;
+        continue;
+      }
+      if (c.kind === "ripple") {
+        const radius = staticMode ? 0 : age * (c.span ?? 3.8);
+        const cells = rippleCells(c.grid, known, radius);
+        for (const p of cells) {
+          const band = staticMode ? 0.3 : rippleAlpha(Math.hypot(p.x - c.grid.x, p.y - c.grid.y), radius, age);
+          if (band <= 0) continue;
+          const s = cell(p);
+          g.globalAlpha = band * c.strength / 100;
+          g.fillStyle = "#a6d4ff";
+          g.fillRect(s.x - cellW / 2, s.y - cellH / 2, cellW, cellH);
+        }
+        g.globalAlpha = 1;
+        continue;
+      }
+      if (c.kind === "bolt" || c.kind === "cone") {
+        const ink2 = c.colour ?? "#ffbe5a";
+        g.fillStyle = ink2;
+        g.globalAlpha = a * (c.kind === "cone" ? 0.42 : 0.34);
+        g.fillRect(q.x - cellW / 2, q.y - cellH / 2, cellW, cellH);
+        g.globalAlpha = a;
+        g.font = `${Math.max(12, cellH * 0.8)}px sans-serif`;
+        g.textAlign = "center";
+        g.textBaseline = "middle";
+        g.fillText(c.glyph ?? "*", q.x, q.y);
+        g.globalAlpha = 1;
+        continue;
+      }
       g.strokeStyle = `rgba(${c.kind === "heal" ? "100,255,160" : c.kind === "cast" ? "100,190,255" : "255,190,90"},${a})`;
       g.lineWidth = 2;
       g.beginPath();
       g.arc(q.x, q.y, staticMode ? 5 : 4 + age * cellH * 0.55, 0, Math.PI * 2);
       g.stroke();
     }
-    cues.splice(0, cues.length, ...cues.filter((c) => now - c.started < 650));
+    cues.splice(0, cues.length, ...cues.filter((c) => now - c.started < (c.life ?? 650) + (staticMode ? 0 : c.delay ?? 0)));
     if (flags["anybandui.deathEffect"] && deadBurstAt && now - deadBurstAt < 900) active = true;
-    if (active || !staticMode && (flags["anybandui.crt"] && intensity("crt") > 0 || flags["anybandui.lowHealthEffect"] && healthIntensity(snap?.core.player?.hp, snap?.core.player?.maxHp, snap?.core.player?.hpWarning) > 0 || flags["anybandui.sleepMarks"] && grids.asleep.length > 0 || flags["anybandui.itemGlow"] && grids.glows.length > 0 || flags["anybandui.presenceHaze"] && grids.uniques.length > 0)) request();
+    if (active || !staticMode && (flags["anybandui.crt"] && intensity("crt") > 0 || flags["anybandui.lowHealthEffect"] && healthIntensity(snap?.core.player?.hp, snap?.core.player?.maxHp, snap?.core.player?.hpWarning) > 0 || flags["anybandui.sleepMarks"] && grids.asleep.length > 0 || flags["anybandui.fearMarks"] && grids.afraid.length > 0 || flags["anybandui.itemGlow"] && grids.glows.length > 0 || flags["anybandui.presenceHaze"] && grids.uniques.length > 0)) request();
     function paint(p, color, a) {
       if (!a) return;
       const q = cell(p);
@@ -6891,12 +7067,13 @@ function installEffects(ctx) {
   return () => {
     globalThis.clearInterval(tick);
     if (raf) cancelAnimationFrame(raf);
-    if (listen) {
+    if (listenCombat) {
       ctx.events?.off("combat-outcome", combat);
       ctx.events?.off("heal", heal);
-      ctx.events?.off("motion", motion);
-      ctx.events?.off("explosion", explosion);
     }
+    if (listenMotion) ctx.events?.off("motion", motion);
+    if (listenBlast) ctx.events?.off("explosion", explosion);
+    if (listenBolt) ctx.events?.off("bolt", bolt);
     canvas.remove();
     cues.length = 0;
   };

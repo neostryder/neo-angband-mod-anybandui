@@ -101,10 +101,10 @@ This table compares each AnybandUI module on the `deluxe` branch with the port, 
 | `status_effects.h` | Ported | Nothing. | |
 | `character_overview.h` | Ported | Nothing. The card has the XP bar and the stat tiles, with a mark on a drained stat. | |
 | `crt_renderer`, `crt_settings.h` | Partial | Every CRT part except the scanlines and one moving bar, including phosphor glow and colour fringing. | Mod build, phase 7. |
-| `monster_feedback.h` | Partial | The `!` over a frightened monster. The port marks sleeping monsters only. | Mod build, phase 7. `MonsterView.afraid` is in the agent view. |
-| `combat_feedback.h`, `motion_feedback.h` | Partial | Floating damage and healing numbers, the one-tile slide when a creature walks, and the blink ripple. The port draws rings for hits, misses, healing, deaths and teleports, and skips walking. | Mod build, phase 7. `combat-outcome` carries `damage`, `heal` carries `amount`, and `motion` carries the start, the end and whether it was a walk or a teleport. |
+| `monster_feedback.h` | Ported | Nothing. | |
+| `combat_feedback.h`, `motion_feedback.h` | Ported | Nothing. | |
 | `scene_presence.h` | Partial | Embers over remembered lava and stairs, and the recall ring. The port draws only the haze around visible uniques. | Mod build, phase 7. Known cells carry their terrain codes, and the dungeon card already reads recall. |
-| `projectile_feedback.h` | Partial | Bolt glyphs that follow the bolt's direction, and the cone wash for breaths. The port fills each seen blast cell with one colour. | Mod build, phase 7. Core emits a `bolt` event for every step with its origin, and `explosion` has an `arc` flag for cones. |
+| `projectile_feedback.h` | Ported | Nothing. | |
 | `dungeon_feedback.h` | Partial | The three-dot cue when a message is cut short, and the pause emblem of two bars and breathing dots. The port shows the words "Messages waiting" and "Resting". | Mod build, phase 1. |
 | `floor_items.h` | Ported | Nothing. | |
 | `detached_panels.h`, `workspace_layout.h` | Partial | Undo and redo, and named saved layouts. Panels never open their own operating system window, as phase 6 records. | Core seam. A mod can read panel geometry but cannot set it, so undo and named layouts belong in the game's window manager (neostryder/neo-angband#287). |

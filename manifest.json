@@ -33,6 +33,7 @@
     "event:heal",
     "event:motion",
     "event:explosion",
+    "event:bolt",
     "event:driver-changed"
   ],
   "author": "WurliMonkhaven, neostryder",
@@ -44,6 +45,12 @@
     { "id": "anybandui.deathStrength", "title": "Death burst strength", "description": "How bright the burst is when your character dies.", "min": 0, "max": 100, "step": 10, "default": 100, "unit": "%", "parent": "anybandui.deathEffect" },
     { "id": "anybandui.itemGlowStrength", "title": "Floor item glow strength", "description": "How bright the glow is around artifacts, cursed items and unlearned runes on the floor.", "min": 0, "max": 100, "step": 10, "default": 100, "unit": "%", "parent": "anybandui.itemGlow" },
     { "id": "anybandui.sleepMarksStrength", "title": "Sleep mark strength", "description": "How clearly the marks show over sleeping creatures.", "min": 0, "max": 100, "step": 10, "default": 100, "unit": "%", "parent": "anybandui.sleepMarks" },
+    { "id": "anybandui.fearMarksStrength", "title": "Fear mark strength", "description": "How clearly the marks show over frightened creatures.", "min": 0, "max": 100, "step": 10, "default": 100, "unit": "%", "parent": "anybandui.fearMarks" },
+    { "id": "anybandui.damageNumbersStrength", "title": "Damage number strength", "description": "Sets the brightness of the floating damage and healing numbers.", "min": 0, "max": 100, "step": 10, "default": 100, "unit": "%", "parent": "anybandui.damageNumbers" },
+    { "id": "anybandui.walkSlideStrength", "title": "Walk slide strength", "description": "Dims or brightens the mark that follows a walking creature.", "min": 0, "max": 100, "step": 10, "default": 100, "unit": "%", "parent": "anybandui.walkSlide" },
+    { "id": "anybandui.blinkRippleStrength", "title": "Teleport ripple strength", "description": "How visible the ring around a teleport is.", "min": 0, "max": 100, "step": 10, "default": 100, "unit": "%", "parent": "anybandui.blinkRipple" },
+    { "id": "anybandui.boltGlyphsStrength", "title": "Bolt glyph strength", "description": "Brightness of the glyphs a bolt or beam leaves behind.", "min": 0, "max": 100, "step": 10, "default": 100, "unit": "%", "parent": "anybandui.boltGlyphs" },
+    { "id": "anybandui.coneWashStrength", "title": "Breath cone strength", "description": "How strong the wash is across a breath.", "min": 0, "max": 100, "step": 10, "default": 100, "unit": "%", "parent": "anybandui.coneWash" },
     { "id": "anybandui.presenceHazeStrength", "title": "Presence haze strength", "description": "How thick the violet haze is around unique creatures.", "min": 0, "max": 100, "step": 10, "default": 100, "unit": "%", "parent": "anybandui.presenceHaze" },
     { "id": "anybandui.spellEffectsStrength", "title": "Combat ring strength", "description": "How bright the combat rings and the blast flashes are.", "min": 0, "max": 100, "step": 10, "default": 100, "unit": "%", "parent": "anybandui.spellEffects" }
   ],
@@ -225,7 +232,13 @@
     { "flag": "anybandui.itemGlow", "title": "Floor item glow", "description": "Makes a soft glow around items you know about on the floor: gold for an artifact, red for a known curse, and blue for a rune you have not learned yet.", "default": false, "requiresReload": true },
     { "flag": "anybandui.itemGlowReveals", "title": "Glow shows hidden magic", "description": "The floor item glow also marks what you have not found out yet: an unidentified artifact, a hidden curse, or runes you have never seen. It tells you things the game normally keeps from you, and it needs the floor item glow turned on. Off by default.", "default": false, "requiresReload": true },
     { "flag": "anybandui.sleepMarks", "title": "Sleeping creature marks", "description": "Puts a small mark above each sleeping creature you can see.", "default": false, "requiresReload": true },
+    { "flag": "anybandui.fearMarks", "title": "Frightened creature marks", "description": "Puts an exclamation mark above each frightened creature you can see. With reduced motion on, the mark does not bob.", "default": false, "requiresReload": true },
     { "flag": "anybandui.presenceHaze", "title": "Unique presence haze", "description": "Surrounds each unique creature you can see with a violet haze, heaviest around the one guarding the final quest, which is Morgoth unless a mod changes the quests.", "default": false, "requiresReload": true },
+    { "flag": "anybandui.damageNumbers", "title": "Damage numbers", "description": "Shows the hit points a blow takes away, or healing restores, as a number over that square. Only what your character sees is drawn.", "default": false, "requiresReload": true },
+    { "flag": "anybandui.walkSlide", "title": "Walk slide", "description": "Draws a mark that travels the one tile a creature you can see walks. Under reduced motion it simply appears on the new square.", "default": false, "requiresReload": true },
+    { "flag": "anybandui.blinkRipple", "title": "Teleport ripple", "description": "Draws a ring that spreads from a teleport you can see.", "default": false, "requiresReload": true },
+    { "flag": "anybandui.boltGlyphs", "title": "Bolt glyphs", "description": "Draws a glyph on each square a bolt or beam passes through, pointing the way it travels, in the colour of its element. Only squares your character sees are drawn, and with reduced motion the whole path shows at once.", "default": false, "requiresReload": true },
+    { "flag": "anybandui.coneWash", "title": "Breath cone", "description": "Washes each square of a breath you can see in its element's colour, spreading outward from the centre. While this is on, a breath uses the wash instead of the flat flash.", "default": false, "requiresReload": true },
     { "flag": "anybandui.spellEffects", "title": "Combat rings and flashes", "description": "Draws a brief ring where a spell is cast, where a blow or shot lands or misses, where a creature dies, where someone heals, and at both ends of a teleport. The squares a ball or breath hits flash in the colour of its element. Only things your character sees are drawn.", "default": false, "requiresReload": true }
   ],
   "repository": "https://github.com/neostryder/neo-angband-mod-anybandui"
