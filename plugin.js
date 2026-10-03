@@ -1,4 +1,4 @@
-// neo-angband-mod-anybandui - generated from plugin.ts by neo-angband-mod-build
+// p8-birth - generated from plugin.ts by neo-angband-mod-build
 // (@rpgm-tools/neo-angband-mod-sdk). Edit the TypeScript source, not this file.
 
 // src/view-model/adapter.ts
@@ -27,11 +27,11 @@ function statPayload(source, frame) {
   return ["STR", "INT", "WIS", "DEX", "CON"].map((name, index) => {
     const key = name.toLowerCase();
     const current = value(frame, key, "cur");
-    const maximum = value(frame, key, "max");
+    const maximum2 = value(frame, key, "max");
     return {
       label: name,
       value: value(frame, key, "use") ?? source.stats[index] ?? 0,
-      drained: current === void 0 || maximum === void 0 ? void 0 : current < maximum
+      drained: current === void 0 || maximum2 === void 0 ? void 0 : current < maximum2
     };
   });
 }
@@ -928,8 +928,8 @@ function wrapBitmapParagraphs(text, maxChars) {
     (paragraph) => paragraph.trim() === "" ? [""] : wrapBitmapText(paragraph, maxChars)
   );
 }
-function styleAsScreenReaderOnly(el8) {
-  Object.assign(el8.style, {
+function styleAsScreenReaderOnly(el9) {
+  Object.assign(el9.style, {
     position: "absolute",
     width: "1px",
     height: "1px",
@@ -953,14 +953,14 @@ function bitmapTextBlock(lines, cellWidth, cellHeight, dpr) {
   wrap.appendChild(label2);
   return wrap;
 }
-function paintBitmapButtonLabel(button4, text, css, cellWidth, cellHeight, dpr) {
-  button4.replaceChildren();
-  if (!button4.hasAttribute("aria-label")) button4.setAttribute("aria-label", text);
+function paintBitmapButtonLabel(button5, text, css, cellWidth, cellHeight, dpr) {
+  button5.replaceChildren();
+  if (!button5.hasAttribute("aria-label")) button5.setAttribute("aria-label", text);
   const canvas = document.createElement("canvas");
   canvas.setAttribute("aria-hidden", "true");
   canvas.style.display = "block";
   paintBitmapLine(canvas, [{ text, css }], cellWidth, cellHeight, dpr);
-  button4.appendChild(canvas);
+  button5.appendChild(canvas);
 }
 
 // src/paint.ts
@@ -1237,8 +1237,8 @@ function node(parent, tag, className = "", value2) {
   parent.appendChild(child);
   return child;
 }
-function fraction(current, maximum) {
-  return maximum > 0 ? Math.max(0, Math.min(1, current / maximum)) : 0;
+function fraction(current, maximum2) {
+  return maximum2 > 0 ? Math.max(0, Math.min(1, current / maximum2)) : 0;
 }
 function meter(parent, label2, value2, amount, colour, tip2) {
   const cell = node(parent, "div", "meter");
@@ -2390,11 +2390,11 @@ function paintSidebar(rt, section2, frame) {
     sidebar.body.appendChild(row);
   }
   if (plan.pages > 1) {
-    const button4 = document.createElement("button");
-    button4.type = "button";
-    button4.setAttribute("data-anybandui-sidebar-page", "");
-    button4.setAttribute("aria-label", `Show status page ${String((plan.page + 1) % plan.pages + 1)} of ${String(plan.pages)}`);
-    Object.assign(button4.style, {
+    const button5 = document.createElement("button");
+    button5.type = "button";
+    button5.setAttribute("data-anybandui-sidebar-page", "");
+    button5.setAttribute("aria-label", `Show status page ${String((plan.page + 1) % plan.pages + 1)} of ${String(plan.pages)}`);
+    Object.assign(button5.style, {
       appearance: "none",
       background: "transparent",
       border: "1px solid #686878",
@@ -2405,15 +2405,15 @@ function paintSidebar(rt, section2, frame) {
       padding: "0 0.35em"
     });
     paintBitmapButtonLabel(
-      button4,
+      button5,
       `${String(plan.page + 1)}/${String(plan.pages)} >`,
       "#d8d87c",
       cellWidth,
       cellHeight,
       dpr
     );
-    button4.addEventListener("click", () => turnSidebarPage(rt, 1));
-    sidebar.body.appendChild(button4);
+    button5.addEventListener("click", () => turnSidebarPage(rt, 1));
+    sidebar.body.appendChild(button5);
   }
 }
 function cameraOrigin(snapshot, point) {
@@ -4167,18 +4167,18 @@ function hoverCardContent(core, state, grid) {
   return { kind, text, title: KIND_TITLE[kind] };
 }
 var hoverCardsWired = false;
-function positionHoverCard(el8, clientX, clientY) {
+function positionHoverCard(el9, clientX, clientY) {
   const GAP = 14;
   const vw = window.innerWidth;
   const vh = window.innerHeight;
-  const w = el8.offsetWidth;
-  const h = el8.offsetHeight;
+  const w = el9.offsetWidth;
+  const h = el9.offsetHeight;
   let left = clientX + GAP;
   let top = clientY + GAP;
   if (left + w > vw) left = clientX - GAP - w;
   if (top + h > vh) top = clientY - GAP - h;
-  el8.style.left = `${String(Math.max(0, left))}px`;
-  el8.style.top = `${String(Math.max(0, top))}px`;
+  el9.style.left = `${String(Math.max(0, left))}px`;
+  el9.style.top = `${String(Math.max(0, top))}px`;
 }
 var HOVER_CARD_CELL_HEIGHT = 14;
 var HOVER_CARD_CELL_WIDTH = HOVER_CARD_CELL_HEIGHT * (16 / 24);
@@ -5050,19 +5050,19 @@ function renderEquipmentPortrait(parent, slots, worn, selectedKey, onSelect) {
   extras.className = "extras";
   const selected = Math.max(0, cards.findIndex((card) => card.key === selectedKey));
   cards.forEach((card, index) => {
-    const button4 = el2(card.row === null ? extras : body, "button");
-    button4.type = "button";
-    button4.className = card.row === null ? "slotcard" : `slotcard ${card.right ? "right" : "left"}`;
-    if (card.row !== null) button4.style.gridRow = String(card.row + 1);
-    button4.setAttribute("aria-pressed", String(card.key === selectedKey));
-    if (index === selected) button4.dataset["focus"] = "portrait-slot";
-    const title = el2(button4, "b", card.label);
+    const button5 = el2(card.row === null ? extras : body, "button");
+    button5.type = "button";
+    button5.className = card.row === null ? "slotcard" : `slotcard ${card.right ? "right" : "left"}`;
+    if (card.row !== null) button5.style.gridRow = String(card.row + 1);
+    button5.setAttribute("aria-pressed", String(card.key === selectedKey));
+    if (index === selected) button5.dataset["focus"] = "portrait-slot";
+    const title = el2(button5, "b", card.label);
     if (!card.item) title.className = "muted";
-    const name = el2(button4, "span", card.item ?? "Empty");
+    const name = el2(button5, "span", card.item ?? "Empty");
     if (card.colour) name.style.color = card.colour;
     if (!card.item) name.className = "muted";
-    if (card.inscription) button4.title = card.inscription;
-    button4.addEventListener("click", () => onSelect(card.key));
+    if (card.inscription) button5.title = card.inscription;
+    button5.addEventListener("click", () => onSelect(card.key));
   });
   wrap.addEventListener("keydown", (event) => {
     const next = stepSelection(cards.length, cards.findIndex((card2) => card2.key === selectedKey), event.key);
@@ -5772,12 +5772,12 @@ function renderCharacterSheet(parent, data, page, onPage) {
   tabs.className = "tabs";
   tabs.setAttribute("role", "tablist");
   SHEET_PAGES.forEach((name2, index) => {
-    const button4 = el4(tabs, "button", name2);
-    button4.type = "button";
-    button4.setAttribute("role", "tab");
-    button4.setAttribute("aria-selected", String(index === page));
-    button4.dataset["focus"] = pageFocus(index);
-    button4.addEventListener("click", () => onPage(index));
+    const button5 = el4(tabs, "button", name2);
+    button5.type = "button";
+    button5.setAttribute("role", "tab");
+    button5.setAttribute("aria-selected", String(index === page));
+    button5.dataset["focus"] = pageFocus(index);
+    button5.addEventListener("click", () => onPage(index));
   });
   tabs.addEventListener("keydown", (event) => {
     const next = stepSheetPage(page, event.key);
@@ -5930,10 +5930,10 @@ function renderThemeEditor(parent, draft, note, onPreview, onRebuild, onSave, on
   const presets = el5(parent, "div");
   presets.className = "tabs";
   for (const [id, label2] of THEME_CHOICES) {
-    const button4 = el5(presets, "button", label2);
-    button4.type = "button";
-    button4.setAttribute("aria-pressed", String(draft.preset === id && !draft.invert_dungeon && draft.rounding === THEMES[id].rounding && draft.background === THEMES[id].background));
-    button4.addEventListener("click", () => {
+    const button5 = el5(presets, "button", label2);
+    button5.type = "button";
+    button5.setAttribute("aria-pressed", String(draft.preset === id && !draft.invert_dungeon && draft.rounding === THEMES[id].rounding && draft.background === THEMES[id].background));
+    button5.addEventListener("click", () => {
       const theme = THEMES[id];
       draft.preset = id;
       draft.background = theme.background;
@@ -6217,10 +6217,10 @@ function installMapMouse(ctx) {
     menu.style.borderRadius = `${Math.round(theme.rounding * 0.6)}px`;
     const buttons = menu.querySelectorAll("button");
     for (let index = 0; index < buttons.length; index += 1) {
-      const button4 = buttons[index];
-      if (!button4) continue;
-      button4.style.background = theme.surface;
-      button4.style.color = theme.text;
+      const button5 = buttons[index];
+      if (!button5) continue;
+      button5.style.background = theme.surface;
+      button5.style.color = theme.text;
     }
   };
   const stopTheme2 = onThemeChange((next) => {
@@ -6280,18 +6280,18 @@ function installMapMouse(ctx) {
     menuToken = snap.token;
     menuPromptId = snap.prompt?.promptId ?? null;
     for (const action of actions) {
-      const button4 = document.createElement("button");
-      button4.type = "button";
-      button4.setAttribute("role", "menuitem");
-      button4.textContent = action.label;
-      button4.style.cssText = `display:block;width:100%;text-align:left;background:${theme.surface};color:${theme.text};border:0;padding:3px 9px;cursor:pointer;font:inherit`;
-      button4.addEventListener("pointerenter", () => {
-        button4.style.background = paintColours(theme).hover;
+      const button5 = document.createElement("button");
+      button5.type = "button";
+      button5.setAttribute("role", "menuitem");
+      button5.textContent = action.label;
+      button5.style.cssText = `display:block;width:100%;text-align:left;background:${theme.surface};color:${theme.text};border:0;padding:3px 9px;cursor:pointer;font:inherit`;
+      button5.addEventListener("pointerenter", () => {
+        button5.style.background = paintColours(theme).hover;
       });
-      button4.addEventListener("pointerleave", () => {
-        button4.style.background = theme.surface;
+      button5.addEventListener("pointerleave", () => {
+        button5.style.background = theme.surface;
       });
-      button4.addEventListener("click", () => {
+      button5.addEventListener("click", () => {
         const current = ctx.snapshot?.() ?? null;
         if (!menuAt || !current || !menuToken || !sameToken(menuToken, current.token) || menuPromptId !== (current.prompt?.promptId ?? null)) {
           hide();
@@ -6311,7 +6311,7 @@ function installMapMouse(ctx) {
         } else runMenuAction(ctx, selected, action.label);
         hide();
       });
-      menu.appendChild(button4);
+      menu.appendChild(button5);
     }
     menu.style.display = "block";
     menu.style.left = `${Math.min(event.clientX, window.innerWidth - menu.offsetWidth)}px`;
@@ -8539,6 +8539,706 @@ function coexistingFlags(flags, mods, log) {
   return Object.freeze({ ...flags, ...Object.fromEntries(yielded.map((feature) => [feature.flag, false])) });
 }
 
+// src/menus/birth-model.ts
+var WIZARD_STEPS = ["race", "class", "attributes", "identity", "review"];
+var STEP_LABELS = {
+  previous: "Play again",
+  race: "Race",
+  class: "Class",
+  attributes: "Attributes",
+  identity: "Identity",
+  review: "Review"
+};
+function stepNumber(step) {
+  return WIZARD_STEPS.indexOf(step) + 1;
+}
+function nextStep(step) {
+  if (step === "previous") return "identity";
+  const index = WIZARD_STEPS.indexOf(step);
+  return WIZARD_STEPS[index + 1] ?? null;
+}
+function signed(value2) {
+  return value2 >= 0 ? `+${value2}` : String(value2);
+}
+var SKILL_LABELS = {
+  DISARM_PHYS: "Disarm (physical)",
+  DISARM_MAGIC: "Disarm (magic)",
+  DEVICE: "Magic devices",
+  SAVE: "Saving throw",
+  STEALTH: "Stealth",
+  SEARCH: "Searching",
+  TO_HIT_MELEE: "Melee",
+  TO_HIT_BOW: "Shooting",
+  TO_HIT_THROW: "Throwing",
+  DIGGING: "Digging"
+};
+function skillLabel(key) {
+  const known = SKILL_LABELS[key];
+  if (known) return known;
+  const words = key.toLowerCase().split("_").filter(Boolean).join(" ");
+  return words ? `${words[0].toUpperCase()}${words.slice(1)}` : key;
+}
+function choiceView(entry2, race = null) {
+  const added = "magic" in entry2 ? race : null;
+  const note = added ? { note: "Includes your race." } : {};
+  const traits = [
+    { label: "Hit die", value: String(entry2.hitDie + (added?.hitDie ?? 0)), ...note },
+    { label: "XP modifier", value: `${entry2.expFactor + (added?.expFactor ?? 0)}%`, ...note }
+  ];
+  if ("infravisionFeet" in entry2) traits.push({ label: "Infravision", value: `${entry2.infravisionFeet} ft` });
+  if ("magic" in entry2) {
+    const casts = entry2.magic.length > 0;
+    traits.push({ label: "Magic", value: casts ? "Yes" : "No", note: casts ? `Can learn spells: ${entry2.magic.join(", ")}.` : "Does not cast spells." });
+  }
+  return {
+    name: entry2.name,
+    modifiers: [...entry2.statAdj],
+    traits,
+    abilities: entry2.abilities.map((ability) => ({ name: ability.name, description: ability.description })),
+    skills: Object.entries(entry2.skills).map(([key, value2]) => ({ label: skillLabel(key), value: signed(value2) }))
+  };
+}
+function formatStat(value2) {
+  if (value2 <= 18) return String(value2);
+  const bonus = value2 - 18;
+  return bonus >= 220 ? "18/***" : `18/${String(bonus).padStart(2, "0")}`;
+}
+function statRows(draft, catalogue) {
+  return catalogue.stats.map((name, index) => {
+    const preview = draft.preview?.stats[index];
+    const natural = draft.stats[index] ?? 0;
+    const spent = draft.pointsSpent[index] ?? 0;
+    return {
+      index,
+      name,
+      base: preview?.natural.trim() || formatStat(natural),
+      race: preview?.raceBonus.trim() || "-",
+      cls: preview?.classBonus.trim() || "-",
+      total: preview?.best.trim() || "-",
+      spent,
+      canSell: draft.method === "point" && spent > 0,
+      atMaximum: natural >= 18
+    };
+  });
+}
+function maximum(value2) {
+  if (!value2) return "-";
+  const slash = value2.lastIndexOf("/");
+  return (slash >= 0 ? value2.slice(slash + 1) : value2).trim() || "-";
+}
+function previewSummary(draft) {
+  const lines = draft.preview?.panels.flatMap((panel) => panel.lines) ?? [];
+  const find = (label2) => lines.find((line) => line.label.trim() === label2)?.value;
+  return { hp: maximum(find("HP")), sp: maximum(find("SP")), gold: draft.preview ? draft.preview.gold : null };
+}
+function stepChoice(names, current, key) {
+  if (!names.length) return null;
+  const index = current === null ? -1 : names.indexOf(current);
+  if (key === "Home") return names[0];
+  if (key === "End") return names[names.length - 1];
+  if (key === "ArrowDown") return names[Math.min(names.length - 1, index + 1)];
+  if (key === "ArrowUp") return names[Math.max(0, index - 1)];
+  return null;
+}
+function statKey(key) {
+  if (key === "ArrowRight" || key === "+" || key === "=") return "buy";
+  if (key === "ArrowLeft" || key === "-" || key === "_") return "sell";
+  if (key === "ArrowUp") return "up";
+  if (key === "ArrowDown") return "down";
+  return null;
+}
+var BirthWizard = class {
+  constructor(session) {
+    this.session = session;
+    this.catalogue = session.catalogue();
+    this.remember();
+  }
+  session;
+  catalogue;
+  /** The last refusal, shown under the step as upstream shows menu_error (:202). */
+  error = "";
+  /** The background Core generated, kept so an edit can be taken back. */
+  generatedHistory = "";
+  cached = null;
+  /** Something other than the name, background or options changed after the previous character was applied. */
+  changedSincePrevious = true;
+  finished = false;
+  draft() {
+    if (!this.cached) this.cached = this.session.draft();
+    return this.cached;
+  }
+  remember() {
+    const draft = this.draft();
+    if (!draft.historyEdited) this.generatedHistory = draft.history;
+  }
+  /** Run one session change, keep its refusal, and read the draft again. */
+  run(change, build = true) {
+    if (this.finished) return false;
+    let result;
+    try {
+      result = change(this.session);
+    } catch (error) {
+      result = { ok: false, reason: error instanceof Error ? error.message : String(error) };
+    }
+    this.cached = null;
+    this.error = result.ok ? "" : result.reason;
+    if (result.ok && build) this.changedSincePrevious = true;
+    this.remember();
+    return result.ok;
+  }
+  /** Upstream's engine always has a race and a class picked; Core starts with neither, so the first of each is chosen. */
+  start() {
+    const draft = this.draft();
+    const race = this.catalogue.races[0]?.name;
+    const cls = this.catalogue.classes[0]?.name;
+    if (draft.race === null && race !== void 0) this.run((s) => s.chooseRace(race));
+    if (this.draft().cls === null && cls !== void 0) this.run((s) => s.chooseClass(cls));
+  }
+  /** The previous character's race, class and stats (Core's quick start), unless they are already in the draft. */
+  usePrevious() {
+    if (!this.catalogue.previous) return false;
+    if (!this.changedSincePrevious) return true;
+    const ok = this.run((s) => s.usePrevious());
+    if (ok) this.changedSincePrevious = false;
+    return ok;
+  }
+  accept() {
+    const ok = this.run((s) => s.accept(), false);
+    if (ok) this.finished = true;
+    return ok;
+  }
+  cancel() {
+    if (this.finished) return;
+    this.finished = true;
+    try {
+      this.session.cancel();
+    } catch {
+    }
+  }
+};
+
+// src/menus/birth.ts
+var BIRTH_FLAG = "anybandui.birthWizard";
+var CSS7 = `:host{color:var(--anyband-text);font:var(--anyband-font-size)/var(--anyband-line) var(--anyband-font)}
+.backdrop{position:absolute;inset:0;overflow:auto;background:var(--anyband-background);padding:16px;box-sizing:border-box}
+.birth{max-width:1100px;margin:0 auto;padding:12px;background:var(--anyband-surface);border:1px solid var(--anyband-accent);border-radius:var(--anyband-rounding)}
+h2,h3,h4{margin:6px 0;color:var(--anyband-accent)}h4{font-size:1em}
+button,input,textarea{font:inherit;color:var(--anyband-text);background:var(--anyband-background);border:1px solid var(--anyband-accent);border-radius:3px;padding:3px 6px}
+button{cursor:pointer}button:disabled,button[aria-disabled="true"]{opacity:.45;cursor:default}
+button:focus-visible,input:focus-visible,textarea:focus-visible,summary:focus-visible,li:focus-visible{outline:2px solid var(--anyband-accent)}
+.progress{height:4px;background:var(--anyband-background);border-radius:2px;margin:4px 0 10px}.progress>div{height:100%;background:var(--anyband-accent);border-radius:2px}
+.layout{display:grid;grid-template-columns:minmax(0,62fr) minmax(0,38fr);gap:14px}
+@media (max-width:760px){.layout{grid-template-columns:minmax(0,1fr)}}
+.preview{border-left:1px solid var(--anyband-accent);padding-left:12px}
+@media (max-width:760px){.preview{border-left:0;padding-left:0;border-top:1px solid var(--anyband-accent)}}
+ul.choices{list-style:none;margin:0 0 8px;padding:0;max-height:220px;overflow:auto;border:1px solid var(--anyband-accent);border-radius:3px}
+ul.choices li{padding:3px 8px;cursor:pointer}ul.choices li[aria-selected="true"]{background:var(--anyband-accent);color:var(--anyband-background)}
+table{width:100%;border-collapse:collapse}td,th{padding:2px 4px;text-align:right}td:first-child,th:first-child{text-align:left}
+th{opacity:.7;font-weight:normal}tr:nth-child(even) td{background:color-mix(in srgb,var(--anyband-background) 55%,transparent)}
+.metrics{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:6px;margin:4px 0}
+.metric{padding:4px 6px;border:1px solid var(--anyband-accent);border-radius:3px}.metric b{display:block}
+.ability{margin:6px 0;padding:6px;border:1px solid var(--anyband-accent);border-radius:4px}.ability h4{margin:0 0 4px}
+.row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:6px 0}
+.footer{display:flex;gap:6px;flex-wrap:wrap;align-items:center;border-top:1px solid var(--anyband-accent);margin-top:10px;padding-top:8px}
+.footer .nav{margin-left:auto;display:flex;gap:6px}
+.error{color:var(--anyband-accent);font-weight:bold}.muted{opacity:.7}.history{white-space:pre-wrap}
+.adjust button{min-width:2em;padding:0 4px}
+label.field{display:block;margin:6px 0 2px}input.name{width:100%;box-sizing:border-box}textarea{width:100%;box-sizing:border-box;resize:vertical}
+details{margin:8px 0}summary{cursor:pointer}details label{display:flex;gap:6px;align-items:flex-start;margin:3px 0}`;
+function el8(parent, tag, text, className) {
+  const child = parent.ownerDocument.createElement(tag);
+  if (text !== void 0) child.textContent = text;
+  if (className) child.className = className;
+  parent.appendChild(child);
+  return child;
+}
+function button4(parent, label2, focus, onClick, disabled = false) {
+  const node2 = el8(parent, "button", label2);
+  node2.type = "button";
+  node2.dataset["focus"] = focus;
+  if (disabled) node2.disabled = true;
+  node2.addEventListener("click", () => {
+    if (!node2.disabled) onClick();
+  });
+  return node2;
+}
+function collapsible(parent, key, title, actions) {
+  const details = el8(parent, "details");
+  if (actions.expanded.has(key)) details.open = true;
+  const summary = el8(details, "summary", title);
+  summary.dataset["focus"] = `section-${key}`;
+  details.addEventListener("toggle", () => {
+    if (details.open) actions.expanded.add(key);
+    else actions.expanded.delete(key);
+  });
+  return details;
+}
+function birthOptions(parent, draft, actions) {
+  if (!draft.options.length) return;
+  const details = collapsible(parent, "options", "Birth options", actions);
+  for (const option of draft.options) {
+    const label2 = el8(details, "label");
+    const box = el8(label2, "input");
+    box.type = "checkbox";
+    box.checked = option.value;
+    box.dataset["focus"] = `option-${option.name}`;
+    box.setAttribute("aria-label", option.description || option.name);
+    box.addEventListener("change", () => actions.act((s) => s.setOption(option.name, box.checked), false));
+    el8(label2, "span", option.description || option.name);
+  }
+}
+function statTable(parent, rows, editable, pointsLeft, actions) {
+  const table = el8(parent, "table");
+  const head = el8(table, "tr");
+  for (const name of ["Stat", "Base", "Race", "Class", "Total", ...editable ? ["Spent", "Adjust"] : []]) el8(head, "th", name);
+  for (const row of rows) {
+    const tr = el8(table, "tr");
+    for (const value2 of [row.name, row.base, row.race, row.cls, row.total]) el8(tr, "td", value2);
+    if (!editable) continue;
+    el8(tr, "td", String(row.spent));
+    const cell = el8(tr, "td", void 0, "adjust");
+    const canBuy = !row.atMaximum && pointsLeft > 0;
+    const sell = button4(cell, "-", `sell-${row.index}`, () => {
+      if (row.canSell) actions.act((s) => s.sell(row.index));
+    });
+    sell.setAttribute("aria-label", `Refund a point from ${row.name}`);
+    if (!row.canSell) sell.setAttribute("aria-disabled", "true");
+    const buy = button4(cell, "+", `buy-${row.index}`, () => {
+      if (canBuy) actions.act((s) => s.buy(row.index));
+    });
+    buy.setAttribute("aria-label", `Spend points on ${row.name}`);
+    buy.title = row.atMaximum ? "Base stat is at its maximum." : `Spends points. ${pointsLeft} remaining.`;
+    if (!canBuy) buy.setAttribute("aria-disabled", "true");
+    for (const [node2, kind] of [[sell, "sell"], [buy, "buy"]]) {
+      node2.addEventListener("keydown", (event) => {
+        const action = statKey(event.key);
+        if (!action) return;
+        event.preventDefault();
+        if (action === "up" || action === "down") {
+          const next = row.index + (action === "up" ? -1 : 1);
+          if (next >= 0 && next < rows.length) actions.repaint(`${kind}-${next}`);
+          return;
+        }
+        if (action === "buy") {
+          if (canBuy) actions.act((s) => s.buy(row.index), true, `${kind}-${row.index}`);
+        } else if (row.canSell) actions.act((s) => s.sell(row.index), true, `${kind}-${row.index}`);
+      });
+    }
+  }
+}
+function previewColumn(parent, wizard, draft, actions) {
+  const column = el8(parent, "div", void 0, "preview");
+  column.setAttribute("aria-label", "Character preview");
+  el8(column, "h3", "Character preview");
+  el8(column, "p", draft.name || "No name yet", draft.name ? void 0 : "muted");
+  el8(column, "p", [draft.race, draft.cls].filter(Boolean).join(" ") || "Choose a race and a class.");
+  if (!draft.preview) {
+    el8(column, "p", "The preview appears once a race and a class are chosen.", "muted");
+    return;
+  }
+  const summary = previewSummary(draft);
+  el8(column, "p", `HP ${summary.hp}    SP ${summary.sp}`);
+  el8(column, "p", `Starting funds: ${summary.gold ?? 0} gold`);
+  el8(column, "p", "Starting equipment is deducted from these funds.", "muted");
+  statTable(column, statRows(draft, wizard.catalogue), false, draft.pointsLeft, actions);
+  if (draft.history) el8(column, "p", draft.history, "history");
+}
+function choiceStep(parent, wizard, draft, list, actions) {
+  const entries = wizard.catalogue[list];
+  const current = list === "races" ? draft.race : draft.cls;
+  const choose = (name) => actions.act((s) => list === "races" ? s.chooseRace(name) : s.chooseClass(name), true, `choice-${name}`);
+  const names = entries.map((entry2) => entry2.name);
+  const ul = el8(parent, "ul", void 0, "choices");
+  ul.setAttribute("role", "listbox");
+  ul.setAttribute("aria-label", list === "races" ? "Race" : "Class");
+  for (const name of names) {
+    const li = el8(ul, "li", name);
+    li.setAttribute("role", "option");
+    li.setAttribute("aria-selected", String(name === current));
+    li.setAttribute("tabindex", name === current || current === null && name === names[0] ? "0" : "-1");
+    li.dataset["focus"] = `choice-${name}`;
+    li.addEventListener("click", () => choose(name));
+    li.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        choose(name);
+        return;
+      }
+      const next = stepChoice(names, current ?? name, event.key);
+      if (next === null) return;
+      event.preventDefault();
+      if (next !== current) choose(next);
+      else actions.repaint(`choice-${next}`);
+    });
+  }
+  const selected = entries.find((entry2) => entry2.name === current);
+  if (!selected) {
+    el8(parent, "p", list === "races" ? "Choose a race." : "Choose a class.", "muted");
+    return;
+  }
+  const view = choiceView(selected, list === "classes" ? wizard.catalogue.races.find((race) => race.name === draft.race) ?? null : null);
+  const modifiers = el8(parent, "table");
+  const head = el8(modifiers, "tr");
+  const values = el8(modifiers, "tr");
+  wizard.catalogue.stats.forEach((stat2, index) => {
+    el8(head, "th", stat2);
+    el8(values, "td", signed(view.modifiers[index] ?? 0));
+  });
+  el8(parent, "h3", "Traits");
+  const metrics = el8(parent, "div", void 0, "metrics");
+  for (const trait of view.traits) {
+    const metric = el8(metrics, "div", void 0, "metric");
+    el8(metric, "span", trait.label, "muted");
+    el8(metric, "b", trait.value);
+    if (trait.note) el8(metric, "span", trait.note, "muted");
+  }
+  if (view.abilities.length) {
+    el8(parent, "h3", "Abilities");
+    for (const ability of view.abilities) {
+      const card = el8(parent, "div", void 0, "ability");
+      el8(card, "h4", ability.name);
+      if (ability.description) el8(card, "p", ability.description);
+    }
+  }
+  if (view.skills.length) {
+    const details = collapsible(parent, `skills-${list}`, "Skill modifiers", actions);
+    const table = el8(details, "table");
+    for (const skill of view.skills) {
+      const tr = el8(table, "tr");
+      el8(tr, "td", skill.label);
+      el8(tr, "td", skill.value);
+    }
+  }
+}
+function attributesStep(parent, wizard, draft, actions) {
+  const methods = el8(parent, "div", void 0, "row");
+  methods.setAttribute("role", "radiogroup");
+  methods.setAttribute("aria-label", "How to set your stats");
+  for (const [method, label2] of [["point", "Point buy"], ["roller", "Random rolls"]]) {
+    const wrap = el8(methods, "label");
+    const radio = el8(wrap, "input");
+    radio.type = "radio";
+    radio.name = "method";
+    radio.checked = draft.method === method;
+    radio.dataset["focus"] = `method-${method}`;
+    radio.addEventListener("change", () => {
+      if (!radio.checked || draft.method === method) return;
+      actions.act((s) => method === "point" ? s.usePointBuy() : s.roll(), true, `method-${method}`);
+    });
+    el8(wrap, "span", label2);
+  }
+  const rows = statRows(draft, wizard.catalogue);
+  if (draft.method === "point") {
+    el8(parent, "p", `Points remaining: ${draft.pointsLeft}`);
+    el8(parent, "p", draft.pointsLeft === 0 ? "All points are allocated. Use - to free points, or Reset points to start from scratch." : "Use + to spend points and - to refund them. Race and class bonuses are added automatically.", "muted");
+    statTable(parent, rows, true, draft.pointsLeft, actions);
+    const row = el8(parent, "div", void 0, "row");
+    button4(row, "Suggested allocation", "suggest", () => actions.act((s) => s.suggest()));
+    button4(row, "Reset points", "reset", () => actions.act((s) => s.reset()));
+  } else {
+    statTable(parent, rows, false, 0, actions);
+    const row = el8(parent, "div", void 0, "row");
+    button4(row, "Roll again", "roll", () => actions.act((s) => s.roll()));
+    button4(row, "Previous roll", "previous-roll", () => actions.act((s) => s.previousRoll()), !draft.canPreviousRoll);
+  }
+}
+function identityStep(parent, wizard, draft, actions) {
+  el8(parent, "label", "Name", "field");
+  const name = el8(parent, "input", void 0, "name");
+  name.type = "text";
+  name.value = draft.name;
+  name.maxLength = wizard.catalogue.nameMax;
+  name.dataset["focus"] = "name";
+  name.setAttribute("aria-label", "Name");
+  if (wizard.catalogue.namePinned) {
+    name.disabled = true;
+    name.title = "The name is set for this game.";
+  }
+  name.addEventListener("input", () => actions.act((s) => s.setName(name.value), false));
+  name.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    actions.open("review");
+  });
+  const nameRow = el8(parent, "div", void 0, "row");
+  button4(nameRow, "Random name", "random-name", () => actions.act((s) => s.randomName(), false), wizard.catalogue.namePinned);
+  el8(parent, "label", "Background", "field");
+  const history = el8(parent, "textarea");
+  history.rows = 8;
+  history.value = draft.history;
+  history.dataset["focus"] = "history";
+  history.setAttribute("aria-label", "Background");
+  history.addEventListener("input", () => actions.act((s) => s.setHistory(history.value), false));
+  const row = el8(parent, "div", void 0, "row");
+  const generated = wizard.generatedHistory;
+  button4(
+    row,
+    "Restore generated background",
+    "restore-history",
+    () => actions.act((s) => s.setHistory(generated), false),
+    !draft.historyEdited || generated === "" || generated === draft.history
+  );
+  button4(row, "New background", "new-history", () => actions.act((s) => s.regenerateHistory(), false), draft.race === null);
+}
+function reviewStep(parent, draft, actions) {
+  el8(parent, "p", `${draft.name || "No name yet"} - ${[draft.race, draft.cls].filter(Boolean).join(" ")}`);
+  if (draft.history) el8(parent, "p", draft.history, "history");
+  if (!draft.ready) el8(parent, "p", "Give your character a name before you start.", "muted");
+  if (!draft.preview) return;
+  const details = collapsible(parent, "sheet", "Character sheet", actions);
+  for (const panel of draft.preview.panels) {
+    const table = el8(details, "table");
+    for (const line of panel.lines) {
+      if (!line.label.trim() && !line.value.trim()) continue;
+      const tr = el8(table, "tr");
+      el8(tr, "td", line.label);
+      el8(tr, "td", line.value);
+    }
+  }
+}
+function errorLine(parent, wizard) {
+  if (!wizard.error) return;
+  const line = el8(parent, "p", wizard.error, "error");
+  line.setAttribute("role", "alert");
+}
+function previousScreen(parent, wizard, draft, actions) {
+  el8(parent, "h2", "Play again");
+  el8(parent, "p", draft.name || "No name yet");
+  el8(parent, "p", [draft.race, draft.cls].filter(Boolean).join(" "));
+  el8(parent, "p", "Reuse this character's starting choices or create a new character.");
+  el8(parent, "h3", "Starting attributes");
+  statTable(parent, statRows(draft, wizard.catalogue), false, draft.pointsLeft, actions);
+  if (draft.history) el8(parent, "p", draft.history, "history");
+  el8(parent, "h3", "New character");
+  button4(parent, "Use previous character", "use-previous", () => actions.usePrevious(), !draft.ready);
+  el8(parent, "p", "Begin at level 1 with the same race, class and starting attributes.", "muted");
+  button4(parent, "Change name / background", "rename", () => actions.open("identity"));
+  el8(parent, "p", "Keep the character's starting build and give them a new identity.", "muted");
+  button4(parent, "Create a different character", "different", () => {
+    actions.act((s) => s.suggest());
+    actions.open("race");
+  });
+  el8(parent, "p", "Choose race, class, attributes and identity in character creation.", "muted");
+  birthOptions(parent, draft, actions);
+  errorLine(parent, wizard);
+  const footer = el8(parent, "div", void 0, "footer");
+  button4(footer, "Return to main menu", "cancel", () => actions.cancel());
+}
+function renderBirthStep(mount, wizard, step, actions) {
+  const draft = wizard.draft();
+  const backdrop = el8(mount, "div", void 0, "backdrop");
+  const frame = el8(backdrop, "section", void 0, "birth");
+  if (step === "previous") {
+    previousScreen(frame, wizard, draft, actions);
+    return;
+  }
+  el8(frame, "h2", "Create a character");
+  const number = stepNumber(step);
+  el8(frame, "p", `Step ${number} of ${WIZARD_STEPS.length} - ${STEP_LABELS[step]}`);
+  const bar = el8(frame, "div", void 0, "progress");
+  bar.setAttribute("role", "progressbar");
+  bar.setAttribute("aria-valuemin", "1");
+  bar.setAttribute("aria-valuemax", String(WIZARD_STEPS.length));
+  bar.setAttribute("aria-valuenow", String(number));
+  el8(bar, "div").style.width = `${number / WIZARD_STEPS.length * 100}%`;
+  const layout = el8(frame, "div", void 0, "layout");
+  const choices = el8(layout, "div");
+  el8(choices, "h3", STEP_LABELS[step]);
+  if (step === "race" && wizard.catalogue.previous) button4(choices, "Use previous character", "quick-start", () => {
+    if (wizard.usePrevious()) actions.open("review");
+    else actions.repaint();
+  });
+  if (step === "race") choiceStep(choices, wizard, draft, "races", actions);
+  else if (step === "class") choiceStep(choices, wizard, draft, "classes", actions);
+  else if (step === "attributes") attributesStep(choices, wizard, draft, actions);
+  else if (step === "identity") identityStep(choices, wizard, draft, actions);
+  else reviewStep(choices, draft, actions);
+  birthOptions(choices, draft, actions);
+  previewColumn(layout, wizard, draft, actions);
+  errorLine(frame, wizard);
+  const footer = el8(frame, "div", void 0, "footer");
+  button4(footer, "Return to main menu", "cancel", () => actions.cancel());
+  const nav = el8(footer, "div", void 0, "nav");
+  button4(nav, "Back", "back", () => actions.back(), !actions.canGoBack);
+  const next = nextStep(step);
+  if (next) button4(nav, "Next", "next", () => actions.open(next));
+  else button4(nav, "Start game", "start", () => actions.accept(), !draft.ready);
+}
+function firstFocus(step, wizard) {
+  const draft = wizard.draft();
+  if (step === "race") return `choice-${draft.race ?? wizard.catalogue.races[0]?.name ?? ""}`;
+  if (step === "class") return `choice-${draft.cls ?? wizard.catalogue.classes[0]?.name ?? ""}`;
+  if (step === "attributes") return draft.method === "point" ? "buy-0" : "roll";
+  if (step === "identity") return wizard.catalogue.namePinned ? "random-name" : "name";
+  if (step === "review") return draft.ready ? "start" : "back";
+  return draft.ready ? "use-previous" : "rename";
+}
+var BirthStack = class {
+  constructor(ctx, wizard, theme) {
+    this.ctx = ctx;
+    this.wizard = wizard;
+    this.theme = theme;
+    this.stopTheme = onThemeChange((next) => {
+      this.theme = next;
+      for (const level of this.levels) applyTheme(level.panel.root, next);
+    });
+  }
+  ctx;
+  wizard;
+  theme;
+  levels = [];
+  expanded = /* @__PURE__ */ new Set();
+  stopTheme;
+  serial = 0;
+  get depth() {
+    return this.levels.length;
+  }
+  /** Open a step on top. Throws when the host refuses a panel. */
+  push(step) {
+    const panel = this.ctx.ui.openPanel({ id: `birth-${++this.serial}`, modal: true, label: `Character creation: ${STEP_LABELS[step]}` });
+    applyTheme(panel.root, this.theme);
+    const style = panel.root.ownerDocument.createElement("style");
+    style.textContent = CSS7;
+    panel.root.appendChild(style);
+    const mount = panel.root.ownerDocument.createElement("div");
+    panel.root.appendChild(mount);
+    const level = { step, panel, mount };
+    this.levels.push(level);
+    void panel.closed.then(() => this.closedElsewhere(level));
+    this.paint(level, firstFocus(step, this.wizard));
+  }
+  /** The player (Escape or the close control) or the host closed a panel. */
+  closedElsewhere(level) {
+    const index = this.levels.indexOf(level);
+    if (index < 0) return;
+    for (const above of this.levels.splice(index).slice(1)) above.panel.close();
+    if (this.wizard.finished) return;
+    if (!this.levels.length) {
+      this.dispose();
+      this.wizard.cancel();
+      return;
+    }
+    this.leaveStep();
+    this.showTop();
+  }
+  /** Draw the top step again, after the draft changed under it. */
+  showTop() {
+    const top = this.levels[this.levels.length - 1];
+    if (top) this.paint(top, firstFocus(top.step, this.wizard));
+  }
+  /** Back: close the top step and show the one under it. */
+  pop() {
+    if (this.levels.length < 2) return;
+    this.levels.pop().panel.close();
+    this.leaveStep();
+    this.showTop();
+  }
+  /** A refusal belongs to the step that caused it, so moving to another step drops it. */
+  leaveStep() {
+    this.wizard.error = "";
+  }
+  /** Close every panel; used once creation is accepted or cancelled. */
+  closeAll() {
+    for (const level of this.levels.splice(0).reverse()) level.panel.close();
+    this.dispose();
+  }
+  dispose() {
+    this.stopTheme();
+  }
+  paint(level, focus) {
+    const root = level.mount.getRootNode();
+    const active = root.activeElement;
+    const keep = focus ?? (active && level.mount.contains(active) ? active.dataset?.["focus"] : void 0);
+    const caret = !focus && active && keep && (active.tagName === "INPUT" || active.tagName === "TEXTAREA") ? [active.selectionStart, active.selectionEnd] : null;
+    level.mount.replaceChildren();
+    const isTop = this.levels[this.levels.length - 1] === level;
+    const actions = {
+      act: (change, build, next) => {
+        this.wizard.run(change, build);
+        this.paint(level, next);
+      },
+      open: (step) => {
+        this.leaveStep();
+        if (step === "race") this.wizard.start();
+        try {
+          this.push(step);
+        } catch (error) {
+          this.wizard.error = `The next step could not open: ${error instanceof Error ? error.message : String(error)}`;
+          this.paint(level);
+        }
+      },
+      back: () => {
+        if (isTop) this.pop();
+      },
+      canGoBack: this.levels.indexOf(level) > 0,
+      usePrevious: () => {
+        if (this.wizard.usePrevious() && this.wizard.accept()) {
+          this.closeAll();
+          return;
+        }
+        this.paint(level);
+      },
+      accept: () => {
+        if (this.wizard.accept()) this.closeAll();
+        else this.paint(level);
+      },
+      cancel: () => {
+        this.wizard.cancel();
+        this.closeAll();
+      },
+      repaint: (next) => this.paint(level, next),
+      expanded: this.expanded
+    };
+    renderBirthStep(level.mount, this.wizard, level.step, actions);
+    if (!keep) return;
+    const target = Array.from(level.mount.querySelectorAll("[data-focus]")).find((node2) => node2.dataset["focus"] === keep) ?? level.mount.querySelector("button:not([disabled])");
+    target?.focus();
+    if (target && caret && caret[0] !== null && typeof target.setSelectionRange === "function") target.setSelectionRange(caret[0], caret[1]);
+  }
+};
+function installBirthWizard(ctx) {
+  if (ctx.flags?.[BIRTH_FLAG] !== true) return void 0;
+  const ui = ctx.ui;
+  if (!ui) {
+    ctx.log("character creation: panel seam unavailable, so the game shows its own birth screens");
+    return void 0;
+  }
+  let live = null;
+  return {
+    show(session) {
+      live?.closeAll();
+      live = null;
+      let wizard;
+      try {
+        wizard = new BirthWizard(session);
+      } catch (error) {
+        ctx.log(`character creation: could not read the birth session (${error instanceof Error ? error.message : String(error)})`);
+        return false;
+      }
+      const previous = wizard.catalogue.previous !== null;
+      const stack = new BirthStack({ ...ctx, ui }, wizard, themeFromPrefs(ctx.prefs?.get()));
+      try {
+        stack.push(previous ? "previous" : "race");
+      } catch (error) {
+        stack.closeAll();
+        ctx.log(`character creation: could not open its window (${error instanceof Error ? error.message : String(error)}), so the game shows its own birth screens`);
+        return false;
+      }
+      try {
+        if (previous) wizard.usePrevious();
+        else wizard.start();
+        stack.showTop();
+      } catch (error) {
+        stack.closeAll();
+        ctx.log(`character creation: could not draw its first step (${error instanceof Error ? error.message : String(error)}), so the game shows its own birth screens`);
+        return false;
+      }
+      live = stack;
+      return true;
+    }
+  };
+}
+
 // plugin.ts
 var quiverDisplay;
 var tileDisplay;
@@ -8713,6 +9413,11 @@ var plugin_default = {
     quiverDisplay = void 0;
     tileDisplay = void 0;
     tileFullOverviewApplied = false;
+  },
+  /* Character creation (ui:birth.replace). Off, or without the panel seam,
+   * this returns undefined and the game shows its own birth screens. */
+  birth(ctx) {
+    return installBirthWizard(ctx);
   },
   hud(ctx) {
     characterPane?.close();

@@ -43,6 +43,7 @@ import { installEffects } from "./src/effects.js";
 import { coexistingFlags } from "./src/mod-coexistence.js";
 import { currentDriver } from "./src/input-owner.js";
 import { installChromePaint } from "./src/paint.js";
+import { installBirthWizard, type BirthPresenter, type BirthWizardContext } from "./src/menus/birth.js";
 
 /** The register callback reads a subset of the published plugin context. */
 type RegisterCtx = Pick<ModPluginContext, "id" | "engine" | "log"> & Partial<Omit<ModPluginContext, "id" | "engine" | "log" | "display">> & { readonly display?: Pick<ModDisplay, "setVisualFilter"> & Partial<Omit<ModDisplay, "setVisualFilter">> };
@@ -183,6 +184,12 @@ export default {
     quiverDisplay = undefined;
     tileDisplay = undefined;
     tileFullOverviewApplied = false;
+  },
+
+  /* Character creation (ui:birth.replace). Off, or without the panel seam,
+   * this returns undefined and the game shows its own birth screens. */
+  birth(ctx: BirthWizardContext): BirthPresenter | undefined {
+    return installBirthWizard(ctx);
   },
 
   hud(ctx: HudCtx): HudOwnership | undefined {
