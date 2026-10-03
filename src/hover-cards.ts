@@ -4,7 +4,8 @@ import { PAINT_FONT, PAINT_FONT_SIZE, PAINT_LINE_HEIGHT, paintColours } from "./
 import type { DisplaySnapshot, Point, ZoomDisplay } from "./zoom.js";
 import { pointInRect } from "./zoom.js";
 import { featureCode, landmarkKind, mapProjection } from "./map-overview.js";
-import type { Grid, MonsterRecallResult, RecallSeam, RecallSnapshot } from "./seams.js";
+import type { Grid, LoadoutSimulation, MonsterRecallResult, RecallSeam, RecallSnapshot } from "./seams.js";
+import { comparisonSummary } from "./panels/item-comparison.js";
 
 interface LookCore {
   describeLookGrid(state: unknown, grid: Point, mode: number): { text: string; mon?: { hp?: number; maxhp?: number } | null };
@@ -13,6 +14,7 @@ interface LookCore {
   squareApparentName?(state: unknown, grid: Point): string;
   squareIsSeen?(chunk: unknown, grid: Point): boolean;
   TMD?: Readonly<Record<string, number>>;
+  createAgentView?(state: unknown): { simulateLoadout?(change: { wield: readonly { from: "object"; object: never }[] }): LoadoutSimulation | null };
 }
 interface HoverContext {
   flags: Readonly<Record<string, boolean>>;
@@ -92,7 +94,12 @@ export function creatureRecall(ctx: Pick<HoverContext, "snapshot" | "inspect">, 
 
 /* describeLookGrid is the game's own knowledge-gated formatter. Reading the
  * actual chunk or a renderer tile here could disclose an unseen monster. */
-export function knownCard(core: LookCore, state: NonNullable<HoverContext["state"]>, grid: Point, map: boolean, recall?: string | null): string | null {
+/** The pickup preview's line for one object: what wearing it would change, or null. */
+export function wornLine(core: LookCore, state: unknown, object: unknown): string | null {
+  try { return comparisonSummary(core.createAgentView?.(state).simulateLoadout?.({ wield: [{ from: "object", object: object as never }] })); } catch { return null; }
+}
+
+export function knownCard(core: LookCore, state: NonNullable<HoverContext["state"]>, grid: Point, map: boolean, recall?: string | null, pickupPreview = false): string | null {
   const look = core.describeLookGrid(state, grid, 0);
   const text = look?.text?.trim();
   if (!text) return null;
@@ -120,6 +127,9 @@ export function knownCard(core: LookCore, state: NonNullable<HoverContext["state
   const visible = core.squareIsSeen?.(state.chunk, grid) ?? false;
   for (const entry of pile.slice(0, 5)) {
     lines.push(entry.sensed || !entry.obj || !core.describeObject ? "Remembered item" : `${visible ? "Ground" : "Remembered"}: ${core.describeObject(state, entry.obj)}`);
+    // Only an item in view: a remembered one may have changed or gone since it was seen.
+    const worn = pickupPreview && (visible || self) && !entry.sensed && entry.obj ? wornLine(core, state, entry.obj) : null;
+    if (worn) lines.push(`  ${worn}`);
   }
   if (pile.length > 5) lines.push("More items; use Look");
   return lines.join("\n");
@@ -177,7 +187,7 @@ export function installHoverCards(ctx: HoverContext): () => void {
     const current = resolve(point);
     if (!current || current.grid.x !== grid.x || current.grid.y !== grid.y || current.map !== map) { hide(); return; }
     if (!ctx.state) return;
-    const content = knownCard(core, ctx.state, grid, map, map ? null : creatureRecall(ctx, grid));
+    const content = knownCard(core, ctx.state, grid, map, map ? null : creatureRecall(ctx, grid), !map && ctx.flags["anybandui.itemsPickupPreview"] === true);
     if (!content) return;
     body.textContent = content;
     preview.style.display = paintPreview(display.snapshot(), grid, map, preview) ? "block" : "none";

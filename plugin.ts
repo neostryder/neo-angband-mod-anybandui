@@ -49,6 +49,9 @@ import { currentDriver } from "./src/input-owner.js";
 import { installChromePaint } from "./src/paint.js";
 import { installMenus, menuPresenter, screenPresenter } from "./src/menus/menus.js";
 import { installBirthWizard, type BirthPresenter, type BirthWizardContext } from "./src/menus/birth.js";
+import { floorObjectAt } from "./src/pickup-preview.js";
+import { installMinimapTravel } from "./src/minimap-travel.js";
+import { setThemePacks } from "./src/theme.js";
 
 /** The register callback reads a subset of the published plugin context. */
 type RegisterCtx = Pick<ModPluginContext, "id" | "engine" | "log"> & Partial<Omit<ModPluginContext, "id" | "engine" | "log" | "display">> & { readonly display?: Pick<ModDisplay, "setVisualFilter"> & Partial<Omit<ModDisplay, "setVisualFilter">> };
@@ -70,6 +73,8 @@ export default {
     this.uninstall();
     ctx.log(`AnybandUI loaded on engine ${ctx.engine}`);
     const flags = coexistingFlags(ctx.flags ?? {}, ctx.mods?.bind(ctx), ctx.log);
+    // Before anything reads the theme, so a saved pack theme draws from the first frame.
+    setThemePacks(flags["anybandui.themePacks"] === true);
     /* The listener lives here rather than in hud() so that uninstall removes
      * it. An engine without the event still redraws the badge on the next HUD
      * frame, because the badge's select reads the driver on every frame. */
@@ -90,7 +95,8 @@ export default {
       ...(ctx.snapshot ? { snapshot: ctx.snapshot } : {}), ...(ctx.inspect ? { inspect: ctx.inspect } : {}),
       ...(ctx.intent ? { intent: ctx.intent } : {}), ...(ctx.prompt ? { prompt: ctx.prompt } : {}),
       ...(ctx.ui ? { ui: ctx.ui } : {}), ...(ctx.prefs ? { prefs: ctx.prefs } : {}),
-      ...(liveCore && liveState ? { state: liveState, core: { createAgentView: () => liveCore.createAgentView(liveState), createAgentActions: () => liveCore.createAgentActions(liveState) } } : {}) };
+      ...(liveCore && liveState ? { state: liveState, core: { createAgentView: () => liveCore.createAgentView(liveState), createAgentActions: () => liveCore.createAgentActions(liveState),
+        floorObject: (grid, floorIndex) => floorObjectAt(liveCore, liveState, grid, floorIndex) } } : {}) };
     displayCleanups.push(installItems(itemContext));
     displayCleanups.push(installStores({ ...itemContext, ...(ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {}), ...(ctx.driver ? { driver: ctx.driver } : {}) }));
     displayCleanups.push(installCharacterSheet({ flags, log: ctx.log,
@@ -169,6 +175,13 @@ export default {
       ...(ctx.prompt ? { prompt: ctx.prompt } : {}),
       ...(ctx.inspect ? { inspect: ctx.inspect } : {}),
       ...(ctx.prefs ? { prefs: ctx.prefs } : {}), log: ctx.log }));
+    displayCleanups.push(installMinimapTravel({ flags,
+      ...(ctx.display?.snapshot ? { display: { snapshot: ctx.display.snapshot.bind(ctx.display) } } : {}),
+      ...(ctx.snapshot ? { snapshot: ctx.snapshot } : {}),
+      ...(ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {}),
+      ...(ctx.intent ? { intent: ctx.intent } : {}),
+      ...(ctx.prompt ? { prompt: ctx.prompt } : {}),
+      ...(ctx.driver ? { driver: ctx.driver.bind(ctx) } : {}), log: ctx.log }));
     displayCleanups.push(installPhase4({ flags, log: ctx.log,
       ...(ctx.snapshot ? { snapshot: ctx.snapshot } : {}), ...(ctx.intent ? { intent: ctx.intent } : {}),
       ...(ctx.prompt ? { prompt: ctx.prompt } : {}), ...(ctx.inspect ? { inspect: ctx.inspect } : {}),
@@ -192,6 +205,7 @@ export default {
     characterPane?.close();
     characterPane = null;
     for (const cleanup of displayCleanups.splice(0).reverse()) cleanup();
+    setThemePacks(false);
     uninstallFirstEncounter();
     uninstallAccessibilityAccommodations();
     quiverDisplay?.setQuiverItemization?.(false);

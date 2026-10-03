@@ -18,7 +18,23 @@ export const THEMES: Readonly<Record<string, Readonly<ThemeTokens>>> = {
   "light-paper": { background: "#e6e8e3ff", surface: "#fafaf2ff", text: "#1f2b2eff", accent: "#215c52ff", rounding: 8, decorations: true, invert_dungeon: false, light_styling: true },
   "amber-terminal": { background: "#110b06ff", surface: "#241910ff", text: "#f0d9a6ff", accent: "#e89e42ff", rounding: 0, decorations: true, invert_dungeon: false, light_styling: false },
   "midnight-ice": { background: "#060b17ff", surface: "#0e1b2bff", text: "#cfe6f5ff", accent: "#59c2e0ff", rounding: 7, decorations: true, invert_dungeon: false, light_styling: false },
+  // The theme packs. Linoleum draws tiles and has no panel colours of its own, so its preset is a dark, warm neutral with the cyan highlight of the game's own menus.
+  "linoleum": { background: "#0c0b0aff", surface: "#1b1915ff", text: "#e3dccbff", accent: "#5fc8c8ff", rounding: 3, decorations: true, invert_dungeon: false, light_styling: false },
+  // No paint ticks, washes or bands, and square corners: the classic terminal's grey on black.
+  "plain-terminal": { background: "#000000ff", surface: "#000000ff", text: "#c0c0c0ff", accent: "#8c8c8cff", rounding: 0, decorations: false, invert_dungeon: false, light_styling: false },
 };
+
+/** The presets the theme packs switch adds. */
+export const PACK_CHOICES = [
+  ["linoleum", "Linoleum"],
+  ["plain-terminal", "Plain terminal"],
+] as const;
+const PACK_IDS = new Set<string>(PACK_CHOICES.map(([id]) => id));
+let packsOn = false;
+
+/** Set from the theme packs switch at register time. With it off, a saved pack theme draws as the default. */
+export function setThemePacks(on: boolean): void { packsOn = on; }
+export function themePacksOn(): boolean { return packsOn; }
 
 /** A saved edit of the current theme. Absent means the named preset is in force. */
 export interface CustomTheme {
@@ -71,7 +87,7 @@ export function lightFromBackground(hex: string): boolean {
 
 /** The tokens to draw: a saved custom theme, otherwise the named preset. */
 export function resolveTheme(name: string, custom: CustomTheme | null): ThemeTokens {
-  const base = THEMES[name] ?? THEMES["terminal-original"]!;
+  const base = (PACK_IDS.has(name) && !packsOn ? undefined : THEMES[name]) ?? THEMES["terminal-original"]!;
   if (!custom) return base;
   return {
     ...base,
@@ -92,6 +108,13 @@ export const THEME_CHOICES = [
   ["amber-terminal", "Amber terminal"],
   ["midnight-ice", "Midnight / Ice"],
 ] as const;
+
+export type ThemeId = (typeof THEME_CHOICES)[number][0] | (typeof PACK_CHOICES)[number][0];
+
+/** The presets to offer: the built-in ones, and the packs while their switch is on. */
+export function themeChoices(): readonly (readonly [ThemeId, string])[] {
+  return packsOn ? [...THEME_CHOICES, ...PACK_CHOICES] : THEME_CHOICES;
+}
 
 export const CHROME = {
   padding: { window: [8, 8], frame: [7, 3], separator_text: [8, 3], cell: [6, 2] },

@@ -1,8 +1,8 @@
 import { FONT_FILES } from "./fonts.js";
-import { parseCustomTheme, resolveTheme, type CustomTheme, type ThemeTokens } from "./theme.js";
+import { parseCustomTheme, resolveTheme, type CustomTheme, type ThemeId, type ThemeTokens } from "./theme.js";
 
 export interface Settings {
-  theme: "terminal-original" | "dark-graphite" | "light-paper" | "amber-terminal" | "midnight-ice";
+  theme: ThemeId;
   customTheme: CustomTheme | null;
   interfaceFont: string;
   dungeonFont: string;
@@ -26,7 +26,8 @@ export function themeFromPrefs(raw: unknown): ThemeTokens {
 
 interface PrefsCtx { readonly prefs: { get(): unknown; set(value: unknown): void } }
 type Listener = (settings: Readonly<Settings>) => void;
-const themes = new Set<Settings["theme"]>(["terminal-original", "dark-graphite", "light-paper", "amber-terminal", "midnight-ice"]);
+// A pack theme stays saved while the packs are off, so turning them back on restores it.
+const themes = new Set<Settings["theme"]>(["terminal-original", "dark-graphite", "light-paper", "amber-terminal", "midnight-ice", "linoleum", "plain-terminal"]);
 const fonts = new Set<string>(FONT_FILES);
 
 export function validateSettings(value: unknown): Settings {
