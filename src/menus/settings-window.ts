@@ -11,7 +11,7 @@ import type { SurfaceContext } from "../panels/surface.js";
 import { STRENGTH_SETTINGS } from "../effects.js";
 import { createSettingsStore, themeFromPrefs, validateSettings, type Settings } from "../settings.js";
 import { broadcastTheme } from "../theme-editor.js";
-import { onThemeChange, THEME_CHOICES } from "../theme.js";
+import { onThemeChange, themeChoices } from "../theme.js";
 import { CONFIRM_NO, renderConfirm, type Confirmation } from "./inline-confirm.js";
 import { button, el, listStep, swallow } from "./keys.js";
 import { KEYBINDINGS_KEY } from "./keybinding-editor.js";
@@ -240,7 +240,7 @@ export function installSettingsWindow(ctx: SettingsWindowContext): () => void {
     if (info.id === "theme") {
       const presets = el(parent, "div");
       presets.className = "tabs";
-      for (const [id, label] of THEME_CHOICES) {
+      for (const [id, label] of themeChoices()) {
         const node = mark(button(presets, label, `theme:${id}`, () => { draft.theme = id; draft.keepCustom = false; note = ""; repaint(`theme:${id}`); }));
         node.setAttribute("aria-pressed", String(draft.theme === id && !draft.keepCustom));
       }

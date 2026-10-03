@@ -8,6 +8,7 @@ import { adaptItems, panelRows } from "./items.js";
 import { adaptStore } from "./stores.js";
 import { adaptSpells } from "./spells.js";
 import { creatureRecall, recallLine } from "../hover-cards.js";
+import { floorObjectAt, type FloorCore } from "../pickup-preview.js";
 import type { InputSnapshot, ItemPanelSnapshot, MessageSnapshot, RecallSnapshot } from "../seams.js";
 
 const checkout = process.env["NEO_ANGBAND_REPO"];
@@ -18,6 +19,9 @@ describe.skipIf(!checkout)("adapter over a real game", () => {
     const source = (path: string): string => pathToFileURL(join(root, "packages", "core", "src", path)).href;
     const gameModule = await import(/* @vite-ignore */ source("session/game.ts"));
     const agentModule = await import(/* @vite-ignore */ source("agent/perceive.ts"));
+    const floorCore = { ...await import(/* @vite-ignore */ source("game/floor.ts")), ...await import(/* @vite-ignore */ source("game/known.ts")) } as FloorCore;
+    const gearModule = await import(/* @vite-ignore */ source("game/gear.ts"));
+    let previewed = 0;
     const json = (name: string): unknown => JSON.parse(readFileSync(join(root, "packages", "content", "pack", `${name}.json`), "utf8"));
     const records = (name: string): unknown => (json(name) as { records: unknown[] }).records;
     const pack = {
@@ -135,9 +139,19 @@ describe.skipIf(!checkout)("adapter over a real game", () => {
         }
         const carried = captured.inventory?.[0]?.handle;
         if (carried !== undefined) { view.inspectItem?.(carried); view.compareLoadoutSlots?.({ from: "gear", handle: carried }); }
+        // The pickup preview: the object behind each floor row, then wearing an object itself.
+        const here = { x: game.state.actor.grid.x, y: game.state.actor.grid.y };
+        for (let index = 0; index < (captured.floorHere?.length ?? 0); index++) {
+          const object = floorObjectAt(floorCore, game.state, here, index);
+          if (object) view.simulateLoadout?.({ wield: [{ from: "object", object }] });
+        }
+        const worn = captured.equipment?.find((entry: { handle: number } | null) => entry !== null)?.handle;
+        const object = worn === undefined ? null : gearModule.gearGet(game.state.gear, worn);
+        if (object && view.simulateLoadout?.({ wield: [{ from: "object", object }] })) previewed++;
       }
     }
     expect(fingerprint()).toBe(before);
+    expect(previewed).toBeGreaterThan(0);
 
     // The store window inspects and compares any shelf entry, including rings
     // that fit two slots and books on a shelf. Town stores are stocked.

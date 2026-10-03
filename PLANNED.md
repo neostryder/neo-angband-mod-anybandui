@@ -153,10 +153,10 @@ The high-contrast and colourblind filters come across as their own switches, off
 
 ## Ideas past the port
 
-- **Death recap.** A timeline of the last few turns before death: who hit for how much, what was tried, what was left in the pack. It reads the combat events from seam 6 and slots into the tombstone screen.
+- **Death recap.** Built, behind `anybandui.deathRecap`. A timeline of the last few turns before death: who hit for how much, what was tried, what was left in the pack. It reads the combat events from seam 6 and slots into the tombstone screen.
 - **Floating damage numbers,** off by default, drawn from the same events.
 - **Photo mode.** Hide every panel, keep the free camera and effects, and save a screenshot, for sharing a character or a death.
-- **Minimap travel.** Click anywhere on the remembered level in the map overview to walk there, using the game's own pathing and stopping on disturbance the way running does.
-- **Pickup previews.** Hovering a floor item shows the comparison table against what you are wearing, before you pick it up.
+- **Minimap travel.** Built, behind `anybandui.minimapTravel`. Click anywhere on the remembered level in the map overview to walk there, using the game's own pathing and stopping on disturbance the way running does.
+- **Pickup previews.** Built, behind `anybandui.itemsPickupPreview`. Hovering a floor item shows the comparison table against what you are wearing, before you pick it up.
 - **Inscription and ignore rules as a panel.** A visual editor for the game's inscriptions and quality ignore settings, behind the existing "Item rules" button.
-- **Theme packs.** Palettes and panel chrome as data, including a Linoleum-matched theme and a plain terminal theme for veterans who want the new controls without the new look.
+- **Theme packs.** The two named presets are built, behind `anybandui.themePacks`; loading palettes and chrome from data is still to come. Palettes and panel chrome as data, including a Linoleum-matched theme and a plain terminal theme for veterans who want the new controls without the new look.

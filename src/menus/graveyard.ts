@@ -12,6 +12,7 @@ import { renderCharacterSheet, SHEET_PAGES } from "../panels/character-sheet.js"
 import { button, el, formatWhen, matches, metric, openDialog, stepFocus, type DialogContext } from "./dialog.js";
 import { createJournalView, endingEntry, endingText, journalFromHistory, JOURNAL_CSS, newJournalFilter, type JournalEntry } from "./journal.js";
 import { readDepthMarks, type CharacterStoreSeam, type CreateSeam } from "./run-journal.js";
+import { readRecap, RECAP_CSS, renderRecap, type DeathRecap } from "./death-recap.js";
 
 export const GRAVEYARD_KEY = "graveyard";
 export const MAX_RECORDS = 20;
@@ -22,6 +23,8 @@ export interface StoredRun {
   readonly id: string;
   readonly report: RunReport;
   readonly journal: readonly JournalEntry[] | null;
+  /** The death recap, kept when that switch was on at the death. */
+  readonly recap?: DeathRecap | null;
 }
 
 export interface PrefsSeam {
@@ -95,9 +98,9 @@ export function archiveRun(prefs: PrefsSeam | undefined, record: StoredRun): boo
   }
 }
 
-export function recordFor(report: RunReport, store?: CharacterStoreSeam): StoredRun {
+export function recordFor(report: RunReport, store?: CharacterStoreSeam, recap?: DeathRecap | null): StoredRun {
   const journal = [...journalFromHistory(report.history, readDepthMarks(store)), endingEntry(report)];
-  return { id: runId(report), report, journal };
+  return recap ? { id: runId(report), report, journal, recap } : { id: runId(report), report, journal };
 }
 
 export interface GraveyardContext extends DialogContext {
@@ -116,6 +119,7 @@ const UNREADABLE = "Some run records could not be read. They have been left unto
 const NOT_ARCHIVED = "This run could not be added to the graveyard. Its summary is still available here.";
 
 const CSS = `${JOURNAL_CSS}
+${RECAP_CSS}
 .graveyard-head{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:6px}
 .runs button{background:none;border:none;padding:0;text-align:left;width:100%}
 .runs button:focus-visible{outline:2px solid var(--anyband-accent)}
@@ -138,6 +142,11 @@ export function runLabel(report: Pick<RunReport, "name" | "race" | "cls">): stri
 }
 
 const POST_MORTEM_PAGES = ["Final moments", "Journal", "Final belongings", "Character sheet"] as const;
+
+/** The post-mortem's pages: a stored death recap comes first. */
+export function postMortemPages(record: Pick<StoredRun, "recap">): string[] {
+  return readRecap(record.recap) ? ["Recap", ...POST_MORTEM_PAGES] : [...POST_MORTEM_PAGES];
+}
 
 function locationLabel(location: string): string {
   return location ? location[0]!.toUpperCase() + location.slice(1) : "";
@@ -180,12 +189,16 @@ export function openPostMortem(ctx: GraveyardContext, record: StoredRun, options
   const tabButtons: HTMLButtonElement[] = [];
   let sheetPage = 0;
   const journalFilter = newJournalFilter();
+  const pages = postMortemPages(record);
+  const recap = readRecap(record.recap);
   const show = (index: number, moveFocus = false): void => {
     tabButtons.forEach((tab, at) => tab.setAttribute("aria-selected", String(at === index)));
     if (moveFocus) tabButtons[index]?.focus();
     page.replaceChildren();
-    const name = POST_MORTEM_PAGES[index];
-    if (name === "Final moments") {
+    const name = pages[index];
+    if (name === "Recap" && recap) {
+      renderRecap(page, recap);
+    } else if (name === "Final moments") {
       const moments = el(page, "div", undefined, "moments");
       // Newest first, so the fatal message is at the top (run_history.h:92).
       const messages = [...report.messages].reverse();
@@ -207,7 +220,7 @@ export function openPostMortem(ctx: GraveyardContext, record: StoredRun, options
       draw();
     }
   };
-  POST_MORTEM_PAGES.forEach((name, index) => {
+  pages.forEach((name, index) => {
     const tab = button(tabs, name, () => show(index), `post-mortem-tab-${index}`);
     tab.setAttribute("role", "tab");
     tabButtons.push(tab);
@@ -320,14 +333,16 @@ export function openGraveyard(ctx: GraveyardContext, backLabel = "Back to charac
  * Archive each run as it ends and open its post-mortem, and add a Graveyard row
  * to the title screen. Off, nothing listens and the title is unchanged.
  */
-export function installGraveyard(ctx: GraveyardContext): () => void {
+export function installGraveyard(ctx: GraveyardContext, recapFor?: (report: RunReport) => DeathRecap | null): () => void {
   if (ctx.flags?.["anybandui.graveyard"] !== true) return () => {};
   const cleanups: Array<() => void> = [];
   const character = ctx.character;
   if (character?.onRunEnd) {
     try {
       cleanups.push(character.onRunEnd((report) => {
-        const record = recordFor(report, ctx.characterStore);
+        let recap: DeathRecap | null = null;
+        try { recap = recapFor?.(report) ?? null; } catch (error) { ctx.log(`graveyard: death recap failed (${String(error)})`); }
+        const record = recordFor(report, ctx.characterStore, recap);
         const stored = archiveRun(ctx.prefs, record);
         void openPostMortem(ctx, record, { archived: false, notArchived: !stored });
       }));

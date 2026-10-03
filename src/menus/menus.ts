@@ -4,22 +4,27 @@
  */
 import type { MenuPresenter } from "@rpgm-tools/neo-angband-mod-sdk";
 import { installYesNoPrompts, type YesNoContext } from "./confirm.js";
+import { installDeathRecap, type DeathRecapContext } from "./death-recap.js";
 import { installGraveyard, openGraveyard, type GraveyardContext } from "./graveyard.js";
 import { hallOfFamePart, type ScreenPart } from "./hall-of-fame.js";
 import { composeMenus, composeScreens } from "./presenters.js";
 import { installDepthRecorder, installRunJournal, type RunJournalContext } from "./run-journal.js";
 import { saveCardsPart, type SaveCardsContext } from "./save-cards.js";
 
-export type MenusContext = YesNoContext & RunJournalContext & GraveyardContext & SaveCardsContext;
+export type MenusContext = YesNoContext & RunJournalContext & GraveyardContext & SaveCardsContext & DeathRecapContext;
 
-/** The register-time pieces: the Yes/No prompts, the run journal, the depth recorder and the graveyard. */
+/** The register-time pieces: the Yes/No prompts, the run journal, the depth recorder, the death recap and the graveyard. */
 export function installMenus(ctx: MenusContext): () => void {
   const flags = ctx.flags ?? {};
   const cleanups: Array<() => void> = [];
   cleanups.push(installYesNoPrompts(ctx));
-  if (flags["anybandui.runJournal"] === true || flags["anybandui.graveyard"] === true) cleanups.push(installDepthRecorder(ctx));
+  const graveyard = flags["anybandui.graveyard"] === true;
+  if (flags["anybandui.runJournal"] === true || graveyard || flags["anybandui.deathRecap"] === true) cleanups.push(installDepthRecorder(ctx));
   cleanups.push(installRunJournal(ctx));
-  cleanups.push(installGraveyard(ctx));
+  // With the graveyard on, the recap is a page of its post-mortem rather than a dialog of its own.
+  const recap = installDeathRecap(ctx, !graveyard);
+  cleanups.push(recap.cleanup);
+  cleanups.push(installGraveyard(ctx, recap.recap));
   return () => { for (const cleanup of cleanups.splice(0).reverse()) cleanup(); };
 }
 

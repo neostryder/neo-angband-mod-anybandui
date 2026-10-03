@@ -6,7 +6,7 @@ import type { ModDisplay } from "@rpgm-tools/neo-angband-core";
 import { installAccessibilityAccommodations } from "./accessibility.js";
 import { chromeThemeFor } from "./paint.js";
 import { createSettingsStore, themeFromPrefs, type Settings } from "./settings.js";
-import { applyTheme, normalizeColour, normalizeRounding, notifyThemeChange, THEME_CHOICES, THEMES, type CustomTheme, type ThemeTokens } from "./theme.js";
+import { applyTheme, normalizeColour, normalizeRounding, notifyThemeChange, themeChoices, THEMES, type CustomTheme, type ThemeTokens } from "./theme.js";
 import { openSurfaces, type SurfaceContext } from "./panels/surface.js";
 import { registerOpener } from "./menus/openers.js";
 
@@ -77,7 +77,7 @@ export function renderThemeEditor(parent: HTMLElement, draft: ThemeDraft, note: 
   el(parent, "h2", "Theme");
   const presets = el(parent, "div");
   presets.className = "tabs";
-  for (const [id, label] of THEME_CHOICES) {
+  for (const [id, label] of themeChoices()) {
     const button = el(presets, "button", label) as HTMLButtonElement;
     button.type = "button";
     button.setAttribute("aria-pressed", String(draft.preset === id && !draft.invert_dungeon && draft.rounding === THEMES[id]!.rounding && draft.background === THEMES[id]!.background));

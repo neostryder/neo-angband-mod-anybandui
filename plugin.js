@@ -1101,8 +1101,21 @@ var THEMES = {
   "dark-graphite": { background: "#0e0f13ff", surface: "#1f2129ff", text: "#d9e3dbff", accent: "#9cadd9ff", rounding: 5, decorations: true, invert_dungeon: false, light_styling: false },
   "light-paper": { background: "#e6e8e3ff", surface: "#fafaf2ff", text: "#1f2b2eff", accent: "#215c52ff", rounding: 8, decorations: true, invert_dungeon: false, light_styling: true },
   "amber-terminal": { background: "#110b06ff", surface: "#241910ff", text: "#f0d9a6ff", accent: "#e89e42ff", rounding: 0, decorations: true, invert_dungeon: false, light_styling: false },
-  "midnight-ice": { background: "#060b17ff", surface: "#0e1b2bff", text: "#cfe6f5ff", accent: "#59c2e0ff", rounding: 7, decorations: true, invert_dungeon: false, light_styling: false }
+  "midnight-ice": { background: "#060b17ff", surface: "#0e1b2bff", text: "#cfe6f5ff", accent: "#59c2e0ff", rounding: 7, decorations: true, invert_dungeon: false, light_styling: false },
+  // The theme packs. Linoleum draws tiles and has no panel colours of its own, so its preset is a dark, warm neutral with the cyan highlight of the game's own menus.
+  "linoleum": { background: "#0c0b0aff", surface: "#1b1915ff", text: "#e3dccbff", accent: "#5fc8c8ff", rounding: 3, decorations: true, invert_dungeon: false, light_styling: false },
+  // No paint ticks, washes or bands, and square corners: the classic terminal's grey on black.
+  "plain-terminal": { background: "#000000ff", surface: "#000000ff", text: "#c0c0c0ff", accent: "#8c8c8cff", rounding: 0, decorations: false, invert_dungeon: false, light_styling: false }
 };
+var PACK_CHOICES = [
+  ["linoleum", "Linoleum"],
+  ["plain-terminal", "Plain terminal"]
+];
+var PACK_IDS = new Set(PACK_CHOICES.map(([id]) => id));
+var packsOn = false;
+function setThemePacks(on) {
+  packsOn = on;
+}
 var COLOUR = /^#([0-9a-f]{6}|[0-9a-f]{8})$/i;
 function normalizeColour(value2) {
   const match = COLOUR.exec(value2.trim());
@@ -1135,7 +1148,7 @@ function lightFromBackground(hex2) {
   return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255 > 0.5;
 }
 function resolveTheme(name, custom) {
-  const base = THEMES[name] ?? THEMES["terminal-original"];
+  const base = (PACK_IDS.has(name) && !packsOn ? void 0 : THEMES[name]) ?? THEMES["terminal-original"];
   if (!custom) return base;
   return {
     ...base,
@@ -1155,6 +1168,9 @@ var THEME_CHOICES = [
   ["amber-terminal", "Amber terminal"],
   ["midnight-ice", "Midnight / Ice"]
 ];
+function themeChoices() {
+  return packsOn ? [...THEME_CHOICES, ...PACK_CHOICES] : THEME_CHOICES;
+}
 var CHROME = {
   padding: { window: [8, 8], frame: [7, 3], separator_text: [8, 3], cell: [6, 2] },
   spacing: { item: [7, 4], item_inner: [5, 4] },
@@ -1446,7 +1462,7 @@ function themeFromPrefs(raw) {
   const settings = validateSettings(raw);
   return resolveTheme(settings.theme, settings.customTheme);
 }
-var themes = /* @__PURE__ */ new Set(["terminal-original", "dark-graphite", "light-paper", "amber-terminal", "midnight-ice"]);
+var themes = /* @__PURE__ */ new Set(["terminal-original", "dark-graphite", "light-paper", "amber-terminal", "midnight-ice", "linoleum", "plain-terminal"]);
 var fonts = new Set(FONT_FILES);
 function validateSettings(value2) {
   const record2 = value2 !== null && typeof value2 === "object" && !Array.isArray(value2) ? value2 : {};
@@ -3821,6 +3837,97 @@ function installMapOverview(ctx) {
   };
 }
 
+// src/panels/item-comparison.ts
+var METRICS = [["speed", "Speed", 1], ["ac", "Armour", 1], ["toH", "To hit", 1], ["toD", "To damage", 1], ["blows", "Blows", 100], ["shots", "Shots", 10], ["maxHp", "Max HP", 1], ["maxSp", "Max SP", 1], ["totalWeight", "Weight", 10]];
+var tip = "Whole-character preview. The replaced item stays in your pack; an item from outside your belongings adds its weight.";
+function readableFlag(flag) {
+  const words = flag.replace(/^(OF|OBJ_MOD|ELEM)_/, "").replaceAll("_", " ").toLowerCase();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+function el(parent, tag, value2) {
+  const node2 = parent.ownerDocument.createElement(tag);
+  if (value2 !== void 0) node2.textContent = value2;
+  parent.appendChild(node2);
+  return node2;
+}
+function comparisonSummary(sim) {
+  if (!sim || sim.unresolved.length || !sim.placements.length) return null;
+  const parts = [];
+  for (const [key, label2, scale] of METRICS) {
+    if (key === "totalWeight") continue;
+    const delta = sim.after.stats[key] - sim.before.stats[key];
+    if (delta) parts.push(`${label2} ${delta > 0 ? "+" : ""}${delta / scale}`);
+  }
+  for (const [index, name] of ["STR", "INT", "WIS", "DEX", "CON"].entries()) {
+    const before = sim.before.stats.statUse[index], after = sim.after.stats.statUse[index];
+    if (before !== void 0 && after !== void 0 && after !== before) parts.push(`${name} ${after > before ? "+" : ""}${after - before}`);
+  }
+  return parts.length ? `If worn: ${parts.join(", ")}` : "If worn: no change to known stats";
+}
+function slotOptionLabel(name, displaced) {
+  const slot = name ? name.charAt(0).toUpperCase() + name.slice(1) : "Slot";
+  return `${slot}: ${displaced ?? "empty"}`;
+}
+function renderItemComparison(parent, sim, unchanged, toggle, choice) {
+  if (sim.unresolved.length) return;
+  const details = el(parent, "details");
+  details.open = true;
+  el(details, "summary", "Equipment comparison");
+  if (!sim.placements.length) {
+    el(details, "p", "No compatible equipment slot.");
+    return;
+  }
+  if (choice && choice.options.length > 1) {
+    const label2 = el(details, "label", "Replace slot ");
+    const select = el(label2, "select");
+    for (const option of choice.options) {
+      const entry2 = el(select, "option", option.label);
+      entry2.value = String(option.slot);
+      entry2.selected = option.slot === choice.chosen;
+    }
+    select.addEventListener("change", () => choice.choose(Number(select.value)));
+  }
+  const placement = (choice ? sim.placements.find((entry2) => entry2.slot === choice.chosen) : void 0) ?? sim.placements[0];
+  el(details, "p", `Replacing: ${placement.displaced?.label ?? "empty slot"}`);
+  el(details, "p", "Known properties only; unidentified effects may differ.");
+  const checkbox = el(details, "input");
+  checkbox.type = "checkbox";
+  checkbox.checked = unchanged;
+  checkbox.addEventListener("change", () => toggle(checkbox.checked));
+  el(details, "span", " Show unchanged stats");
+  const table = el(details, "table");
+  const head = el(table, "tr");
+  for (const label2 of ["Stat", "Current", "Selected", "Change"]) el(head, "th", label2);
+  for (const [key, label2, scale] of METRICS) {
+    const before = sim.before.stats[key];
+    const after = sim.after.stats[key];
+    const delta = after - before;
+    if (!unchanged && !delta && !["speed", "ac", "blows"].includes(key)) continue;
+    const row = el(table, "tr");
+    const name = el(row, "td", label2);
+    name.title = tip;
+    el(row, "td", String(before / scale));
+    el(row, "td", String(after / scale));
+    const change = el(row, "td", delta ? `${delta > 0 ? "+" : ""}${delta / scale}` : "-");
+    change.className = delta === 0 ? "muted" : key === "totalWeight" ? delta < 0 ? "gain" : "loss" : delta > 0 ? "gain" : "loss";
+  }
+  for (const [index, name] of ["STR", "INT", "WIS", "DEX", "CON"].entries()) {
+    const before = sim.before.stats.statUse[index], after = sim.after.stats.statUse[index];
+    if (before === void 0 || after === void 0 || !unchanged && before === after) continue;
+    const row = el(table, "tr");
+    for (const value2 of [name, String(before), String(after), after === before ? "-" : `${after > before ? "+" : ""}${after - before}`]) el(row, "td", value2);
+  }
+  el(details, "h4", "Resistances and abilities");
+  sim.after.stats.resists.forEach((after, index) => {
+    const before = sim.before.stats.resists[index] ?? 0;
+    if (unchanged || after !== before) el(details, "div", `${sim.after.stats.resistElements[index] ?? `Element ${index + 1}`}: ${before} to ${after}`);
+  });
+  for (const flag of /* @__PURE__ */ new Set([...sim.before.stats.objectFlags, ...sim.after.stats.objectFlags])) {
+    const before = sim.before.stats.objectFlags.includes(flag), after = sim.after.stats.objectFlags.includes(flag);
+    if (unchanged || before !== after) el(details, "div", `${readableFlag(flag)}: ${before ? "Yes" : "No"} to ${after ? "Yes" : "No"}`);
+  }
+}
+
 // src/hover-cards.ts
 function hoverGrid(snapshot, point) {
   const rect = mapProjection(snapshot);
@@ -3869,7 +3976,14 @@ function creatureRecall(ctx, grid) {
     return null;
   }
 }
-function knownCard(core, state, grid, map, recall) {
+function wornLine(core, state, object) {
+  try {
+    return comparisonSummary(core.createAgentView?.(state).simulateLoadout?.({ wield: [{ from: "object", object }] }));
+  } catch {
+    return null;
+  }
+}
+function knownCard(core, state, grid, map, recall, pickupPreview = false) {
   const look = core.describeLookGrid(state, grid, 0);
   const text = look?.text?.trim();
   if (!text) return null;
@@ -3898,6 +4012,8 @@ function knownCard(core, state, grid, map, recall) {
   const visible = core.squareIsSeen?.(state.chunk, grid) ?? false;
   for (const entry2 of pile.slice(0, 5)) {
     lines.push(entry2.sensed || !entry2.obj || !core.describeObject ? "Remembered item" : `${visible ? "Ground" : "Remembered"}: ${core.describeObject(state, entry2.obj)}`);
+    const worn = pickupPreview && (visible || self) && !entry2.sensed && entry2.obj ? wornLine(core, state, entry2.obj) : null;
+    if (worn) lines.push(`  ${worn}`);
   }
   if (pile.length > 5) lines.push("More items; use Look");
   return lines.join("\n");
@@ -3980,7 +4096,7 @@ function installHoverCards(ctx) {
       return;
     }
     if (!ctx.state) return;
-    const content = knownCard(core, ctx.state, grid, map, map ? null : creatureRecall(ctx, grid));
+    const content = knownCard(core, ctx.state, grid, map, map ? null : creatureRecall(ctx, grid), !map && ctx.flags["anybandui.itemsPickupPreview"] === true);
     if (!content) return;
     body.textContent = content;
     preview.style.display = paintPreview(display.snapshot(), grid, map, preview) ? "block" : "none";
@@ -4881,83 +4997,6 @@ function inspectionBlocks(result) {
   return blocks;
 }
 
-// src/panels/item-comparison.ts
-var METRICS = [["speed", "Speed", 1], ["ac", "Armour", 1], ["toH", "To hit", 1], ["toD", "To damage", 1], ["blows", "Blows", 100], ["shots", "Shots", 10], ["maxHp", "Max HP", 1], ["maxSp", "Max SP", 1], ["totalWeight", "Weight", 10]];
-var tip = "Whole-character preview. The replaced item stays in your pack; an item from outside your belongings adds its weight.";
-function readableFlag(flag) {
-  const words = flag.replace(/^(OF|OBJ_MOD|ELEM)_/, "").replaceAll("_", " ").toLowerCase();
-  return words.charAt(0).toUpperCase() + words.slice(1);
-}
-function el(parent, tag, value2) {
-  const node2 = parent.ownerDocument.createElement(tag);
-  if (value2 !== void 0) node2.textContent = value2;
-  parent.appendChild(node2);
-  return node2;
-}
-function slotOptionLabel(name, displaced) {
-  const slot = name ? name.charAt(0).toUpperCase() + name.slice(1) : "Slot";
-  return `${slot}: ${displaced ?? "empty"}`;
-}
-function renderItemComparison(parent, sim, unchanged, toggle, choice) {
-  if (sim.unresolved.length) return;
-  const details = el(parent, "details");
-  details.open = true;
-  el(details, "summary", "Equipment comparison");
-  if (!sim.placements.length) {
-    el(details, "p", "No compatible equipment slot.");
-    return;
-  }
-  if (choice && choice.options.length > 1) {
-    const label2 = el(details, "label", "Replace slot ");
-    const select = el(label2, "select");
-    for (const option of choice.options) {
-      const entry2 = el(select, "option", option.label);
-      entry2.value = String(option.slot);
-      entry2.selected = option.slot === choice.chosen;
-    }
-    select.addEventListener("change", () => choice.choose(Number(select.value)));
-  }
-  const placement = (choice ? sim.placements.find((entry2) => entry2.slot === choice.chosen) : void 0) ?? sim.placements[0];
-  el(details, "p", `Replacing: ${placement.displaced?.label ?? "empty slot"}`);
-  el(details, "p", "Known properties only; unidentified effects may differ.");
-  const checkbox = el(details, "input");
-  checkbox.type = "checkbox";
-  checkbox.checked = unchanged;
-  checkbox.addEventListener("change", () => toggle(checkbox.checked));
-  el(details, "span", " Show unchanged stats");
-  const table = el(details, "table");
-  const head = el(table, "tr");
-  for (const label2 of ["Stat", "Current", "Selected", "Change"]) el(head, "th", label2);
-  for (const [key, label2, scale] of METRICS) {
-    const before = sim.before.stats[key];
-    const after = sim.after.stats[key];
-    const delta = after - before;
-    if (!unchanged && !delta && !["speed", "ac", "blows"].includes(key)) continue;
-    const row = el(table, "tr");
-    const name = el(row, "td", label2);
-    name.title = tip;
-    el(row, "td", String(before / scale));
-    el(row, "td", String(after / scale));
-    const change = el(row, "td", delta ? `${delta > 0 ? "+" : ""}${delta / scale}` : "-");
-    change.className = delta === 0 ? "muted" : key === "totalWeight" ? delta < 0 ? "gain" : "loss" : delta > 0 ? "gain" : "loss";
-  }
-  for (const [index, name] of ["STR", "INT", "WIS", "DEX", "CON"].entries()) {
-    const before = sim.before.stats.statUse[index], after = sim.after.stats.statUse[index];
-    if (before === void 0 || after === void 0 || !unchanged && before === after) continue;
-    const row = el(table, "tr");
-    for (const value2 of [name, String(before), String(after), after === before ? "-" : `${after > before ? "+" : ""}${after - before}`]) el(row, "td", value2);
-  }
-  el(details, "h4", "Resistances and abilities");
-  sim.after.stats.resists.forEach((after, index) => {
-    const before = sim.before.stats.resists[index] ?? 0;
-    if (unchanged || after !== before) el(details, "div", `${sim.after.stats.resistElements[index] ?? `Element ${index + 1}`}: ${before} to ${after}`);
-  });
-  for (const flag of /* @__PURE__ */ new Set([...sim.before.stats.objectFlags, ...sim.after.stats.objectFlags])) {
-    const before = sim.before.stats.objectFlags.includes(flag), after = sim.after.stats.objectFlags.includes(flag);
-    if (unchanged || before !== after) el(details, "div", `${readableFlag(flag)}: ${before ? "Yes" : "No"} to ${after ? "Yes" : "No"}`);
-  }
-}
-
 // src/panels/equipment-portrait.ts
 var ANCHORS = [
   { slot: "head", label: "Head", right: false, row: 0, x: 8, y: 1 },
@@ -5073,6 +5112,44 @@ function renderEquipmentPortrait(parent, slots, worn, selectedKey, onSelect) {
   });
 }
 
+// src/pickup-preview.ts
+function floorObjectAt(core, state, grid, floorIndex) {
+  if (!Number.isInteger(floorIndex) || floorIndex < 0) return null;
+  try {
+    const listed = core.floorPile(state, grid).filter((obj) => {
+      const memory = core.knownFloorObject(state, grid, obj);
+      return !!memory && !memory.sensed;
+    });
+    return listed[floorIndex] ?? null;
+  } catch {
+    return null;
+  }
+}
+function previewFloorItem(ctx, token, grid, floorIndex) {
+  const before = ctx.snapshot?.();
+  if (!before || before.token.epoch !== token.epoch || before.token.revision !== token.revision) return null;
+  let object = null;
+  try {
+    object = ctx.core?.floorObject?.(grid, floorIndex) ?? null;
+  } catch {
+    object = null;
+  }
+  if (!object || !ctx.core?.createAgentView || !ctx.state) return null;
+  let sim = null;
+  try {
+    sim = ctx.core.createAgentView(ctx.state).simulateLoadout?.({ wield: [{ from: "object", object }] }) ?? null;
+  } catch {
+    sim = null;
+  }
+  return sim && !sim.unresolved.length && sim.placements.length ? sim : null;
+}
+function carriedCount(model, item) {
+  return [...model.rows, ...model.quiver ?? []].filter((row) => row.family === item.family).reduce((sum, row) => sum + row.quantity, 0);
+}
+function carriedText(count) {
+  return count === 0 ? "You carry none of these." : count === 1 ? "You already carry one of these." : `You already carry ${count} of these.`;
+}
+
 // src/panels/items.ts
 var CSS2 = `:host{color:var(--anyband-text);font:var(--anyband-font-size)/var(--anyband-line) var(--anyband-font)}.items{position:absolute;right:12px;top:12px;width:min(440px,44vw);max-height:calc(100vh - 24px);overflow:auto;padding:10px;background:var(--anyband-surface);border:1px solid var(--anyband-accent);border-radius:var(--anyband-rounding);pointer-events:auto}button,input,select{font:inherit;color:var(--anyband-text);background:var(--anyband-background);border:1px solid var(--anyband-accent);border-radius:3px;padding:3px 5px}button{cursor:pointer}button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--anyband-accent)}input[type=search]{width:100%}.tabs,.actions,.quick{display:flex;gap:5px;flex-wrap:wrap;margin:6px 0}table{width:100%;border-collapse:collapse}th{text-align:left;position:sticky;top:0;background:var(--anyband-surface)}td,th{padding:3px;border-bottom:1px solid var(--anyband-accent)}tr.new{background:#437d5541}tr.chosen{outline:1px solid var(--anyband-accent)}.row{width:100%;text-align:left;border:0;background:transparent}details{margin:8px 0}summary{color:var(--anyband-accent);cursor:pointer;font-weight:bold}.muted{opacity:.65}.gain{color:#80b891}.loss{color:#ff7559}.error{color:#ff7559}.prompt{border:1px solid var(--anyband-accent);padding:8px;margin:8px 0}.rule{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;padding:3px 0;border-bottom:1px solid var(--anyband-accent)}.rule .name{flex:1 1 12em}.rule input[type=text]{width:9em}.info{white-space:pre-wrap;margin:4px 0}summary.lead{font-weight:normal;color:inherit}.portrait .body{display:grid;grid-template-columns:minmax(8em,auto) auto minmax(8em,auto);align-items:center;column-gap:8px;margin:8px 0}.portrait .figure{grid-column:2;grid-row:1 / span 6;margin:0;white-space:pre;font:inherit}.portrait .left{grid-column:1;justify-self:end;text-align:right}.portrait .right{grid-column:3;justify-self:start;text-align:left}.slotcard{display:flex;flex-direction:column;gap:2px;max-width:14em}.portrait .extras{margin-top:8px}`;
 var ACTIONS = ["wield", "takeoff", "drop", "inscribe", "use"];
@@ -5144,6 +5221,7 @@ function installItems(ctx) {
   const drafts = /* @__PURE__ */ new Map();
   const folded = /* @__PURE__ */ new Set();
   const enabled = (name) => flags[`anybandui.items${name}`] === true;
+  const preview = enabled("PickupPreview");
   const read = () => {
     const snap = ctx.snapshot?.();
     return snap?.core ? adaptItems(snap) : null;
@@ -5459,8 +5537,17 @@ function installItems(ctx) {
       }
     });
   };
+  const showPickupPreview = (model, item) => {
+    if (!preview || item.location !== "floor" || item.floorIndex === void 0 || !model.player) return;
+    el3(mount, "p", carriedText(carriedCount(model, item))).className = "muted";
+    const sim = previewFloorItem(ctx, model.token, model.player, item.floorIndex);
+    if (sim) renderItemComparison(mount, sim, unchanged, (value2) => {
+      unchanged = value2;
+      paint(true);
+    });
+  };
   const showInspection = (model, item) => {
-    if (!enabled("Inspection")) return;
+    if (!enabled("Inspection") && !(preview && item.location === "floor")) return;
     const ref = inspectRef(model, item);
     const inspection = ref === null ? null : ctx.inspect?.inspectItem(ref);
     if (!inspection || !same(inspection.token, model.token)) return;
@@ -5490,6 +5577,7 @@ function installItems(ctx) {
     b.style.color = item.colour;
     b.setAttribute("aria-pressed", String(selected === item.key));
     b.title = [badge === "NEW" ? "Newly acquired" : badge ? `${badge.slice(1)} acquired` : "", item.inscription ? `Inscription: ${item.inscription}` : ""].filter(Boolean).join("\n");
+    return b;
   };
   const paint = (force = false) => {
     if (closed) return;
@@ -5531,16 +5619,18 @@ function installItems(ctx) {
     if (enabled("Highlights")) changes.update(model);
     showPrompt(model);
     showRules(model);
-    if (!enabled("Lists") && !portraitOn) return;
-    if (enabled("Lists") && model.floor?.length) {
+    if (!enabled("Lists") && !portraitOn && !preview) return;
+    if ((enabled("Lists") || preview) && model.floor?.length) {
       el3(mount, "h3", "On this tile");
       const table = el3(mount, "table");
       const head = el3(table, "tr");
       for (const name of ["Item", "Qty"]) el3(head, "th", name);
       for (const item2 of model.floor) {
         const row = el3(table, "tr");
-        itemButton(el3(row, "td"), item2, null);
+        const b = itemButton(el3(row, "td"), item2, null);
         el3(row, "td", String(item2.quantity));
+        const worn = preview && model.player && item2.floorIndex !== void 0 ? comparisonSummary(previewFloorItem(ctx, model.token, model.player, item2.floorIndex)) : null;
+        if (worn) b.title = [b.title, worn].filter(Boolean).join("\n");
       }
     }
     if (enabled("Lists")) {
@@ -5637,6 +5727,7 @@ function installItems(ctx) {
         }
       }
       showComparison(model, item);
+      showPickupPreview(model, item);
       showInspection(model, item);
     } else if (showFigure && selected?.startsWith("empty:")) {
       el3(mount, "h3", "Inspection");
@@ -5947,7 +6038,7 @@ function renderThemeEditor(parent, draft, note, onPreview, onRebuild, onSave, on
   el5(parent, "h2", "Theme");
   const presets = el5(parent, "div");
   presets.className = "tabs";
-  for (const [id, label2] of THEME_CHOICES) {
+  for (const [id, label2] of themeChoices()) {
     const button7 = el5(presets, "button", label2);
     button7.type = "button";
     button7.setAttribute("aria-pressed", String(draft.preset === id && !draft.invert_dungeon && draft.rounding === THEMES[id].rounding && draft.background === THEMES[id].background));
@@ -8283,7 +8374,7 @@ function installSettingsWindow(ctx) {
     if (info.id === "theme") {
       const presets = el6(parent, "div");
       presets.className = "tabs";
-      for (const [id, label2] of THEME_CHOICES) {
+      for (const [id, label2] of themeChoices()) {
         const node2 = mark(button2(presets, label2, `theme:${id}`, () => {
           draft.theme = id;
           draft.keepCustom = false;
@@ -10447,6 +10538,176 @@ function installRunJournal(ctx) {
   };
 }
 
+// src/menus/death-recap.ts
+var BLOW_BUFFER = 40;
+var RECAP_BLOWS = 8;
+var RECAP_MESSAGES = 6;
+var RECAP_MILESTONES = 4;
+function attackerName(attacker, kind, snapshot) {
+  if (attacker === "player") return "You";
+  if (attacker === null) return kind === "trap" ? "A trap" : "Something unseen";
+  const monster = snapshot?.core?.monsters?.find((entry2) => entry2.id === attacker);
+  return monster?.visible && monster.race ? monster.race : "Something unseen";
+}
+function createBlowLog(snapshot, limit = BLOW_BUFFER) {
+  const kept = [];
+  const push = (blow) => {
+    kept.push(blow);
+    if (kept.length > limit) kept.splice(0, kept.length - limit);
+  };
+  return {
+    combat(payload) {
+      if (!payload || payload.target !== "player") return;
+      let snap = null;
+      if (typeof payload.attacker === "number") {
+        try {
+          snap = snapshot();
+        } catch {
+          snap = null;
+        }
+      }
+      push({ by: attackerName(payload.attacker, payload.kind, snap), kind: payload.kind, hit: payload.hit === true, amount: Math.max(0, Math.round(payload.damage || 0)) });
+    },
+    heal(payload) {
+      if (!payload || payload.who !== "player" || !(payload.amount > 0)) return;
+      push({ by: "You", kind: "heal", hit: true, amount: Math.round(payload.amount) });
+    },
+    entries: () => [...kept],
+    clear: () => {
+      kept.length = 0;
+    }
+  };
+}
+function buildRecap(report, blows, depthStore, driver) {
+  if (report.outcome !== "death") return null;
+  const journal = journalFromHistory(report.history, readDepthMarks(depthStore)).filter((entry2) => entry2.kind !== "other");
+  return {
+    v: 1,
+    killer: report.cause,
+    depth: report.depth,
+    maxDepth: report.maxDepth,
+    level: report.level,
+    turn: report.turn,
+    blows: blows.slice(-RECAP_BLOWS),
+    messages: report.messages.slice(-RECAP_MESSAGES).map((message) => message.count > 1 ? `${message.text} (x${message.count})` : message.text),
+    milestones: journal.slice(-RECAP_MILESTONES),
+    driver: driver?.kind === "controller" ? driver.owner : null
+  };
+}
+function readRecap(value2) {
+  if (!value2 || typeof value2 !== "object") return null;
+  const recap = value2;
+  return recap.v === 1 && typeof recap.killer === "string" && Array.isArray(recap.blows) && Array.isArray(recap.messages) && Array.isArray(recap.milestones) && [recap.depth, recap.maxDepth, recap.level, recap.turn].every((n) => typeof n === "number") && (recap.driver === null || typeof recap.driver === "string") ? recap : null;
+}
+var KIND_WORDS = { melee: "melee", ranged: "missile", spell: "spell", effect: "effect", trap: "trap", heal: "healing" };
+function blowRow(blow) {
+  if (blow.kind === "heal") return [blow.by, KIND_WORDS.heal, `+${blow.amount}`];
+  return [blow.by, KIND_WORDS[blow.kind], blow.hit ? `-${blow.amount}` : "missed"];
+}
+function driverNote(owner) {
+  if (owner === null) return null;
+  const name = driverName(owner);
+  return owner === "squire" ? "Squire was playing when this character died. Its own report of the run is on the Report tab of the Squire panel." : `${name} was playing when this character died.`;
+}
+var RECAP_CSS = `.recap .killer{font-size:1.2em;margin:2px 0 6px}
+.recap .loss{color:#e8806f}.recap .gain{color:#80c299}
+.recap ol.milestones{list-style:none;margin:0;padding:0}
+.recap ol.milestones li{display:grid;grid-template-columns:1.6em 1fr;gap:6px;margin:0 0 4px}
+.recap .meta{display:block;font-size:.8em;opacity:.65}`;
+function renderRecap(parent, recap) {
+  const box = el9(parent, "div", void 0, "recap");
+  el9(box, "p", `Killed by ${recap.killer}`, "killer");
+  const note = driverNote(recap.driver);
+  if (note) el9(box, "p", note, "muted");
+  const metrics = el9(box, "div", void 0, "metrics");
+  metric(metrics, "Depth", recap.depth === 0 ? "Town" : `${recap.depth} (${recap.depth * 50} ft)`);
+  metric(metrics, "Deepest", `${recap.maxDepth} (${recap.maxDepth * 50} ft)`);
+  metric(metrics, "Level", String(recap.level));
+  metric(metrics, "Turns", String(recap.turn));
+  el9(box, "h3", "Last blows");
+  if (!recap.blows.length) el9(box, "p", "No blows were seen in the last moments.", "muted");
+  else {
+    const table = el9(box, "table");
+    const head = el9(el9(table, "thead"), "tr");
+    for (const name of ["From", "How", "Hit points"]) el9(head, "th", name);
+    const rows = el9(table, "tbody");
+    for (const blow of recap.blows) {
+      const tr = el9(rows, "tr");
+      const [by, how, change] = blowRow(blow);
+      el9(tr, "td", by);
+      el9(tr, "td", how);
+      el9(tr, "td", change, blow.kind === "heal" ? "gain" : blow.hit ? "loss" : "muted");
+    }
+    const taken = recap.blows.reduce((sum, blow) => sum + (blow.kind !== "heal" && blow.hit ? blow.amount : 0), 0);
+    el9(box, "p", `${taken} hit points lost in these blows.`, "muted");
+  }
+  el9(box, "h3", "Last messages");
+  if (!recap.messages.length) el9(box, "p", "No messages were recorded.", "muted");
+  for (const message of recap.messages) el9(box, "p", message);
+  el9(box, "h3", "Last milestones");
+  if (!recap.milestones.length) {
+    el9(box, "p", "No milestones were recorded.", "muted");
+    return;
+  }
+  const list = el9(box, "ol", void 0, "milestones");
+  for (const entry2 of recap.milestones) {
+    const item = el9(list, "li");
+    const mark = el9(item, "span", journalSymbol(entry2.kind));
+    mark.style.color = journalTint(entry2.kind);
+    mark.setAttribute("aria-hidden", "true");
+    const text = el9(item, "span", entry2.lost ? `${entry2.text} (lost)` : entry2.text);
+    el9(text, "span", journalMeta(entry2), "meta");
+  }
+}
+function openRecapDialog(ctx, recap, name) {
+  const dialog = openDialog(ctx, { id: "death-recap", label: `${name || "Unnamed"}: death recap`, css: RECAP_CSS });
+  if (!dialog) return Promise.resolve();
+  el9(dialog.body, "h2", "Death recap");
+  renderRecap(dialog.body, recap);
+  const actions = el9(dialog.body, "div", void 0, "actions");
+  button5(actions, "Close", () => dialog.close(), "close").focus();
+  return dialog.closed;
+}
+function installDeathRecap(ctx, ownDialog) {
+  if (ctx.flags?.["anybandui.deathRecap"] !== true) return { cleanup: () => {
+  } };
+  const cleanups = [];
+  const log = createBlowLog(() => ctx.snapshot?.() ?? null);
+  const combat = (_type, payload) => log.combat(payload);
+  const heal = (_type, payload) => log.heal(payload);
+  const events = ctx.events;
+  if (events?.on) {
+    try {
+      events.on("combat-outcome", combat);
+      cleanups.push(() => events.off("combat-outcome", combat));
+      events.on("heal", heal);
+      cleanups.push(() => events.off("heal", heal));
+    } catch (error) {
+      ctx.log(`death recap: combat events unavailable (${String(error)})`);
+    }
+  } else ctx.log("death recap: this game sends no combat events, so the recap has no blows");
+  const recap = (report) => {
+    const built = buildRecap(report, log.entries(), ctx.characterStore, currentDriver(ctx));
+    log.clear();
+    return built;
+  };
+  if (ownDialog) {
+    if (ctx.character?.onRunEnd) {
+      try {
+        cleanups.push(ctx.character.onRunEnd((report) => {
+          const built = recap(report);
+          if (built) void openRecapDialog(ctx, built, report.name);
+        }));
+      } catch (error) {
+        ctx.log(`death recap: run end unavailable (${String(error)})`);
+      }
+    } else ctx.log("death recap: this game does not report the end of a run");
+  }
+  return { recap, cleanup: () => {
+    for (const cleanup of cleanups.splice(0).reverse()) cleanup();
+  } };
+}
+
 // src/menus/graveyard.ts
 var GRAVEYARD_KEY = "graveyard";
 var MAX_RECORDS = 20;
@@ -10501,13 +10762,14 @@ function archiveRun(prefs, record2) {
     return false;
   }
 }
-function recordFor(report, store) {
+function recordFor(report, store, recap) {
   const journal = [...journalFromHistory(report.history, readDepthMarks(store)), endingEntry(report)];
-  return { id: runId(report), report, journal };
+  return recap ? { id: runId(report), report, journal, recap } : { id: runId(report), report, journal };
 }
 var UNREADABLE = "Some run records could not be read. They have been left untouched.";
 var NOT_ARCHIVED = "This run could not be added to the graveyard. Its summary is still available here.";
 var CSS8 = `${JOURNAL_CSS}
+${RECAP_CSS}
 .graveyard-head{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:6px}
 .runs button{background:none;border:none;padding:0;text-align:left;width:100%}
 .runs button:focus-visible{outline:2px solid var(--anyband-accent)}
@@ -10525,6 +10787,9 @@ function runLabel(report) {
   return `${report.name || "Unnamed"} - ${report.race} ${report.cls}`;
 }
 var POST_MORTEM_PAGES = ["Final moments", "Journal", "Final belongings", "Character sheet"];
+function postMortemPages(record2) {
+  return readRecap(record2.recap) ? ["Recap", ...POST_MORTEM_PAGES] : [...POST_MORTEM_PAGES];
+}
 function locationLabel(location2) {
   return location2 ? location2[0].toUpperCase() + location2.slice(1) : "";
 }
@@ -10560,12 +10825,16 @@ function openPostMortem(ctx, record2, options) {
   const tabButtons = [];
   let sheetPage = 0;
   const journalFilter = newJournalFilter();
+  const pages = postMortemPages(record2);
+  const recap = readRecap(record2.recap);
   const show = (index, moveFocus = false) => {
     tabButtons.forEach((tab, at) => tab.setAttribute("aria-selected", String(at === index)));
     if (moveFocus) tabButtons[index]?.focus();
     page.replaceChildren();
-    const name = POST_MORTEM_PAGES[index];
-    if (name === "Final moments") {
+    const name = pages[index];
+    if (name === "Recap" && recap) {
+      renderRecap(page, recap);
+    } else if (name === "Final moments") {
       const moments = el9(page, "div", void 0, "moments");
       const messages = [...report.messages].reverse();
       if (!messages.length) el9(moments, "p", "No messages were recorded.", "muted");
@@ -10587,7 +10856,7 @@ function openPostMortem(ctx, record2, options) {
       draw();
     }
   };
-  POST_MORTEM_PAGES.forEach((name, index) => {
+  pages.forEach((name, index) => {
     const tab = button5(tabs, name, () => show(index), `post-mortem-tab-${index}`);
     tab.setAttribute("role", "tab");
     tabButtons.push(tab);
@@ -10711,7 +10980,7 @@ function openGraveyard(ctx, backLabel = "Back to characters") {
   (rowButtons[0] ?? back).focus();
   return dialog.closed;
 }
-function installGraveyard(ctx) {
+function installGraveyard(ctx, recapFor) {
   if (ctx.flags?.["anybandui.graveyard"] !== true) return () => {
   };
   const cleanups = [];
@@ -10719,7 +10988,13 @@ function installGraveyard(ctx) {
   if (character?.onRunEnd) {
     try {
       cleanups.push(character.onRunEnd((report) => {
-        const record2 = recordFor(report, ctx.characterStore);
+        let recap = null;
+        try {
+          recap = recapFor?.(report) ?? null;
+        } catch (error) {
+          ctx.log(`graveyard: death recap failed (${String(error)})`);
+        }
+        const record2 = recordFor(report, ctx.characterStore, recap);
         const stored = archiveRun(ctx.prefs, record2);
         void openPostMortem(ctx, record2, { archived: false, notArchived: !stored });
       }));
@@ -11253,9 +11528,12 @@ function installMenus(ctx) {
   const flags = ctx.flags ?? {};
   const cleanups = [];
   cleanups.push(installYesNoPrompts(ctx));
-  if (flags["anybandui.runJournal"] === true || flags["anybandui.graveyard"] === true) cleanups.push(installDepthRecorder(ctx));
+  const graveyard = flags["anybandui.graveyard"] === true;
+  if (flags["anybandui.runJournal"] === true || graveyard || flags["anybandui.deathRecap"] === true) cleanups.push(installDepthRecorder(ctx));
   cleanups.push(installRunJournal(ctx));
-  cleanups.push(installGraveyard(ctx));
+  const recap = installDeathRecap(ctx, !graveyard);
+  cleanups.push(recap.cleanup);
+  cleanups.push(installGraveyard(ctx, recap.recap));
   return () => {
     for (const cleanup of cleanups.splice(0).reverse()) cleanup();
   };
@@ -11968,6 +12246,63 @@ function installBirthWizard(ctx) {
   };
 }
 
+// src/minimap-travel.ts
+var TRAVEL_WAIT_MS = 2e3;
+var TRAVEL_POLL_MS = 50;
+function mapTarget(snap, point, known, player) {
+  if (snap.mode !== "map" || !known) return null;
+  const grid = snapLandmark(snap, point, known.cells) ?? hoverGrid(snap, point);
+  if (!grid || grid.x >= snap.level.width || grid.y >= snap.level.height) return null;
+  if (player && player.x === grid.x && player.y === grid.y) return null;
+  const cell = known.cells.find((entry2) => entry2.x === grid.x && entry2.y === grid.y);
+  return cell && cell.remembered.feat > 0 && cell.remembered.featCode !== "NONE" ? { x: grid.x, y: grid.y } : null;
+}
+function installMinimapTravel(ctx) {
+  if (ctx.flags["anybandui.minimapTravel"] !== true) return () => {
+  };
+  if (!ctx.display || !ctx.snapshot || !ctx.knownLevel || !ctx.intent || typeof window === "undefined") {
+    ctx.log?.("minimap travel: display, map or intent seam unavailable");
+    return () => {
+    };
+  }
+  const display = ctx.display, knownLevel = ctx.knownLevel;
+  let poll = null;
+  const stop = () => {
+    if (poll) clearInterval(poll);
+    poll = null;
+  };
+  const onDown = (event) => {
+    if (event.button !== 0 || !playerIsDriving(ctx)) return;
+    const snap = display.snapshot();
+    if (snap.mode !== "map") return;
+    let known = null;
+    try {
+      known = knownLevel() ?? null;
+    } catch {
+      known = null;
+    }
+    const target = mapTarget(snap, { x: event.clientX, y: event.clientY }, known, ctx.snapshot?.()?.core.player?.grid);
+    stop();
+    if (!target) return;
+    const deadline = Date.now() + TRAVEL_WAIT_MS;
+    poll = setInterval(() => {
+      if (Date.now() > deadline || !playerIsDriving(ctx)) {
+        stop();
+        return;
+      }
+      const input = ctx.snapshot?.();
+      if (display.snapshot().mode === "map" || !input || input.phase !== "play" || input.messagePending || input.prompt) return;
+      stop();
+      if (!clickTile(ctx, target)) ctx.log?.(`minimap travel: the game refused travel to ${target.x},${target.y}`);
+    }, TRAVEL_POLL_MS);
+  };
+  window.addEventListener("pointerdown", onDown, true);
+  return () => {
+    stop();
+    window.removeEventListener("pointerdown", onDown, true);
+  };
+}
+
 // plugin.ts
 var quiverDisplay;
 var tileDisplay;
@@ -11981,6 +12316,7 @@ var plugin_default = {
     this.uninstall();
     ctx.log(`AnybandUI loaded on engine ${ctx.engine}`);
     const flags = coexistingFlags(ctx.flags ?? {}, ctx.mods?.bind(ctx), ctx.log);
+    setThemePacks(flags["anybandui.themePacks"] === true);
     if (ctx.events) {
       const events = ctx.events;
       const repaint = () => statusRepaint?.();
@@ -12003,7 +12339,11 @@ var plugin_default = {
       ...ctx.prompt ? { prompt: ctx.prompt } : {},
       ...ctx.ui ? { ui: ctx.ui } : {},
       ...ctx.prefs ? { prefs: ctx.prefs } : {},
-      ...liveCore && liveState ? { state: liveState, core: { createAgentView: () => liveCore.createAgentView(liveState), createAgentActions: () => liveCore.createAgentActions(liveState) } } : {}
+      ...liveCore && liveState ? { state: liveState, core: {
+        createAgentView: () => liveCore.createAgentView(liveState),
+        createAgentActions: () => liveCore.createAgentActions(liveState),
+        floorObject: (grid, floorIndex) => floorObjectAt(liveCore, liveState, grid, floorIndex)
+      } } : {}
     };
     displayCleanups.push(installItems(itemContext));
     displayCleanups.push(installStores({ ...itemContext, ...ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {}, ...ctx.driver ? { driver: ctx.driver } : {} }));
@@ -12112,6 +12452,16 @@ var plugin_default = {
       ...ctx.prefs ? { prefs: ctx.prefs } : {},
       log: ctx.log
     }));
+    displayCleanups.push(installMinimapTravel({
+      flags,
+      ...ctx.display?.snapshot ? { display: { snapshot: ctx.display.snapshot.bind(ctx.display) } } : {},
+      ...ctx.snapshot ? { snapshot: ctx.snapshot } : {},
+      ...ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {},
+      ...ctx.intent ? { intent: ctx.intent } : {},
+      ...ctx.prompt ? { prompt: ctx.prompt } : {},
+      ...ctx.driver ? { driver: ctx.driver.bind(ctx) } : {},
+      log: ctx.log
+    }));
     displayCleanups.push(installPhase4({
       flags,
       log: ctx.log,
@@ -12145,6 +12495,7 @@ var plugin_default = {
     characterPane?.close();
     characterPane = null;
     for (const cleanup of displayCleanups.splice(0).reverse()) cleanup();
+    setThemePacks(false);
     uninstallFirstEncounter();
     uninstallAccessibilityAccommodations();
     quiverDisplay?.setQuiverItemization?.(false);

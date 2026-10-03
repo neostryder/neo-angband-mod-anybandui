@@ -14,6 +14,23 @@ function el(parent: Element, tag: string, value?: string): HTMLElement {
   return node;
 }
 
+/** One line for a hover card: the known stats that wearing the item would change. Weight is left out,
+ * since picking anything up adds it. Null when nothing can be worn. */
+export function comparisonSummary(sim: LoadoutSimulation | null | undefined): string | null {
+  if (!sim || sim.unresolved.length || !sim.placements.length) return null;
+  const parts: string[] = [];
+  for (const [key, label, scale] of METRICS) {
+    if (key === "totalWeight") continue;
+    const delta = (sim.after.stats[key] as number) - (sim.before.stats[key] as number);
+    if (delta) parts.push(`${label} ${delta > 0 ? "+" : ""}${delta / scale}`);
+  }
+  for (const [index, name] of ["STR", "INT", "WIS", "DEX", "CON"].entries()) {
+    const before = sim.before.stats.statUse[index], after = sim.after.stats.statUse[index];
+    if (before !== undefined && after !== undefined && after !== before) parts.push(`${name} ${after > before ? "+" : ""}${after - before}`);
+  }
+  return parts.length ? `If worn: ${parts.join(", ")}` : "If worn: no change to known stats";
+}
+
 /** The body slots a comparison can switch between, from compareLoadoutSlots. */
 export interface SlotChoice {
   readonly options: readonly { readonly slot: number; readonly label: string }[];

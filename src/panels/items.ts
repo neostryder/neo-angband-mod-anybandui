@@ -4,9 +4,10 @@ import type { ItemPanelContext, ItemPrompt, QuantityPrompt, ItemRef, ItemRulesRe
 import { AcquisitionChanges, adaptItems, compareSlots, defaultSlot, panelRows, type ItemRow, type ItemsModel } from "../view-model/items.js";
 import { answerItem, answerQuantity, buildFloorCommand, buildItemCommand, floorChoiceIndex, quantityShortcut, submitFloorItem, submitIgnore, submitItem } from "../item-interactions.js";
 import { inspectionBlocks } from "../item-inspection.js";
-import { renderItemComparison, slotOptionLabel } from "./item-comparison.js";
+import { comparisonSummary, renderItemComparison, slotOptionLabel } from "./item-comparison.js";
 import { renderEquipmentPortrait, type PortraitItem } from "./equipment-portrait.js";
 import { playerIsDriving } from "../input-owner.js";
+import { carriedCount, carriedText, previewFloorItem } from "../pickup-preview.js";
 
 const CSS = `:host{color:var(--anyband-text);font:var(--anyband-font-size)/var(--anyband-line) var(--anyband-font)}.items{position:absolute;right:12px;top:12px;width:min(440px,44vw);max-height:calc(100vh - 24px);overflow:auto;padding:10px;background:var(--anyband-surface);border:1px solid var(--anyband-accent);border-radius:var(--anyband-rounding);pointer-events:auto}button,input,select{font:inherit;color:var(--anyband-text);background:var(--anyband-background);border:1px solid var(--anyband-accent);border-radius:3px;padding:3px 5px}button{cursor:pointer}button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--anyband-accent)}input[type=search]{width:100%}.tabs,.actions,.quick{display:flex;gap:5px;flex-wrap:wrap;margin:6px 0}table{width:100%;border-collapse:collapse}th{text-align:left;position:sticky;top:0;background:var(--anyband-surface)}td,th{padding:3px;border-bottom:1px solid var(--anyband-accent)}tr.new{background:#437d5541}tr.chosen{outline:1px solid var(--anyband-accent)}.row{width:100%;text-align:left;border:0;background:transparent}details{margin:8px 0}summary{color:var(--anyband-accent);cursor:pointer;font-weight:bold}.muted{opacity:.65}.gain{color:#80b891}.loss{color:#ff7559}.error{color:#ff7559}.prompt{border:1px solid var(--anyband-accent);padding:8px;margin:8px 0}.rule{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;padding:3px 0;border-bottom:1px solid var(--anyband-accent)}.rule .name{flex:1 1 12em}.rule input[type=text]{width:9em}.info{white-space:pre-wrap;margin:4px 0}summary.lead{font-weight:normal;color:inherit}.portrait .body{display:grid;grid-template-columns:minmax(8em,auto) auto minmax(8em,auto);align-items:center;column-gap:8px;margin:8px 0}.portrait .figure{grid-column:2;grid-row:1 / span 6;margin:0;white-space:pre;font:inherit}.portrait .left{grid-column:1;justify-self:end;text-align:right}.portrait .right{grid-column:3;justify-self:start;text-align:left}.slotcard{display:flex;flex-direction:column;gap:2px;max-width:14em}.portrait .extras{margin-top:8px}`;
 const ACTIONS = ["wield", "takeoff", "drop", "inscribe", "use"] as const;
@@ -59,6 +60,7 @@ export function installItems(ctx: ItemPanelContext): () => void {
   const drafts = new Map<string, string>();
   const folded = new Set<string>();
   const enabled = (name: string): boolean => flags[`anybandui.items${name}`] === true;
+  const preview = enabled("PickupPreview");
   const read = (): ItemsModel | null => { const snap = ctx.snapshot?.(); return snap?.core ? adaptItems(snap) : null; };
   const current = (model: ItemsModel): boolean => {
     const latest = read();
@@ -265,8 +267,15 @@ export function installItems(ctx: ItemPanelContext): () => void {
       chosen: chosen.slot, choose: (slot) => { slotChoice = { key: item.key, slot }; paint(true); },
     });
   };
+  // A floor item under the character: what is carried already, and what wearing it would change.
+  const showPickupPreview = (model: ItemsModel, item: ItemRow): void => {
+    if (!preview || item.location !== "floor" || item.floorIndex === undefined || !model.player) return;
+    el(mount, "p", carriedText(carriedCount(model, item))).className = "muted";
+    const sim = previewFloorItem(ctx, model.token, model.player, item.floorIndex);
+    if (sim) renderItemComparison(mount, sim, unchanged, (value) => { unchanged = value; paint(true); });
+  };
   const showInspection = (model: ItemsModel, item: ItemRow): void => {
-    if (!enabled("Inspection")) return;
+    if (!enabled("Inspection") && !(preview && item.location === "floor")) return;
     const ref = inspectRef(model, item);
     const inspection = ref === null ? null : ctx.inspect?.inspectItem(ref);
     if (!inspection || !same(inspection.token, model.token)) return;
@@ -277,10 +286,11 @@ export function installItems(ctx: ItemPanelContext): () => void {
       const summary = el(details, "summary", block.heading); if (block.lead) summary.className = "lead"; if (block.body) el(details, "p", block.body).className = "info";
     }
   };
-  const itemButton = (cell: HTMLElement, item: ItemRow, badge: string | null): void => {
+  const itemButton = (cell: HTMLElement, item: ItemRow, badge: string | null): HTMLButtonElement => {
     const b = button(cell, `${item.label}${badge ? ` ${badge}` : ""}`, () => { selected = item.key; changes.acknowledge(item); paint(true); });
     b.className = "row"; b.style.color = item.colour; b.setAttribute("aria-pressed", String(selected === item.key));
     b.title = [badge === "NEW" ? "Newly acquired" : badge ? `${badge.slice(1)} acquired` : "", item.inscription ? `Inscription: ${item.inscription}` : ""].filter(Boolean).join("\n");
+    return b;
   };
   const paint = (force = false): void => {
     if (closed) return;
@@ -314,12 +324,17 @@ export function installItems(ctx: ItemPanelContext): () => void {
     if (enabled("Highlights")) changes.update(model);
     showPrompt(model);
     showRules(model);
-    if (!enabled("Lists") && !portraitOn) return;
+    if (!enabled("Lists") && !portraitOn && !preview) return;
     // The pile under the character sits above the tabs, as in upstream's panel.
-    if (enabled("Lists") && model.floor?.length) {
+    if ((enabled("Lists") || preview) && model.floor?.length) {
       el(mount, "h3", "On this tile");
       const table = el(mount, "table"); const head = el(table, "tr"); for (const name of ["Item", "Qty"]) el(head, "th", name);
-      for (const item of model.floor) { const row = el(table, "tr"); itemButton(el(row, "td"), item, null); el(row, "td", String(item.quantity)); }
+      for (const item of model.floor) {
+        const row = el(table, "tr"); const b = itemButton(el(row, "td"), item, null); el(row, "td", String(item.quantity));
+        // Hovering the row shows the short form of the comparison before anything is selected.
+        const worn = preview && model.player && item.floorIndex !== undefined ? comparisonSummary(previewFloorItem(ctx, model.token, model.player, item.floorIndex)) : null;
+        if (worn) b.title = [b.title, worn].filter(Boolean).join("\n");
+      }
     }
     if (enabled("Lists")) {
       const tabs = el(mount, "div"); tabs.className = "tabs";
@@ -382,6 +397,7 @@ export function installItems(ctx: ItemPanelContext): () => void {
         }
       }
       showComparison(model, item);
+      showPickupPreview(model, item);
       showInspection(model, item);
     } else if (showFigure && selected?.startsWith("empty:")) {
       el(mount, "h3", "Inspection");
