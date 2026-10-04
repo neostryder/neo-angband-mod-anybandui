@@ -5,6 +5,7 @@ import { adaptStore, type StoreModel, type StoreRow } from "../view-model/stores
 import { compareItem } from "../view-model/items.js";
 import { renderItemComparison } from "./item-comparison.js";
 import { playerIsDriving } from "../input-owner.js";
+import { viewInput, viewLevel } from "../host-adapter.js";
 
 const CSS = `:host{color:var(--anyband-text);font:var(--anyband-font-size)/var(--anyband-line) var(--anyband-font)}.store{position:absolute;inset:12px;overflow:auto;padding:10px;background:var(--anyband-surface);border:1px solid var(--anyband-accent);border-radius:var(--anyband-rounding);pointer-events:auto}.sides{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.side{min-width:0;overflow:auto}h2,h3{color:var(--anyband-accent);border-bottom:1px solid var(--anyband-accent)}table{width:100%;border-collapse:collapse}th{text-align:left}td,th{padding:3px;border-bottom:1px solid var(--anyband-accent)}button,input{font:inherit;color:var(--anyband-text);background:var(--anyband-background);border:1px solid var(--anyband-accent);border-radius:3px;padding:3px 6px}button{cursor:pointer}button:disabled{cursor:default;opacity:.5}button:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid var(--anyband-accent)}.row{width:100%;text-align:left;border:0;background:transparent}.row[aria-pressed=true]{background:var(--anyband-accent);color:var(--anyband-background)!important}.actions{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}.prompt{border:1px solid var(--anyband-accent);padding:8px;max-width:30em}.prompt input{width:100%}.muted{opacity:.65}.gain{color:#80b891}.loss,.error,.unaffordable{color:#ff7559}details{margin:8px 0}summary{color:var(--anyband-accent);cursor:pointer}@media(max-width:650px){.sides{grid-template-columns:1fr}}`;
 const same = (a: InputToken, b: InputToken): boolean => a.epoch === b.epoch && a.revision === b.revision;
@@ -26,7 +27,7 @@ export function tradeAllowed(model: StoreModel, side: "stock" | "pack", row: Sto
 }
 
 export function storeAction(ctx: StoreContext, model: StoreModel, side: "stock" | "pack" | "leave", key?: number): StoreOutcome {
-  const snap = ctx.snapshot?.();
+  const snap = viewInput(ctx);
   if (!snap || snap.phase !== "store" || snap.prompt || !same(snap.token, model.token) || !model.ready || !ctx.intent?.submit) return REFUSED;
   // Only a known player driver may submit. Core also refuses while a controller
   // owns input, and that answer is quiet rather than an error to show.
@@ -43,7 +44,7 @@ export function storeAction(ctx: StoreContext, model: StoreModel, side: "stock" 
 
 /** Answers the store's quantity prompt or confirmation. A quantity prompt also takes the typed cancel reply. */
 export function storePromptReply(ctx: StoreContext, model: StoreModel, answer: StorePromptAnswer): StoreOutcome {
-  const snap = ctx.snapshot?.();
+  const snap = viewInput(ctx);
   if (!snap || snap.phase !== "store" || !same(snap.token, model.token) || !snap.prompt || snap.prompt.promptId !== model.prompt?.promptId || !ctx.prompt?.reply) return REFUSED;
   if (!playerIsDriving(ctx)) return STANDING_DOWN;
   const cancel = typeof answer === "object" && answer.action === "cancel";
@@ -101,9 +102,9 @@ export function installStores(ctx: StoreContext): () => void {
   let mount: HTMLElement | null = null;
   const on = (part: string): boolean => flags[`anybandui.store${part}`] === true;
   const read = (): StoreModel | null => {
-    const snap = ctx.snapshot?.();
+    const snap = viewInput(ctx);
     if (snap?.phase !== "store") return null;
-    return adaptStore(snap, ctx.knownLevel?.() ?? null);
+    return adaptStore(snap, viewLevel(ctx));
   };
   const paint = (force = false): void => {
     const model = read();

@@ -1,6 +1,7 @@
 import type { KnownLevel, SpellbookView, StoreSnapshot, StoreView, InputToken } from "../seams.js";
 import { adaptItems, type ItemRow } from "./items.js";
 import { itemKey } from "./spells.js";
+import { viewWorld } from "../host-adapter.js";
 
 /** One spell in a stocked book. `index` is the class spell index spellInfo reads; `fail` is the live percent when the engine sends it. */
 export interface StockSpell { readonly index: number; readonly name: string; readonly level: number; readonly mana: number; readonly fail: number; readonly learned: boolean; readonly infoLine: string }
@@ -58,15 +59,16 @@ function stockSpells(item: { readonly tval: number; readonly label: string; read
 // status is therefore the honest sign that Buy, Sell, Stash and Retrieve are
 // safe. An older engine has no status, and its direct path skips both prompts.
 export function adaptStore(snap: StoreSnapshot, known: KnownLevel | null): StoreModel | null {
-  if (snap.phase !== "store" || !snap.core.stores || !snap.core.player || !snap.core.inventory) return null;
+  const world = viewWorld(snap);
+  if (snap.phase !== "store" || !world.stores || !world.player || !world.inventory) return null;
   const status = snap.storeStatus && same(snap.storeStatus.token, snap.token) ? snap.storeStatus : null;
   const cell = known && same(known.token, snap.token)
-    ? known.cells.find((entry) => entry.x === snap.core.player!.grid.x && entry.y === snap.core.player!.grid.y) : null;
+    ? known.cells.find((entry) => entry.x === world.player!.grid.x && entry.y === world.player!.grid.y) : null;
   const feat = status?.feat ?? cell?.remembered.feat;
   if (feat === undefined) return null;
-  const index = snap.core.stores.findIndex((store) => store.feat === feat);
+  const index = world.stores.findIndex((store) => store.feat === feat);
   if (index < 0) return null;
-  const store: StoreView = snap.core.stores[index]!;
+  const store: StoreView = world.stores[index]!;
   const items = adaptItems(snap);
   const quotes = new Map(status?.inventory.map((entry) => [entry.handle, entry]));
   // An engine that tags each store row with a location also lists the worn
@@ -93,11 +95,11 @@ export function adaptStore(snap: StoreSnapshot, known: KnownLevel | null): Store
       });
   return { token: snap.token, index, name: store.isHome ? "Home" : storeName(store.featName),
     owner: store.isHome ? "" : store.owner.name, home: store.isHome,
-    ...(snap.core.player.gold === undefined ? {} : { gold: snap.core.player.gold }),
+    ...(world.player.gold === undefined ? {} : { gold: world.player.gold }),
     ready: status?.ready ?? true, noSelling: status?.noSelling ?? false, transactionPrompts: status !== null,
         // ItemView.name, when published, is the game's own object name; label is the kind's raw template.
     stock: store.stock.map((item) => {
-      const spells = stockSpells(item, snap.core.spellbooks);
+      const spells = stockSpells(item, world.spellbooks);
       return { key: item.index, kind: itemKey(item), label: item.name ?? item.label, quantity: item.number,
         colour: item.artifact ? "#e89e42" : item.ego ? "#80b891" : "inherit", eligible: true,
         ...(item.price === undefined ? {} : { price: item.price }),

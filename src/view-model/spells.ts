@@ -1,4 +1,5 @@
 import type { Phase4Context, Phase4Snapshot, SpellInspectResult, InputToken, ItemView, SpellbookView } from "../seams.js";
+import { viewPlayer, viewWorld } from "../host-adapter.js";
 
 export interface SpellRow { readonly index: number; readonly name: string; readonly level: number; readonly mana: number; readonly fail: number; readonly state: string; readonly canCast: boolean; readonly canStudy: boolean; readonly description: string; readonly infoLine: string }
 export interface BookRow { readonly key: string; readonly handle: number; readonly name: string; readonly chooseSpells: boolean; readonly spells: readonly SpellRow[] }
@@ -25,12 +26,12 @@ function bookFor(snap: Phase4Snapshot, item: ItemView, books: readonly Spellbook
 }
 
 export function adaptSpells(snap: Phase4Snapshot, inspect?: Phase4Context["inspect"]): SpellsModel | null {
-  const player = snap.core.player;
-  if (!snap.core.spellbooks || !snap.core.inventory || !player) return null;
+  const world = viewWorld(snap), player = viewPlayer(snap);
+  if (!world.spellbooks || !world.inventory || !player) return null;
   const learnable = typeof player.learnableSpells === "number" ? player.learnableSpells : null;
   const books: BookRow[] = [];
-  for (const item of snap.core.inventory) {
-    const book = bookFor(snap, item, snap.core.spellbooks, inspect);
+  for (const item of world.inventory) {
+    const book = bookFor(snap, item, world.spellbooks, inspect);
     // Two stacks of one book are one book to the panel and the quickbar.
     if (!book || books.some((entry) => entry.key === itemKey(item))) continue;
     const spells = book.spells.map((spell): SpellRow => {

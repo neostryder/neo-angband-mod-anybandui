@@ -19,6 +19,7 @@ import { driverName } from "../panels/status-badges.js";
 import { button, el, metric, openDialog, type DialogContext } from "./dialog.js";
 import { journalFromHistory, journalMeta, journalSymbol, journalTint, type JournalEntry } from "./journal.js";
 import { readDepthMarks, type CharacterStoreSeam, type EventSeam } from "./run-journal.js";
+import { viewInput, viewMonsters } from "../host-adapter.js";
 
 /** How many blows and heals are kept while the run is alive. */
 export const BLOW_BUFFER = 40;
@@ -67,7 +68,7 @@ export interface RecapSnapshot {
 export function attackerName(attacker: EventActor | null, kind: Exclude<BlowKind, "heal">, snapshot: RecapSnapshot | null): string {
   if (attacker === "player") return "You";
   if (attacker === null) return kind === "trap" ? "A trap" : "Something unseen";
-  const monster = snapshot?.core?.monsters?.find((entry) => entry.id === attacker);
+  const monster = viewMonsters(snapshot)?.find((entry) => entry.id === attacker);
   return monster?.visible && monster.race ? monster.race : "Something unseen";
 }
 
@@ -230,7 +231,7 @@ export interface DeathRecapInstall {
 export function installDeathRecap(ctx: DeathRecapContext, ownDialog: boolean): DeathRecapInstall {
   if (ctx.flags?.["anybandui.deathRecap"] !== true) return { cleanup: () => {} };
   const cleanups: Array<() => void> = [];
-  const log = createBlowLog(() => (ctx.snapshot?.() ?? null) as RecapSnapshot | null);
+  const log = createBlowLog(() => viewInput(ctx) as RecapSnapshot | null);
   // Core calls each handler with the event name first and the payload second.
   const combat = (_type: "combat-outcome", payload: EffectEventMap["combat-outcome"]): void => log.combat(payload);
   const heal = (_type: "heal", payload: EffectEventMap["heal"]): void => log.heal(payload);

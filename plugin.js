@@ -185,6 +185,157 @@ function playerIsDriving(ctx) {
   return currentDriver(ctx).kind === "player";
 }
 
+// src/host-adapter.ts
+var coreOf = (game) => game?.core;
+var stateOf = (game) => game?.state;
+function viewInput(seam) {
+  return seam.snapshot?.() ?? null;
+}
+function viewWorld(input) {
+  return input?.core;
+}
+function viewPlayer(input) {
+  return input?.core?.player;
+}
+function viewMonsters(input) {
+  return input?.core?.monsters;
+}
+function viewLevel(seam) {
+  return seam.knownLevel?.() ?? null;
+}
+function truthLevel(level) {
+  const cells = [];
+  for (const cell of level?.cells ?? []) if (cell.actual) cells.push({ ...cell.actual, x: cell.x, y: cell.y });
+  return { cells };
+}
+function liveGame(ctx) {
+  return { liveCore: ctx.core, liveState: ctx.state };
+}
+function itemsGame(core, state) {
+  if (!core || !state) return {};
+  return { state, core: {
+    createAgentView: () => core.createAgentView(state),
+    createAgentActions: () => core.createAgentActions(state),
+    floorObject: (grid, floorIndex) => listedFloorObject(core, state, grid, floorIndex)
+  } };
+}
+function offers(game, names) {
+  const core = game.core;
+  return !!core && names.every((name) => typeof core[name] === "function");
+}
+function hasLiveState(game) {
+  return !!game.state;
+}
+function playerGrid(game) {
+  return stateOf(game)?.actor?.grid;
+}
+function playerHitPoints(game) {
+  const player = stateOf(game)?.actor?.player;
+  return { hp: player?.chp, maxHp: player?.mhp };
+}
+function playerHallucinating(game) {
+  const core = coreOf(game);
+  return core?.TMD?.IMAGE !== void 0 && (stateOf(game)?.actor?.player?.timed?.[core.TMD.IMAGE] ?? 0) > 0;
+}
+function playerTimedEffects(game) {
+  const TMD = coreOf(game)?.TMD, timed = stateOf(game)?.actor?.player?.timed;
+  if (!TMD || !timed) return null;
+  return Object.entries(TMD).filter(([, index]) => (timed[index] ?? 0) > 0).map(([name]) => name);
+}
+function birthFacts(game) {
+  const player = stateOf(game)?.actor?.player;
+  if (!player) return null;
+  return { raceName: player.race?.name, clsName: player.cls?.name, auBirth: player.auBirth, htBirth: player.htBirth, wtBirth: player.wtBirth };
+}
+function levelKey(game) {
+  const state = stateOf(game);
+  return state?.levelSerial ?? state?.chunk?.depth;
+}
+function levelDepth(game) {
+  return game.state.chunk.depth;
+}
+function levelSize(game) {
+  const chunk = stateOf(game)?.chunk;
+  return chunk ? { width: chunk.width, height: chunk.height } : null;
+}
+function gridInView(game, grid) {
+  return coreOf(game)?.squareIsSeen?.(stateOf(game)?.chunk, grid) ?? false;
+}
+function gridHasVisibleTrap(game, grid) {
+  return !!coreOf(game)?.squareIsVisibleTrap?.(game.state, grid);
+}
+function gridIsShop(game, grid) {
+  return (stateOf(game)?.chunk?.feature?.(grid)?.shopnum ?? 0) > 0;
+}
+function lookAt(game, grid) {
+  const look = coreOf(game)?.describeLookGrid?.(game.state, grid, 0);
+  if (!look) return null;
+  return { text: look.text, creature: !!look.mon, hp: look.mon?.hp, maxHp: look.mon?.maxhp };
+}
+function rememberedPile(game, grid) {
+  return coreOf(game)?.knownPile?.(game.state, grid) ?? [];
+}
+function describeObject(game, object) {
+  const core = coreOf(game);
+  return core?.describeObject ? core.describeObject(game.state, object) : null;
+}
+function apparentTerrain(game, grid) {
+  return coreOf(game)?.squareApparentName?.(game.state, grid);
+}
+function listedFloorObject(core, state, grid, floorIndex) {
+  if (!Number.isInteger(floorIndex) || floorIndex < 0) return null;
+  try {
+    const listed = core.floorPile(state, grid).filter((obj) => {
+      const memory = core.knownFloorObject(state, grid, obj);
+      return !!memory && !memory.sensed;
+    });
+    return listed[floorIndex] ?? null;
+  } catch {
+    return null;
+  }
+}
+function floorObject(game, grid, floorIndex) {
+  return coreOf(game)?.floorObject?.(grid, floorIndex) ?? null;
+}
+function canSimulateLoadout(game) {
+  return !!coreOf(game)?.createAgentView && !!game.state;
+}
+function simulateLoadout(game, change) {
+  return coreOf(game)?.createAgentView?.(game.state).simulateLoadout?.(change) ?? null;
+}
+function liveHud(game) {
+  const state = game.state;
+  if (state === void 0) return void 0;
+  return {
+    view: game.core.createAgentView(state),
+    name: state.actor.player.fullName,
+    messages: state.messages,
+    study: state.actor.player.upkeep.newSpells,
+    repeat: state.cmdQueue?.[0]?.repeatRemaining ?? 0,
+    resting: state.resting !== void 0,
+    running: state.run !== void 0,
+    unignoring: state.unignoring ?? 0,
+    recall: state.actor.player.wordRecall,
+    descent: state.actor.player.deepDescent,
+    extraMoves: state.playerState?.numMoves ?? 0
+  };
+}
+function itemActionBuilders(game) {
+  return coreOf(game)?.createAgentActions?.(game.state);
+}
+function visibleMonsterRaces(game) {
+  return game.core.monsterListCollect(game.state).entries.map((entry2) => entry2.race);
+}
+function carriedGear(game) {
+  return game.state.gear.store.values();
+}
+function knownArtifactTest(game) {
+  return game.core.liveObjectIsKnownArtifact;
+}
+function coreFormatters(game) {
+  return { fmtDepth: game.core.fmtDepth, colorToCss: game.core.colorToCss };
+}
+
 // src/view-model/source.ts
 var MATCH_WINDOW = 8;
 function messageHistory(entries, log, hostLog) {
@@ -254,7 +405,7 @@ function createSource(ctx) {
   };
   const read = () => {
     try {
-      return ctx.snapshot?.() ?? null;
+      return viewInput(ctx);
     } catch {
       return null;
     }
@@ -269,21 +420,21 @@ function createSource(ctx) {
     hud: { sidebar: { present }, messages: { present }, status: { present } },
     ...ctx.prompt ? { acknowledge } : {},
     snapshot(options = {}) {
-      if (ctx.state === void 0) return void 0;
-      const state = ctx.state;
+      if (!hasLiveState(ctx)) return void 0;
       const snap = options.messages ? read() : null;
       const pending = messagePending(snap);
-      return adapt(ctx.core.createAgentView(state), latest, {
-        name: state.actor.player.fullName,
-        history: messageHistory(snap?.messages?.entries, state.messages, snap?.messages?.log),
-        study: state.actor.player.upkeep.newSpells,
-        repeat: state.cmdQueue?.[0]?.repeatRemaining ?? 0,
-        resting: state.resting !== void 0,
-        running: state.run !== void 0,
-        unignoring: state.unignoring ?? 0,
-        recall: state.actor.player.wordRecall,
-        descent: state.actor.player.deepDescent,
-        extraMoves: state.playerState?.numMoves ?? 0,
+      const live = liveHud(ctx);
+      return adapt(live.view, latest, {
+        name: live.name,
+        history: messageHistory(snap?.messages?.entries, live.messages, snap?.messages?.log),
+        study: live.study,
+        repeat: live.repeat,
+        resting: live.resting,
+        running: live.running,
+        unignoring: live.unignoring,
+        recall: live.recall,
+        descent: live.descent,
+        extraMoves: live.extraMoves,
         ...pending === void 0 ? {} : { messagePending: pending }
       });
     }
@@ -1660,7 +1811,7 @@ function twoFingerGestureActive() {
   return (runtime?.touches.size ?? 0) >= 2;
 }
 function playerCenter(rt, snapshot) {
-  const player = rt.ctx.state?.actor?.grid;
+  const player = playerGrid(rt.ctx);
   return player ? { x: player.x, y: player.y } : {
     x: snapshot.viewport.origin.x + Math.floor(snapshot.viewport.size.width / 2),
     y: snapshot.viewport.origin.y + Math.floor(snapshot.viewport.size.height / 2)
@@ -2446,7 +2597,7 @@ function installFreeCamera(rt) {
   rt.cleanups.push(rt.display.onKey((event) => {
     if (flags["anybandui.followPlayer"] && event.ctrlKey && event.key === "Home") {
       rt.cameraDetached = false;
-      const player = rt.ctx.state?.actor?.grid;
+      const player = playerGrid(rt.ctx);
       if (player) rt.display.setCamera(cameraOrigin(rt.display.snapshot(), player));
       event.preventDefault();
       event.stopImmediatePropagation();
@@ -2486,9 +2637,9 @@ function installFreeCamera(rt) {
   }
   rt.cameraTimer = setInterval(() => {
     const snap = rt.display.snapshot();
-    const player = rt.ctx.state?.actor?.grid;
+    const player = playerGrid(rt.ctx);
     if (flags["anybandui.recentreOnFloor"]) {
-      const floor = rt.ctx.state?.levelSerial ?? rt.ctx.state?.chunk?.depth;
+      const floor = levelKey(rt.ctx);
       const key = floor === void 0 ? null : String(floor);
       if (rt.lastFloor !== null && key !== rt.lastFloor && player) {
         rt.cameraDetached = false;
@@ -2496,7 +2647,7 @@ function installFreeCamera(rt) {
       }
       rt.lastFloor = key;
     }
-    const target = rt.ctx.snapshot?.()?.prompt?.cursor;
+    const target = viewInput(rt.ctx)?.prompt?.cursor;
     if (flags["anybandui.keepTargetInView"] && target && (target.x < snap.viewport.origin.x || target.y < snap.viewport.origin.y || target.x >= snap.viewport.origin.x + snap.viewport.size.width || target.y >= snap.viewport.origin.y + snap.viewport.size.height)) {
       rt.display.setCamera(cameraOrigin(snap, target));
     } else if (flags["anybandui.followPlayer"] && !rt.cameraDetached && player && snap.mode === "play" && (player.x < snap.viewport.origin.x + 2 || player.y < snap.viewport.origin.y + 2 || player.x >= snap.viewport.origin.x + snap.viewport.size.width - 2 || player.y >= snap.viewport.origin.y + snap.viewport.size.height - 2)) {
@@ -3422,32 +3573,22 @@ function drawCard(panel, content, theme) {
   wrap.append(card);
   root.append(style, wrap);
 }
-function characterKeyFor(player) {
-  return characterKey({
-    raceName: player.race.name,
-    clsName: player.cls.name,
-    auBirth: player.auBirth,
-    htBirth: player.htBirth,
-    wtBirth: player.wtBirth
-  });
-}
 function installFirstEncounter(ctx) {
   uninstallFirstEncounter();
-  if (!ctx.ui || typeof ctx.core.monsterListCollect !== "function" || typeof ctx.core.liveObjectIsKnownArtifact !== "function" || typeof ctx.core.fmtDepth !== "function" || typeof ctx.core.colorToCss !== "function") {
+  if (!ctx.ui || !offers(ctx, ["monsterListCollect", "liveObjectIsKnownArtifact", "fmtDepth", "colorToCss"])) {
     ctx.log?.("this game is too old for first-encounter alerts");
     return;
   }
   const ui = ctx.ui;
   activeTheme = ctx.theme ?? THEMES["terminal-original"];
   stopTheme = onThemeChange(showEncounter);
-  const core = ctx.core;
-  const key = characterKeyFor(ctx.state.actor.player);
+  const key = characterKey(birthFacts(ctx));
   const notebook = readFirstEncounterNotebook(ctx.prefs?.get(), key);
   const save = () => ctx.prefs?.set(withFirstEncounterNotebook(ctx.prefs?.get(), key, notebook));
   timer = setInterval(() => {
     let visible;
     try {
-      visible = core.monsterListCollect(ctx.state).entries.map((entry2) => entry2.race);
+      visible = visibleMonsterRaces(ctx);
     } catch (error) {
       ctx.log?.(`first-encounter alerts: could not read visible monsters: ${String(error)}`);
       return;
@@ -3455,7 +3596,7 @@ function installFirstEncounter(ctx) {
     const newMonsters = newMonsterSightings(visible, notebook.monsters);
     let carried;
     try {
-      carried = carriedKnownArtifacts(ctx.state.gear.store.values(), core.liveObjectIsKnownArtifact);
+      carried = carriedKnownArtifacts(carriedGear(ctx), knownArtifactTest(ctx));
     } catch (error) {
       ctx.log?.(`first-encounter alerts: could not read carried gear: ${String(error)}`);
       return;
@@ -3465,12 +3606,13 @@ function installFirstEncounter(ctx) {
     for (const race of newMonsters) notebook.monsters.add(race.ridx);
     for (const artifact of newArtifacts) notebook.artifacts.add(artifact.aidx);
     save();
-    const depth = ctx.state.chunk.depth;
+    const depth = levelDepth(ctx);
+    const { fmtDepth, colorToCss } = coreFormatters(ctx);
     for (const race of newMonsters) {
-      queue.push(monsterCardContent(race, depth, core.fmtDepth, core.colorToCss, ctx.tiles));
+      queue.push(monsterCardContent(race, depth, fmtDepth, colorToCss, ctx.tiles));
     }
     for (const artifact of newArtifacts) {
-      queue.push(artifactCardContent(artifact, core.fmtDepth));
+      queue.push(artifactCardContent(artifact, fmtDepth));
     }
     showNext(ui);
   }, POLL_MS);
@@ -3687,7 +3829,7 @@ function installMapOverview(ctx) {
     if (lastMode !== "map") {
       if (!ctx.flags["anybandui.zoom"] && !ctx.flags["anybandui.enlargedDisplay"]) setMapView(fitView(snap));
       try {
-        known = ctx.knownLevel?.() ?? null;
+        known = viewLevel(ctx);
       } catch {
         known = null;
       }
@@ -3725,7 +3867,7 @@ function installMapOverview(ctx) {
             playView.size.height * ch
           );
         }
-        const player = ctx.state?.actor?.grid;
+        const player = playerGrid(ctx);
         if (player) drawMarker(
           g,
           (player.x + 0.5 - snap.viewport.origin.x) * cw,
@@ -3761,7 +3903,7 @@ function installMapOverview(ctx) {
   };
   fit.addEventListener("click", () => setMapView(fitView(display.snapshot())));
   center.addEventListener("click", () => {
-    const player = ctx.state?.actor?.grid;
+    const player = playerGrid(ctx);
     if (!player) return;
     const snap = display.snapshot();
     setMapView({ origin: clampOrigin(snap, { x: player.x - snap.viewport.size.width / 2, y: player.y - snap.viewport.size.height / 2 }), size: snap.viewport.size });
@@ -3970,49 +4112,53 @@ function recallLine(recall) {
 function creatureRecall(ctx, grid) {
   if (!ctx.inspect?.monsterRecall || !ctx.snapshot) return null;
   try {
-    const monster = ctx.snapshot()?.core.monsters?.find((entry2) => entry2.visible && entry2.grid.x === grid.x && entry2.grid.y === grid.y);
+    const monster = viewMonsters(viewInput(ctx))?.find((entry2) => entry2.visible && entry2.grid.x === grid.x && entry2.grid.y === grid.y);
     return monster ? recallLine(ctx.inspect.monsterRecall(monster.raceIndex)) : null;
   } catch {
     return null;
   }
 }
-function wornLine(core, state, object) {
+function gameWornLine(game, object) {
   try {
-    return comparisonSummary(core.createAgentView?.(state).simulateLoadout?.({ wield: [{ from: "object", object }] }));
+    return comparisonSummary(simulateLoadout(game, { wield: [{ from: "object", object }] }));
   } catch {
     return null;
   }
 }
-function knownCard(core, state, grid, map, recall, pickupPreview = false) {
-  const look = core.describeLookGrid(state, grid, 0);
+function gameCard(game, grid, map, recall, pickupPreview = false) {
+  const look = lookAt(game, grid);
   const text = look?.text?.trim();
-  if (!text) return null;
-  const self = state.actor?.grid?.x === grid.x && state.actor?.grid?.y === grid.y;
-  const hallucinating = core.TMD?.IMAGE !== void 0 && (state.actor?.player?.timed?.[core.TMD.IMAGE] ?? 0) > 0;
-  const pile = hallucinating ? [] : core.knownPile?.(state, grid) ?? [];
-  const kind = self ? "You are here" : look.mon ? "Creature" : pile.length > 0 ? "Items" : "Terrain";
+  if (!look || !text) return null;
+  const at = playerGrid(game);
+  const self = at?.x === grid.x && at?.y === grid.y;
+  const hallucinating = playerHallucinating(game);
+  const pile = hallucinating ? [] : rememberedPile(game, grid);
+  const kind = self ? "You are here" : look.creature ? "Creature" : pile.length > 0 ? "Items" : "Terrain";
   const lines = [`${map ? `(${grid.x}, ${grid.y}) - ` : ""}${kind}`, text];
   if (hallucinating) {
     lines.push("Appearance unreliable (hallucinating)");
     return lines.join("\n");
   }
-  const hp = self ? state.actor?.player?.chp : look.mon?.hp;
-  const max = self ? state.actor?.player?.mhp : look.mon?.maxhp;
+  const own = self ? playerHitPoints(game) : null;
+  const hp = own ? own.hp : look.hp;
+  const max = own ? own.maxHp : look.maxHp;
   if (typeof hp === "number" && typeof max === "number" && max > 0) {
     const count = Math.max(0, Math.min(10, Math.round(10 * hp / max)));
     lines.push(`[${"#".repeat(count)}${"-".repeat(10 - count)}]`);
   }
-  if (!self && look.mon && recall) lines.push(recall);
-  if (self && core.TMD && state.actor?.player?.timed) {
-    const statuses = Object.entries(core.TMD).filter(([, index]) => (state.actor?.player?.timed?.[index] ?? 0) > 0).map(([name]) => name.toLowerCase().replaceAll("_", " "));
+  if (!self && look.creature && recall) lines.push(recall);
+  const timed = self ? playerTimedEffects(game) : null;
+  if (timed) {
+    const statuses = timed.map((name) => name.toLowerCase().replaceAll("_", " "));
     if (statuses.length) lines.push(`Statuses: ${statuses.join(", ")}`);
   }
-  const terrain = core.squareApparentName?.(state, grid);
+  const terrain = apparentTerrain(game, grid);
   if (terrain) lines.push(`Terrain: ${terrain}`);
-  const visible = core.squareIsSeen?.(state.chunk, grid) ?? false;
+  const visible = gridInView(game, grid);
   for (const entry2 of pile.slice(0, 5)) {
-    lines.push(entry2.sensed || !entry2.obj || !core.describeObject ? "Remembered item" : `${visible ? "Ground" : "Remembered"}: ${core.describeObject(state, entry2.obj)}`);
-    const worn = pickupPreview && (visible || self) && !entry2.sensed && entry2.obj ? wornLine(core, state, entry2.obj) : null;
+    const name = entry2.sensed || !entry2.obj ? null : describeObject(game, entry2.obj);
+    lines.push(name === null ? "Remembered item" : `${visible ? "Ground" : "Remembered"}: ${name}`);
+    const worn = pickupPreview && (visible || self) && !entry2.sensed && entry2.obj ? gameWornLine(game, entry2.obj) : null;
     if (worn) lines.push(`  ${worn}`);
   }
   if (pile.length > 5) lines.push("More items; use Look");
@@ -4021,12 +4167,12 @@ function knownCard(core, state, grid, map, recall, pickupPreview = false) {
 function installHoverCards(ctx) {
   if (!ctx.flags["anybandui.mapHoverCards"] && !ctx.flags["anybandui.dungeonHoverCards"]) return () => {
   };
-  if (!ctx.core?.describeLookGrid || !ctx.display || typeof document === "undefined" || typeof window === "undefined") {
+  if (!offers(ctx, ["describeLookGrid"]) || !ctx.display || typeof document === "undefined" || typeof window === "undefined") {
     ctx.log?.("hover cards: look or display API unavailable");
     return () => {
     };
   }
-  const core = ctx.core, display = ctx.display;
+  const display = ctx.display;
   const settings = validateSettings(ctx.prefs?.get());
   let theme = themeFromPrefs(ctx.prefs?.get());
   const card = document.createElement("div");
@@ -4068,7 +4214,7 @@ function installHoverCards(ctx) {
     pinned = false;
   };
   const resolve2 = (point) => {
-    const input = ctx.snapshot?.();
+    const input = viewInput(ctx);
     if (ctx.snapshot && (!input || input.phase !== "play" || input.messagePending || input.prompt)) return null;
     const snap = display.snapshot();
     const map = snap.mode === "map";
@@ -4079,7 +4225,7 @@ function installHoverCards(ctx) {
     } else if (!mapWasOpen) {
       mapWasOpen = true;
       try {
-        known = ctx.knownLevel?.() ?? null;
+        known = viewLevel(ctx);
       } catch {
         known = null;
       }
@@ -4095,8 +4241,8 @@ function installHoverCards(ctx) {
       hide();
       return;
     }
-    if (!ctx.state) return;
-    const content = knownCard(core, ctx.state, grid, map, map ? null : creatureRecall(ctx, grid), !map && ctx.flags["anybandui.itemsPickupPreview"] === true);
+    if (!hasLiveState(ctx)) return;
+    const content = gameCard(ctx, grid, map, map ? null : creatureRecall(ctx, grid), !map && ctx.flags["anybandui.itemsPickupPreview"] === true);
     if (!content) return;
     body.textContent = content;
     preview.style.display = paintPreview(display.snapshot(), grid, map, preview) ? "block" : "none";
@@ -4261,21 +4407,21 @@ var KIND_TITLE = {
   shop: "Shop",
   terrain: "Terrain"
 };
-function hoverCardContent(core, state, grid) {
-  const result = core.describeLookGrid(state, grid, 0);
+function gameCardContent(game, grid) {
+  const result = lookAt(game, grid);
   const text = result?.text?.trim() ?? "";
-  if (!text) return null;
-  const player = state.actor?.grid;
+  if (!result || !text) return null;
+  const player = playerGrid(game);
   let kind;
   if (player && player.x === grid.x && player.y === grid.y) {
     kind = "character";
-  } else if (result.mon) {
+  } else if (result.creature) {
     kind = "creature";
-  } else if (core.knownPile(state, grid).length > 0) {
+  } else if (rememberedPile(game, grid).length > 0) {
     kind = "item";
-  } else if (core.squareIsVisibleTrap?.(state, grid)) {
+  } else if (gridHasVisibleTrap(game, grid)) {
     kind = "trap";
-  } else if ((state.chunk?.feature?.(grid)?.shopnum ?? 0) > 0) {
+  } else if (gridIsShop(game, grid)) {
     kind = "shop";
   } else {
     kind = "terrain";
@@ -4426,11 +4572,10 @@ function installMapHoverCards(ctx) {
   };
   if (typeof document === "undefined" || typeof window === "undefined") return () => {
   };
-  if (!ctx.core || typeof ctx.core.describeLookGrid !== "function" || typeof ctx.core.knownPile !== "function") return () => {
+  if (!offers(ctx, ["describeLookGrid", "knownPile"])) return () => {
   };
   hoverCardsWired = true;
   const abort = new AbortController();
-  const core = ctx.core;
   const card = buildHoverCardElement();
   let mapOpenGuess = false;
   let touchPinned = false;
@@ -4460,8 +4605,7 @@ function installMapHoverCards(ctx) {
   const resolveCaveGrid = (clientX, clientY) => {
     const game = document.getElementById("game");
     if (!game) return null;
-    const state = ctx.state;
-    const chunk = state?.chunk;
+    const chunk = levelSize(ctx);
     if (!chunk || chunk.width < 1 || chunk.height < 1) return null;
     const snapshot = ctx.display?.snapshot();
     if (snapshot?.mode === "map") {
@@ -4526,9 +4670,8 @@ function installMapHoverCards(ctx) {
     };
   };
   const showAt = (clientX, clientY, resolved) => {
-    const state = ctx.state;
-    if (!state) return false;
-    const content = hoverCardContent(core, state, resolved.grid);
+    if (!hasLiveState(ctx)) return false;
+    const content = gameCardContent(ctx, resolved.grid);
     if (!content) return false;
     paintHoverCardText(card.title, content.title, "#f0d878", HOVER_CARD_TITLE_MAX_CHARS, false);
     paintHoverCardText(card.body, content.text, "#e8e8e8", HOVER_CARD_BODY_MAX_CHARS, true);
@@ -4795,11 +4938,11 @@ function slotLabel(slots, slot) {
   return name ? name.charAt(0).toUpperCase() + name.slice(1) : void 0;
 }
 function adaptItems(snap) {
-  const core = snap.core;
-  if (!core.inventory || !core.equipment) return null;
+  const world = viewWorld(snap);
+  if (!world.inventory || !world.equipment) return null;
   const row = (item, location2, extra = {}) => {
     const family = item.kindKey ?? item.kindId ?? `${item.tval}:${item.sval}`;
-    const slotName = extra.slot === void 0 ? void 0 : slotLabel(core.equipmentSlots, extra.slot);
+    const slotName = extra.slot === void 0 ? void 0 : slotLabel(world.equipmentSlots, extra.slot);
     const key = location2 === "floor" ? item.itemKey ?? `floor:${extra.floorIndex}:${family}` : item.itemKey ?? `gear:${item.handle}`;
     const label2 = item.name ?? item.label;
     return {
@@ -4822,23 +4965,23 @@ function adaptItems(snap) {
     phase: snap.phase,
     prompt: snap.prompt,
     rows: [
-      ...core.inventory.map((item) => row(item, "pack")),
-      ...core.equipment.flatMap((item, slot) => item ? [row(item, "equipment", { slot })] : [])
+      ...world.inventory.map((item) => row(item, "pack")),
+      ...world.equipment.flatMap((item, slot) => item ? [row(item, "equipment", { slot })] : [])
     ],
-    quiver: core.quiver ? core.quiver.map((item) => row(item, "quiver")) : null,
-    floor: core.floorHere ? core.floorHere.map((item, floorIndex) => row(item, "floor", { floorIndex })) : null,
-    player: core.player?.grid ? { x: core.player.grid.x, y: core.player.grid.y } : null
+    quiver: world.quiver ? world.quiver.map((item) => row(item, "quiver")) : null,
+    floor: world.floorHere ? world.floorHere.map((item, floorIndex) => row(item, "floor", { floorIndex })) : null,
+    player: world.player?.grid ? { x: world.player.grid.x, y: world.player.grid.y } : null
   };
 }
 function panelRows(model) {
   return [...model.rows, ...model.quiver ?? [], ...model.floor ?? []];
 }
 function compareItem(ctx, token, handle) {
-  if (!ctx.core?.createAgentView || !ctx.state) return null;
-  const before = ctx.snapshot?.();
+  if (!canSimulateLoadout(ctx)) return null;
+  const before = viewInput(ctx);
   if (!before || before.token.epoch !== token.epoch || before.token.revision !== token.revision) return null;
   const ref = typeof handle === "number" ? { from: "gear", handle } : { from: "store", ...handle };
-  return ctx.core.createAgentView(ctx.state).simulateLoadout?.({ wield: [ref] }) ?? null;
+  return simulateLoadout(ctx, { wield: [ref] });
 }
 function compareSlots(ctx, token, handle) {
   const same4 = (other) => other.epoch === token.epoch && other.revision === token.revision;
@@ -4856,7 +4999,7 @@ function compareSlots(ctx, token, handle) {
   if (!sim) return null;
   const placement = sim.placements[0];
   if (!placement || sim.unresolved.length) return [];
-  const slots = ctx.snapshot?.()?.core.equipmentSlots;
+  const slots = viewWorld(viewInput(ctx))?.equipmentSlots;
   return [{ slot: placement.slot, name: slots?.[placement.slot]?.name ?? "", comparison: sim }];
 }
 function defaultSlot(slots) {
@@ -5113,31 +5256,19 @@ function renderEquipmentPortrait(parent, slots, worn, selectedKey, onSelect) {
 }
 
 // src/pickup-preview.ts
-function floorObjectAt(core, state, grid, floorIndex) {
-  if (!Number.isInteger(floorIndex) || floorIndex < 0) return null;
-  try {
-    const listed = core.floorPile(state, grid).filter((obj) => {
-      const memory = core.knownFloorObject(state, grid, obj);
-      return !!memory && !memory.sensed;
-    });
-    return listed[floorIndex] ?? null;
-  } catch {
-    return null;
-  }
-}
 function previewFloorItem(ctx, token, grid, floorIndex) {
-  const before = ctx.snapshot?.();
+  const before = viewInput(ctx);
   if (!before || before.token.epoch !== token.epoch || before.token.revision !== token.revision) return null;
   let object = null;
   try {
-    object = ctx.core?.floorObject?.(grid, floorIndex) ?? null;
+    object = floorObject(ctx, grid, floorIndex);
   } catch {
     object = null;
   }
-  if (!object || !ctx.core?.createAgentView || !ctx.state) return null;
+  if (!object || !canSimulateLoadout(ctx)) return null;
   let sim = null;
   try {
-    sim = ctx.core.createAgentView(ctx.state).simulateLoadout?.({ wield: [{ from: "object", object }] }) ?? null;
+    sim = simulateLoadout(ctx, { wield: [{ from: "object", object }] });
   } catch {
     sim = null;
   }
@@ -5223,8 +5354,8 @@ function installItems(ctx) {
   const enabled = (name) => flags[`anybandui.items${name}`] === true;
   const preview = enabled("PickupPreview");
   const read = () => {
-    const snap = ctx.snapshot?.();
-    return snap?.core ? adaptItems(snap) : null;
+    const snap = viewInput(ctx);
+    return viewWorld(snap) ? adaptItems(snap) : null;
   };
   const current = (model) => {
     const latest = read();
@@ -5266,7 +5397,7 @@ function installItems(ctx) {
       paint(true);
       return;
     }
-    const builders = ctx.core?.createAgentActions?.(ctx.state);
+    const builders = itemActionBuilders(ctx);
     let inscription;
     if (code === "inscribe") {
       const input = globalThis.prompt?.("Inscription", item.inscription ?? "");
@@ -5302,7 +5433,7 @@ function installItems(ctx) {
       paint(true);
       return;
     }
-    const builders = ctx.core?.createAgentActions?.(ctx.state);
+    const builders = itemActionBuilders(ctx);
     const command = buildFloorCommand(builders, "pickup", item.floorIndex);
     const result = ctx.intent.submit(model.token, { kind: "command", command });
     report({ ...result, quiet: result.code === "controller-owned" }, "You cannot pick that up right now.");
@@ -5660,7 +5791,7 @@ function installItems(ctx) {
       listButton.setAttribute("aria-pressed", String(!figure));
     }
     if (showFigure) {
-      const slots = ctx.snapshot?.()?.core.equipmentSlots;
+      const slots = viewWorld(viewInput(ctx))?.equipmentSlots;
       const worn = model.rows.filter((item2) => item2.location === "equipment").map((item2) => ({
         ...item2.slot === void 0 ? {} : { slot: item2.slot },
         ...item2.slotName === void 0 ? {} : { slotName: item2.slotName },
@@ -7228,12 +7359,12 @@ function bookFor(snap, item, books, inspect) {
   return siblings.length === 1 ? siblings[0] : null;
 }
 function adaptSpells(snap, inspect) {
-  const player = snap.core.player;
-  if (!snap.core.spellbooks || !snap.core.inventory || !player) return null;
+  const world = viewWorld(snap), player = viewPlayer(snap);
+  if (!world.spellbooks || !world.inventory || !player) return null;
   const learnable = typeof player.learnableSpells === "number" ? player.learnableSpells : null;
   const books = [];
-  for (const item of snap.core.inventory) {
-    const book = bookFor(snap, item, snap.core.spellbooks, inspect);
+  for (const item of world.inventory) {
+    const book = bookFor(snap, item, world.spellbooks, inspect);
     if (!book || books.some((entry2) => entry2.key === itemKey(item))) continue;
     const spells = book.spells.map((spell) => {
       const info = inspect?.spellInfo?.(spell.sidx);
@@ -7311,7 +7442,7 @@ function installBlastPreview(ctx) {
     const paint = canvas.getContext("2d");
     if (!paint) return;
     paint.scale(scale, scale);
-    const snap = ctx.snapshot?.();
+    const snap = viewInput(ctx);
     const blast = blastGrids(ctx, snap, hovered);
     if (!blast) return;
     const view = display.snapshot();
@@ -7377,15 +7508,17 @@ function actualAura(o) {
 }
 function effectGrids(s, known, revealHidden = false) {
   const asleep = [], afraid = [], uniques = [], glows = [];
-  for (const m of s?.core.monsters ?? []) if (m.visible) {
+  for (const m of viewMonsters(s) ?? []) if (m.visible) {
     if (m.asleep) asleep.push(m.grid);
     if (m.afraid) afraid.push(m.grid);
     if (m.unique ?? m.raceFlags.includes("UNIQUE")) uniques.push({ grid: m.grid, final: m.finalGuardian ?? m.race === "Morgoth, Lord of Darkness" });
   }
+  const truth = revealHidden ? new Map(truthLevel(known).cells.map((cell) => [cell.y * 65536 + cell.x, cell])) : null;
   for (const c of known?.cells ?? []) {
     const auras = /* @__PURE__ */ new Set();
-    if (revealHidden && c.visible === true && c.actual && c.actual.monster === 0 && c.remembered.objects.length > 0) {
-      for (const o of c.actual.objects) {
+    const actual = truth?.get(c.y * 65536 + c.x);
+    if (actual && c.visible === true && actual.monster === 0 && c.remembered.objects.length > 0) {
+      for (const o of actual.objects) {
         const aura2 = actualAura(o);
         if (aura2) auras.add(aura2);
       }
@@ -7408,8 +7541,8 @@ function markGrids(asleep, afraid, fearOn) {
 }
 function actorGrid(s, who) {
   if (who === null) return null;
-  if (who === "player") return s?.core.player?.grid ?? null;
-  return s?.core.monsters?.find((m) => m.id === who && m.visible)?.grid ?? null;
+  if (who === "player") return viewPlayer(s)?.grid ?? null;
+  return viewMonsters(s)?.find((m) => m.id === who && m.visible)?.grid ?? null;
 }
 function eventCue(e, locate = () => null) {
   if (!e.seen) return [];
@@ -7745,7 +7878,7 @@ function installEffects(ctx) {
     }
     request();
   };
-  const add = (e) => push(eventCue(e, (who) => actorGrid(ctx.snapshot?.() ?? null, who)));
+  const add = (e) => push(eventCue(e, (who) => actorGrid(viewInput(ctx), who)));
   const spell = flags["anybandui.spellEffects"] === true, numbers = flags["anybandui.damageNumbers"] === true;
   const slides = flags["anybandui.walkSlide"] === true, ripples = flags["anybandui.blinkRipple"] === true;
   const bolts = flags["anybandui.boltGlyphs"] === true, cones = flags["anybandui.coneWash"] === true;
@@ -7760,7 +7893,7 @@ function installEffects(ctx) {
   };
   const motion = (_type, e) => {
     if (spell) add({ event: "motion", ...e });
-    if (slides) push(walkCues(e, (p) => (ctx.knownLevel?.()?.cells ?? []).some((c) => c.x === p.x && c.y === p.y && c.visible === true)));
+    if (slides) push(walkCues(e, (p) => (viewLevel(ctx)?.cells ?? []).some((c) => c.x === p.x && c.y === p.y && c.visible === true)));
     if (ripples) push(blinkCues(e));
   };
   const explosion = (_type, e) => {
@@ -7787,9 +7920,9 @@ function installEffects(ctx) {
   function draw(now) {
     raf = 0;
     const view = activeDisplay.snapshot(), rect = mapProjection(view);
-    const snap = ctx.snapshot?.() ?? null;
-    const player = snap?.core.player ?? null;
-    const known = ctx.knownLevel?.() ?? null;
+    const snap = viewInput(ctx);
+    const player = viewPlayer(snap) ?? null;
+    const known = viewLevel(ctx);
     const staticMode = chooseEffectMotion(reduced()) === "static";
     if (flags["anybandui.levelFlash"]) {
       levelWatch = observeLevel(levelWatch, { phase: snap?.phase, level: player?.level, maxLevel: player?.maxLevel, dead: player?.dead === true }, now);
@@ -8536,7 +8669,7 @@ function installSettingsWindow(ctx) {
 
 // src/map-mouse.ts
 function ready(snap) {
-  return !!snap && snap.phase === "play" && !snap.messagePending && !snap.prompt && !!snap.core.player;
+  return !!snap && snap.phase === "play" && !snap.messagePending && !snap.prompt && !!viewPlayer(snap);
 }
 function sameToken2(a, b) {
   return a.epoch === b.epoch && a.revision === b.revision;
@@ -8573,17 +8706,17 @@ function tileMenuActions(ctx, snap, at) {
   if (snap.prompt?.kind === "target") return ctx.prompt ? [{ label: "Select tile", promptAction: "select" }, { label: "Cancel", promptAction: "cancel" }] : [];
   if (!ready(snap)) return [];
   const actions = [];
-  const walk = walkIntent(snap.core.player.grid, at);
+  const walk = walkIntent(viewPlayer(snap).grid, at);
   if (walk) actions.push({ label: "Walk here", intent: walk });
   actions.push({ label: "Look", intent: { kind: "command", command: { code: "look", args: { x: at.x, y: at.y } } } });
   actions.push({ label: "Target", intent: { kind: "target", ...at } });
-  const known = ctx.knownLevel?.();
+  const known = viewLevel(ctx);
   if (known && sameToken2(known.token, snap.token) && known.cells.some((cell) => cell.x === at.x && cell.y === at.y && cell.remembered.objects.length > 0)) {
     actions.push({ label: "Pick up", pickup: true });
   }
   const offered = ctx.inspect?.tileActions?.(at);
   if (offered && sameToken2(offered.token, snap.token)) {
-    const player = snap.core.player.grid;
+    const player = viewPlayer(snap).grid;
     const dx = at.x - player.x, dy = at.y - player.y;
     const dir = 5 + Math.sign(dx) - 3 * Math.sign(dy);
     for (const code of offered.codes) {
@@ -8597,10 +8730,10 @@ function tileMenuActions(ctx, snap, at) {
 }
 function clickTile(ctx, at, modifiers = {}) {
   if (!playerIsDriving(ctx)) return false;
-  const snap = ctx.snapshot?.() ?? null;
+  const snap = viewInput(ctx);
   if (snap?.prompt?.kind === "target") return !!ctx.prompt?.reply(snap.prompt.promptId, { action: "move", ...at }).accepted;
   if (!ready(snap) || !snap || !ctx.intent) return false;
-  const player = snap.core.player.grid;
+  const player = viewPlayer(snap).grid;
   const intent = clickIntent(player, at, modifiers);
   if (!intent) return false;
   const result = ctx.intent.submit(snap.token, intent);
@@ -8611,14 +8744,14 @@ function clickTile(ctx, at, modifiers = {}) {
 }
 function runMenuAction(ctx, at, label2) {
   if (!playerIsDriving(ctx)) return false;
-  const snap = ctx.snapshot?.() ?? null;
+  const snap = viewInput(ctx);
   if (!snap) return false;
   const action = tileMenuActions(ctx, snap, at).find((item) => item.label === label2);
   if (!action) return false;
   if (action.promptAction) return !!ctx.prompt?.reply(snap.prompt.promptId, { action: action.promptAction }).accepted;
   if (!ctx.intent) return false;
   if (action.pickup) {
-    const grid = snap.core.player.grid;
+    const grid = viewPlayer(snap).grid;
     if (grid.x === at.x && grid.y === at.y) return ctx.intent.submit(snap.token, { kind: "command", command: { code: "pickup" } }).accepted;
     const travel = { kind: "travel", ...at };
     return ctx.intent.submit(snap.token, travel).accepted;
@@ -8627,11 +8760,11 @@ function runMenuAction(ctx, at, label2) {
 }
 function finishPickup(ctx, at, previous) {
   if (!playerIsDriving(ctx)) return false;
-  const next = ctx.snapshot?.() ?? null;
+  const next = viewInput(ctx);
   if (!ready(next) || !next || sameToken2(previous.token, next.token) || !ctx.intent) return false;
-  const grid = next.core.player.grid;
+  const grid = viewPlayer(next).grid;
   if (grid.x !== at.x || grid.y !== at.y) return false;
-  const level = ctx.knownLevel?.();
+  const level = viewLevel(ctx);
   if (!level || !sameToken2(level.token, next.token) || !level.cells.some((cell) => cell.x === at.x && cell.y === at.y && cell.remembered.objects.length > 0)) return false;
   return ctx.intent.submit(next.token, { kind: "command", command: { code: "pickup" } }).accepted;
 }
@@ -8699,7 +8832,7 @@ function installMapMouse(ctx) {
   };
   const locate = (event) => {
     const snap = display.snapshot();
-    const input = ctx.snapshot?.() ?? null;
+    const input = viewInput(ctx);
     if (snap.mode !== "play" && !(snap.mode === "modal" && (input?.prompt?.kind === "target" || input?.prompt?.kind === "direction"))) return null;
     const grid = hoverGrid(snap, { x: event.clientX, y: event.clientY });
     return grid && grid.x < snap.level.width && grid.y < snap.level.height ? grid : null;
@@ -8710,7 +8843,7 @@ function installMapMouse(ctx) {
     hide();
     if (!flags["anybandui.clickToWalk"]) return;
     const at = locate(event);
-    const prompt = ctx.snapshot?.()?.prompt;
+    const prompt = viewInput(ctx)?.prompt;
     if (at && clickTile(ctx, at, { shift: event.shiftKey, ctrl: event.ctrlKey })) {
       if (prompt?.kind === "target") {
         targetAt = at;
@@ -8723,7 +8856,7 @@ function installMapMouse(ctx) {
   const onContext = (event) => {
     hide();
     if (!flags["anybandui.dungeonActions"]) return;
-    const at = locate(event), snap = ctx.snapshot?.() ?? null;
+    const at = locate(event), snap = viewInput(ctx);
     if (!at || !snap || !playerIsDriving(ctx) || !(ready(snap) || snap.prompt?.kind === "target")) return;
     const actions = tileMenuActions(ctx, snap, at);
     if (!actions.length) return;
@@ -8745,18 +8878,18 @@ function installMapMouse(ctx) {
         button7.style.background = theme.surface;
       });
       button7.addEventListener("click", () => {
-        const current = ctx.snapshot?.() ?? null;
+        const current = viewInput(ctx);
         if (!menuAt || !current || !menuToken || !sameToken2(menuToken, current.token) || menuPromptId !== (current.prompt?.promptId ?? null)) {
           hide();
           return;
         }
-        const selected = menuAt;
+        const selected = menuAt, currentPlayer = viewPlayer(current);
         if (action.promptAction === "select" && current.prompt?.kind === "target") {
           if (ctx.prompt?.reply(current.prompt.promptId, { action: "move", ...selected }).accepted) {
             targetAt = selected;
             targetPromptId = current.prompt.promptId;
           }
-        } else if (action.pickup && current.core.player && (current.core.player.grid.x !== selected.x || current.core.player.grid.y !== selected.y)) {
+        } else if (action.pickup && currentPlayer && (currentPlayer.grid.x !== selected.x || currentPlayer.grid.y !== selected.y)) {
           if (runMenuAction(ctx, selected, action.label)) {
             pickupAt = selected;
             pickupSnap = current;
@@ -8779,7 +8912,7 @@ function installMapMouse(ctx) {
   };
   const render = () => {
     if (pickupAt && pickupSnap) {
-      const next = ctx.snapshot?.() ?? null;
+      const next = viewInput(ctx);
       if (next && !sameToken2(next.token, pickupSnap.token)) {
         finishPickup(ctx, pickupAt, pickupSnap);
         pickupAt = null;
@@ -8787,7 +8920,7 @@ function installMapMouse(ctx) {
       }
     }
     if (targetAt && targetPromptId !== null) {
-      const next = ctx.snapshot?.()?.prompt;
+      const next = viewInput(ctx)?.prompt;
       if (!next || next.kind !== "target") {
         targetAt = null;
         targetPromptId = null;
@@ -8810,7 +8943,7 @@ function installMapMouse(ctx) {
     if (!paint) return;
     paint.setTransform(1, 0, 0, 1, 0, 0);
     paint.clearRect(0, 0, width, height);
-    const snap = ctx.snapshot?.() ?? null;
+    const snap = viewInput(ctx);
     const path = snap?.prompt ? flags["anybandui.aimPath"] ? aimingPath(ctx, snap, hovered) : [] : flags["anybandui.walkRoutePreview"] ? walkingPath(ctx, snap, hovered) : [];
     const view = display.snapshot();
     const rect = view.mode === "play" || view.mode === "modal" && (snap?.prompt?.kind === "target" || snap?.prompt?.kind === "direction") ? mapProjection(view) : null;
@@ -8850,7 +8983,7 @@ function installMapMouse(ctx) {
 
 // src/spell-actions.ts
 function actionReady(ctx, snap) {
-  const next = ctx.snapshot?.();
+  const next = viewInput(ctx);
   return !!next && sameToken(next.token, snap.token) && next.phase === "play" && !next.prompt && !next.messagePending && playerIsDriving(ctx);
 }
 function castSpell(ctx, snap, spell) {
@@ -8862,13 +8995,13 @@ function studySpell(ctx, snap, book, spell) {
   return ctx.intent?.submit(snap.token, { kind: "command", command: { code: "study", args: book.chooseSpells ? { handle: book.handle, spell: spell.index } : { handle: book.handle } } }).accepted ?? false;
 }
 function answerSpell(ctx, snap, index) {
-  const next = ctx.snapshot?.();
+  const next = viewInput(ctx);
   if (snap.prompt?.kind !== "spell" || !next || !sameToken(next.token, snap.token) || next.prompt?.promptId !== snap.prompt.promptId || !playerIsDriving(ctx)) return false;
   if (!snap.prompt.choices.some((choice) => choice.index === index)) return false;
   return ctx.prompt?.reply(snap.prompt.promptId, index).accepted ?? false;
 }
 function cancelSpell(ctx, snap) {
-  const next = ctx.snapshot?.();
+  const next = viewInput(ctx);
   if (snap.prompt?.kind !== "spell" || !next || !sameToken(next.token, snap.token) || next.prompt?.promptId !== snap.prompt.promptId || !playerIsDriving(ctx) || !ctx.prompt?.reply) return false;
   return ctx.prompt.reply(snap.prompt.promptId, { action: "cancel" }).accepted ?? false;
 }
@@ -8886,7 +9019,7 @@ function restAnswer(count) {
   return count === -2 ? "&" : count === -1 ? "*" : count === -3 ? "!" : String(count);
 }
 function answerRest(ctx, snap, count) {
-  const prompt = restPrompt(snap), next = ctx.snapshot?.();
+  const prompt = restPrompt(snap), next = viewInput(ctx);
   if (!prompt || !next || restPrompt(next)?.promptId !== prompt.promptId || !playerIsDriving(ctx) || !ctx.prompt?.reply) return false;
   if (count === null) {
     const cancel = ctx.prompt.reply(prompt.promptId, { action: "cancel" });
@@ -8897,7 +9030,7 @@ function answerRest(ctx, snap, count) {
   return ctx.prompt.reply(prompt.promptId, answer).accepted ?? false;
 }
 function stopResting(ctx) {
-  const next = ctx.snapshot?.();
+  const next = viewInput(ctx);
   if (!next?.resting?.active || !playerIsDriving(ctx)) return false;
   return ctx.intent?.submit(next.token, { kind: "stop-resting" }).accepted ?? false;
 }
@@ -8967,7 +9100,7 @@ function migrateSlots(raw, from, to) {
 }
 function itemBindings(snap, ctx) {
   const codes = ["quaff", "read", "aim-wand", "activate"];
-  return (snap.core.inventory ?? []).flatMap((item) => codes.filter((code) => {
+  return (viewWorld(snap).inventory ?? []).flatMap((item) => codes.filter((code) => {
     const result = ctx.inspect?.itemTester?.(code);
     return result?.token.epoch === snap.token.epoch && result.token.revision === snap.token.revision && result.items.some((entry2) => "handle" in entry2 && entry2.handle === item.handle);
   }).map((code) => ({ type: "item", key: itemKey(item), code, name: item.label })));
@@ -8980,7 +9113,7 @@ function resolve(snap, binding, spells, ctx) {
     const name = listed?.name ?? COMMAND_LABELS[binding.code] ?? binding.name;
     if (!listed) return { label: name, detail: "This command is not available in this game.", usable: false };
     let usable2 = true;
-    const grid = snap.core.player?.grid;
+    const grid = viewPlayer(snap)?.grid;
     if (TILE_COMMANDS.has(binding.code) && grid && ctx.inspect?.tileActions) {
       const actions = ctx.inspect.tileActions(grid);
       if (actions && actions.token.epoch === snap.token.epoch && actions.token.revision === snap.token.revision) usable2 = actions.codes.includes(binding.code);
@@ -8999,7 +9132,7 @@ function resolve(snap, binding, spells, ctx) {
       ...spell.canCast ? { command: { code: "cast", args: { spell: spell.index } } } : {}
     };
   }
-  const item = snap.core.inventory?.find((entry2) => itemKey(entry2) === binding.key);
+  const item = viewWorld(snap).inventory?.find((entry2) => itemKey(entry2) === binding.key);
   if (!item) return { label: binding.name, detail: "Item no longer carried.", usable: false };
   const tester = ctx.inspect?.itemTester?.(binding.code);
   const usable = !!tester && tester.token.epoch === snap.token.epoch && tester.token.revision === snap.token.revision && tester.items.some((entry2) => "handle" in entry2 && entry2.handle === item.handle);
@@ -9051,15 +9184,15 @@ function lineageFor(ctx) {
   }
 }
 function fingerprintFor(ctx) {
-  const player = ctx.state?.actor?.player;
-  if (!player || typeof player.race?.name !== "string" || typeof player.cls?.name !== "string" || typeof player.auBirth !== "number" || typeof player.htBirth !== "number" || typeof player.wtBirth !== "number") return null;
-  return characterKey({ raceName: player.race.name, clsName: player.cls.name, auBirth: player.auBirth, htBirth: player.htBirth, wtBirth: player.wtBirth });
+  const player = birthFacts(ctx);
+  if (!player || typeof player.raceName !== "string" || typeof player.clsName !== "string" || typeof player.auBirth !== "number" || typeof player.htBirth !== "number" || typeof player.wtBirth !== "number") return null;
+  return characterKey({ raceName: player.raceName, clsName: player.clsName, auBirth: player.auBirth, htBirth: player.htBirth, wtBirth: player.wtBirth });
 }
 function characterFor(ctx) {
   return lineageFor(ctx) ?? fingerprintFor(ctx);
 }
 function adoptLineage(ctx, snap) {
-  const lineage = lineageFor(ctx), fingerprint = fingerprintFor(ctx), player = snap?.core.player;
+  const lineage = lineageFor(ctx), fingerprint = fingerprintFor(ctx), player = viewPlayer(snap);
   if (!lineage || !fingerprint || !ctx.prefs?.set || !player?.race || !player.cls || !fingerprint.startsWith(`${player.race}|${player.cls}|`)) return false;
   const moved = migrateSlots(ctx.prefs.get(), fingerprint, lineage);
   if (moved) ctx.prefs.set(moved);
@@ -9109,14 +9242,14 @@ function installPhase4(ctx) {
   const identify = (snap) => {
     const pair = `${lineageFor(ctx) ?? ""}
 ${fingerprintFor(ctx) ?? ""}
-${snap?.core.player?.race ?? ""}`;
+${viewPlayer(snap)?.race ?? ""}`;
     if (pair !== adopted) {
       adopted = pair;
       adoptLineage(ctx, snap);
     }
     return characterFor(ctx);
   };
-  let character = identify(ctx.snapshot?.());
+  let character = identify(viewInput(ctx));
   let slots = character ? readSlots(ctx.prefs?.get(), character) : Array(30).fill(null);
   const save = () => {
     if (character) writeSlots(ctx, character, slots);
@@ -9137,7 +9270,7 @@ ${snap?.core.player?.race ?? ""}`;
     const mounts = surfaces.mounts();
     const spellMount = spellOn ? mounts.get("spells") : void 0, quickMount = quickOn ? mounts.get("quickbar") : void 0, restMount = restOn ? mounts.get("rest") : void 0;
     if (!mounts.size) return;
-    const snap = ctx.snapshot?.();
+    const snap = viewInput(ctx);
     const key = identify(snap);
     if (key !== character) {
       character = key;
@@ -9219,7 +9352,7 @@ ${snap?.core.player?.race ?? ""}`;
           if (!book.chooseSpells) study.title = "Your class learns a random eligible spell from this book.";
           el7(spellMount, "h3", selected.name);
           el7(spellMount, "p", `Level ${selected.level}. Mana ${selected.mana}. Failure ${selected.fail}%. ${selected.state}.`);
-          if (selected.canCast && (snap.core.player?.sp ?? 0) < selected.mana) el7(spellMount, "p", "Not enough mana. Confirmation may be required.");
+          if (selected.canCast && (viewPlayer(snap)?.sp ?? 0) < selected.mana) el7(spellMount, "p", "Not enough mana. Confirmation may be required.");
           el7(spellMount, "p", selected.description);
           if (selected.infoLine) el7(spellMount, "p", `Info: ${selected.infoLine}`);
           if (quickOn && menu === -2) {
@@ -9444,7 +9577,7 @@ ${snap?.core.player?.race ?? ""}`;
   const keydown = (event) => {
     if (!quickOn || menu >= 0 || customize >= 0 || restOpen || event.repeat || event.altKey || event.metaKey || event.defaultPrevented || event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement || event.target instanceof HTMLElement && event.target.isContentEditable) return;
     const index = slotIndex(event.code, event.shiftKey, event.ctrlKey);
-    const snap = ctx.snapshot?.();
+    const snap = viewInput(ctx);
     if (!quickbarOwnsKey(quickOn, snap ?? null, event.code, event.shiftKey, event.ctrlKey, menu >= 0 || restOpen) || !snap || !actionReady(ctx, snap)) return;
     const binding = slots[index] ?? null;
     event.preventDefault();
@@ -9505,14 +9638,15 @@ function stockSpells(item, books) {
   }));
 }
 function adaptStore(snap, known) {
-  if (snap.phase !== "store" || !snap.core.stores || !snap.core.player || !snap.core.inventory) return null;
+  const world = viewWorld(snap);
+  if (snap.phase !== "store" || !world.stores || !world.player || !world.inventory) return null;
   const status = snap.storeStatus && same2(snap.storeStatus.token, snap.token) ? snap.storeStatus : null;
-  const cell = known && same2(known.token, snap.token) ? known.cells.find((entry2) => entry2.x === snap.core.player.grid.x && entry2.y === snap.core.player.grid.y) : null;
+  const cell = known && same2(known.token, snap.token) ? known.cells.find((entry2) => entry2.x === world.player.grid.x && entry2.y === world.player.grid.y) : null;
   const feat = status?.feat ?? cell?.remembered.feat;
   if (feat === void 0) return null;
-  const index = snap.core.stores.findIndex((store2) => store2.feat === feat);
+  const index = world.stores.findIndex((store2) => store2.feat === feat);
   if (index < 0) return null;
-  const store = snap.core.stores[index];
+  const store = world.stores[index];
   const items = adaptItems(snap);
   const quotes = new Map(status?.inventory.map((entry2) => [entry2.handle, entry2]));
   const located = status !== null && status.inventory.some((entry2) => entry2.location !== void 0);
@@ -9548,13 +9682,13 @@ function adaptStore(snap, known) {
     name: store.isHome ? "Home" : storeName(store.featName),
     owner: store.isHome ? "" : store.owner.name,
     home: store.isHome,
-    ...snap.core.player.gold === void 0 ? {} : { gold: snap.core.player.gold },
+    ...world.player.gold === void 0 ? {} : { gold: world.player.gold },
     ready: status?.ready ?? true,
     noSelling: status?.noSelling ?? false,
     transactionPrompts: status !== null,
     // ItemView.name, when published, is the game's own object name; label is the kind's raw template.
     stock: store.stock.map((item) => {
-      const spells = stockSpells(item, snap.core.spellbooks);
+      const spells = stockSpells(item, world.spellbooks);
       return {
         key: item.index,
         kind: itemKey(item),
@@ -9596,7 +9730,7 @@ function tradeAllowed(model, side, row) {
   return side === "pack" || model.home || row.price === void 0 || model.gold === void 0 || row.price <= model.gold;
 }
 function storeAction(ctx, model, side, key) {
-  const snap = ctx.snapshot?.();
+  const snap = viewInput(ctx);
   if (!snap || snap.phase !== "store" || snap.prompt || !same3(snap.token, model.token) || !model.ready || !ctx.intent?.submit) return REFUSED;
   if (!playerIsDriving(ctx)) return STANDING_DOWN;
   if (side !== "leave" && !tradeAllowed(model, side, (side === "stock" ? model.stock : model.pack).find((row) => row.key === key))) return REFUSED;
@@ -9604,7 +9738,7 @@ function storeAction(ctx, model, side, key) {
   return outcome(ctx.intent.submit(snap.token, { kind: "command", command }));
 }
 function storePromptReply(ctx, model, answer) {
-  const snap = ctx.snapshot?.();
+  const snap = viewInput(ctx);
   if (!snap || snap.phase !== "store" || !same3(snap.token, model.token) || !snap.prompt || snap.prompt.promptId !== model.prompt?.promptId || !ctx.prompt?.reply) return REFUSED;
   if (!playerIsDriving(ctx)) return STANDING_DOWN;
   const cancel = typeof answer === "object" && answer.action === "cancel";
@@ -9660,9 +9794,9 @@ function installStores(ctx) {
   let mount = null;
   const on = (part) => flags[`anybandui.store${part}`] === true;
   const read = () => {
-    const snap = ctx.snapshot?.();
+    const snap = viewInput(ctx);
     if (snap?.phase !== "store") return null;
-    return adaptStore(snap, ctx.knownLevel?.() ?? null);
+    return adaptStore(snap, viewLevel(ctx));
   };
   const paint = (force = false) => {
     const model = read();
@@ -10386,11 +10520,11 @@ function recordDepth(ctx) {
   if (!store) return false;
   let snap = null;
   try {
-    snap = ctx.snapshot?.() ?? null;
+    snap = viewInput(ctx);
   } catch {
     snap = null;
   }
-  const player = snap?.core?.player;
+  const player = viewPlayer(snap);
   const depth = player?.depth;
   if (typeof depth !== "number" || depth <= 0) return false;
   const marks = readDepthMarks(store);
@@ -10546,7 +10680,7 @@ var RECAP_MILESTONES = 4;
 function attackerName(attacker, kind, snapshot) {
   if (attacker === "player") return "You";
   if (attacker === null) return kind === "trap" ? "A trap" : "Something unseen";
-  const monster = snapshot?.core?.monsters?.find((entry2) => entry2.id === attacker);
+  const monster = viewMonsters(snapshot)?.find((entry2) => entry2.id === attacker);
   return monster?.visible && monster.race ? monster.race : "Something unseen";
 }
 function createBlowLog(snapshot, limit = BLOW_BUFFER) {
@@ -10672,7 +10806,7 @@ function installDeathRecap(ctx, ownDialog) {
   if (ctx.flags?.["anybandui.deathRecap"] !== true) return { cleanup: () => {
   } };
   const cleanups = [];
-  const log = createBlowLog(() => ctx.snapshot?.() ?? null);
+  const log = createBlowLog(() => viewInput(ctx));
   const combat = (_type, payload) => log.combat(payload);
   const heal = (_type, payload) => log.heal(payload);
   const events = ctx.events;
@@ -12265,7 +12399,7 @@ function installMinimapTravel(ctx) {
     return () => {
     };
   }
-  const display = ctx.display, knownLevel = ctx.knownLevel;
+  const display = ctx.display;
   let poll = null;
   const stop = () => {
     if (poll) clearInterval(poll);
@@ -12277,11 +12411,11 @@ function installMinimapTravel(ctx) {
     if (snap.mode !== "map") return;
     let known = null;
     try {
-      known = knownLevel() ?? null;
+      known = viewLevel(ctx);
     } catch {
       known = null;
     }
-    const target = mapTarget(snap, { x: event.clientX, y: event.clientY }, known, ctx.snapshot?.()?.core.player?.grid);
+    const target = mapTarget(snap, { x: event.clientX, y: event.clientY }, known, viewPlayer(viewInput(ctx))?.grid);
     stop();
     if (!target) return;
     const deadline = Date.now() + TRAVEL_WAIT_MS;
@@ -12290,7 +12424,7 @@ function installMinimapTravel(ctx) {
         stop();
         return;
       }
-      const input = ctx.snapshot?.();
+      const input = viewInput(ctx);
       if (display.snapshot().mode === "map" || !input || input.phase !== "play" || input.messagePending || input.prompt) return;
       stop();
       if (!clickTile(ctx, target)) ctx.log?.(`minimap travel: the game refused travel to ${target.x},${target.y}`);
@@ -12329,7 +12463,7 @@ var plugin_default = {
     displayCleanups.push(installEffects({ flags, ...ctx.snapshot ? { snapshot: ctx.snapshot } : {}, ...ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {}, ...ctx.events ? { events: ctx.events } : {}, ...ctx.display?.snapshot ? { display: { snapshot: ctx.display.snapshot.bind(ctx.display) } } : {}, ...ctx.prefs ? { prefs: ctx.prefs } : {}, ...ctx.settings ? { settings: ctx.settings } : {} }));
     const theme = themeFromPrefs(ctx.prefs?.get());
     displayCleanups.push(installChromePaint(ctx.display, flags, theme, ctx.log));
-    const liveCore = ctx.core, liveState = ctx.state;
+    const { liveCore, liveState } = liveGame(ctx);
     const itemContext = {
       flags,
       log: ctx.log,
@@ -12339,11 +12473,7 @@ var plugin_default = {
       ...ctx.prompt ? { prompt: ctx.prompt } : {},
       ...ctx.ui ? { ui: ctx.ui } : {},
       ...ctx.prefs ? { prefs: ctx.prefs } : {},
-      ...liveCore && liveState ? { state: liveState, core: {
-        createAgentView: () => liveCore.createAgentView(liveState),
-        createAgentActions: () => liveCore.createAgentActions(liveState),
-        floorObject: (grid, floorIndex) => floorObjectAt(liveCore, liveState, grid, floorIndex)
-      } } : {}
+      ...itemsGame(liveCore, liveState)
     };
     displayCleanups.push(installItems(itemContext));
     displayCleanups.push(installStores({ ...itemContext, ...ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {}, ...ctx.driver ? { driver: ctx.driver } : {} }));
@@ -12392,7 +12522,7 @@ var plugin_default = {
         ...ctx.prefs ? { prefs: ctx.prefs } : {},
         ...ctx.snapshot ? { snapshot: ctx.snapshot } : {},
         ...ctx.subwindows ? { subwindows: ctx.subwindows } : {},
-        ...ctx.state ? { state: ctx.state } : {},
+        ...liveState ? { state: liveState } : {},
         log: ctx.log
       });
       displayCleanups.push(uninstallZoomPan);
@@ -12400,7 +12530,7 @@ var plugin_default = {
         displayCleanups.push(installMapOverview({
           flags,
           display: ctx.display,
-          ...ctx.state ? { state: ctx.state } : {},
+          ...liveState ? { state: liveState } : {},
           ...ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {},
           ...ctx.prefs ? { prefs: ctx.prefs } : {},
           log: ctx.log
@@ -12408,8 +12538,8 @@ var plugin_default = {
       }
       displayCleanups.push(installMapHoverCards({
         flags,
-        ...ctx.core ? { core: ctx.core } : { core: null },
-        ...ctx.state ? { state: ctx.state } : {},
+        ...liveCore ? { core: liveCore } : { core: null },
+        ...liveState ? { state: liveState } : {},
         ...ctx.prefs ? { prefs: ctx.prefs } : {},
         display
       }));
@@ -12418,9 +12548,9 @@ var plugin_default = {
         display,
         ...ctx.snapshot ? { snapshot: ctx.snapshot } : {},
         ...ctx.inspect ? { inspect: ctx.inspect } : {},
-        ...ctx.core ? { core: ctx.core } : {},
+        ...liveCore ? { core: liveCore } : {},
         ...ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {},
-        ...ctx.state ? { state: ctx.state } : {},
+        ...liveState ? { state: liveState } : {},
         ...ctx.prefs ? { prefs: ctx.prefs } : {},
         log: ctx.log
       }));
@@ -12435,8 +12565,8 @@ var plugin_default = {
     if (flags["anybandui.mapHoverCards"] && !(ctx.display?.snapshot && ctx.display.onKey && ctx.display.setGrid && ctx.display.setCamera && ctx.display.setSidebarExtent && ctx.display.repaint)) {
       displayCleanups.push(installMapHoverCards({
         flags,
-        core: ctx.core ?? null,
-        ...ctx.state ? { state: ctx.state } : {},
+        core: liveCore ?? null,
+        ...liveState ? { state: liveState } : {},
         ...ctx.prefs ? { prefs: ctx.prefs } : {},
         ...ctx.display?.snapshot ? { display: ctx.display } : {}
       }));
@@ -12474,14 +12604,14 @@ var plugin_default = {
       ...ctx.display?.snapshot ? { display: { snapshot: ctx.display.snapshot.bind(ctx.display) } } : {},
       ...ctx.driver ? { driver: ctx.driver } : {},
       ...ctx.character ? { character: ctx.character } : {},
-      ...ctx.state ? { state: ctx.state } : {}
+      ...liveState ? { state: liveState } : {}
     }));
     if (flags["anybandui.firstEncounter"]) {
-      if (ctx.core && ctx.state) {
+      if (liveCore && liveState) {
         const theme2 = themeFromPrefs(ctx.prefs?.get());
         installFirstEncounter({
-          core: ctx.core,
-          state: ctx.state,
+          core: liveCore,
+          state: liveState,
           theme: theme2,
           ...ctx.ui ? { ui: ctx.ui } : {},
           ...ctx.prefs ? { prefs: ctx.prefs } : {},

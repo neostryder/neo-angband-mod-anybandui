@@ -2,6 +2,7 @@ import { hoverGrid } from "./hover-cards.js";
 import { mapProjection } from "./map-overview.js";
 import { sameToken } from "./view-model/spells.js";
 import type { Grid, Phase4Context, Phase4Snapshot } from "./seams.js";
+import { viewInput } from "./host-adapter.js";
 
 /** Fill and edge colours per projection element, so a fire ball and a frost
  * ball read differently. Anything unlisted uses the gold of the aiming path. */
@@ -48,7 +49,7 @@ export function installBlastPreview(ctx: Phase4Context): () => void {
   const render = (): void => {
     const scale = window.devicePixelRatio || 1; canvas.width = Math.ceil(window.innerWidth * scale); canvas.height = Math.ceil(window.innerHeight * scale);
     const paint = canvas.getContext("2d"); if (!paint) return; paint.scale(scale, scale);
-    const snap = ctx.snapshot?.();
+    const snap = viewInput(ctx);
     const blast = blastGrids(ctx, snap, hovered); if (!blast) return;
     const view = display.snapshot(); const rect = mapProjection(view); if (!rect) return;
     const width = rect.width / view.viewport.size.width, height = rect.height / view.viewport.size.height;

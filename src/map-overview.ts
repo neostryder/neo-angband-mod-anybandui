@@ -3,6 +3,7 @@ import { themeFromPrefs } from "./settings.js";
 import { onThemeChange } from "./theme.js";
 import type { DisplaySnapshot, Point, ZoomDisplay } from "./zoom.js";
 import { clampOrigin, keepsDisplayRequestsPerMod, pointInRect } from "./zoom.js";
+import { playerGrid, viewLevel } from "./host-adapter.js";
 
 export function mapProjection(snapshot: DisplaySnapshot): { x: number; y: number; width: number; height: number } | undefined {
   if (snapshot.mode === "map" && typeof document !== "undefined") {
@@ -163,7 +164,7 @@ export function installMapOverview(ctx: Context): () => void {
       if (snap.mode === "play") playView = snap.viewport; lastMode = snap.mode; return; }
     if (lastMode !== "map") {
       if (!ctx.flags["anybandui.zoom"] && !ctx.flags["anybandui.enlargedDisplay"]) setMapView(fitView(snap));
-      try { known = ctx.knownLevel?.() ?? null; } catch { known = null; }
+      try { known = viewLevel(ctx); } catch { known = null; }
     }
     lastMode = "map";
     const rect = mapProjection(snap);
@@ -185,7 +186,7 @@ export function installMapOverview(ctx: Context): () => void {
         if (playView) { g.strokeStyle = "#7aacd4"; g.lineWidth = 2;
           g.strokeRect((playView.origin.x - snap.viewport.origin.x) * cw, (playView.origin.y - snap.viewport.origin.y) * ch,
             playView.size.width * cw, playView.size.height * ch); }
-        const player = ctx.state?.actor?.grid;
+        const player = playerGrid(ctx);
         if (player) drawMarker(g, (player.x + 0.5 - snap.viewport.origin.x) * cw,
           (player.y + 0.5 - snap.viewport.origin.y) * ch, Math.max(4, Math.min(8, Math.min(cw, ch) * 0.45)), "player");
       }
@@ -209,7 +210,7 @@ export function installMapOverview(ctx: Context): () => void {
   };
   fit.addEventListener("click", () => setMapView(fitView(display.snapshot())));
   center.addEventListener("click", () => {
-    const player = ctx.state?.actor?.grid;
+    const player = playerGrid(ctx);
     if (!player) return;
     const snap = display.snapshot();
     setMapView({ origin: clampOrigin(snap, { x: player.x - snap.viewport.size.width / 2, y: player.y - snap.viewport.size.height / 2 }), size: snap.viewport.size });

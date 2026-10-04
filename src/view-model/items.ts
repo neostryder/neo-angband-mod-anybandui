@@ -1,4 +1,5 @@
 import type { InputSnapshot, ItemPanelSnapshot, ItemView, ItemsContext, ItemPanelContext, LoadoutSimulation, LoadoutSlotsResult, InputToken, PanelItemView, EquipmentSlotView, Grid } from "../seams.js";
+import { canSimulateLoadout, simulateLoadout, viewInput, viewWorld } from "../host-adapter.js";
 
 export type ItemLocation = "pack" | "equipment" | "quiver" | "floor";
 export interface ItemRow {
@@ -62,11 +63,11 @@ function slotLabel(slots: readonly EquipmentSlotView[] | null | undefined, slot:
 }
 
 export function adaptItems(snap: InputSnapshot | ItemPanelSnapshot): ItemsModel | null {
-  const core = (snap as ItemPanelSnapshot).core;
-  if (!core.inventory || !core.equipment) return null;
+  const world = viewWorld(snap as ItemPanelSnapshot);
+  if (!world.inventory || !world.equipment) return null;
   const row = (item: PanelItemView, location: ItemLocation, extra: { slot?: number; floorIndex?: number } = {}): ItemRow => {
     const family = item.kindKey ?? item.kindId ?? `${item.tval}:${item.sval}`;
-    const slotName = extra.slot === undefined ? undefined : slotLabel(core.equipmentSlots, extra.slot);
+    const slotName = extra.slot === undefined ? undefined : slotLabel(world.equipmentSlots, extra.slot);
     // Floor items: an engine publishing itemKey uses it ("floor:x,y:i"), so the row
     // tracks the pile through moves; without it the older derived key still works.
     const key = location === "floor"
@@ -84,11 +85,11 @@ export function adaptItems(snap: InputSnapshot | ItemPanelSnapshot): ItemsModel 
     };
   };
   return { token: snap.token, phase: snap.phase, prompt: snap.prompt,
-    rows: [...core.inventory.map((item) => row(item, "pack")),
-      ...core.equipment.flatMap((item, slot) => item ? [row(item, "equipment", { slot })] : [])],
-    quiver: core.quiver ? core.quiver.map((item) => row(item, "quiver")) : null,
-    floor: core.floorHere ? core.floorHere.map((item, floorIndex) => row(item, "floor", { floorIndex })) : null,
-    player: core.player?.grid ? { x: core.player.grid.x, y: core.player.grid.y } : null };
+    rows: [...world.inventory.map((item) => row(item, "pack")),
+      ...world.equipment.flatMap((item, slot) => item ? [row(item, "equipment", { slot })] : [])],
+    quiver: world.quiver ? world.quiver.map((item) => row(item, "quiver")) : null,
+    floor: world.floorHere ? world.floorHere.map((item, floorIndex) => row(item, "floor", { floorIndex })) : null,
+    player: world.player?.grid ? { x: world.player.grid.x, y: world.player.grid.y } : null };
 }
 
 /** Every row the panel can list: pack, equipment, quiver, then the floor. */
@@ -97,11 +98,11 @@ export function panelRows(model: ItemsModel): readonly ItemRow[] {
 }
 
 export function compareItem(ctx: ItemsContext, token: InputToken, handle: number | { store: number; index: number }): LoadoutSimulation | null {
-  if (!ctx.core?.createAgentView || !ctx.state) return null;
-  const before = ctx.snapshot?.();
+  if (!canSimulateLoadout(ctx)) return null;
+  const before = viewInput(ctx);
   if (!before || before.token.epoch !== token.epoch || before.token.revision !== token.revision) return null;
   const ref = typeof handle === "number" ? { from: "gear" as const, handle } : { from: "store" as const, ...handle };
-  return ctx.core.createAgentView(ctx.state).simulateLoadout?.({ wield: [ref] }) ?? null;
+  return simulateLoadout(ctx, { wield: [ref] });
 }
 
 export type SlotComparisons = LoadoutSlotsResult["slots"];
@@ -122,7 +123,7 @@ export function compareSlots(ctx: ItemPanelContext, token: InputToken, handle: n
   if (!sim) return null;
   const placement = sim.placements[0];
   if (!placement || sim.unresolved.length) return [];
-  const slots = ctx.snapshot?.()?.core.equipmentSlots;
+  const slots = viewWorld(viewInput(ctx))?.equipmentSlots;
   return [{ slot: placement.slot, name: slots?.[placement.slot]?.name ?? "", comparison: sim }];
 }
 

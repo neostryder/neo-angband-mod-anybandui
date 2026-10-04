@@ -6,6 +6,7 @@ import { pointInRect } from "./zoom.js";
 import { featureCode, landmarkKind, mapProjection } from "./map-overview.js";
 import type { Grid, LoadoutSimulation, MonsterRecallResult, RecallSeam, RecallSnapshot } from "./seams.js";
 import { comparisonSummary } from "./panels/item-comparison.js";
+import { apparentTerrain, describeObject, gridInView, hasLiveState, lookAt, offers, playerGrid, playerHallucinating, playerHitPoints, playerTimedEffects, rememberedPile, simulateLoadout, viewInput, viewLevel, viewMonsters, type LiveGame } from "./host-adapter.js";
 
 interface LookCore {
   describeLookGrid(state: unknown, grid: Point, mode: number): { text: string; mon?: { hp?: number; maxhp?: number } | null };
@@ -87,7 +88,7 @@ export function recallLine(recall: Pick<MonsterRecallResult, "text"> | null | un
 export function creatureRecall(ctx: Pick<HoverContext, "snapshot" | "inspect">, grid: Grid): string | null {
   if (!ctx.inspect?.monsterRecall || !ctx.snapshot) return null;
   try {
-    const monster = ctx.snapshot()?.core.monsters?.find((entry) => entry.visible && entry.grid.x === grid.x && entry.grid.y === grid.y);
+    const monster = viewMonsters(viewInput(ctx))?.find((entry) => entry.visible && entry.grid.x === grid.x && entry.grid.y === grid.y);
     return monster ? recallLine(ctx.inspect.monsterRecall(monster.raceIndex)) : null;
   } catch { return null; }
 }
@@ -96,39 +97,50 @@ export function creatureRecall(ctx: Pick<HoverContext, "snapshot" | "inspect">, 
  * actual chunk or a renderer tile here could disclose an unseen monster. */
 /** The pickup preview's line for one object: what wearing it would change, or null. */
 export function wornLine(core: LookCore, state: unknown, object: unknown): string | null {
-  try { return comparisonSummary(core.createAgentView?.(state).simulateLoadout?.({ wield: [{ from: "object", object: object as never }] })); } catch { return null; }
+  return gameWornLine({ core, state }, object);
+}
+
+function gameWornLine(game: LiveGame, object: unknown): string | null {
+  try { return comparisonSummary(simulateLoadout(game, { wield: [{ from: "object", object }] })); } catch { return null; }
 }
 
 export function knownCard(core: LookCore, state: NonNullable<HoverContext["state"]>, grid: Point, map: boolean, recall?: string | null, pickupPreview = false): string | null {
-  const look = core.describeLookGrid(state, grid, 0);
+  return gameCard({ core, state }, grid, map, recall, pickupPreview);
+}
+
+function gameCard(game: LiveGame, grid: Point, map: boolean, recall?: string | null, pickupPreview = false): string | null {
+  const look = lookAt(game, grid);
   const text = look?.text?.trim();
-  if (!text) return null;
-  const self = state.actor?.grid?.x === grid.x && state.actor?.grid?.y === grid.y;
-  const hallucinating = core.TMD?.IMAGE !== undefined && (state.actor?.player?.timed?.[core.TMD.IMAGE] ?? 0) > 0;
-  const pile = hallucinating ? [] : core.knownPile?.(state, grid) ?? [];
-  const kind = self ? "You are here" : look.mon ? "Creature" : pile.length > 0 ? "Items" : "Terrain";
+  if (!look || !text) return null;
+  const at = playerGrid(game);
+  const self = at?.x === grid.x && at?.y === grid.y;
+  const hallucinating = playerHallucinating(game);
+  const pile = hallucinating ? [] : rememberedPile(game, grid);
+  const kind = self ? "You are here" : look.creature ? "Creature" : pile.length > 0 ? "Items" : "Terrain";
   const lines = [`${map ? `(${grid.x}, ${grid.y}) - ` : ""}${kind}`, text];
   if (hallucinating) { lines.push("Appearance unreliable (hallucinating)"); return lines.join("\n"); }
-  const hp = self ? state.actor?.player?.chp : look.mon?.hp;
-  const max = self ? state.actor?.player?.mhp : look.mon?.maxhp;
+  const own = self ? playerHitPoints(game) : null;
+  const hp = own ? own.hp : look.hp;
+  const max = own ? own.maxHp : look.maxHp;
   if (typeof hp === "number" && typeof max === "number" && max > 0) {
     const count = Math.max(0, Math.min(10, Math.round(10 * hp / max)));
     lines.push(`[${"#".repeat(count)}${"-".repeat(10 - count)}]`);
   }
   // Only a creature the look text itself describes gets a recall line.
-  if (!self && look.mon && recall) lines.push(recall);
-  if (self && core.TMD && state.actor?.player?.timed) {
-    const statuses = Object.entries(core.TMD).filter(([, index]) => (state.actor?.player?.timed?.[index] ?? 0) > 0)
-      .map(([name]) => name.toLowerCase().replaceAll("_", " "));
+  if (!self && look.creature && recall) lines.push(recall);
+  const timed = self ? playerTimedEffects(game) : null;
+  if (timed) {
+    const statuses = timed.map((name) => name.toLowerCase().replaceAll("_", " "));
     if (statuses.length) lines.push(`Statuses: ${statuses.join(", ")}`);
   }
-  const terrain = core.squareApparentName?.(state, grid);
+  const terrain = apparentTerrain(game, grid);
   if (terrain) lines.push(`Terrain: ${terrain}`);
-  const visible = core.squareIsSeen?.(state.chunk, grid) ?? false;
+  const visible = gridInView(game, grid);
   for (const entry of pile.slice(0, 5)) {
-    lines.push(entry.sensed || !entry.obj || !core.describeObject ? "Remembered item" : `${visible ? "Ground" : "Remembered"}: ${core.describeObject(state, entry.obj)}`);
+    const name = entry.sensed || !entry.obj ? null : describeObject(game, entry.obj);
+    lines.push(name === null ? "Remembered item" : `${visible ? "Ground" : "Remembered"}: ${name}`);
     // Only an item in view: a remembered one may have changed or gone since it was seen.
-    const worn = pickupPreview && (visible || self) && !entry.sensed && entry.obj ? wornLine(core, state, entry.obj) : null;
+    const worn = pickupPreview && (visible || self) && !entry.sensed && entry.obj ? gameWornLine(game, entry.obj) : null;
     if (worn) lines.push(`  ${worn}`);
   }
   if (pile.length > 5) lines.push("More items; use Look");
@@ -137,10 +149,10 @@ export function knownCard(core: LookCore, state: NonNullable<HoverContext["state
 
 export function installHoverCards(ctx: HoverContext): () => void {
   if (!ctx.flags["anybandui.mapHoverCards"] && !ctx.flags["anybandui.dungeonHoverCards"]) return () => {};
-  if (!ctx.core?.describeLookGrid || !ctx.display || typeof document === "undefined" || typeof window === "undefined") {
+  if (!offers(ctx, ["describeLookGrid"]) || !ctx.display || typeof document === "undefined" || typeof window === "undefined") {
     ctx.log?.("hover cards: look or display API unavailable"); return () => {};
   }
-  const core = ctx.core, display = ctx.display;
+  const display = ctx.display;
   const settings = validateSettings(ctx.prefs?.get());
   let theme = themeFromPrefs(ctx.prefs?.get());
   const card = document.createElement("div");
@@ -171,13 +183,13 @@ export function installHoverCards(ctx: HoverContext): () => void {
   const cancel = (): void => { if (timer) clearTimeout(timer); timer = null; };
   const hide = (): void => { cancel(); card.style.display = "none"; key = ""; pinned = false; };
   const resolve = (point: Point): { grid: Point; map: boolean } | null => {
-    const input = ctx.snapshot?.();
+    const input = viewInput(ctx);
     if (ctx.snapshot && (!input || input.phase !== "play" || input.messagePending || input.prompt)) return null;
     const snap = display.snapshot();
     const map = snap.mode === "map";
     if (!pointInRect(point, mapProjection(snap))) return null;
     if (!map) { known = null; mapWasOpen = false; }
-    else if (!mapWasOpen) { mapWasOpen = true; try { known = ctx.knownLevel?.() ?? null; } catch { known = null; } }
+    else if (!mapWasOpen) { mapWasOpen = true; try { known = viewLevel(ctx); } catch { known = null; } }
     if (map ? !ctx.flags["anybandui.mapHoverCards"] : snap.mode !== "play" || !ctx.flags["anybandui.dungeonHoverCards"]) return null;
     const grid = map && known ? snapLandmark(snap, point, known.cells) ?? hoverGrid(snap, point) : hoverGrid(snap, point);
     if (!grid || grid.x >= snap.level.width || grid.y >= snap.level.height) return null;
@@ -186,8 +198,8 @@ export function installHoverCards(ctx: HoverContext): () => void {
   const show = (point: Point, grid: Point, map: boolean): void => {
     const current = resolve(point);
     if (!current || current.grid.x !== grid.x || current.grid.y !== grid.y || current.map !== map) { hide(); return; }
-    if (!ctx.state) return;
-    const content = knownCard(core, ctx.state, grid, map, map ? null : creatureRecall(ctx, grid), !map && ctx.flags["anybandui.itemsPickupPreview"] === true);
+    if (!hasLiveState(ctx)) return;
+    const content = gameCard(ctx, grid, map, map ? null : creatureRecall(ctx, grid), !map && ctx.flags["anybandui.itemsPickupPreview"] === true);
     if (!content) return;
     body.textContent = content;
     preview.style.display = paintPreview(display.snapshot(), grid, map, preview) ? "block" : "none";

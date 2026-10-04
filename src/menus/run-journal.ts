@@ -17,6 +17,7 @@ import type { CharacterHistoryEntry, ModPluginContext, RunReport } from "@rpgm-t
 import { openSurfaces, type SurfaceContext } from "../panels/surface.js";
 import { button, el, DIALOG_CSS } from "./dialog.js";
 import { createJournalView, endingEntry, journalFromHistory, JOURNAL_CSS, newJournalFilter, type DepthMark, type JournalEntry, type JournalView } from "./journal.js";
+import { viewInput, viewPlayer } from "../host-adapter.js";
 
 export interface CharacterStoreSeam {
   get(): unknown;
@@ -58,8 +59,8 @@ export function recordDepth(ctx: DepthRecorderContext): boolean {
   const store = ctx.characterStore;
   if (!store) return false;
   let snap: DepthSnapshot | null = null;
-  try { snap = ctx.snapshot?.() ?? null; } catch { snap = null; }
-  const player = snap?.core?.player;
+  try { snap = viewInput(ctx); } catch { snap = null; }
+  const player = viewPlayer(snap);
   const depth = player?.depth;
   if (typeof depth !== "number" || depth <= 0) return false;
   const marks = readDepthMarks(store);

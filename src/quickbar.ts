@@ -1,6 +1,7 @@
 import type { Phase4Context, Phase4Snapshot, ItemView } from "./seams.js";
 import { actionReady } from "./spell-actions.js";
 import { adaptSpells, itemKey, type SpellsModel } from "./view-model/spells.js";
+import { viewWorld, viewPlayer } from "./host-adapter.js";
 
 export interface Appearance { readonly style: "automatic" | "text" | "potion" | "scroll" | "wand"; readonly text: string; readonly color: string }
 export type Binding = ({ readonly type: "spell"; readonly key: string; readonly index: number; readonly name: string } | { readonly type: "item"; readonly key: string; readonly code: "quaff" | "read" | "aim-wand" | "activate"; readonly name: string } | { readonly type: "command"; readonly code: string; readonly name: string }) & { readonly appearance?: Appearance };
@@ -77,7 +78,7 @@ export function migrateSlots(raw: unknown, from: string, to: string): Record<str
 }
 export function itemBindings(snap: Phase4Snapshot, ctx: Phase4Context): Extract<Binding, { type: "item" }>[] {
   const codes = ["quaff", "read", "aim-wand", "activate"] as const;
-  return (snap.core.inventory ?? []).flatMap((item) => codes.filter((code) => {
+  return (viewWorld(snap).inventory ?? []).flatMap((item) => codes.filter((code) => {
     const result = ctx.inspect?.itemTester?.(code);
     return result?.token.epoch === snap.token.epoch && result.token.revision === snap.token.revision && result.items.some((entry) => "handle" in entry && entry.handle === item.handle);
   }).map((code) => ({ type: "item" as const, key: itemKey(item), code, name: item.label })));
@@ -92,7 +93,7 @@ export function resolve(snap: Phase4Snapshot, binding: Binding | null, spells: S
     const name = listed?.name ?? COMMAND_LABELS[binding.code] ?? binding.name;
     if (!listed) return { label: name, detail: "This command is not available in this game.", usable: false };
     let usable = true;
-    const grid = snap.core.player?.grid;
+    const grid = viewPlayer(snap)?.grid;
     if (TILE_COMMANDS.has(binding.code) && grid && ctx.inspect?.tileActions) {
       const actions = ctx.inspect.tileActions(grid);
       if (actions && actions.token.epoch === snap.token.epoch && actions.token.revision === snap.token.revision) usable = actions.codes.includes(binding.code);
@@ -108,7 +109,7 @@ export function resolve(snap: Phase4Snapshot, binding: Binding | null, spells: S
     return { label: spell.name, amount: `${spell.mana} SP`, detail: `Mana ${spell.mana}, fail ${spell.fail}%. ${spell.state}. ${spell.description}`, usable: spell.canCast,
       ...(spell.canCast ? { command: { code: "cast", args: { spell: spell.index } } } : {}) };
   }
-  const item: ItemView | undefined = snap.core.inventory?.find((entry) => itemKey(entry) === binding.key);
+  const item: ItemView | undefined = viewWorld(snap).inventory?.find((entry) => itemKey(entry) === binding.key);
   if (!item) return { label: binding.name, detail: "Item no longer carried.", usable: false };
   const tester = ctx.inspect?.itemTester?.(binding.code);
   const usable = !!tester && tester.token.epoch === snap.token.epoch && tester.token.revision === snap.token.revision && tester.items.some((entry) => "handle" in entry && entry.handle === item.handle);

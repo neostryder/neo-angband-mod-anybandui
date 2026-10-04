@@ -14,6 +14,7 @@ import { clickTile } from "./map-mouse.js";
 import { playerIsDriving } from "./input-owner.js";
 import type { Grid, InputDriver, KnownLevel, MouseSeams } from "./seams.js";
 import type { DisplaySnapshot } from "./zoom.js";
+import { viewInput, viewLevel, viewPlayer } from "./host-adapter.js";
 
 /** How long the travel waits for the map to close and the game to be ready, in milliseconds. */
 export const TRAVEL_WAIT_MS = 2000;
@@ -42,7 +43,7 @@ export function installMinimapTravel(ctx: MinimapTravelContext): () => void {
   if (!ctx.display || !ctx.snapshot || !ctx.knownLevel || !ctx.intent || typeof window === "undefined") {
     ctx.log?.("minimap travel: display, map or intent seam unavailable"); return () => {};
   }
-  const display = ctx.display, knownLevel = ctx.knownLevel;
+  const display = ctx.display;
   let poll: ReturnType<typeof setInterval> | null = null;
   const stop = (): void => { if (poll) clearInterval(poll); poll = null; };
   const onDown = (event: PointerEvent): void => {
@@ -50,14 +51,14 @@ export function installMinimapTravel(ctx: MinimapTravelContext): () => void {
     const snap = display.snapshot();
     if (snap.mode !== "map") return;
     let known: KnownLevel | null = null;
-    try { known = knownLevel() ?? null; } catch { known = null; }
-    const target = mapTarget(snap, { x: event.clientX, y: event.clientY }, known, ctx.snapshot?.()?.core.player?.grid);
+    try { known = viewLevel(ctx); } catch { known = null; }
+    const target = mapTarget(snap, { x: event.clientX, y: event.clientY }, known, viewPlayer(viewInput(ctx))?.grid);
     stop();
     if (!target) return;
     const deadline = Date.now() + TRAVEL_WAIT_MS;
     poll = setInterval(() => {
       if (Date.now() > deadline || !playerIsDriving(ctx)) { stop(); return; }
-      const input = ctx.snapshot?.();
+      const input = viewInput(ctx);
       if (display.snapshot().mode === "map" || !input || input.phase !== "play" || input.messagePending || input.prompt) return;
       stop();
       if (!clickTile(ctx, target)) ctx.log?.(`minimap travel: the game refused travel to ${target.x},${target.y}`);
