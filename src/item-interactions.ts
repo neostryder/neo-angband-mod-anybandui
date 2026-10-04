@@ -1,4 +1,4 @@
-import type { AgentCommand, InputToken, InspectSeam, IntentSeam, ItemPrompt, PromptSeam, QuantityPrompt, ActionBuilders, ItemIntentResult, ItemPanelContext } from "./seams.js";
+import type { AgentCommand, InputToken, InspectSeam, IntentSeam, ItemPrompt, PromptSeam, QuantityPrompt, ItemIntentResult, ItemPanelContext } from "./seams.js";
 import { submitItemIntent } from "./item-rules.js";
 
 export function quantityShortcut(prompt: QuantityPrompt, shortcut: "One" | "Half" | "All"): number {
@@ -15,20 +15,16 @@ export function answerItem(seam: PromptSeam | undefined, prompt: ItemPrompt, han
   return seam?.reply(prompt.promptId, handle) ?? { accepted: false, reason: "Prompt reply unavailable." };
 }
 
-export function buildItemCommand(builders: ActionBuilders | undefined, code: string, handle: number, inscription?: string): AgentCommand {
-  if (code === "wield") return builders?.wear(handle) ?? { code, args: { handle } };
-  if (code === "takeoff") return builders?.takeoff(handle) ?? { code, args: { handle } };
-  if (code === "drop") return builders?.drop(handle) ?? { code, args: { handle } };
-  const args = inscription === undefined ? { handle } : { handle, inscription };
-  return builders?.raw(code, args) ?? { code, args };
+export function buildItemCommand(code: string, handle: number, inscription?: string): AgentCommand {
+  if (code === "wield" || code === "takeoff" || code === "drop") return { code, args: { handle } };
+  return { code, args: inscription === undefined ? { handle } : { handle, inscription } };
 }
 
 /** A floor command: the engine accepts `args.floor` in place of `args.handle` for
  * the codes in its catalogue's FLOOR_ITEM_CODES, and pickup takes `args.floor`
  * with no handle. The actions arm passes these as the command's argument. */
-export function buildFloorCommand(builders: ActionBuilders | undefined, code: string, floorIndex: number, inscription?: string): AgentCommand {
-  const args = inscription === undefined ? { floor: floorIndex } : { floor: floorIndex, inscription };
-  return builders?.raw(code, args) ?? { code, args };
+export function buildFloorCommand(code: string, floorIndex: number, inscription?: string): AgentCommand {
+  return { code, args: inscription === undefined ? { floor: floorIndex } : { floor: floorIndex, inscription } };
 }
 
 export function submitItem(intent: IntentSeam | undefined, inspect: InspectSeam | undefined, token: InputToken, code: string, handle: number, command: AgentCommand): { readonly accepted: boolean; readonly reason?: string } {

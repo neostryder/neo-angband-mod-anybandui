@@ -30,7 +30,7 @@ describe("settings window", () => {
   });
 
   it("covers every strength setting in the manifest, with its title, and each maps to stored cue kinds", () => {
-    const manifest = JSON.parse(readFileSync(new URL("../../manifest.json", import.meta.url), "utf8")) as { settings: { id: string; title: string }[] };
+    const manifest = JSON.parse(readFileSync(new URL("../../manifest.json", import.meta.url), "utf8")).data as { settings: { id: string; title: string }[] };
     const grouped = STRENGTH_GROUPS.flatMap(([, members]) => members);
     expect(grouped.map((s) => s.id).sort()).toEqual(manifest.settings.map((s) => s.id).sort());
     for (const setting of grouped) {

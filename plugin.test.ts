@@ -22,7 +22,7 @@ describe("the AnybandUI plugin", () => {
   });
 
   it("declares only the needed capabilities and disabled rules", () => {
-    const manifest = JSON.parse(readFileSync(new URL("./manifest.json", import.meta.url), "utf8")) as {
+    const manifest = JSON.parse(readFileSync(new URL("./manifest.json", import.meta.url), "utf8")).data as {
       capabilities: string[]; rules: { flag: string; default: boolean; requiresReload: boolean }[];
     };
     expect(manifest.capabilities).toEqual(["ui:sidebar.replace", "ui:status.replace", "ui:messages.replace", "display:filter", "ui:panel.mount", "state:map.read", "state:interaction.read", "state:inventory.read", "state:floor.read", "state:player.read", "state:spells.read", "state:stores.read", "state:messages.read", "state:monsters.read", "state:map-actual.read", "input:intent", "input:prompt.reply", "event:combat-outcome", "event:heal", "event:motion", "event:explosion", "event:bolt", "event:driver-changed", "saves:manage", "ui:menu.replace", "ui:screen.replace", "ui:title", "event:dungeonlevel", "ui:birth.replace", "state:knowledge.read", "state:options.read", "options:write", "keymap:edit"]);
@@ -31,7 +31,7 @@ describe("the AnybandUI plugin", () => {
   });
 
   it("registers with every AnybandUI flag enabled together", () => {
-    const manifest = JSON.parse(readFileSync(new URL("./manifest.json", import.meta.url), "utf8")) as { rules: { flag: string }[] };
+    const manifest = JSON.parse(readFileSync(new URL("./manifest.json", import.meta.url), "utf8")).data as { rules: { flag: string }[] };
     const flags = Object.fromEntries(manifest.rules.map(({ flag }) => [flag, true]));
     expect(() => plugin.register(undefined, { id: "anybandui", engine: "1.18.0", log: () => {}, flags })).not.toThrow();
     plugin.uninstall();

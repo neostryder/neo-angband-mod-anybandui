@@ -57,12 +57,12 @@ describe("phase 3 interactions", () => {
     const tester = vi.fn(() => ({ token, items: [{ handle: 7 }] }));
     const inspect = { itemTester: tester } as unknown as InspectSeam;
     for (const [code, expected] of [["wield", "wield"], ["takeoff", "takeoff"], ["drop", "drop"], ["inscribe", "inscribe"], ["ignore", "ignore"], ["use", "use"]]) {
-      const command = buildItemCommand(undefined, code!, 7, code === "inscribe" ? "@a" : undefined);
+      const command = buildItemCommand(code!, 7, code === "inscribe" ? "@a" : undefined);
       expect(command.code).toBe(expected);
       expect(submitItem(intent, inspect, token, code!, 7, command).accepted).toBe(true);
       expect(submit).toHaveBeenLastCalledWith(token, { kind: "command", command });
     }
-    expect(submitItem(intent, inspect, token, "drop", 8, buildItemCommand(undefined, "drop", 8)).accepted).toBe(false);
+    expect(submitItem(intent, inspect, token, "drop", 8, buildItemCommand("drop", 8)).accepted).toBe(false);
     expect(submit).toHaveBeenCalledTimes(6);
   });
 });
@@ -199,10 +199,9 @@ describe("item panel new-engine reads", () => {
 
 describe("item panel floor actions", () => {
   it("builds a floor command whose args name the pile index", () => {
-    expect(buildFloorCommand(undefined, "pickup", 2)).toEqual({ code: "pickup", args: { floor: 2 } });
-    expect(buildFloorCommand(undefined, "inscribe", 0, "@q1")).toEqual({ code: "inscribe", args: { floor: 0, inscription: "@q1" } });
-    // A builders context defers to the engine's raw builder; the floor argument still travels.
-    expect(buildFloorCommand({ wear: (handle) => ({ code: "wield", args: { handle } }), takeoff: () => ({ code: "takeoff", args: {} }), drop: () => ({ code: "drop", args: {} }), raw: (code, args) => (args === undefined ? { code } : { code, args }) }, "wield", 1)).toEqual({ code: "wield", args: { floor: 1 } });
+    expect(buildFloorCommand("pickup", 2)).toEqual({ code: "pickup", args: { floor: 2 } });
+    expect(buildFloorCommand("inscribe", 0, "@q1")).toEqual({ code: "inscribe", args: { floor: 0, inscription: "@q1" } });
+    expect(buildFloorCommand("wield", 1)).toEqual({ code: "wield", args: { floor: 1 } });
   });
 
   it("submits only floor actions whose pile entry the tester allows", () => {
@@ -210,7 +209,7 @@ describe("item panel floor actions", () => {
     const intent: IntentSeam = { submit };
     const tester = vi.fn(() => ({ token, items: [{ floor: { x: 4, y: 5, index: 0 } }] }));
     const inspect = { itemTester: tester } as unknown as InspectSeam;
-    const command = buildFloorCommand(undefined, "wield", 0);
+    const command = buildFloorCommand("wield", 0);
     expect(submitFloorItem(intent, inspect, token, "wield", { x: 4, y: 5, index: 0 }, command).accepted).toBe(true);
     expect(submit).toHaveBeenLastCalledWith(token, { kind: "command", command });
     // A different pile position is refused, as is a stale token.

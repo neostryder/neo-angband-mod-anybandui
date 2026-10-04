@@ -28,6 +28,7 @@ An entry opens with one or more bracketed tags. `[Visible]` marks a change a pla
 - [Visible] [UI] **An artifact on the floor glows with a gold sunburst instead of a circle.**
 - [Visible] [UI] **Hovering on the map overview waits for the shared hover delay instead of two seconds.**
 - [Internal] [Modding-API] **AnybandUI reads the game through one file, src/host-adapter.ts.** Features used to call the engine core, the live state and the input snapshot themselves. Now they call functions in that file, each named for the mod API 2 call that will take its place, so porting to API 2 means rewriting one file. The real-map read behind the hidden-magic glow has its own function, separate from what the character knows, and a new test fails if any other file reaches into the host. Play is the same as before.
+- [Internal] [Modding-API] **The manifest is a schema 2 document, and src/host-adapter-api2.ts answers the adapter's reads through mod API 2.** The mod stays on API 1, and only a game that reads schema 2 manifests can load it. Nothing calls the API 2 adapter yet. Its tests check it against the API 1 adapter, and docs/API2-MIGRATION.md lists where every read goes and what Core still has to add. The item panels now build their own command objects instead of asking the engine for them, and send the same commands as before.
 
 ## 1.1.0 - 2026-10-01
 

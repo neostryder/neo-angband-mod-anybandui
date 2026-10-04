@@ -215,7 +215,6 @@ function itemsGame(core, state) {
   if (!core || !state) return {};
   return { state, core: {
     createAgentView: () => core.createAgentView(state),
-    createAgentActions: () => core.createAgentActions(state),
     floorObject: (grid, floorIndex) => listedFloorObject(core, state, grid, floorIndex)
   } };
 }
@@ -319,9 +318,6 @@ function liveHud(game) {
     descent: state.actor.player.deepDescent,
     extraMoves: state.playerState?.numMoves ?? 0
   };
-}
-function itemActionBuilders(game) {
-  return coreOf(game)?.createAgentActions?.(game.state);
 }
 function visibleMonsterRaces(game) {
   return game.core.monsterListCollect(game.state).entries.map((entry2) => entry2.race);
@@ -5089,16 +5085,12 @@ function answerItem(seam, prompt, handle) {
   if (!prompt.choices.some((choice) => choice.handle === handle)) return { accepted: false, reason: "Item is unavailable for this action." };
   return seam?.reply(prompt.promptId, handle) ?? { accepted: false, reason: "Prompt reply unavailable." };
 }
-function buildItemCommand(builders, code, handle, inscription) {
-  if (code === "wield") return builders?.wear(handle) ?? { code, args: { handle } };
-  if (code === "takeoff") return builders?.takeoff(handle) ?? { code, args: { handle } };
-  if (code === "drop") return builders?.drop(handle) ?? { code, args: { handle } };
-  const args = inscription === void 0 ? { handle } : { handle, inscription };
-  return builders?.raw(code, args) ?? { code, args };
+function buildItemCommand(code, handle, inscription) {
+  if (code === "wield" || code === "takeoff" || code === "drop") return { code, args: { handle } };
+  return { code, args: inscription === void 0 ? { handle } : { handle, inscription } };
 }
-function buildFloorCommand(builders, code, floorIndex, inscription) {
-  const args = inscription === void 0 ? { floor: floorIndex } : { floor: floorIndex, inscription };
-  return builders?.raw(code, args) ?? { code, args };
+function buildFloorCommand(code, floorIndex, inscription) {
+  return { code, args: inscription === void 0 ? { floor: floorIndex } : { floor: floorIndex, inscription } };
 }
 function submitItem(intent, inspect, token, code, handle, command) {
   const tester = inspect?.itemTester(code);
@@ -5397,7 +5389,6 @@ function installItems(ctx) {
       paint(true);
       return;
     }
-    const builders = itemActionBuilders(ctx);
     let inscription;
     if (code === "inscribe") {
       const input = globalThis.prompt?.("Inscription", item.inscription ?? "");
@@ -5410,14 +5401,14 @@ function installItems(ctx) {
         paint(true);
         return;
       }
-      const command2 = buildFloorCommand(builders, actualCode, item.floorIndex, inscription);
+      const command2 = buildFloorCommand(actualCode, item.floorIndex, inscription);
       const floor = { x: model.player.x, y: model.player.y, index: item.floorIndex };
       const result2 = submitFloorItem(ctx.intent, ctx.inspect, model.token, actualCode, floor, command2);
       report({ ...result2, quiet: result2.code === "controller-owned" }, "Action rejected.");
       paint(true);
       return;
     }
-    const command = buildItemCommand(builders, actualCode, item.handle, inscription);
+    const command = buildItemCommand(actualCode, item.handle, inscription);
     const result = submitItem(ctx.intent, ctx.inspect, model.token, actualCode, item.handle, command);
     report({ ...result, quiet: result.code === "controller-owned" }, "Action rejected.");
     paint(true);
@@ -5433,8 +5424,7 @@ function installItems(ctx) {
       paint(true);
       return;
     }
-    const builders = itemActionBuilders(ctx);
-    const command = buildFloorCommand(builders, "pickup", item.floorIndex);
+    const command = buildFloorCommand("pickup", item.floorIndex);
     const result = ctx.intent.submit(model.token, { kind: "command", command });
     report({ ...result, quiet: result.code === "controller-owned" }, "You cannot pick that up right now.");
     paint(true);
