@@ -9,10 +9,13 @@ import { fileURLToPath } from "node:url";
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const ADAPTER = join("src", "host-adapter.ts");
 const RULES: readonly [string, RegExp][] = [
-  ["ctx.core, ctx.state or ctx.registries", /\bctx\??\.(?:core|state|registries)\b/],
+  ["ctx.core, ctx.state or ctx.registries", /\bctx!?\??\.(?:core|state|registries)\b/],
   ["a .core member, such as a snapshot's", /\.core\b/],
   ["a direct snapshot or remembered-map call", /\bctx\??\.(?:snapshot|knownLevel)(?:\?\.)?\(/],
   ["the registries", /\bregistries\b/],
+  ["a copy of the snapshot or remembered-map seam", /\b(?:const|let|var)\b[^=]*=\s*(?:\w+\.)*ctx!?\??\.(?:snapshot|knownLevel)\s*(?:[,;]|$)/],
+  ["a host member taken apart from ctx", /\{[^}]*\b(?:core|state|snapshot|knownLevel)\b[^}]*\}\s*=\s*(?:\w+\.)*ctx\b/],
+  ["a host member read by name", /\bctx!?\??\.?\[\s*["'`](?:core|state|registries|snapshot|knownLevel)["'`]\s*\]/],
 ];
 
 function sources(dir: string): string[] {
@@ -38,5 +41,20 @@ describe("host adapter boundary", () => {
       });
     }
     expect(found).toEqual([]);
+  });
+
+  it("catches each kind of read when one is written", () => {
+    const sample = code([
+      "const a = ctx.state;",
+      "const b = ctx!.core;",
+      "const read = ctx.snapshot, reply = ctx.prompt;",
+      "const { knownLevel } = rt.ctx;",
+      "const c = ctx[\"snapshot\"]();",
+      "const d = ctx.snapshot?.();",
+      "if (!ctx.snapshot) return;",
+      "// ctx.state in a comment",
+    ].join("\n"));
+    const hits = sample.filter((line) => RULES.some(([, rule]) => rule.test(line)));
+    expect(hits).toHaveLength(6);
   });
 });

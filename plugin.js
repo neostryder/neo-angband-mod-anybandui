@@ -10328,8 +10328,8 @@ function confirmPrompt(prompt) {
 function installYesNoPrompts(ctx) {
   if (ctx.flags?.["anybandui.yesNoPrompts"] !== true) return () => {
   };
-  const read = ctx.snapshot, reply = ctx.prompt;
-  if (!read || !reply || !ctx.ui?.openPanel) {
+  const reply = ctx.prompt;
+  if (!ctx.snapshot || !reply || !ctx.ui?.openPanel) {
     ctx.log("yes/no prompts: this game has no prompt reply or panel seam");
     return () => {
     };
@@ -10339,7 +10339,7 @@ function installYesNoPrompts(ctx) {
   const poll = () => {
     let snap = null;
     try {
-      snap = read();
+      snap = viewInput(ctx);
     } catch {
       snap = null;
     }
