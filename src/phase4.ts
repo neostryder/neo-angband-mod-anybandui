@@ -6,6 +6,7 @@ import { adaptSpells, type BookRow, type SpellRow } from "./view-model/spells.js
 import { actionReady, answerRest, answerSpell, cancelSpell, castSpell, rest, restPrompt, stopResting, studySpell } from "./spell-actions.js";
 import { activate, catalogueCommands, itemBindings, migrateSlots, quickbarOwnsKey, readSlots, resolve, slotIndex, writeSlots, type Appearance, type Binding, type Slots } from "./quickbar.js";
 import { installBlastPreview } from "./blast-preview.js";
+import { birthFacts, viewInput, viewPlayer } from "./host-adapter.js";
 
 const CSS = `:host{color:var(--anyband-text);font:var(--anyband-font-size)/var(--anyband-line) var(--anyband-font)}.phase4{position:fixed;left:12px;bottom:12px;width:min(680px,calc(100vw - 24px));max-height:55vh;overflow:auto;padding:10px;background:var(--anyband-surface);border:1px solid var(--anyband-accent);border-radius:var(--anyband-rounding);pointer-events:auto}button,select,input{font:inherit;color:var(--anyband-text);background:var(--anyband-background);border:1px solid var(--anyband-accent);border-radius:3px;padding:4px}button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--anyband-accent)}button:disabled{opacity:.45}table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:3px;border-bottom:1px solid var(--anyband-accent)}.slots{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:3px}.slot{min-height:42px;overflow:hidden;word-break:break-word}.muted{opacity:.55}.row{width:100%;text-align:left;border:0;background:transparent}.menu{margin:6px 0;padding:6px;border:1px solid var(--anyband-accent)}.menu button{margin:2px}.hint{font-size:12px}`;
 function el(parent: Element | ShadowRoot, tag: string, content?: string): HTMLElement { const node = parent.ownerDocument.createElement(tag); if (content !== undefined) node.textContent = content; parent.append(node); return node; }
@@ -26,10 +27,10 @@ export function lineageFor(ctx: Phase4Context): string | null {
 /** The birth fingerprint first-encounter alerts use. It never changes during a
  * character's life, so it stands in for the lineage on older engines. */
 export function fingerprintFor(ctx: Phase4Context): string | null {
-  const player = (ctx.state as { actor?: { player?: { race?: { name?: unknown }; cls?: { name?: unknown }; auBirth?: unknown; htBirth?: unknown; wtBirth?: unknown } } } | undefined)?.actor?.player;
-  if (!player || typeof player.race?.name !== "string" || typeof player.cls?.name !== "string" ||
+  const player = birthFacts(ctx);
+  if (!player || typeof player.raceName !== "string" || typeof player.clsName !== "string" ||
       typeof player.auBirth !== "number" || typeof player.htBirth !== "number" || typeof player.wtBirth !== "number") return null;
-  return characterKey({ raceName: player.race.name, clsName: player.cls.name, auBirth: player.auBirth, htBirth: player.htBirth, wtBirth: player.wtBirth });
+  return characterKey({ raceName: player.raceName, clsName: player.clsName, auBirth: player.auBirth, htBirth: player.htBirth, wtBirth: player.wtBirth });
 }
 /** The key a character's quickbar slots are stored under: the lineage when the
  * engine reports one, the birth fingerprint otherwise. */
@@ -41,7 +42,7 @@ export function characterFor(ctx: Phase4Context): string | null {
  * The fingerprint comes from the state the mod registered with, so the move
  * also waits for the snapshot's race and class to match it. */
 export function adoptLineage(ctx: Phase4Context, snap: Phase4Snapshot | null | undefined): boolean {
-  const lineage = lineageFor(ctx), fingerprint = fingerprintFor(ctx), player = snap?.core.player;
+  const lineage = lineageFor(ctx), fingerprint = fingerprintFor(ctx), player = viewPlayer(snap);
   if (!lineage || !fingerprint || !ctx.prefs?.set || !player?.race || !player.cls || !fingerprint.startsWith(`${player.race}|${player.cls}|`)) return false;
   const moved = migrateSlots(ctx.prefs.get(), fingerprint, lineage);
   if (moved) ctx.prefs.set(moved);
@@ -90,11 +91,11 @@ export function installPhase4(ctx: Phase4Context): () => void {
   const identify = (snap: Phase4Snapshot | null | undefined): string | null => {
     const pair = `${lineageFor(ctx) ?? ""}
 ${fingerprintFor(ctx) ?? ""}
-${snap?.core.player?.race ?? ""}`;
+${viewPlayer(snap)?.race ?? ""}`;
     if (pair !== adopted) { adopted = pair; adoptLineage(ctx, snap); }
     return characterFor(ctx);
   };
-  let character = identify(ctx.snapshot?.());
+  let character = identify(viewInput(ctx));
   let slots: Slots = character ? readSlots(ctx.prefs?.get(), character) : Array(30).fill(null);
   const save = (): void => { if (character) writeSlots(ctx, character, slots); };
   // Core answers "controller-owned" while an autoplayer holds input. That
@@ -106,7 +107,7 @@ ${snap?.core.player?.race ?? ""}`;
     const mounts = surfaces.mounts();
     const spellMount = spellOn ? mounts.get("spells") : undefined, quickMount = quickOn ? mounts.get("quickbar") : undefined, restMount = restOn ? mounts.get("rest") : undefined;
     if (!mounts.size) return;
-    const snap = ctx.snapshot?.();
+    const snap = viewInput(ctx);
     const key = identify(snap);
     if (key !== character) { character = key; slots = key ? readSlots(ctx.prefs?.get(), key) : Array(30).fill(null); }
     const model = snap ? adaptSpells(snap, ctx.inspect) : null;
@@ -141,7 +142,7 @@ ${snap?.core.player?.race ?? ""}`;
           const study = button(spellMount, book.chooseSpells ? "Study" : "Study book", () => { if (!studySpell(ctx, snap, book, selected)) fail("Study unavailable."); paint(true); }); study.disabled = !(book.chooseSpells ? selected.canStudy : book.spells.some((entry) => entry.canStudy)) || !ctx.intent?.submit;
           if (!book.chooseSpells) study.title = "Your class learns a random eligible spell from this book.";
           el(spellMount, "h3", selected.name); el(spellMount, "p", `Level ${selected.level}. Mana ${selected.mana}. Failure ${selected.fail}%. ${selected.state}.`);
-          if (selected.canCast && (snap.core.player?.sp ?? 0) < selected.mana) el(spellMount, "p", "Not enough mana. Confirmation may be required.");
+          if (selected.canCast && (viewPlayer(snap)?.sp ?? 0) < selected.mana) el(spellMount, "p", "Not enough mana. Confirmation may be required.");
           el(spellMount, "p", selected.description);
           // The game's own menu suffix, such as damage or duration, once the spell has been cast.
           if (selected.infoLine) el(spellMount, "p", `Info: ${selected.infoLine}`);
@@ -229,7 +230,7 @@ ${snap?.core.player?.race ?? ""}`;
   const keydown = (event: KeyboardEvent): void => {
     if (!quickOn || menu >= 0 || customize >= 0 || restOpen || event.repeat || event.altKey || event.metaKey || event.defaultPrevented || event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement || (event.target instanceof HTMLElement && event.target.isContentEditable)) return;
     const index = slotIndex(event.code, event.shiftKey, event.ctrlKey);
-    const snap = ctx.snapshot?.(); if (!quickbarOwnsKey(quickOn, snap ?? null, event.code, event.shiftKey, event.ctrlKey, menu >= 0 || restOpen) || !snap || !actionReady(ctx, snap)) return;
+    const snap = viewInput(ctx); if (!quickbarOwnsKey(quickOn, snap ?? null, event.code, event.shiftKey, event.ctrlKey, menu >= 0 || restOpen) || !snap || !actionReady(ctx, snap)) return;
     // The quickbar owns top-row digits during ordinary play, including empty slots.
     const binding = slots[index] ?? null;
     event.preventDefault(); event.stopImmediatePropagation();

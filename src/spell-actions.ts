@@ -1,9 +1,10 @@
 import { playerIsDriving } from "./input-owner.js";
 import type { Phase4Context, Phase4Snapshot, SpellPrompt, TextPrompt } from "./seams.js";
 import { sameToken, type BookRow, type SpellRow } from "./view-model/spells.js";
+import { viewInput } from "./host-adapter.js";
 
 export function actionReady(ctx: Phase4Context, snap: Phase4Snapshot): boolean {
-  const next = ctx.snapshot?.();
+  const next = viewInput(ctx);
   return !!next && sameToken(next.token, snap.token) && next.phase === "play" && !next.prompt && !next.messagePending && playerIsDriving(ctx);
 }
 export function castSpell(ctx: Phase4Context, snap: Phase4Snapshot, spell: SpellRow): boolean {
@@ -15,7 +16,7 @@ export function studySpell(ctx: Phase4Context, snap: Phase4Snapshot, book: BookR
   return ctx.intent?.submit(snap.token, { kind: "command", command: { code: "study", args: book.chooseSpells ? { handle: book.handle, spell: spell.index } : { handle: book.handle } } }).accepted ?? false;
 }
 export function answerSpell(ctx: Phase4Context, snap: Phase4Snapshot, index: number): boolean {
-  const next = ctx.snapshot?.();
+  const next = viewInput(ctx);
   if (snap.prompt?.kind !== "spell" || !next || !sameToken(next.token, snap.token) || next.prompt?.promptId !== snap.prompt.promptId || !playerIsDriving(ctx)) return false;
   if (!(snap.prompt as SpellPrompt).choices.some((choice) => choice.index === index)) return false;
   return ctx.prompt?.reply(snap.prompt.promptId, index).accepted ?? false;
@@ -23,7 +24,7 @@ export function answerSpell(ctx: Phase4Context, snap: Phase4Snapshot, index: num
 /** Try to cancel an open spell prompt with the engine's cancel reply. On an
  * older engine the reply is refused and the panel keeps its hint. */
 export function cancelSpell(ctx: Phase4Context, snap: Phase4Snapshot): boolean {
-  const next = ctx.snapshot?.();
+  const next = viewInput(ctx);
   if (snap.prompt?.kind !== "spell" || !next || !sameToken(next.token, snap.token) || next.prompt?.promptId !== snap.prompt.promptId || !playerIsDriving(ctx) || !ctx.prompt?.reply) return false;
   return ctx.prompt.reply(snap.prompt.promptId, { action: "cancel" }).accepted ?? false;
 }
@@ -49,7 +50,7 @@ export function restAnswer(count: number): string | null {
  * accepts a typed cancel reply instead, so the empty-string answer is only
  * sent if that one is refused. */
 export function answerRest(ctx: Phase4Context, snap: Phase4Snapshot, count: number | null): boolean {
-  const prompt = restPrompt(snap), next = ctx.snapshot?.();
+  const prompt = restPrompt(snap), next = viewInput(ctx);
   if (!prompt || !next || restPrompt(next)?.promptId !== prompt.promptId || !playerIsDriving(ctx) || !ctx.prompt?.reply) return false;
   if (count === null) {
     const cancel = ctx.prompt.reply(prompt.promptId, { action: "cancel" });
@@ -63,7 +64,7 @@ export function answerRest(ctx: Phase4Context, snap: Phase4Snapshot, count: numb
  * it skips the ordinary play-phase check and reads the token at the moment of
  * the click, because every rested turn moves it. */
 export function stopResting(ctx: Phase4Context): boolean {
-  const next = ctx.snapshot?.();
+  const next = viewInput(ctx);
   if (!next?.resting?.active || !playerIsDriving(ctx)) return false;
   return ctx.intent?.submit(next.token, { kind: "stop-resting" }).accepted ?? false;
 }

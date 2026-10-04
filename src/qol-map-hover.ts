@@ -2,6 +2,7 @@ import type { GameState } from "@rpgm-tools/neo-angband-core";
 import { bitmapTextBlock, wrapBitmapParagraphs, wrapBitmapText } from "./bitmap-text.js";
 import { validateSettings } from "./settings.js";
 import { twoFingerGestureActive, type DisplayLike } from "./zoom.js";
+import { gridHasVisibleTrap, gridIsShop, hasLiveState, levelSize, lookAt, offers, playerGrid, rememberedPile, type LiveGame } from "./host-adapter.js";
 
 interface HoverContext {
   readonly flags: Readonly<Record<string, boolean>>;
@@ -227,21 +228,25 @@ export function hoverCardContent(
   state: HoverState & GameState,
   grid: { x: number; y: number },
 ): HoverCardContent | null {
-  const result = core.describeLookGrid(state, grid, 0);
-  const text = result?.text?.trim() ?? "";
-  if (!text) return null;
+  return gameCardContent({ core, state }, grid);
+}
 
-  const player = state.actor?.grid;
+function gameCardContent(game: LiveGame, grid: { x: number; y: number }): HoverCardContent | null {
+  const result = lookAt(game, grid);
+  const text = result?.text?.trim() ?? "";
+  if (!result || !text) return null;
+
+  const player = playerGrid(game);
   let kind: HoverCardKind;
   if (player && player.x === grid.x && player.y === grid.y) {
     kind = "character";
-  } else if (result.mon) {
+  } else if (result.creature) {
     kind = "creature";
-  } else if (core.knownPile(state, grid).length > 0) {
+  } else if (rememberedPile(game, grid).length > 0) {
     kind = "item";
-  } else if (core.squareIsVisibleTrap?.(state, grid)) {
+  } else if (gridHasVisibleTrap(game, grid)) {
     kind = "trap";
-  } else if ((state.chunk?.feature?.(grid)?.shopnum ?? 0) > 0) {
+  } else if (gridIsShop(game, grid)) {
     kind = "shop";
   } else {
     kind = "terrain";
@@ -458,12 +463,10 @@ export function installMapHoverCards(ctx: HoverContext): () => void {
   if (ctx.flags["anybandui.mapHoverCards"] !== true) return () => {};
   if (hoverCardsWired) return () => {};
   if (typeof document === "undefined" || typeof window === "undefined") return () => {};
-  if (!ctx.core || typeof (ctx.core as Partial<LookApi>).describeLookGrid !== "function" ||
-      typeof (ctx.core as Partial<LookApi>).knownPile !== "function") return () => {};
+  if (!offers(ctx, ["describeLookGrid", "knownPile"])) return () => {};
   hoverCardsWired = true;
   const abort = new AbortController();
 
-  const core = ctx.core as unknown as LookApi;
   const card = buildHoverCardElement();
   let mapOpenGuess = false;
   let touchPinned = false;
@@ -509,8 +512,7 @@ export function installMapHoverCards(ctx: HoverContext): () => void {
   } | null => {
     const game = document.getElementById("game");
     if (!game) return null;
-    const state = ctx.state as unknown as (HoverState & GameState) | undefined;
-    const chunk = state?.chunk;
+    const chunk = levelSize(ctx);
     if (!chunk || chunk.width < 1 || chunk.height < 1) return null;
     const snapshot = ctx.display?.snapshot();
     if (snapshot?.mode === "map") {
@@ -586,9 +588,8 @@ export function installMapHoverCards(ctx: HoverContext): () => void {
       termSize: { cols: number; rows: number };
     },
   ): boolean => {
-    const state = ctx.state as unknown as (HoverState & GameState) | undefined;
-    if (!state) return false;
-    const content = hoverCardContent(core, state, resolved.grid);
+    if (!hasLiveState(ctx)) return false;
+    const content = gameCardContent(ctx, resolved.grid);
     if (!content) return false;
     paintHoverCardText(card.title, content.title, "#f0d878", HOVER_CARD_TITLE_MAX_CHARS, false);
     paintHoverCardText(card.body, content.text, "#e8e8e8", HOVER_CARD_BODY_MAX_CHARS, true);

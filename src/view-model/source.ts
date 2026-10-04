@@ -4,6 +4,7 @@ import { adapt } from "./adapter.js";
 import type { ViewModel } from "./protocol.js";
 import type { MessageSeams, MessageSnapshot } from "../seams.js";
 import { playerIsDriving } from "../input-owner.js";
+import { hasLiveState, liveHud, viewInput } from "../host-adapter.js";
 
 type SourceCtx = MessageSeams & Pick<ModPluginContext, "state"> & { readonly core: Pick<ModPluginContext["core"], "createAgentView"> };
 
@@ -104,7 +105,7 @@ export function createSource(ctx: SourceCtx): {
   let latest: HudFrame | undefined;
   const present = (_section: unknown, frame: HudFrame): void => { latest = frame; };
   const read = (): MessageSnapshot | null => {
-    try { return ctx.snapshot?.() ?? null; } catch { return null; }
+    try { return viewInput(ctx); } catch { return null; }
   };
   /* Answers the -more- pause the way a keypress does. It reads a fresh
    * snapshot, so a pause the player already dismissed with a key is not
@@ -119,24 +120,24 @@ export function createSource(ctx: SourceCtx): {
     hud: { sidebar: { present }, messages: { present }, status: { present } },
     ...(ctx.prompt ? { acknowledge } : {}),
     snapshot(options: { readonly messages?: boolean } = {}): ViewModel | undefined {
-      if (ctx.state === undefined) return undefined;
-      const state = ctx.state;
+      if (!hasLiveState(ctx)) return undefined;
       /* The input snapshot copies the whole capture and the last map frame,
        * so it is read only for the message log, the one panel that shows the
        * history and the pause. The other panels keep the plain log read. */
       const snap = options.messages ? read() : null;
       const pending = messagePending(snap);
-      return adapt(ctx.core.createAgentView(state), latest, {
-        name: state.actor.player.fullName,
-        history: messageHistory(snap?.messages?.entries, state.messages, snap?.messages?.log),
-        study: state.actor.player.upkeep.newSpells,
-        repeat: state.cmdQueue?.[0]?.repeatRemaining ?? 0,
-        resting: state.resting !== undefined,
-        running: state.run !== undefined,
-        unignoring: state.unignoring ?? 0,
-        recall: state.actor.player.wordRecall,
-        descent: state.actor.player.deepDescent,
-        extraMoves: state.playerState?.numMoves ?? 0,
+      const live = liveHud(ctx)!;
+      return adapt(live.view, latest, {
+        name: live.name,
+        history: messageHistory(snap?.messages?.entries, live.messages, snap?.messages?.log),
+        study: live.study,
+        repeat: live.repeat,
+        resting: live.resting,
+        running: live.running,
+        unignoring: live.unignoring,
+        recall: live.recall,
+        descent: live.descent,
+        extraMoves: live.extraMoves,
         ...(pending === undefined ? {} : { messagePending: pending }),
       });
     },

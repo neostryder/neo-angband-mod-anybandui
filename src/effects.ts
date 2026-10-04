@@ -2,6 +2,7 @@ import type { ActualObject, EffectContext, EffectEventMap, EffectSnapshot, Event
 import { featureCode, mapProjection } from "./map-overview.js";
 import { validateSettings } from "./settings.js";
 import { elementEdgeColour } from "./blast-preview.js";
+import { truthLevel, viewInput, viewLevel, viewMonsters, viewPlayer } from "./host-adapter.js";
 
 type CueKind = "cast" | "hit" | "miss" | "death" | "heal" | "departure" | "arrival" | "blast" | "number" | "slide" | "ripple" | "bolt" | "cone";
 type Cue = {
@@ -39,17 +40,19 @@ export function actualAura(o: ActualObject): Aura | undefined {
 
 export function effectGrids(s: EffectSnapshot | null, known: ReturnType<NonNullable<EffectContext["knownLevel"]>>, revealHidden = false): { asleep: Grid[]; afraid: Grid[]; uniques: { grid: Grid; final: boolean }[]; glows: { grid: Grid; aura: Aura }[] } {
   const asleep: Grid[] = [], afraid: Grid[] = [], uniques: { grid: Grid; final: boolean }[] = [], glows: { grid: Grid; aura: Aura }[] = [];
-  for (const m of s?.core.monsters ?? []) if (m.visible) {
+  for (const m of viewMonsters(s) ?? []) if (m.visible) {
     if (m.asleep) asleep.push(m.grid);
     if (m.afraid) afraid.push(m.grid);
     if (m.unique ?? m.raceFlags.includes("UNIQUE")) uniques.push({ grid: m.grid, final: m.finalGuardian ?? m.race === "Morgoth, Lord of Darkness" });
   }
+  const truth = revealHidden ? new Map(truthLevel(known).cells.map((cell) => [cell.y * 65536 + cell.x, cell])) : null;
   for (const c of known?.cells ?? []) {
     const auras = new Set<Aura>();
     /* A hidden-magic glow reads the true pile, but only where the player can see
      * the grid, remembers an object there, and no creature stands on it. */
-    if (revealHidden && c.visible === true && c.actual && c.actual.monster === 0 && c.remembered.objects.length > 0) {
-      for (const o of c.actual.objects) { const aura = actualAura(o); if (aura) auras.add(aura); }
+    const actual = truth?.get(c.y * 65536 + c.x);
+    if (actual && c.visible === true && actual.monster === 0 && c.remembered.objects.length > 0) {
+      for (const o of actual.objects) { const aura = actualAura(o); if (aura) auras.add(aura); }
     }
     for (const o of c.remembered.objects) {
       if (!o || typeof o !== "object") continue;
@@ -73,8 +76,8 @@ type SourceEvent = ({ event: "combat-outcome"; attacker: EventActor | null; kind
 /** Where a creature named by an event stands now: the player's grid or a visible monster's. */
 export function actorGrid(s: EffectSnapshot | null, who: EventActor | null): Grid | null {
   if (who === null) return null;
-  if (who === "player") return s?.core.player?.grid ?? null;
-  return s?.core.monsters?.find((m) => m.id === who && m.visible)?.grid ?? null;
+  if (who === "player") return viewPlayer(s)?.grid ?? null;
+  return viewMonsters(s)?.find((m) => m.id === who && m.visible)?.grid ?? null;
 }
 export function eventCue(e: SourceEvent, locate: (who: EventActor | null) => Grid | null = () => null): DrawnCue[] {
   if (!e.seen) return [];
@@ -409,7 +412,7 @@ export function installEffects(ctx: EffectContext): () => void {
   let lastRect: { x: number; y: number; width: number; height: number } | null = null;
   const reduced = () => globalThis.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
   const push = (list: DrawnCue[]) => { const effects = validateSettings(ctx.prefs?.get()).effects; for (const cue of list) { const strength = effectStrength(ctx.settings, effects, cue.kind); if (strength > 0) cues.push({ ...cue, started: performance.now(), strength }); } request(); };
-  const add = (e: SourceEvent) => push(eventCue(e, (who) => actorGrid(ctx.snapshot?.() ?? null, who)));
+  const add = (e: SourceEvent) => push(eventCue(e, (who) => actorGrid(viewInput(ctx), who)));
   const spell = flags["anybandui.spellEffects"] === true, numbers = flags["anybandui.damageNumbers"] === true;
   const slides = flags["anybandui.walkSlide"] === true, ripples = flags["anybandui.blinkRipple"] === true;
   const bolts = flags["anybandui.boltGlyphs"] === true, cones = flags["anybandui.coneWash"] === true;
@@ -417,7 +420,7 @@ export function installEffects(ctx: EffectContext): () => void {
   // Core calls each handler with the event name first and the payload second.
   const combat = (_type: "combat-outcome", e: EffectEventMap["combat-outcome"]) => { if (spell) add({ event: "combat-outcome", ...e }); if (numbers) push(numberCues({ event: "combat-outcome", ...e })); };
   const heal = (_type: "heal", e: EffectEventMap["heal"]) => { if (spell) add({ event: "heal", ...e }); if (numbers) push(numberCues({ event: "heal", ...e })); };
-  const motion = (_type: "motion", e: EffectEventMap["motion"]) => { if (spell) add({ event: "motion", ...e }); if (slides) push(walkCues(e, (p) => (ctx.knownLevel?.()?.cells ?? []).some((c) => c.x === p.x && c.y === p.y && c.visible === true))); if (ripples) push(blinkCues(e)); };
+  const motion = (_type: "motion", e: EffectEventMap["motion"]) => { if (spell) add({ event: "motion", ...e }); if (slides) push(walkCues(e, (p) => (viewLevel(ctx)?.cells ?? []).some((c) => c.x === p.x && c.y === p.y && c.visible === true))); if (ripples) push(blinkCues(e)); };
   const explosion = (_type: "explosion", e: EffectEventMap["explosion"]) => {
     if (!e || !Array.isArray(e.blastGrid) || !Array.isArray(e.playerSeesGrid)) return;
     // A breath uses the cone wash instead of the flat flash while that switch is on.
@@ -436,9 +439,9 @@ export function installEffects(ctx: EffectContext): () => void {
   function request() { if (!raf) raf = requestAnimationFrame(draw); }
   function draw(now: number) {
     raf = 0;
-    const view = activeDisplay.snapshot(), rect = mapProjection(view); const snap = ctx.snapshot?.() ?? null;
-    const player = snap?.core.player ?? null;
-    const known = ctx.knownLevel?.() ?? null;
+    const view = activeDisplay.snapshot(), rect = mapProjection(view); const snap = viewInput(ctx);
+    const player = viewPlayer(snap) ?? null;
+    const known = viewLevel(ctx);
     const staticMode = chooseEffectMotion(reduced()) === "static";
     if (flags["anybandui.levelFlash"]) {
       levelWatch = observeLevel(levelWatch, { phase: snap?.phase, level: player?.level, maxLevel: player?.maxLevel, dead: player?.dead === true }, now);

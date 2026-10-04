@@ -45,6 +45,7 @@ import {
   withFirstEncounterPreference,
   type FirstEncounterPreference,
 } from "./encounter-preference.js";
+import { birthFacts, carriedGear, coreFormatters, knownArtifactTest, levelDepth, offers, visibleMonsterRaces } from "./host-adapter.js";
 
 /** The shape of a monster race this feature needs, already resolved to plain data. */
 export interface MonsterRaceLike {
@@ -473,25 +474,12 @@ function drawCard(panel: PanelLike, content: EncounterCardContent, theme: Readon
   root.append(style, wrap);
 }
 
-function characterKeyFor(player: PlayerLike): string {
-  return characterKey({
-    raceName: player.race.name,
-    clsName: player.cls.name,
-    auBirth: player.auBirth,
-    htBirth: player.htBirth,
-    wtBirth: player.wtBirth,
-  });
-}
-
 /** Start polling for newly-visible monster races and newly-carried artifacts. */
 export function installFirstEncounter(ctx: FirstEncounterContext): void {
   uninstallFirstEncounter();
   if (
     !ctx.ui ||
-    typeof ctx.core.monsterListCollect !== "function" ||
-    typeof ctx.core.liveObjectIsKnownArtifact !== "function" ||
-    typeof ctx.core.fmtDepth !== "function" ||
-    typeof ctx.core.colorToCss !== "function"
+    !offers(ctx, ["monsterListCollect", "liveObjectIsKnownArtifact", "fmtDepth", "colorToCss"])
   ) {
     ctx.log?.("this game is too old for first-encounter alerts");
     return;
@@ -499,15 +487,14 @@ export function installFirstEncounter(ctx: FirstEncounterContext): void {
   const ui = ctx.ui;
   activeTheme = ctx.theme ?? THEMES["terminal-original"]!;
   stopTheme = onThemeChange(showEncounter);
-  const core = ctx.core;
-  const key = characterKeyFor(ctx.state.actor.player);
+  const key = characterKey(birthFacts(ctx) as BirthFingerprint);
   const notebook = readFirstEncounterNotebook(ctx.prefs?.get(), key);
   const save = (): void => ctx.prefs?.set(withFirstEncounterNotebook(ctx.prefs?.get(), key, notebook));
 
   timer = setInterval(() => {
     let visible: readonly MonsterRaceLike[];
     try {
-      visible = core.monsterListCollect(ctx.state).entries.map((entry) => entry.race);
+      visible = visibleMonsterRaces(ctx);
     } catch (error) {
       ctx.log?.(`first-encounter alerts: could not read visible monsters: ${String(error)}`);
       return;
@@ -516,7 +503,7 @@ export function installFirstEncounter(ctx: FirstEncounterContext): void {
 
     let carried: ArtifactLike[];
     try {
-      carried = carriedKnownArtifacts(ctx.state.gear.store.values(), core.liveObjectIsKnownArtifact);
+      carried = carriedKnownArtifacts(carriedGear(ctx), knownArtifactTest(ctx));
     } catch (error) {
       ctx.log?.(`first-encounter alerts: could not read carried gear: ${String(error)}`);
       return;
@@ -529,12 +516,13 @@ export function installFirstEncounter(ctx: FirstEncounterContext): void {
     for (const artifact of newArtifacts) notebook.artifacts.add(artifact.aidx);
     save();
 
-    const depth = ctx.state.chunk.depth;
+    const depth = levelDepth(ctx);
+    const { fmtDepth, colorToCss } = coreFormatters(ctx);
     for (const race of newMonsters) {
-      queue.push(monsterCardContent(race, depth, core.fmtDepth, core.colorToCss, ctx.tiles));
+      queue.push(monsterCardContent(race, depth, fmtDepth, colorToCss, ctx.tiles));
     }
     for (const artifact of newArtifacts) {
-      queue.push(artifactCardContent(artifact, core.fmtDepth));
+      queue.push(artifactCardContent(artifact, fmtDepth));
     }
     showNext(ui);
   }, POLL_MS);

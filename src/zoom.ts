@@ -8,6 +8,7 @@ import {
 } from "./preferences";
 import { FONT_16X24 } from "./bitmap-font";
 import { paintBitmapButtonLabel, paintBitmapLine } from "./bitmap-text";
+import { levelKey, playerGrid, viewInput } from "./host-adapter.js";
 
 export type Point = { readonly x: number; readonly y: number };
 export type Rect = Pixels;
@@ -497,7 +498,7 @@ export function twoFingerGestureActive(): boolean {
 }
 
 function playerCenter(rt: ZoomRuntime, snapshot: DisplaySnapshotLike): { x: number; y: number } {
-  const player = rt.ctx.state?.actor?.grid;
+  const player = playerGrid(rt.ctx);
   return player
     ? { x: player.x, y: player.y }
     : {
@@ -1480,7 +1481,7 @@ function installFreeCamera(rt: ZoomRuntime): void {
   rt.cleanups.push(rt.display.onKey((event) => {
     if (flags["anybandui.followPlayer"] && event.ctrlKey && event.key === "Home") {
       rt.cameraDetached = false;
-      const player = rt.ctx.state?.actor?.grid;
+      const player = playerGrid(rt.ctx);
       if (player) rt.display.setCamera(cameraOrigin(rt.display.snapshot(), player));
       event.preventDefault();
       event.stopImmediatePropagation();
@@ -1518,9 +1519,9 @@ function installFreeCamera(rt: ZoomRuntime): void {
   }
   rt.cameraTimer = setInterval(() => {
     const snap = rt.display.snapshot();
-    const player = rt.ctx.state?.actor?.grid;
+    const player = playerGrid(rt.ctx);
     if (flags["anybandui.recentreOnFloor"]) {
-      const floor = rt.ctx.state?.levelSerial ?? rt.ctx.state?.chunk?.depth;
+      const floor = levelKey(rt.ctx);
       const key = floor === undefined ? null : String(floor);
       if (rt.lastFloor !== null && key !== rt.lastFloor && player) {
         rt.cameraDetached = false;
@@ -1528,7 +1529,7 @@ function installFreeCamera(rt: ZoomRuntime): void {
       }
       rt.lastFloor = key;
     }
-    const target = rt.ctx.snapshot?.()?.prompt?.cursor;
+    const target = viewInput(rt.ctx)?.prompt?.cursor;
     if (flags["anybandui.keepTargetInView"] && target &&
         (target.x < snap.viewport.origin.x || target.y < snap.viewport.origin.y ||
          target.x >= snap.viewport.origin.x + snap.viewport.size.width ||

@@ -49,7 +49,7 @@ import { currentDriver } from "./src/input-owner.js";
 import { installChromePaint } from "./src/paint.js";
 import { installMenus, menuPresenter, screenPresenter } from "./src/menus/menus.js";
 import { installBirthWizard, type BirthPresenter, type BirthWizardContext } from "./src/menus/birth.js";
-import { floorObjectAt } from "./src/pickup-preview.js";
+import { itemsGame, liveGame } from "./src/host-adapter.js";
 import { installMinimapTravel } from "./src/minimap-travel.js";
 import { setThemePacks } from "./src/theme.js";
 
@@ -90,13 +90,12 @@ export default {
     /* The window frames around the cards take the same paint as the cards. */
     const theme = themeFromPrefs(ctx.prefs?.get());
     displayCleanups.push(installChromePaint(ctx.display, flags, theme, ctx.log));
-    const liveCore = ctx.core, liveState = ctx.state;
+    const { liveCore, liveState } = liveGame(ctx);
     const itemContext: ItemsContext = { flags, log: ctx.log,
       ...(ctx.snapshot ? { snapshot: ctx.snapshot } : {}), ...(ctx.inspect ? { inspect: ctx.inspect } : {}),
       ...(ctx.intent ? { intent: ctx.intent } : {}), ...(ctx.prompt ? { prompt: ctx.prompt } : {}),
       ...(ctx.ui ? { ui: ctx.ui } : {}), ...(ctx.prefs ? { prefs: ctx.prefs } : {}),
-      ...(liveCore && liveState ? { state: liveState, core: { createAgentView: () => liveCore.createAgentView(liveState), createAgentActions: () => liveCore.createAgentActions(liveState),
-        floorObject: (grid, floorIndex) => floorObjectAt(liveCore, liveState, grid, floorIndex) } } : {}) };
+      ...itemsGame(liveCore, liveState) };
     displayCleanups.push(installItems(itemContext));
     displayCleanups.push(installStores({ ...itemContext, ...(ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {}), ...(ctx.driver ? { driver: ctx.driver } : {}) }));
     displayCleanups.push(installCharacterSheet({ flags, log: ctx.log,
@@ -133,25 +132,25 @@ export default {
       installZoomPan({ flags, display: gateSidebarExtent(display), manageTileSettings: false, ...(ctx.prefs ? { prefs: ctx.prefs as NonNullable<ZoomPanContext["prefs"]> } : {}),
         ...(ctx.snapshot ? { snapshot: ctx.snapshot as NonNullable<ZoomPanContext["snapshot"]> } : {}),
         ...(ctx.subwindows ? { subwindows: ctx.subwindows } : {}),
-        ...(ctx.state ? { state: ctx.state as unknown as NonNullable<ZoomPanContext["state"]> } : {}), log: ctx.log });
+        ...(liveState ? { state: liveState as unknown as NonNullable<ZoomPanContext["state"]> } : {}), log: ctx.log });
       displayCleanups.push(uninstallZoomPan);
       if (ctx.display.setFullMapOverview && ctx.display.setMapView && ctx.display.setTileScaling) {
         displayCleanups.push(installMapOverview({ flags, display: ctx.display as unknown as NonNullable<Parameters<typeof installMapOverview>[0]["display"]>,
-          ...(ctx.state ? { state: ctx.state as unknown as NonNullable<ZoomPanContext["state"]> } : {}),
+          ...(liveState ? { state: liveState as unknown as NonNullable<ZoomPanContext["state"]> } : {}),
           ...(ctx.knownLevel ? { knownLevel: ctx.knownLevel as NonNullable<Parameters<typeof installMapOverview>[0]["knownLevel"]> } : {}),
           ...(ctx.prefs ? { prefs: ctx.prefs } : {}), log: ctx.log }));
       }
       displayCleanups.push(installMapHoverCards({ flags,
-        ...(ctx.core ? { core: ctx.core } : { core: null }),
-        ...(ctx.state ? { state: ctx.state as unknown as NonNullable<Parameters<typeof installMapHoverCards>[0]["state"]> } : {}),
+        ...(liveCore ? { core: liveCore } : { core: null }),
+        ...(liveState ? { state: liveState as unknown as NonNullable<Parameters<typeof installMapHoverCards>[0]["state"]> } : {}),
         ...(ctx.prefs ? { prefs: ctx.prefs } : {}),
         display }));
       displayCleanups.push(installHoverCards({ flags: { ...flags, "anybandui.mapHoverCards": false }, display,
         ...(ctx.snapshot ? { snapshot: ctx.snapshot } : {}),
         ...(ctx.inspect ? { inspect: ctx.inspect as NonNullable<Parameters<typeof installHoverCards>[0]["inspect"]> } : {}),
-        ...(ctx.core ? { core: ctx.core as unknown as NonNullable<Parameters<typeof installHoverCards>[0]["core"]> } : {}),
+        ...(liveCore ? { core: liveCore as unknown as NonNullable<Parameters<typeof installHoverCards>[0]["core"]> } : {}),
         ...(ctx.knownLevel ? { knownLevel: ctx.knownLevel as NonNullable<Parameters<typeof installHoverCards>[0]["knownLevel"]> } : {}),
-        ...(ctx.state ? { state: ctx.state as unknown as NonNullable<ZoomPanContext["state"]> } : {}), ...(ctx.prefs ? { prefs: ctx.prefs } : {}), log: ctx.log }));
+        ...(liveState ? { state: liveState as unknown as NonNullable<ZoomPanContext["state"]> } : {}), ...(ctx.prefs ? { prefs: ctx.prefs } : {}), log: ctx.log }));
     } else if (flags["anybandui.crispTiles"] && ctx.display?.setTileScaling) {
       tileDisplay = ctx.display;
       ctx.display.setTileScaling("crisp");
@@ -162,8 +161,8 @@ export default {
     }
     if (flags["anybandui.mapHoverCards"] &&
         !(ctx.display?.snapshot && ctx.display.onKey && ctx.display.setGrid && ctx.display.setCamera && ctx.display.setSidebarExtent && ctx.display.repaint)) {
-      displayCleanups.push(installMapHoverCards({ flags, core: ctx.core ?? null,
-        ...(ctx.state ? { state: ctx.state as unknown as NonNullable<Parameters<typeof installMapHoverCards>[0]["state"]> } : {}),
+      displayCleanups.push(installMapHoverCards({ flags, core: liveCore ?? null,
+        ...(liveState ? { state: liveState as unknown as NonNullable<Parameters<typeof installMapHoverCards>[0]["state"]> } : {}),
         ...(ctx.prefs ? { prefs: ctx.prefs } : {}),
         ...(ctx.display?.snapshot ? { display: ctx.display as NonNullable<ZoomPanContext["display"]> } : {}) }));
     }
@@ -188,13 +187,13 @@ export default {
       ...(ctx.ui ? { ui: ctx.ui } : {}), ...(ctx.prefs ? { prefs: ctx.prefs } : {}),
       ...(ctx.display?.snapshot ? { display: { snapshot: ctx.display.snapshot.bind(ctx.display) } } : {}),
       ...(ctx.driver ? { driver: ctx.driver } : {}), ...(ctx.character ? { character: ctx.character } : {}),
-      ...(ctx.state ? { state: ctx.state } : {}) }));
+      ...(liveState ? { state: liveState } : {}) }));
     /* The live state is available at register time. See first-encounter.ts
      * for why sightings are polled and stored in prefs by character. */
     if (flags["anybandui.firstEncounter"]) {
-      if (ctx.core && ctx.state) {
+      if (liveCore && liveState) {
         const theme = themeFromPrefs(ctx.prefs?.get());
-        installFirstEncounter({ core: ctx.core, state: ctx.state, theme,
+        installFirstEncounter({ core: liveCore, state: liveState, theme,
           ...(ctx.ui ? { ui: ctx.ui } : {}), ...(ctx.prefs ? { prefs: ctx.prefs } : {}),
           ...(ctx.tiles ? { tiles: ctx.tiles } : {}), log: ctx.log });
       } else ctx.log("first-encounter alerts: no live game at register time");

@@ -6,6 +6,7 @@ import { PAINT_FONT, PAINT_FONT_SIZE, PAINT_LINE_HEIGHT, paintColours } from "./
 import type { Grid, InputSnapshot, MouseSeams, PlayerIntent } from "./seams.js";
 import type { ZoomDisplay } from "./zoom.js";
 import { playerIsDriving } from "./input-owner.js";
+import { viewInput, viewPlayer, viewLevel } from "./host-adapter.js";
 
 export interface MapMouseContext extends MouseSeams {
   readonly flags: Readonly<Record<string, boolean>>;
@@ -15,7 +16,7 @@ export interface MapMouseContext extends MouseSeams {
 }
 
 function ready(snap: InputSnapshot | null): boolean {
-  return !!snap && snap.phase === "play" && !snap.messagePending && !snap.prompt && !!snap.core.player;
+  return !!snap && snap.phase === "play" && !snap.messagePending && !snap.prompt && !!viewPlayer(snap);
 }
 
 function sameToken(a: InputSnapshot["token"], b: InputSnapshot["token"]): boolean {
@@ -66,14 +67,14 @@ export function tileMenuActions(ctx: MouseSeams, snap: InputSnapshot, at: Grid):
   if (snap.prompt?.kind === "target") return ctx.prompt ? [{ label: "Select tile", promptAction: "select" }, { label: "Cancel", promptAction: "cancel" }] : [];
   if (!ready(snap)) return [];
   const actions: TileMenuAction[] = [];
-  const walk = walkIntent(snap.core.player!.grid, at);
+  const walk = walkIntent(viewPlayer(snap)!.grid, at);
   if (walk) actions.push({ label: "Walk here", intent: walk });
   /* Look opens the game's look loop at the clicked grid. An engine without
    * look arguments accepts and ignores them, and opens the loop where it
    * always did, so no fallback is needed. */
   actions.push({ label: "Look", intent: { kind: "command", command: { code: "look", args: { x: at.x, y: at.y } } } });
   actions.push({ label: "Target", intent: { kind: "target", ...at } });
-  const known = ctx.knownLevel?.();
+  const known = viewLevel(ctx);
   if (known && sameToken(known.token, snap.token) && known.cells.some((cell) => cell.x === at.x && cell.y === at.y && cell.remembered.objects.length > 0)) {
     actions.push({ label: "Pick up", pickup: true });
   }
@@ -82,7 +83,7 @@ export function tileMenuActions(ctx: MouseSeams, snap: InputSnapshot, at: Grid):
   // the engine later never shows up raw. "walk" is left to "Walk here" above.
   const offered = ctx.inspect?.tileActions?.(at);
   if (offered && sameToken(offered.token, snap.token)) {
-    const player = snap.core.player!.grid;
+    const player = viewPlayer(snap)!.grid;
     const dx = at.x - player.x, dy = at.y - player.y;
     const dir = 5 + Math.sign(dx) - 3 * Math.sign(dy);
     for (const code of offered.codes) {
@@ -97,12 +98,12 @@ export function tileMenuActions(ctx: MouseSeams, snap: InputSnapshot, at: Grid):
 
 export function clickTile(ctx: MouseSeams, at: Grid, modifiers: ClickModifiers = {}): boolean {
   if (!playerIsDriving(ctx)) return false;
-  const snap = ctx.snapshot?.() ?? null;
+  const snap = viewInput(ctx);
   // An open target prompt owns the click whatever modifiers are held: the
   // click moves its cursor, as a plain click always has.
   if (snap?.prompt?.kind === "target") return !!ctx.prompt?.reply(snap.prompt.promptId, { action: "move", ...at }).accepted;
   if (!ready(snap) || !snap || !ctx.intent) return false;
-  const player = snap.core.player!.grid;
+  const player = viewPlayer(snap)!.grid;
   const intent = clickIntent(player, at, modifiers);
   if (!intent) return false;
   const result = ctx.intent.submit(snap.token, intent);
@@ -114,14 +115,14 @@ export function clickTile(ctx: MouseSeams, at: Grid, modifiers: ClickModifiers =
 
 export function runMenuAction(ctx: MouseSeams, at: Grid, label: string): boolean {
   if (!playerIsDriving(ctx)) return false;
-  const snap = ctx.snapshot?.() ?? null;
+  const snap = viewInput(ctx);
   if (!snap) return false;
   const action = tileMenuActions(ctx, snap, at).find((item) => item.label === label);
   if (!action) return false;
   if (action.promptAction) return !!ctx.prompt?.reply(snap.prompt!.promptId, { action: action.promptAction }).accepted;
   if (!ctx.intent) return false;
   if (action.pickup) {
-    const grid = snap.core.player!.grid;
+    const grid = viewPlayer(snap)!.grid;
     if (grid.x === at.x && grid.y === at.y) return ctx.intent.submit(snap.token, { kind: "command", command: { code: "pickup" } }).accepted;
     const travel = { kind: "travel", ...at } as const;
     return ctx.intent.submit(snap.token, travel).accepted;
@@ -131,11 +132,11 @@ export function runMenuAction(ctx: MouseSeams, at: Grid, label: string): boolean
 
 export function finishPickup(ctx: MouseSeams, at: Grid, previous: InputSnapshot): boolean {
   if (!playerIsDriving(ctx)) return false;
-  const next = ctx.snapshot?.() ?? null;
+  const next = viewInput(ctx);
   if (!ready(next) || !next || sameToken(previous.token, next.token) || !ctx.intent) return false;
-  const grid = next.core.player!.grid;
+  const grid = viewPlayer(next)!.grid;
   if (grid.x !== at.x || grid.y !== at.y) return false;
-  const level = ctx.knownLevel?.();
+  const level = viewLevel(ctx);
   if (!level || !sameToken(level.token, next.token) || !level.cells.some((cell) => cell.x === at.x && cell.y === at.y && cell.remembered.objects.length > 0)) return false;
   return ctx.intent.submit(next.token, { kind: "command", command: { code: "pickup" } }).accepted;
 }
@@ -194,7 +195,7 @@ export function installMapMouse(ctx: MapMouseContext): () => void {
   const hide = (): void => { menu.style.display = "none"; menu.replaceChildren(); menuAt = null; };
   const locate = (event: MouseEvent): Grid | null => {
     const snap = display.snapshot();
-    const input = ctx.snapshot?.() ?? null;
+    const input = viewInput(ctx);
     if (snap.mode !== "play" && !(snap.mode === "modal" && (input?.prompt?.kind === "target" || input?.prompt?.kind === "direction"))) return null;
     const grid = hoverGrid(snap, { x: event.clientX, y: event.clientY });
     return grid && grid.x < snap.level.width && grid.y < snap.level.height ? grid : null;
@@ -205,7 +206,7 @@ export function installMapMouse(ctx: MapMouseContext): () => void {
     hide();
     if (!flags["anybandui.clickToWalk"]) return;
     const at = locate(event);
-    const prompt = ctx.snapshot?.()?.prompt;
+    const prompt = viewInput(ctx)?.prompt;
     // On macOS a Ctrl-click arrives as a context menu event instead, which
     // opens the tile action menu; its Target entry does the same job.
     if (at && clickTile(ctx, at, { shift: event.shiftKey, ctrl: event.ctrlKey })) {
@@ -216,7 +217,7 @@ export function installMapMouse(ctx: MapMouseContext): () => void {
   const onContext = (event: MouseEvent): void => {
     hide();
     if (!flags["anybandui.dungeonActions"]) return;
-    const at = locate(event), snap = ctx.snapshot?.() ?? null;
+    const at = locate(event), snap = viewInput(ctx);
     if (!at || !snap || !playerIsDriving(ctx) || !(ready(snap) || snap.prompt?.kind === "target")) return;
     const actions = tileMenuActions(ctx, snap, at);
     if (!actions.length) return;
@@ -229,14 +230,14 @@ export function installMapMouse(ctx: MapMouseContext): () => void {
       button.addEventListener("pointerenter", () => { button.style.background = paintColours(theme).hover; });
       button.addEventListener("pointerleave", () => { button.style.background = theme.surface; });
       button.addEventListener("click", () => {
-        const current = ctx.snapshot?.() ?? null;
+        const current = viewInput(ctx);
         if (!menuAt || !current || !menuToken || !sameToken(menuToken, current.token) || menuPromptId !== (current.prompt?.promptId ?? null)) { hide(); return; }
-        const selected = menuAt;
+        const selected = menuAt, currentPlayer = viewPlayer(current);
         if (action.promptAction === "select" && current.prompt?.kind === "target") {
           if (ctx.prompt?.reply(current.prompt.promptId, { action: "move", ...selected }).accepted) {
             targetAt = selected; targetPromptId = current.prompt.promptId;
           }
-        } else if (action.pickup && current.core.player && (current.core.player.grid.x !== selected.x || current.core.player.grid.y !== selected.y)) {
+        } else if (action.pickup && currentPlayer && (currentPlayer.grid.x !== selected.x || currentPlayer.grid.y !== selected.y)) {
           if (runMenuAction(ctx, selected, action.label)) { pickupAt = selected; pickupSnap = current; }
         } else runMenuAction(ctx, selected, action.label);
         hide();
@@ -252,11 +253,11 @@ export function installMapMouse(ctx: MapMouseContext): () => void {
   const onMove = (event: MouseEvent): void => { hovered = locate(event); };
   const render = (): void => {
     if (pickupAt && pickupSnap) {
-      const next = ctx.snapshot?.() ?? null;
+      const next = viewInput(ctx);
       if (next && !sameToken(next.token, pickupSnap.token)) { finishPickup(ctx, pickupAt, pickupSnap); pickupAt = null; pickupSnap = null; }
     }
     if (targetAt && targetPromptId !== null) {
-      const next = ctx.snapshot?.()?.prompt;
+      const next = viewInput(ctx)?.prompt;
       if (!next || next.kind !== "target") { targetAt = null; targetPromptId = null; }
       else if (next.promptId !== targetPromptId && next.cursor?.x === targetAt.x && next.cursor.y === targetAt.y) {
         if (playerIsDriving(ctx)) ctx.prompt?.reply(next.promptId, { action: "select" }); targetAt = null; targetPromptId = null;
@@ -273,7 +274,7 @@ export function installMapMouse(ctx: MapMouseContext): () => void {
     if (!paint) return;
     paint.setTransform(1, 0, 0, 1, 0, 0);
     paint.clearRect(0, 0, width, height);
-    const snap = ctx.snapshot?.() ?? null;
+    const snap = viewInput(ctx);
     const path = snap?.prompt ? flags["anybandui.aimPath"] ? aimingPath(ctx, snap, hovered) : []
       : flags["anybandui.walkRoutePreview"] ? walkingPath(ctx, snap, hovered) : [];
     const view = display.snapshot();
