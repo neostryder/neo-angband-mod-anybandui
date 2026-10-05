@@ -1,8 +1,9 @@
 /**
- * The mod API 2 version of host-adapter.ts, for the day Core loads API 2 mods.
- * Nothing imports it yet. The port is to read a frame once per draw with
- * readFrame and then swap the features' imports from host-adapter.js to this
- * file.
+ * The mod API 2 version of host-adapter.ts, for the day AnybandUI moves to API
+ * 2. Nothing imports it yet: Core gives an API 1 mod no API 2 object, and much
+ * of the mod has no API 2 read (docs/API2-MIGRATION.md). The port is to read a
+ * frame once per draw with readFrame and then swap the features' imports from
+ * host-adapter.js to this file.
  *
  * API 2 calls are async and the features read the game synchronously, so the
  * reads happen in readFrame and every other function here reads the frame it
@@ -13,7 +14,6 @@
  * yet. docs/API2-MIGRATION.md lists each one with the Core change it waits on.
  */
 import type {
-  Api2Call,
   Api2InputState,
   Api2TrueCell,
   Api2TrueLevel,
@@ -28,22 +28,6 @@ import type {
   ModApi2,
 } from "@rpgm-tools/neo-angband-mod-sdk";
 import type { Grid } from "./seams.js";
-
-/** The feature name the glow asks Core's confirmation for, which is also its rule flag. */
-export const GLOW_REVEALS_FEATURE = "anybandui.itemGlowReveals";
-
-/**
- * The confirmation Core draws before a first-party mod may read the real map.
- * API 2 has no such member yet (docs/API2-MIGRATION.md, Core request 1), so
- * this is the shape the mod expects. status() never prompts. request() shows
- * Core's warning, marks the save when the player says yes, and answers what
- * the player chose. Until a feature is confirmed, truth.level() refuses with
- * the code "not-confirmed".
- */
-export interface TruthConsent {
-  status(feature: string): Api2Call<{ readonly confirmed: boolean }>;
-  request(feature: string, warning: string): Api2Call<{ readonly confirmed: boolean }>;
-}
 
 /** What readFrame read at one input wait. input, world and truth are each null when the host refused that read. */
 export interface Api2Frame {
@@ -75,20 +59,17 @@ export interface Api2MonsterRow {
 
 /**
  * Reads the input wait and the known world, plus the real map when the glow
- * asks for it. The real map is read only when revealHidden is on, the host
- * gave this mod a truth domain, and the player has confirmed the glow through
- * Core's warning. Otherwise the frame's truth is null and no truth call is
- * made.
+ * asks for it. The real map is read only when revealHidden is on and the host
+ * gave this mod a truth domain, which Core builds only after the player grants
+ * state:map-actual.read on Core's own permission question. Otherwise the
+ * frame's truth is null and no truth call is made.
  */
-export async function readFrame(api: Pick<ModApi2, "view" | "truth">, options: { readonly revealHidden?: boolean; readonly consent?: TruthConsent } = {}): Promise<Api2Frame> {
+export async function readFrame(api: Pick<ModApi2, "view" | "truth">, options: { readonly revealHidden?: boolean } = {}): Promise<Api2Frame> {
   const [input, world] = await Promise.all([api.view.input(), api.view.world()]);
   let truth: Api2TrueLevel | null = null;
-  if (options.revealHidden && api.truth && options.consent) {
-    const status = await options.consent.status(GLOW_REVEALS_FEATURE);
-    if (status.ok && status.value.confirmed) {
-      const level = await api.truth.level();
-      if (level.ok) truth = level.value;
-    }
+  if (options.revealHidden && api.truth) {
+    const level = await api.truth.level();
+    if (level.ok) truth = level.value;
   }
   return { input: input.ok ? input.value : null, world: world.ok ? world.value : null, truth };
 }
@@ -105,7 +86,11 @@ export function viewWorld(input: Api2Input | null | undefined): KnownWorldData |
   return input?.core;
 }
 
-/** The character, or undefined when the player part was not readable. API 1: viewPlayer. */
+/** The character, or undefined when the player part was not readable. API 1:
+ * viewPlayer, whose status counts each effect's turns left and whose recall
+ * and descent count turns. Here status names the grade the status line prints
+ * (null when the effect is off), food is a percentage, and recall and descent
+ * are booleans. */
 export function viewPlayer(input: Api2Input | null | undefined): KnownPlayer | undefined {
   return input?.core.player ?? undefined;
 }
@@ -166,16 +151,18 @@ export function playerHitPoints(frame: Api2Frame): { readonly hp: number | undef
 
 /** Whether the character is hallucinating. API 1: playerHallucinating. */
 export function playerHallucinating(frame: Api2Frame): boolean {
-  return (frame.world?.player?.status.image ?? 0) > 0;
+  return (frame.world?.player?.status.image ?? null) !== null;
 }
 
 /* The timed effects the known player status carries, under the engine's
- * names and in the engine's order. The engine has more than these; the rest
- * wait on Core request 6. */
-const TIMED_NAMES: readonly (readonly [string, keyof KnownPlayerStatus])[] = [
+ * names and in the engine's order. Every grade of these effects has a name,
+ * so a field is non-null exactly when the effect is running. FOOD reads the
+ * food grade, which is set whenever the food counter is above zero. The
+ * engine has more effects than these; the rest wait on Core request 6. */
+const TIMED_NAMES: readonly (readonly [string, Exclude<keyof KnownPlayerStatus, "food" | "fearful">])[] = [
   ["FAST", "fast"], ["BLIND", "blind"], ["PARALYZED", "paralyzed"], ["CONFUSED", "confused"],
   ["AFRAID", "afraid"], ["IMAGE", "image"], ["POISONED", "poisoned"], ["CUT", "cut"], ["STUN", "stun"],
-  ["FOOD", "food"], ["PROTEVIL", "protEvil"], ["HERO", "hero"], ["SHERO", "shero"], ["SHIELD", "shield"],
+  ["FOOD", "foodGrade"], ["PROTEVIL", "protEvil"], ["HERO", "hero"], ["SHERO", "shero"], ["SHIELD", "shield"],
   ["BLESSED", "blessed"], ["OPP_ACID", "resAcid"], ["OPP_ELEC", "resElec"], ["OPP_FIRE", "resFire"],
   ["OPP_COLD", "resCold"], ["OPP_POIS", "resPois"], ["AMNESIA", "amnesia"], ["STONESKIN", "stoneskin"],
   ["TERROR", "terror"], ["SPRINT", "sprint"], ["FASTCAST", "fastcast"],
@@ -186,7 +173,7 @@ const TIMED_NAMES: readonly (readonly [string, keyof KnownPlayerStatus])[] = [
 export function playerTimedEffects(frame: Api2Frame): string[] | null {
   const status = frame.world?.player?.status;
   if (!status) return null;
-  return TIMED_NAMES.filter(([, field]) => Number(status[field] ?? 0) > 0).map(([name]) => name);
+  return TIMED_NAMES.filter(([, field]) => status[field] !== null).map(([name]) => name);
 }
 
 /** Everything the character carries. API 1: carriedGear, which yields live objects instead. */

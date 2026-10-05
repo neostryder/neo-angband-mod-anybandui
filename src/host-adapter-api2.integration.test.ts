@@ -59,19 +59,30 @@ describe.skipIf(!checkout)("API 2 host adapter over a real game", () => {
     const seam = { snapshot: () => ({ ...input, core: view.capture!() }), knownLevel: () => view.knownLevel!() };
     const live = { core, state };
 
-    // API 2: Core's host, with the truth domain this mod would get once the glow is confirmed.
+    // API 2: Core's host, with the truth domain it builds once the player grants state:map-actual.read.
     const ctx = { id: "anybandui", engine: "test", flags: {}, newCharacter: false, log: () => {}, state, snapshot: () => input, prefs: { get: () => null, set: () => {} } };
     const api: ModApi2 = hostModule.createApi2Host(ctx, { grants, firstParty: { manage: true, truth: true } });
-    const consent: v2.TruthConsent = { status: async () => ({ ok: true, value: { confirmed: true } }), request: async () => ({ ok: true, value: { confirmed: true } }) };
-    const frame = await v2.readFrame(api, { revealHidden: true, consent });
+    const frame = await v2.readFrame(api, { revealHidden: true });
     expect(frame.world).not.toBeNull();
     expect(frame.truth).not.toBeNull();
 
     const in1 = v1.viewInput(seam), in2 = v2.viewInput(frame);
-    expect(v2.viewPlayer(in2)).toEqual(v1.viewPlayer(in1));
-    expect(v2.viewWorld(in2)?.inventory).toEqual(v1.viewWorld(in1)?.inventory);
-    const seen = <M extends { id: number; race: string; grid: unknown; visible: boolean; asleep: boolean; afraid: boolean; unique?: boolean; finalGuardian?: boolean }>(list: readonly M[] | null | undefined) =>
-      (list ?? []).filter((m) => m.visible).map((m) => ({ id: m.id, race: m.race, grid: m.grid, asleep: m.asleep, afraid: m.afraid, unique: m.unique, finalGuardian: m.finalGuardian }));
+    /* API 2's status names grades where API 1 counts turns, and its recall and descent are booleans. */
+    const shared = (p: object | undefined) => { const { status: _s, recall: _r, descent: _d, ...rest } = p as Record<string, unknown>; return rest; };
+    const player1 = v1.viewPlayer(in1) as unknown as { status: Record<string, number>; recall: number; descent: number }, player2 = v2.viewPlayer(in2)!;
+    expect(shared(player2)).toEqual(shared(player1));
+    for (const [field, grade] of Object.entries(player2.status)) {
+      if (field === "food" || field === "foodGrade" || field === "fearful") continue;
+      expect(grade !== null).toBe(player1.status[field]! > 0);
+    }
+    expect(player2.status.fearful).toBe(player1.status["fearful"]);
+    expect([player2.recall, player2.descent]).toEqual([player1.recall > 0, player1.descent > 0]);
+    /* A known item carries what its name says about recharging (charging, unknownRunes) where API 1's carries the turns left (timeout). */
+    const sharedItem = (item: object) => { const { timeout: _t, charging: _c, unknownRunes: _u, ...rest } = item as Record<string, unknown>; return rest; };
+    expect(v2.viewWorld(in2)?.inventory?.map(sharedItem)).toEqual(v1.viewWorld(in1)?.inventory?.map(sharedItem));
+    /* A known monster's id is a handle given in the order the character first perceives monsters on the level, not API 1's monster index, so ids are left out. */
+    const seen = <M extends { race: string; grid: unknown; visible: boolean; asleep: boolean; afraid: boolean; unique?: boolean; finalGuardian?: boolean }>(list: readonly M[] | null | undefined) =>
+      (list ?? []).filter((m) => m.visible).map((m) => ({ race: m.race, grid: m.grid, asleep: m.asleep, afraid: m.afraid, unique: m.unique, finalGuardian: m.finalGuardian }));
     expect(seen(v2.viewMonsters(in2))).toEqual(seen(v1.viewMonsters(in1)));
     const known1 = v1.viewLevel(seam)!;
     expect(v2.viewLevel(frame)?.cells).toEqual(known1.cells.map(({ x, y, visible, remembered }) => ({ x, y, visible, remembered })));

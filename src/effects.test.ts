@@ -355,6 +355,8 @@ describe("recall ring and embers", () => {
   it("places the ring only while recall has turns left", () => {
     expect(recallGrid({ grid: { x: 4, y: 5 }, recall: 3 })).toEqual({ x: 4, y: 5 });
     expect(recallGrid({ grid: { x: 4, y: 5 }, recall: 0 })).toBeNull();
+    expect(recallGrid({ grid: { x: 4, y: 5 }, recall: true })).toEqual({ x: 4, y: 5 });
+    expect(recallGrid({ grid: { x: 4, y: 5 }, recall: false })).toBeNull();
     expect(recallGrid({ recall: 4 })).toBeNull();
     expect(recallGrid({ grid: { x: 4, y: 5 } })).toBeNull();
     expect(recallGrid(null)).toBeNull();

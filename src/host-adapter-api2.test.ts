@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { TMD } from "@rpgm-tools/neo-angband-core";
-import { api2NotGranted, api2Ok, api2Refused, type Api2InputState, type Api2TrueLevel, type Api2Truth, type KnownItem, type KnownLevel, type KnownMonster, type KnownPlayer, type KnownPlayerStatus, type KnownWorldData, type ModApi2 } from "@rpgm-tools/neo-angband-mod-sdk";
+import { api2NotGranted, api2Ok, api2Unavailable, type Api2InputState, type Api2TrueLevel, type Api2Truth, type KnownItem, type KnownLevel, type KnownMonster, type KnownPlayer, type KnownPlayerStatus, type KnownWorldData, type ModApi2 } from "@rpgm-tools/neo-angband-mod-sdk";
 import * as v1 from "./host-adapter.js";
 import * as v2 from "./host-adapter-api2.js";
 
@@ -8,12 +8,20 @@ import * as v2 from "./host-adapter-api2.js";
  * the API 2 adapter through a fake ModApi2. Every pair of functions must give
  * the same answer. */
 const token = { epoch: 2, revision: 9 };
+/* API 1 counts each timed effect's turns left; API 2 names the grade the
+ * status line prints, gives food as a percentage, and makes recall and descent
+ * booleans. */
+const turns = { confused: 3, food: 9000, fast: 12, resFire: 7, image: 4 } as const;
 const status: KnownPlayerStatus = {
-  blind: 0, confused: 3, afraid: 0, poisoned: 0, cut: 0, stun: 0, paralyzed: 0, food: 9000, fast: 12, sprint: 0,
-  protEvil: 0, hero: 0, shero: 0, shield: 0, stoneskin: 0, blessed: 0, fastcast: 0,
-  resAcid: 0, resElec: 0, resFire: 7, resCold: 0, resPois: 0, terror: 0, amnesia: 0, image: 4,
+  blind: null, confused: "Confused", afraid: null, poisoned: null, cut: null, stun: null, paralyzed: null, food: 90, foodGrade: "Fed", fast: "Haste", sprint: null,
+  protEvil: null, hero: null, shero: null, shield: null, stoneskin: null, blessed: null, fastcast: null,
+  resAcid: null, resElec: null, resFire: "RFire", resCold: null, resPois: null, fearful: false, terror: null, amnesia: null, image: "Halluc",
 };
-const player = { race: "Dwarf", cls: "Priest", hp: 13, maxHp: 21, grid: { x: 3, y: 2 }, status, depth: 2 } as unknown as KnownPlayer;
+const player = { race: "Dwarf", cls: "Priest", hp: 13, maxHp: 21, grid: { x: 3, y: 2 }, status, depth: 2, recall: true, descent: false } as unknown as KnownPlayer;
+const statusTurns = Object.fromEntries(Object.entries(status).map(([field, value]) => [field, typeof value === "boolean" ? value : (turns as Record<string, number>)[field] ?? 0]));
+const player1 = { ...player, status: statusTurns, recall: 15, descent: 0 };
+/** The fields both adapters' players share. */
+const shared = (p: object | undefined) => { const { status: _s, recall: _r, descent: _d, ...rest } = p as Record<string, unknown>; return rest; };
 const item = (handle: number, artifact = false): KnownItem => ({ handle, kindKey: `k${handle}`, label: "a", artifact } as unknown as KnownItem);
 const inventory = [item(1), item(2, true)];
 const equipment = [item(10), null, item(11, true)];
@@ -40,7 +48,7 @@ const unseen = (x: number, y: number) => x === 0 && y === 3;
 const pileAt = (x: number, y: number) => (x === 3 && y === 1
   ? [{ sensed: true as const, money: false }, { sensed: false as const, aware: true as const, kindIndex: 40 }]
   : []);
-const realAt = (x: number, y: number) => (x === 4 && y === 1 ? { feat: 1, traps: [{ index: 3, name: "trap door" }], objects: [item(0)], monster: 0 } : null);
+const realAt = (x: number, y: number) => (x === 4 && y === 1 ? { feat: 1, traps: [{ index: 3, name: "trap door" }], objects: [{ ...item(0), timeout: 0 }], monster: 0 } : null);
 const cells = Array.from({ length: width * height }, (_, i) => {
   const x = i % width, y = Math.floor(i / width);
   return {
@@ -59,13 +67,13 @@ const trueLevel: Api2TrueLevel = {
 
 /* API 1: the snapshot and remembered map seams, and the live core and state. */
 const monsterView = (m: KnownMonster) => ({ id: m.id, race: m.race, raceIndex: m.raceIndex, grid: m.grid, visible: m.visible, asleep: m.status.includes("asleep"), afraid: m.status.includes("afraid"), confused: false, stunned: m.status.includes("stunned"), unique: m.unique, questGuardian: m.questGuardian, finalGuardian: m.finalGuardian, raceFlags: fullRaceFlags[m.id] ?? [], hp: 5, maxHp: 9 });
-const snapshot = { ...input, core: { ...world, monsters: monsters.map(monsterView) } };
+const snapshot = { ...input, core: { ...world, player: player1, monsters: monsters.map(monsterView) } };
 const seam = {
   snapshot: () => snapshot,
   knownLevel: () => ({ ...level, cells: cells.map((cell) => { const real = realAt(cell.x, cell.y); return real ? { ...cell, actual: real } : cell; }) }),
 };
 const timed = Object.values(TMD).map(() => 0);
-for (const [name, field] of [["CONFUSED", "confused"], ["FOOD", "food"], ["FAST", "fast"], ["OPP_FIRE", "resFire"], ["IMAGE", "image"]] as const) timed[TMD[name]] = status[field] ?? 0;
+for (const [name, field] of [["CONFUSED", "confused"], ["FOOD", "food"], ["FAST", "fast"], ["OPP_FIRE", "resFire"], ["IMAGE", "image"]] as const) timed[TMD[name]] = turns[field];
 const game = {
   core: {
     TMD,
@@ -89,10 +97,6 @@ function fakeApi(options: { truth?: boolean; grants?: boolean } = {}): Pick<ModA
   } as unknown as ModApi2["view"];
   return { view, ...(options.truth ? { truth: { level, monsters: vi.fn() } as unknown as Api2Truth } : {}), truthCalls: () => level.mock.calls.length };
 }
-const consent = (confirmed: boolean): v2.TruthConsent => ({
-  status: vi.fn(async () => api2Ok({ confirmed })),
-  request: vi.fn(async () => api2Ok({ confirmed })),
-});
 
 describe("API 2 host adapter parity", () => {
   it("reads the input, world, player, monsters and remembered map the API 1 adapter reads", async () => {
@@ -102,7 +106,13 @@ describe("API 2 host adapter parity", () => {
     expect(in2?.phase).toBe(in1?.phase);
     expect(in2?.prompt).toEqual(in1?.prompt);
     expect(v2.viewWorld(in2)?.inventory).toEqual(v1.viewWorld(in1)?.inventory);
-    expect(v2.viewPlayer(in2)).toEqual(v1.viewPlayer(in1));
+    expect(shared(v2.viewPlayer(in2))).toEqual(shared(v1.viewPlayer(in1)));
+    /* The documented difference: a grade name where API 1 counts turns. */
+    for (const [field, grade] of Object.entries(v2.viewPlayer(in2)!.status)) {
+      if (field === "food" || field === "foodGrade" || field === "fearful") continue;
+      expect(grade !== null).toBe((v1.viewPlayer(in1)!.status as Record<string, number>)[field]! > 0);
+    }
+    expect(v2.viewPlayer(in2)!.recall).toBe(v1.viewPlayer(in1)!.recall > 0);
     const rows1 = v1.viewMonsters(in1)!, rows2 = v2.viewMonsters(in2)!;
     expect(rows2.map(({ raceFlags: _, ...rest }) => rest)).toEqual(rows1.map(({ raceFlags: _, hp: _hp, maxHp: _maxHp, ...rest }) => rest));
     /* The documented difference: API 1 lists the race's full flags, API 2 only the learned ones. */
@@ -149,23 +159,21 @@ describe("API 2 host adapter parity", () => {
     expect(v2.gridIsShop(frame, { x: 0, y: 3 })).toBe(false);
   });
 
-  it("reads the real map only with the glow on and the player's confirmation", async () => {
+  it("reads the real map only with the glow on and a truth domain from the player's grant", async () => {
     const api = fakeApi({ truth: true });
     expect(v2.truthLevel(await v2.readFrame(api)).cells).toEqual([]);
-    expect(v2.truthLevel(await v2.readFrame(api, { revealHidden: true })).cells).toEqual([]);
-    expect(v2.truthLevel(await v2.readFrame(api, { revealHidden: true, consent: consent(false) })).cells).toEqual([]);
-    expect(v2.truthLevel(await v2.readFrame(api, { revealHidden: false, consent: consent(true) })).cells).toEqual([]);
+    expect(v2.truthLevel(await v2.readFrame(api, { revealHidden: false })).cells).toEqual([]);
     expect(api.truthCalls()).toBe(0);
-    const frame = await v2.readFrame(api, { revealHidden: true, consent: consent(true) });
+    const frame = await v2.readFrame(api, { revealHidden: true });
     expect(api.truthCalls()).toBe(1);
     expect(v2.truthLevel(frame).cells).toEqual(v1.truthLevel(seam.knownLevel() as Parameters<typeof v1.truthLevel>[0]).cells);
     expect(v2.truthLevel(frame).cells).toHaveLength(1);
   });
 
-  it("reads no real map without a truth domain, and none when truth refuses", async () => {
-    expect((await v2.readFrame(fakeApi(), { revealHidden: true, consent: consent(true) })).truth).toBeNull();
-    const refusing = { ...fakeApi(), truth: { level: async () => api2Refused("not-confirmed", "the player has not confirmed this"), monsters: vi.fn() } as unknown as Api2Truth };
-    expect((await v2.readFrame(refusing, { revealHidden: true, consent: consent(true) })).truth).toBeNull();
+  it("reads no real map without a truth domain, and none when truth has no answer", async () => {
+    expect((await v2.readFrame(fakeApi(), { revealHidden: true })).truth).toBeNull();
+    const refusing = { ...fakeApi(), truth: { level: async () => api2Unavailable("there is no level yet"), monsters: vi.fn() } as unknown as Api2Truth };
+    expect((await v2.readFrame(refusing, { revealHidden: true })).truth).toBeNull();
   });
 
   it("answers as API 1 does with no game: nothing to read", async () => {
