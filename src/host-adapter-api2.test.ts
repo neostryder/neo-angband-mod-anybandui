@@ -23,10 +23,20 @@ const monsters: KnownMonster[] = [
   { id: 4, race: "Cave spider", raceIndex: 60, grid: { x: 4, y: 3 }, visible: true, health: "wounded", living: true, status: ["afraid", "stunned"], look: "wounded, afraid", raceLevel: 2, raceSpeed: 120, knownFlags: [], knownSpells: [], unique: false, questGuardian: false, finalGuardian: false },
   { id: 6, race: "Clear worm", raceIndex: 33, grid: { x: 0, y: 0 }, visible: false, health: "unhurt", living: true, status: [], look: "", raceLevel: 3, raceSpeed: 100, knownFlags: ["INVISIBLE"], knownSpells: [], unique: false, questGuardian: false, finalGuardian: false },
 ];
+/* API 1's MonsterView.raceFlags is the race's full flag list; API 2's row
+ * holds only the learned flags (knownFlags above). */
+const fullRaceFlags: Record<number, string[]> = {
+  1: ["UNIQUE", "MALE", "RAND_25", "ANIMAL"],
+  4: ["ANIMAL", "WEIRD_MIND", "FRIENDS", "HURT_LIGHT"],
+  6: ["INVISIBLE", "ANIMAL", "STUPID", "MULTIPLY"],
+};
 const SHOP_FEAT = 8;
 const width = 5, height = 4;
 const trapAt = (x: number, y: number) => x === 1 && y === 1;
-const shopAt = (x: number, y: number) => x === 2 && y === 1;
+/* (2, 1) is a shop the character remembers; (0, 3) is a shop in the real map
+ * that the character has never seen, so the remembered map has no cell there. */
+const shopAt = (x: number, y: number) => (x === 2 && y === 1) || (x === 0 && y === 3);
+const unseen = (x: number, y: number) => x === 0 && y === 3;
 const pileAt = (x: number, y: number) => (x === 3 && y === 1
   ? [{ sensed: true as const, money: false }, { sensed: false as const, aware: true as const, kindIndex: 40 }]
   : []);
@@ -37,7 +47,7 @@ const cells = Array.from({ length: width * height }, (_, i) => {
     x, y, visible: y < 2,
     remembered: { feat: shopAt(x, y) ? SHOP_FEAT : 1, traps: trapAt(x, y) ? [{ index: 1, name: "pit" }] : [], objects: pileAt(x, y) },
   };
-});
+}).filter(({ x, y }) => !unseen(x, y));
 const level: KnownLevel = { token, levelId: 77, depth: 2, width, height, cells };
 const stores = [{ feat: SHOP_FEAT, featName: "General Store", isHome: false, owner: { name: "Bilbo", purse: 5000 }, stock: [] }];
 const world = { version: 1, token, turn: 100, player, inventory, equipment, quiver, floorHere: [], monsters, target: null, targetReadable: true, stores, spellbooks: [], level } as unknown as KnownWorldData;
@@ -48,7 +58,7 @@ const trueLevel: Api2TrueLevel = {
 };
 
 /* API 1: the snapshot and remembered map seams, and the live core and state. */
-const monsterView = (m: KnownMonster) => ({ id: m.id, race: m.race, raceIndex: m.raceIndex, grid: m.grid, visible: m.visible, asleep: m.status.includes("asleep"), afraid: m.status.includes("afraid"), confused: false, stunned: m.status.includes("stunned"), unique: m.unique, questGuardian: m.questGuardian, finalGuardian: m.finalGuardian, raceFlags: m.knownFlags, hp: 5, maxHp: 9 });
+const monsterView = (m: KnownMonster) => ({ id: m.id, race: m.race, raceIndex: m.raceIndex, grid: m.grid, visible: m.visible, asleep: m.status.includes("asleep"), afraid: m.status.includes("afraid"), confused: false, stunned: m.status.includes("stunned"), unique: m.unique, questGuardian: m.questGuardian, finalGuardian: m.finalGuardian, raceFlags: fullRaceFlags[m.id] ?? [], hp: 5, maxHp: 9 });
 const snapshot = { ...input, core: { ...world, monsters: monsters.map(monsterView) } };
 const seam = {
   snapshot: () => snapshot,
@@ -93,9 +103,15 @@ describe("API 2 host adapter parity", () => {
     expect(in2?.prompt).toEqual(in1?.prompt);
     expect(v2.viewWorld(in2)?.inventory).toEqual(v1.viewWorld(in1)?.inventory);
     expect(v2.viewPlayer(in2)).toEqual(v1.viewPlayer(in1));
-    const fields = (m: { id: number; race: string; raceIndex: number; grid: unknown; visible: boolean; asleep: boolean; afraid: boolean; stunned: boolean; unique: boolean; finalGuardian: boolean; raceFlags: readonly string[] }) =>
-      ({ id: m.id, race: m.race, raceIndex: m.raceIndex, grid: m.grid, visible: m.visible, asleep: m.asleep, afraid: m.afraid, stunned: m.stunned, unique: m.unique, finalGuardian: m.finalGuardian, raceFlags: m.raceFlags });
-    expect(v2.viewMonsters(in2)?.map(fields)).toEqual(v1.viewMonsters(in1)?.map(fields));
+    const rows1 = v1.viewMonsters(in1)!, rows2 = v2.viewMonsters(in2)!;
+    expect(rows2.map(({ raceFlags: _, ...rest }) => rest)).toEqual(rows1.map(({ raceFlags: _, hp: _hp, maxHp: _maxHp, ...rest }) => rest));
+    /* The documented difference: API 1 lists the race's full flags, API 2 only the learned ones. */
+    expect(rows1.map((m) => m.raceFlags)).toEqual(monsters.map((m) => fullRaceFlags[m.id]));
+    expect(rows2.map((m) => m.raceFlags)).toEqual(monsters.map((m) => m.knownFlags));
+    for (const [index, row] of rows2.entries()) {
+      expect(row.raceFlags.length).toBeLessThan(rows1[index]!.raceFlags.length);
+      for (const flag of row.raceFlags) expect(rows1[index]!.raceFlags).toContain(flag);
+    }
     const known1 = v1.viewLevel(seam)!;
     expect(v2.viewLevel(frame)?.cells).toEqual(known1.cells.map(({ x, y, visible, remembered }) => ({ x, y, visible, remembered })));
   });
@@ -122,9 +138,15 @@ describe("API 2 host adapter parity", () => {
       const grid = { x, y };
       const inside = x >= 0 && y >= 0 && x < width && y < height;
       if (inside) expect(v2.gridHasVisibleTrap(frame, grid)).toBe(v1.gridHasVisibleTrap(game, grid));
-      if (inside) expect(v2.gridIsShop(frame, grid)).toBe(v1.gridIsShop(game, grid));
+      if (inside && !unseen(x, y)) expect(v2.gridIsShop(frame, grid)).toBe(v1.gridIsShop(game, grid));
       expect(v2.rememberedPile(frame, grid).map((entry) => entry.sensed)).toEqual(inside ? v1.rememberedPile(game, grid).map((entry) => entry.sensed) : []);
     }
+    expect(v2.gridIsShop(frame, { x: 2, y: 1 })).toBe(true);
+    /* The documented difference: on a shop square the character has never
+     * seen, API 1 reads the real terrain and API 2 the remembered map. */
+    expect(v2.viewLevel(frame)?.cells.some((cell) => unseen(cell.x, cell.y))).toBe(false);
+    expect(v1.gridIsShop(game, { x: 0, y: 3 })).toBe(true);
+    expect(v2.gridIsShop(frame, { x: 0, y: 3 })).toBe(false);
   });
 
   it("reads the real map only with the glow on and the player's confirmation", async () => {
