@@ -11,11 +11,14 @@ import ts from "typescript";
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const ADAPTERS = new Set([join("src", "host-adapter.ts"), join("src", "host-adapter-api2.ts")]);
 const RULES: readonly [string, RegExp][] = [
-  ["ctx.core, ctx.state or ctx.registries", /\bctx\??\.(?:core|state|registries)\b/],
+  ["ctx.core, ctx.state or ctx.registries", /\bctx!?\??\.(?:core|state|registries)\b/],
   ["a .core member, such as a snapshot's", /\.core\b/],
   ["a direct snapshot or remembered-map call", /\bctx\??\.(?:snapshot|knownLevel)(?:\?\.)?\(/],
   ["the registries", /\bregistries\b/],
   ["the truth domain", /\.truth\b/],
+  ["a copy of the snapshot or remembered-map seam", /\b(?:const|let|var)\b[^=]*=\s*(?:\w+\.)*ctx!?\??\.(?:snapshot|knownLevel)\s*(?:[,;]|$)/],
+  ["a host member taken apart from ctx", /\{[^}]*\b(?:core|state|snapshot|knownLevel)\b[^}]*\}\s*=\s*(?:\w+\.)*ctx\b/],
+  ["a host member read by name", /\bctx!?\??\.?\[\s*["'`](?:core|state|registries|snapshot|knownLevel)["'`]\s*\]/],
 ];
 
 /** Whether the boundary rules apply to a file: every .ts file except the two adapters and the tests. */
@@ -95,5 +98,20 @@ describe("host adapter boundary", () => {
     expect(checked("plugin.ts")).toBe(true);
     for (const path of [...ADAPTERS, join("src", "host-adapter.test.ts"), join("src", "host-adapter-api2.test.ts"), join("src", "host-adapter-api2.integration.test.ts")]) expect(checked(path)).toBe(false);
     expect(sources("src").filter((path) => !checked(path))).toEqual(expect.arrayContaining([...ADAPTERS]));
+  });
+
+  it("catches each kind of read when one is written", () => {
+    const sample = code([
+      "const a = ctx.state;",
+      "const b = ctx!.core;",
+      "const read = ctx.snapshot, reply = ctx.prompt;",
+      "const { knownLevel } = rt.ctx;",
+      "const c = ctx[\"snapshot\"]();",
+      "const d = ctx.snapshot?.();",
+      "if (!ctx.snapshot) return;",
+      "// ctx.state in a comment",
+    ].join("\n"));
+    const hits = sample.filter((line) => RULES.some(([, rule]) => rule.test(line)));
+    expect(hits).toHaveLength(6);
   });
 });

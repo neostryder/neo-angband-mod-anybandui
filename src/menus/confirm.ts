@@ -8,6 +8,7 @@
  * destroys anything.
  */
 import { button, el, openDialog, stepFocus, type DialogContext } from "./dialog.js";
+import { viewInput } from "../host-adapter.js";
 import type { ConfirmPrompt, PromptAnswer, PromptReplyResult } from "@rpgm-tools/neo-angband-core";
 
 export interface ConfirmOptions {
@@ -82,15 +83,15 @@ function confirmPrompt(prompt: unknown): ConfirmPrompt | null {
  */
 export function installYesNoPrompts(ctx: YesNoContext): () => void {
   if (ctx.flags?.["anybandui.yesNoPrompts"] !== true) return () => {};
-  const read = ctx.snapshot, reply = ctx.prompt;
-  if (!read || !reply || !ctx.ui?.openPanel) { ctx.log("yes/no prompts: this game has no prompt reply or panel seam"); return () => {}; }
+  const reply = ctx.prompt;
+  if (!ctx.snapshot || !reply || !ctx.ui?.openPanel) { ctx.log("yes/no prompts: this game has no prompt reply or panel seam"); return () => {}; }
   let shown: { id: number; handle: ConfirmHandle } | null = null;
   /* A prompt whose dialog could not open (the host refuses a panel just after
    * the player closed one) is left on the game's own prompt line. */
   let skipped: number | null = null;
   const poll = (): void => {
     let snap: ReturnType<NonNullable<YesNoContext["snapshot"]>> = null;
-    try { snap = read(); } catch { snap = null; }
+    try { snap = viewInput(ctx); } catch { snap = null; }
     const prompt = snap && snap.phase !== "store" ? confirmPrompt(snap.prompt) : null;
     if (shown && shown.id !== prompt?.promptId) {
       // The game moved on without this dialog's answer; take it down unanswered.
