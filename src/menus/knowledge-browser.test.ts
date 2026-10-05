@@ -7,10 +7,10 @@ import { openMenu } from "./openers.js";
 
 const lists: Record<string, KnowledgeListView> = {
   monsters: { title: "known monsters", groups: [
-    { name: "Canines", entries: [{ id: "m1", name: "Jackal", color: "#c08040", cells: [{ text: "C", color: "#c08040" }] }, { id: "m2", name: "Wild dog", color: "#c08040" }] },
-    { name: "Kobolds", entries: [{ id: "m3", name: "Small kobold", color: "#ffff00" }] },
+    { name: "Canines", entries: [{ id: "m1", name: "Jackal", color: "#c08040", known: true, cells: [{ text: "C", color: "#c08040" }] }, { id: "m2", name: "Wild dog", color: "#c08040", known: true }] },
+    { name: "Kobolds", entries: [{ id: "m3", name: "Small kobold", color: "#ffff00", known: true }] },
   ] },
-  objects: { title: "known objects", groups: [{ name: "Potions", entries: [{ id: "o1", name: "Cure Light Wounds", color: "#ffffff" }] }] },
+  objects: { title: "known objects", groups: [{ name: "Potions", entries: [{ id: "o1", name: "Cure Light Wounds", color: "#ffffff", known: true }] }] },
   runes: { title: "runes", groups: [] },
 };
 
@@ -128,7 +128,7 @@ describe("knowledge browser", () => {
       const { root, ui } = overlayUi();
       const knowledge = seam();
       cleanup = installKnowledgeBrowser({ flags: { "anybandui.knowledgeBrowser": true }, log: () => {}, ui, knowledge });
-      lists["objects"] = { title: "known objects", groups: [{ name: "Potions", entries: [{ id: "o1", name: "Cure Light Wounds", color: "#ffffff" }, { id: "o2", name: "Speed", color: "#ffffff" }] }] };
+      lists["objects"] = { title: "known objects", groups: [{ name: "Potions", entries: [{ id: "o1", name: "Cure Light Wounds", color: "#ffffff", known: true }, { id: "o2", name: "Speed", color: "#ffffff", known: true }] }] };
       vi.advanceTimersByTime(1000);
       expect(root.text()).toContain("2 entries");
       cleanup(); cleanup = () => {};
@@ -136,7 +136,7 @@ describe("knowledge browser", () => {
       vi.advanceTimersByTime(5000);
       expect(knowledge.recall.mock.calls.length).toBe(calls);
     } finally {
-      lists["objects"] = { title: "known objects", groups: [{ name: "Potions", entries: [{ id: "o1", name: "Cure Light Wounds", color: "#ffffff" }] }] };
+      lists["objects"] = { title: "known objects", groups: [{ name: "Potions", entries: [{ id: "o1", name: "Cure Light Wounds", color: "#ffffff", known: true }] }] };
       vi.useRealTimers();
     }
   });

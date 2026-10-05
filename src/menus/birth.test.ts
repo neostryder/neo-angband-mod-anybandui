@@ -121,7 +121,7 @@ function fakeSession(previous: BirthCatalogue["previous"] = null, pinned = false
   const session = {
     catalogue: vi.fn(() => catalogue),
     draft: vi.fn((): BirthDraftView => ({
-      race, cls, method, stats: [...current()], pointsLeft: method === "point" ? left : 0, pointsSpent: method === "point" ? [...spent] : [0, 0, 0, 0, 0],
+      race, cls, method, stats: [...current()], pointsLeft: method === "point" ? left : 0, pointsSpent: method === "point" ? [...spent] : [0, 0, 0, 0, 0], statCosts: [],
       canPreviousRoll: method === "roller" && previousRolled !== null, name, history, historyEdited,
       options: OPTIONS.map((o) => ({ ...o, value: options[o.name] ?? false })),
       preview: race && cls ? {

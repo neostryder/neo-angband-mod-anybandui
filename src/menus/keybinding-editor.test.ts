@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ModKeybinding, ModKeybindings } from "@rpgm-tools/neo-angband-core";
-import { bindingDiff, conflictNote, draftFromList, installKeybindingEditor } from "./keybinding-editor.js";
+import type { ModKeybinding } from "@rpgm-tools/neo-angband-core";
+import { bindingDiff, conflictNote, draftFromList, installKeybindingEditor, type HostKeybindings } from "./keybinding-editor.js";
 import { installDomGlobals, overlayUi, paneUi } from "./test-dom.js";
 import { openMenu } from "./openers.js";
 
 const flush = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
 
-function seam(keys: (string | null)[] = []): ModKeybindings & { set: ReturnType<typeof vi.fn>; remove: ReturnType<typeof vi.fn>; stored: Map<string, ModKeybinding>; mode: { keyset: "original" | "roguelike" } } {
+function seam(keys: (string | null)[] = []): HostKeybindings & { set: ReturnType<typeof vi.fn>; remove: ReturnType<typeof vi.fn>; stored: Map<string, ModKeybinding>; mode: { keyset: "original" | "roguelike" } } {
   const stored = new Map<string, ModKeybinding>([
     ["F1", { trigger: "F1", action: "R&\\e", owner: null }],
     ["F2", { trigger: "F2", action: "maa", owner: null }],

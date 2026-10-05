@@ -19,8 +19,11 @@ import { openMenuSurface } from "./menu-surface.js";
 
 export const KEYBINDINGS_KEY = "keybinding-editor";
 
+/** ctx.keybindings as Core 1.21.1 hands it. Later hosts add cancelCapture, which the editor calls when present, and commands(), which it never reads. */
+export type HostKeybindings = Omit<ModKeybindings, "cancelCapture" | "commands"> & { readonly cancelCapture?: () => boolean };
+
 export interface KeybindingContext extends SurfaceContext {
-  readonly keybindings?: ModKeybindings | undefined;
+  readonly keybindings?: HostKeybindings | undefined;
 }
 
 export interface DraftBinding { readonly action: string; readonly owner: string | null }
@@ -121,8 +124,7 @@ export function installKeybindingEditor(ctx: KeybindingContext): () => void {
     captureRun++;
     form.capturing = false;
     if (form.trigger === null) form = null;
-    const seam = ctx.keybindings as (ModKeybindings & { cancelCapture?: () => boolean }) | undefined;
-    try { seam?.cancelCapture?.(); } catch { /* the capture ends with the next key instead */ }
+    try { ctx.keybindings?.cancelCapture?.(); } catch { /* the capture ends with the next key instead */ }
   };
   const openForm = (binding: readonly [string, DraftBinding] | null): void => {
     form = binding

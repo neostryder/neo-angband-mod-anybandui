@@ -25,7 +25,7 @@ const player = freeze({
 const monster = freeze({ id: 7, race: "orc", raceIndex: 1, grid: { x: 3, y: 3 },
   visible: true, hp: 12, maxHp: 20, speed: 110, asleep: false, afraid: false,
   confused: false, stunned: false, poisoned: false, level: 4, raceFlags: [], unique: false,
-  questGuardian: false, finalGuardian: false, spellFlags: [] }) satisfies MonsterView;
+  questGuardian: false, finalGuardian: false, spellFlags: [], knownSpellFlags: [] }) satisfies MonsterView;
 const target = freeze({ midx: 7, grid: { x: 3, y: 3 } }) satisfies TargetView;
 const view: AgentView = {
   apiVersion: "1.18.0", turn: () => 2, player: () => player, monsters: () => [monster],

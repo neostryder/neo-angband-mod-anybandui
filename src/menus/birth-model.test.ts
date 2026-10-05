@@ -15,7 +15,7 @@ const catalogue = (previous: BirthCatalogue["previous"] = null): BirthCatalogue 
 });
 
 const draft = (patch: Partial<BirthDraftView> = {}): BirthDraftView => ({
-  race: "Dwarf", cls: "Mage", method: "point", stats: [10, 17, 10, 12, 18], pointsLeft: 3, pointsSpent: [0, 9, 0, 2, 6],
+  race: "Dwarf", cls: "Mage", method: "point", stats: [10, 17, 10, 12, 18], pointsLeft: 3, pointsSpent: [0, 9, 0, 2, 6], statCosts: [],
   canPreviousRoll: false, name: "Ari", history: "Born under a hill.", historyEdited: false, options: [],
   preview: {
     stats: [
