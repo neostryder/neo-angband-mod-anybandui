@@ -37,6 +37,25 @@ The web host needs its own pieces as well: a panel seam through which this mod's
 
 ## Phases
 
+```mermaid
+flowchart TD
+  P0["Phase 0<br/>Foundation, view model and theme tokens"] --> P1["Phase 1<br/>Status and messages"]
+  P1 --> P2["Phase 2<br/>The map under the mouse"]
+  P2 --> P3["Phase 3<br/>Items"]
+  P3 --> P4["Phase 4<br/>Spells and the quickbar"]
+  P4 --> P5["Phase 5<br/>Stores"]
+  P5 --> P6["Phase 6<br/>Layout"]
+  P6 --> P7["Phase 7<br/>Effects"]
+  P7 --> P8["Phase 8<br/>Menus, save cards, birth, knowledge and hall of fame<br/>The checkout includes unreleased additions"]
+  P8 --> P9["Phase 9, planned<br/>Touch, controller and phone layouts"]
+  P9 --> P10["Phase 10, planned<br/>Headless launcher and Anyband Protocol bridge"]
+  BASE["deluxe baseline<br/>6b598dca0"] -.-> LEDGER["UPSTREAM.md tracks later commits<br/>ported, not applicable or pending"]
+  LEDGER -.-> TABLE["PLANNED.md compares modules<br/>through e7dd1a22c"]
+  TABLE -.-> P8
+```
+
+*Source of truth: `PLANNED.md`, `UPSTREAM.md`, `CHANGELOG.md`, and `plugin.ts`. Phase 8 work is in the checkout but listed under Unreleased.*
+
 Version 1.0.0 carries phases 0 to 7: the view model, the HUD panels, map clicks and hover cards, items, spells and the quickbar, stores, panes and effects. The menus, touch and controller play, and the Anyband Protocol bridge in phases 8 to 10 come after it.
 
 ### Phase 0: foundation
