@@ -15,6 +15,10 @@ export class FakeNode {
   value = "";
   checked = false;
   disabled = false;
+  hidden = false;
+  open = false;
+  id = "";
+  htmlFor = "";
   min = "";
   max = "";
   step = "";
@@ -30,6 +34,16 @@ export class FakeNode {
   selectionEnd: number | null = null;
   private listeners = new Map<string, Array<(event: FakeEvent) => void>>();
   constructor(readonly tag = "div") { this.rootNode = this; }
+  get tagName(): string { return this.tag.toUpperCase(); }
+  get firstElementChild(): FakeNode | null { return this.children[0] ?? null; }
+  get lastElementChild(): FakeNode | null { return this.children.at(-1) ?? null; }
+  get classList() {
+    return { toggle: (name: string, force: boolean): void => {
+      const classes = this.className.split(" ").filter((value) => value && value !== name);
+      if (force) classes.push(name);
+      this.className = classes.join(" ");
+    } };
+  }
   get ownerDocument() {
     const root = this.rootNode;
     return {
@@ -38,7 +52,20 @@ export class FakeNode {
     };
   }
   getRootNode(): FakeNode { return this.rootNode; }
-  appendChild(child: FakeNode): FakeNode { child.rootNode = this.rootNode; child.parent = this; this.children.push(child); return child; }
+  appendChild(child: FakeNode): FakeNode {
+    child.remove();
+    child.rootNode = this.rootNode; child.parent = this; this.children.push(child); return child;
+  }
+  remove(): void {
+    if (this.parent) this.parent.children = this.parent.children.filter((child) => child !== this);
+    this.parent = null;
+  }
+  closest(selector: string): FakeNode | null {
+    for (let node: FakeNode | null = this; node; node = node.parent) {
+      if (selector === "[hidden]" ? node.hidden : node.tag === selector) return node;
+    }
+    return null;
+  }
   replaceChildren(): void {
     if (this.rootNode.activeElement && this.contains(this.rootNode.activeElement) && this.rootNode.activeElement !== this) this.rootNode.activeElement = null;
     this.children = [];
@@ -49,15 +76,23 @@ export class FakeNode {
     this.listeners.set(type, [...(this.listeners.get(type) ?? []), listener]);
   }
   /** Fires on this node, then bubbles to its parents unless stopped. */
-  fire(type: string, key = "", shiftKey = false): FakeEvent {
+  fire(type: string, key = "", shiftKey = false, init: Record<string, unknown> = {}): FakeEvent {
     let stopped = false;
-    const event: FakeEvent = { key, shiftKey, defaultPrevented: false, preventDefault() { event.defaultPrevented = true; }, stopPropagation() { stopped = true; } };
+    const event: FakeEvent = { key, shiftKey, defaultPrevented: false, preventDefault() { event.defaultPrevented = true; }, stopPropagation() { stopped = true; }, ...init };
+    Object.assign(event, { target: this });
     for (let node: FakeNode | null = this; node && !stopped; node = node.parent) {
       for (const listener of node.listeners.get(type) ?? []) listener(event);
     }
     return event;
   }
-  click(): void { if (!this.disabled) this.fire("click"); }
+  click(): void {
+    if (this.disabled) return;
+    const event = this.fire("click");
+    if (!event.defaultPrevented && this.tag === "summary" && this.parent?.tag === "details") {
+      this.parent.open = !this.parent.open;
+      this.parent.fire("toggle");
+    }
+  }
   /** Types into an input and fires its input event. */
   enter(value: string): void { this.value = value; this.selectionStart = value.length; this.selectionEnd = value.length; this.fire("input"); }
   contains(node: FakeNode): boolean { return this.walk().includes(node); }
@@ -66,7 +101,7 @@ export class FakeNode {
     return [];
   }
   querySelector(selector: string): FakeNode | null { return this.querySelectorAll(selector)[0] ?? null; }
-  focus(): void { this.rootNode.activeElement = this; }
+  focus(): void { this.rootNode.activeElement = this; this.fire("focus"); }
   setSelectionRange(start: number, end: number | null): void { this.selectionStart = start; this.selectionEnd = end; }
   walk(): FakeNode[] { return [this, ...this.children.flatMap((child) => child.walk())]; }
   text(): string { return [this.textContent, ...this.children.map((child) => child.text())].filter(Boolean).join(" "); }

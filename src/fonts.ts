@@ -9,10 +9,10 @@ export const EFFECT_FONT = "tengwar-annatar/tngan.ttf";
 
 interface AssetCtx { readonly assetUrl: (path: string) => Promise<string | null> }
 
-export async function loadFonts(ctx: AssetCtx): Promise<readonly string[]> {
+export async function loadFonts(ctx: AssetCtx, files: readonly string[] = [...FONT_FILES, EFFECT_FONT]): Promise<readonly string[]> {
   if (typeof FontFace === "undefined" || typeof document === "undefined" || !document.fonts) return [];
   const loaded: string[] = [];
-  for (const file of [...FONT_FILES, EFFECT_FONT]) {
+  for (const file of files) {
     const url = await ctx.assetUrl(`fonts/${file}`);
     if (url === null) continue;
     const face = new FontFace(file, `url(${JSON.stringify(url)})`);
