@@ -56,7 +56,10 @@
       "engine:access",
       "session:control",
       "profiles:manage",
-      "screens:manage"
+      "screens:manage",
+      "event:run-end",
+      "store:kv",
+      "mod:install"
     ],
     "lookPreset": { "look": "Neo", "settings": {} },
     "author": "WurliMonkhaven, neostryder",
