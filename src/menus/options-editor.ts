@@ -220,7 +220,7 @@ export function installOptionsEditor(ctx: OptionsContext): () => void {
     });
   };
 
-  surface = openMenuSurface(ctx, { key: OPTIONS_KEY, label: "Game options", tab: "Settings", minSize: { width: 360, height: 240 }, placement: { kind: "dock", target: "main", edge: "right" }, firstFocus: "search" }, render);
+  surface = openMenuSurface(ctx, { key: OPTIONS_KEY, label: "Game options", tab: "Options", minSize: { width: 360, height: 240 }, placement: { kind: "dock", target: "main", edge: "right" }, firstFocus: "search" }, render);
   if (!surface) { ctx.log("options editor: panel seam unavailable"); return () => {}; }
   return () => { surface?.close(); surface = null; };
 }

@@ -350,7 +350,7 @@ export function installKeybindingEditor(ctx: KeybindingContext): () => void {
     });
   };
 
-  surface = openMenuSurface(ctx, { key: KEYBINDINGS_KEY, label: "Keybindings", tab: "Settings", minSize: { width: 360, height: 240 }, placement: { kind: "dock", target: "main", edge: "right" }, firstFocus: "add", onHidden: dropCapture }, render);
+  surface = openMenuSurface(ctx, { key: KEYBINDINGS_KEY, label: "Keybindings", tab: "Keys", minSize: { width: 360, height: 240 }, placement: { kind: "dock", target: "main", edge: "right" }, firstFocus: "add", onHidden: dropCapture }, render);
   if (!surface) { ctx.log("keybinding editor: panel seam unavailable"); return () => {}; }
   return () => { dropCapture(); closed = true; surface?.close(); surface = null; };
 }

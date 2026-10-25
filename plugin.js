@@ -7562,7 +7562,7 @@ function installOptionsEditor(ctx) {
       cancel(writable ? "cancel" : "search");
     });
   };
-  surface = openMenuSurface(ctx, { key: OPTIONS_KEY, label: "Game options", tab: "Settings", minSize: { width: 360, height: 240 }, placement: { kind: "dock", target: "main", edge: "right" }, firstFocus: "search" }, render);
+  surface = openMenuSurface(ctx, { key: OPTIONS_KEY, label: "Game options", tab: "Options", minSize: { width: 360, height: 240 }, placement: { kind: "dock", target: "main", edge: "right" }, firstFocus: "search" }, render);
   if (!surface) {
     ctx.log("options editor: panel seam unavailable");
     return () => {
@@ -7959,7 +7959,7 @@ function installKeybindingEditor(ctx) {
       cancel();
     });
   };
-  surface = openMenuSurface(ctx, { key: KEYBINDINGS_KEY, label: "Keybindings", tab: "Settings", minSize: { width: 360, height: 240 }, placement: { kind: "dock", target: "main", edge: "right" }, firstFocus: "add", onHidden: dropCapture }, render);
+  surface = openMenuSurface(ctx, { key: KEYBINDINGS_KEY, label: "Keybindings", tab: "Keys", minSize: { width: 360, height: 240 }, placement: { kind: "dock", target: "main", edge: "right" }, firstFocus: "add", onHidden: dropCapture }, render);
   if (!surface) {
     ctx.log("keybinding editor: panel seam unavailable");
     return () => {
