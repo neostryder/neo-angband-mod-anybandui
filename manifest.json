@@ -58,6 +58,7 @@
       "profiles:manage",
       "screens:manage"
     ],
+    "lookPreset": { "look": "Neo", "settings": {} },
     "author": "WurliMonkhaven, neostryder",
     "license": "GPL-2.0-only",
     "description": "Wurli Monkhaven's AnybandUI, rebuilt for Neo Angband. You can play with the mouse: click the map to move and act, keep your character, status and messages in panels, and compare gear in an item window before you wear it. Each feature has its own switch and starts off, and none of them change the game's rules.",
