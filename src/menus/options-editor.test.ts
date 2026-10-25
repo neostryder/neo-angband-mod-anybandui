@@ -50,7 +50,7 @@ describe("game options editor", () => {
     expect(draftChanges(view, draft)).toEqual({ values: { pickup_always: false }, hitpointWarn: 5 });
   });
 
-  it("keeps changes as a draft and saves them only after Yes", () => {
+  it("keeps changes as a draft and saves them only after Yes", async () => {
     const { root, ui } = overlayUi();
     const { get, set } = game();
     cleanup = installOptionsEditor({ flags: { "anybandui.optionsEditor": true }, log: () => {}, ui, options: { get, set } });
@@ -74,12 +74,13 @@ describe("game options editor", () => {
     expect(set).not.toHaveBeenCalled();
     root.byFocus("save")!.click();
     root.byFocus("confirm-yes")!.click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
     expect(set).toHaveBeenCalledWith({ values: { rogue_like_commands: true }, hitpointWarn: 5 });
     expect(root.text()).toContain("Saved.");
     expect(root.byFocus("save")?.disabled).toBe(true);
   });
 
-  it("shows the reason when the game refuses a change", () => {
+  it("shows the reason when the game refuses a change", async () => {
     const { root, ui } = overlayUi();
     const { get } = game();
     const set = vi.fn(() => ({ ok: false as const, reason: "No game is running." }));
@@ -89,6 +90,7 @@ describe("game options editor", () => {
     box.fire("change");
     root.byFocus("save")!.click();
     root.walk().find((node) => node.attributes["role"] === "alertdialog")!.fire("keydown", "y");
+    await new Promise((resolve) => setTimeout(resolve, 0));
     expect(root.text()).toContain("No game is running.");
   });
 

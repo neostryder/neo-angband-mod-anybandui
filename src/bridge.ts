@@ -35,6 +35,7 @@ import type {
   KnownToken,
   ModApi2,
 } from "@rpgm-tools/neo-angband-mod-sdk";
+import { createManagedSeams } from "./bridge-seams.js";
 import type { GameEventType, GameState, InputDriver, InputSnapshot, IntentResult, ModPluginContext, PlayerIntent, PromptAnswer, PromptReplyResult } from "@rpgm-tools/neo-angband-core";
 
 /** What the features read, as the register callback has always received it. */
@@ -78,6 +79,7 @@ export function createBridge(mod: ModApi2): Bridge {
   const settingListeners = new Set<(id: string, value: number) => void>();
   const cleanups: Array<() => void> = [];
   const log = (message: string): void => mod.meta.log(message);
+  const managed = createManagedSeams(mod);
 
   const stateOf = (): GameState | undefined => engine?.state;
   const viewOf = (state: GameState) =>
@@ -112,7 +114,7 @@ export function createBridge(mod: ModApi2): Bridge {
   }
 
   async function prime(): Promise<void> {
-    const [stored, own, list] = await Promise.all([mod.store.prefs.get(), mod.meta.settings(), mod.meta.mods(), refresh()]);
+    const [stored, own, list] = await Promise.all([mod.store.prefs.get(), mod.meta.settings(), mod.meta.mods(), refresh(), managed.prime()]);
     prefs = stored.ok ? stored.value : null;
     settings = own.ok ? own.value : {};
     mods = list.ok ? list.value : [];
@@ -305,6 +307,7 @@ export function createBridge(mod: ModApi2): Bridge {
     ...(presentation?.subwindows ? { subwindows: presentation.subwindows } : {}),
     ...(presentation?.tiles ? { tiles: presentation.tiles } : {}),
     ...(presentation?.keyRepeat ? { keyRepeat: presentation.keyRepeat } : {}),
+    ...managed.seams,
   } as unknown as BridgeContext;
 
   return {
@@ -315,6 +318,7 @@ export function createBridge(mod: ModApi2): Bridge {
     onInput(listener) { inputListeners.add(listener); return () => { inputListeners.delete(listener); }; },
     dispose() {
       disposed = true;
+      managed.dispose();
       for (const cleanup of cleanups.splice(0).reverse()) { try { cleanup(); } catch { /* a handle already gone */ } }
       inputListeners.clear();
       settingListeners.clear();

@@ -1,6 +1,278 @@
 // anybandui - generated from plugin.ts by neo-angband-mod-build
 // (@rpgm-tools/neo-angband-mod-sdk). Edit the TypeScript source, not this file.
 
+// src/bridge-seams.ts
+function cell(load, initial, ttlMs, now) {
+  let value2 = initial;
+  let at = Number.NEGATIVE_INFINITY;
+  let loaded = false;
+  let inflight = null;
+  const reload = () => {
+    if (inflight) return inflight;
+    inflight = (async () => {
+      try {
+        const read = await load();
+        if (read.ok) {
+          value2 = read.value;
+          loaded = true;
+        }
+        return read.ok;
+      } catch {
+        return false;
+      } finally {
+        at = now();
+        inflight = null;
+      }
+    })();
+    return inflight;
+  };
+  return {
+    get() {
+      if (now() - at > ttlMs) void reload();
+      return value2;
+    },
+    reload,
+    put(next) {
+      value2 = next;
+      at = now();
+      loaded = true;
+    },
+    empty: () => !loaded
+  };
+}
+var refusal = (read) => read.message ?? read.reason ?? "the game refused";
+var saveResult = (read) => read.ok ? { ok: true } : { ok: false, reason: refusal(read) };
+function createManagedSeams(mod, now = Date.now) {
+  const cleanups = [];
+  const manage = mod.manage;
+  const log = (message) => mod.meta.log(message);
+  const character = cell(() => mod.view.character(), null, 1e3, now);
+  const runEnds = /* @__PURE__ */ new Set();
+  let runEndHooked = false;
+  const hookRunEnd = () => {
+    if (runEndHooked) return;
+    runEndHooked = true;
+    void mod.events.on("run-end", (event) => {
+      if (event.report) for (const listener of [...runEnds]) {
+        try {
+          listener(event.report);
+        } catch (error) {
+          log(`run end: ${String(error)}`);
+        }
+      }
+    }).then((subscription) => {
+      if (subscription.ok) cleanups.push(() => {
+        void mod.events.off(subscription.value);
+      });
+    });
+  };
+  const characterSeam = {
+    key: () => character.get()?.key ?? null,
+    sheet: () => character.get()?.sheet ?? null,
+    history: () => character.get()?.history ?? [],
+    runReport: () => character.get()?.report ?? null,
+    onRunEnd(listener) {
+      hookRunEnd();
+      runEnds.add(listener);
+      return () => {
+        runEnds.delete(listener);
+      };
+    }
+  };
+  const categories = cell(async () => {
+    const read = await mod.view.knowledge();
+    return read.ok ? { ok: true, value: read.value.categories } : read;
+  }, [], 2e3, now);
+  const lists = /* @__PURE__ */ new Map();
+  const pages = /* @__PURE__ */ new Map();
+  const PAGE_LIMIT = 64;
+  const knowledge = {
+    categories: () => categories.get(),
+    list(category) {
+      let entry2 = lists.get(category);
+      if (!entry2) {
+        entry2 = cell(async () => {
+          const read = await mod.view.knowledge(category);
+          return read.ok ? { ok: true, value: read.value.lists[category] ?? null } : read;
+        }, null, 2e3, now);
+        lists.set(category, entry2);
+      }
+      return entry2.get();
+    },
+    recall(category, id) {
+      const key = `${category}\0${id}`;
+      let entry2 = pages.get(key);
+      if (!entry2) {
+        if (pages.size >= PAGE_LIMIT) pages.delete(pages.keys().next().value);
+        entry2 = cell(async () => {
+          const read = await mod.view.knowledge(category, id);
+          return read.ok ? { ok: true, value: read.value.recall ?? null } : read;
+        }, null, 2e3, now);
+        pages.set(key, entry2);
+      }
+      return entry2.get();
+    }
+  };
+  const options = manage ? cell(async () => {
+    const read = await manage.options.get();
+    return read.ok ? { ok: true, value: read.value } : read;
+  }, null, 1500, now) : null;
+  const optionsSeam = manage && options ? {
+    get() {
+      const view = options.get();
+      if (!view) throw new Error("the game has not answered with its options yet");
+      return view;
+    },
+    set: ((change) => manage.options.set(change).then(async (read) => {
+      if (!read.ok) return { ok: false, reason: refusal(read) };
+      await options.reload();
+      return { ok: true, changed: read.value };
+    }))
+  } : void 0;
+  const keyset = manage ? cell(() => manage.keys.keyset(), "original", 1500, now) : null;
+  const keyLists = /* @__PURE__ */ new Map();
+  const keysFor = (set) => {
+    let entry2 = keyLists.get(set);
+    if (!entry2) {
+      entry2 = cell(() => manage.keys.list(set), [], 1500, now);
+      keyLists.set(set, entry2);
+    }
+    return entry2;
+  };
+  const commands = manage ? cell(() => manage.keys.commands(), [], 3e3, now) : null;
+  const keybindingsSeam = manage && keyset && commands ? {
+    keyset: () => keyset.get(),
+    list: (set) => keysFor(set ?? keyset.get()).get(),
+    set(trigger, action, set) {
+      if (!trigger || !action) return false;
+      const target = set ?? keyset.get();
+      const entry2 = keysFor(target);
+      const before = entry2.get();
+      entry2.put([...before.filter((binding) => binding.trigger !== trigger), { trigger, action, owner: null }]);
+      void manage.keys.set(trigger, action, target, true).then((read) => {
+        if (!read.ok) log(`keymap ${trigger} was refused (${refusal(read)})`);
+      }).finally(() => {
+        void entry2.reload();
+      });
+      return true;
+    },
+    remove(trigger, set) {
+      const target = set ?? keyset.get();
+      const entry2 = keysFor(target);
+      const before = entry2.get();
+      if (!before.some((binding) => binding.trigger === trigger)) return false;
+      entry2.put(before.filter((binding) => binding.trigger !== trigger));
+      void manage.keys.remove(trigger, target).then((read) => {
+        if (!read.ok) log(`removing keymap ${trigger} was refused (${refusal(read)})`);
+      }).finally(() => {
+        void entry2.reload();
+      });
+      return true;
+    },
+    commands: () => commands.get(),
+    capture: async () => {
+      const read = await manage.keys.capture();
+      return read.ok ? read.value : null;
+    },
+    cancelCapture: () => {
+      void manage.keys.cancelCapture();
+      return true;
+    }
+  } : void 0;
+  const savesSeam = manage ? {
+    async list() {
+      const read = await manage.saves.list();
+      return read.ok ? { ok: true, entries: read.value } : { ok: false, reason: refusal(read) };
+    },
+    load: async (id) => saveResult(await manage.saves.load(id)),
+    rename: async (id, name) => saveResult(await manage.saves.rename(id, name)),
+    delete: async (id) => saveResult(await manage.saves.delete(id)),
+    create: async (create) => saveResult(await manage.saves.create(create))
+  } : void 0;
+  const sessionSeam = manage ? {
+    // The features await every session call, so a save answers with what the host said.
+    save: (() => manage.session.save().then(saveResult)),
+    exitToTitle: async () => saveResult(await manage.session.exitToTitle()),
+    quit: async () => saveResult(await manage.session.quit())
+  } : void 0;
+  const titleHandle = mod.presentation?.title;
+  const titleSeam = titleHandle ? {
+    registerRow(row) {
+      let subscription = null;
+      let removed = false;
+      void titleHandle.registerRow({ id: `${mod.meta.id}:${row.label}`, label: row.label, ...row.key ? { key: row.key } : {}, run: () => row.run() }).then((read) => {
+        if (!read.ok) {
+          log(`title row ${row.label} was refused (${refusal(read)})`);
+          return;
+        }
+        subscription = read.value;
+        if (removed) void titleHandle.removeRow(read.value);
+      });
+      const remove = () => {
+        if (removed) return;
+        removed = true;
+        if (subscription) void titleHandle.removeRow(subscription);
+      };
+      cleanups.push(remove);
+      return remove;
+    },
+    choose: async (label2, choices) => {
+      const read = await titleHandle.choose(label2, choices);
+      return read.ok ? read.value : null;
+    }
+  } : void 0;
+  let stored = null;
+  const storedCell = cell(() => mod.store.character.get(), null, 1e3, now);
+  const characterStore = {
+    get: () => {
+      stored = storedCell.get();
+      return stored;
+    },
+    set(value2) {
+      const next = value2 === void 0 ? null : value2;
+      storedCell.put(next);
+      void mod.store.character.set(next).then((read) => {
+        if (!read.ok) log(`saving the character record was refused (${refusal(read)})`);
+      });
+    }
+  };
+  return {
+    seams: {
+      character: characterSeam,
+      knowledge,
+      ...optionsSeam ? { options: optionsSeam } : {},
+      ...keybindingsSeam ? { keybindings: keybindingsSeam } : {},
+      ...savesSeam ? { saves: savesSeam } : {},
+      ...sessionSeam ? { session: sessionSeam } : {},
+      ...titleSeam ? { title: titleSeam } : {},
+      characterStore
+    },
+    async prime() {
+      await Promise.all([
+        character.reload(),
+        categories.reload(),
+        storedCell.reload(),
+        options?.reload(),
+        keyset?.reload(),
+        commands?.reload()
+      ]);
+      if (keyset) await keysFor(keyset.get()).reload();
+    },
+    dispose() {
+      for (const cleanup of cleanups.splice(0).reverse()) {
+        try {
+          cleanup();
+        } catch {
+        }
+      }
+      runEnds.clear();
+      lists.clear();
+      pages.clear();
+      keyLists.clear();
+    }
+  };
+}
+
 // src/bridge.ts
 var MAP_ACTUAL = "state:map-actual.read";
 var BRIDGE_CAPS = Object.freeze({ has: (capability) => capability !== MAP_ACTUAL });
@@ -20,6 +292,7 @@ function createBridge(mod) {
   const settingListeners = /* @__PURE__ */ new Set();
   const cleanups = [];
   const log = (message) => mod.meta.log(message);
+  const managed = createManagedSeams(mod);
   const stateOf2 = () => engine?.state;
   const viewOf = (state) => engine.core.createAgentView(state, void 0, { ...state.knownWorldDeps, perceivedMonstersOnly: true }, BRIDGE_CAPS);
   function applyInput(next) {
@@ -52,7 +325,7 @@ function createBridge(mod) {
     return inflight;
   }
   async function prime() {
-    const [stored, own, list] = await Promise.all([mod.store.prefs.get(), mod.meta.settings(), mod.meta.mods(), refresh()]);
+    const [stored, own, list] = await Promise.all([mod.store.prefs.get(), mod.meta.settings(), mod.meta.mods(), refresh(), managed.prime()]);
     prefs = stored.ok ? stored.value : null;
     settings = own.ok ? own.value : {};
     mods = list.ok ? list.value : [];
@@ -236,7 +509,8 @@ function createBridge(mod) {
     ...presentation?.panels ? { ui: presentation.panels } : {},
     ...presentation?.subwindows ? { subwindows: presentation.subwindows } : {},
     ...presentation?.tiles ? { tiles: presentation.tiles } : {},
-    ...presentation?.keyRepeat ? { keyRepeat: presentation.keyRepeat } : {}
+    ...presentation?.keyRepeat ? { keyRepeat: presentation.keyRepeat } : {},
+    ...managed.seams
   };
   return {
     ctx,
@@ -251,6 +525,7 @@ function createBridge(mod) {
     },
     dispose() {
       disposed = true;
+      managed.dispose();
       for (const cleanup of cleanups.splice(0).reverse()) {
         try {
           cleanup();
@@ -472,7 +747,7 @@ function viewLevel(seam) {
 }
 function truthLevel(level) {
   const cells = [];
-  for (const cell of level?.cells ?? []) if (cell.actual) cells.push({ ...cell.actual, x: cell.x, y: cell.y });
+  for (const cell2 of level?.cells ?? []) if (cell2.actual) cells.push({ ...cell2.actual, x: cell2.x, y: cell2.y });
   return { cells };
 }
 function liveGame(ctx) {
@@ -1671,14 +1946,14 @@ function fraction(current, maximum2) {
   return maximum2 > 0 ? Math.max(0, Math.min(1, current / maximum2)) : 0;
 }
 function meter(parent, label2, value2, amount, colour, tip2) {
-  const cell = node(parent, "div", "meter");
-  node(cell, "span", "", label2);
-  node(cell, "span", "", ` ${value2}`);
-  const track = node(cell, "div", "bar");
+  const cell2 = node(parent, "div", "meter");
+  node(cell2, "span", "", label2);
+  node(cell2, "span", "", ` ${value2}`);
+  const track = node(cell2, "div", "bar");
   const fill = node(track, "div", "fill");
   fill.style.width = `${Math.round(amount * 100)}%`;
   fill.style.backgroundColor = colour;
-  if (tip2) cell.dataset.tip = tip2;
+  if (tip2) cell2.dataset.tip = tip2;
 }
 function intersects(a, b) {
   return a.col < b.col + b.cols && b.col < a.col + a.cols && a.row < b.row + b.rows && b.row < a.row + a.rows;
@@ -3259,10 +3534,10 @@ Remaining: ${Math.max(0, next - p.experience)}`].join("\n");
   if (p.stats.length) {
     const stats = node(mount, "div", "stats");
     for (const item of p.stats) {
-      const cell = node(stats, "div", item.drained ? "drained" : "");
-      node(cell, "div", "", `${item.label}${item.drained ? "*" : ""}`);
-      node(cell, "div", "", stat(item.value));
-      cell.dataset.tip = `${item.label}: ${stat(item.value)}`;
+      const cell2 = node(stats, "div", item.drained ? "drained" : "");
+      node(cell2, "div", "", `${item.label}${item.drained ? "*" : ""}`);
+      node(cell2, "div", "", stat(item.value));
+      cell2.dataset.tip = `${item.label}: ${stat(item.value)}`;
     }
   }
   const metrics = node(mount, "div", "metric-grid");
@@ -3908,7 +4183,7 @@ function mapProjection(snapshot) {
   }
   return snapshot.regions.map?.pixels;
 }
-function featureCode(cell) {
+function featureCode(cell2) {
   const builtIn = [
     "NONE",
     "FLOOR",
@@ -3936,7 +4211,7 @@ function featureCode(cell) {
     "LAVA",
     "PASS_RUBBLE"
   ];
-  return cell.remembered.featCode ?? builtIn[cell.remembered.feat];
+  return cell2.remembered.featCode ?? builtIn[cell2.remembered.feat];
 }
 function landmarkKind(code) {
   if (!code) return null;
@@ -4110,14 +4385,14 @@ function installMapOverview(ctx) {
       const g = overlay.getContext("2d");
       if (g) {
         const cw = rect.width / snap.viewport.size.width, ch = rect.height / snap.viewport.size.height;
-        for (const cell of known.cells) {
-          const x = (cell.x - snap.viewport.origin.x) * cw, y = (cell.y - snap.viewport.origin.y) * ch;
+        for (const cell2 of known.cells) {
+          const x = (cell2.x - snap.viewport.origin.x) * cw, y = (cell2.y - snap.viewport.origin.y) * ch;
           if (x + cw < 0 || y + ch < 0 || x >= rect.width || y >= rect.height) continue;
           if (ctx.flags["anybandui.mapSchematic"]) {
-            g.fillStyle = schematicColour(featureCode(cell));
+            g.fillStyle = schematicColour(featureCode(cell2));
             g.fillRect(x, y, Math.ceil(cw), Math.ceil(ch));
           }
-          const kind = landmarkKind(featureCode(cell));
+          const kind = landmarkKind(featureCode(cell2));
           if (kind) drawMarker(g, x + cw / 2, y + ch / 2, Math.max(3, Math.min(7, Math.min(cw, ch) * 0.4)), kind);
         }
         if (playView) {
@@ -4348,14 +4623,14 @@ function snapLandmark(snapshot, point, cells) {
   const cellW = rect.width / snapshot.viewport.size.width, cellH = rect.height / snapshot.viewport.size.height;
   let nearest = 64;
   let chosen = null;
-  for (const cell of cells) {
-    if (!landmarkKind(featureCode(cell))) continue;
-    const x = rect.x + (cell.x - snapshot.viewport.origin.x + 0.5) * cellW;
-    const y = rect.y + (cell.y - snapshot.viewport.origin.y + 0.5) * cellH;
+  for (const cell2 of cells) {
+    if (!landmarkKind(featureCode(cell2))) continue;
+    const x = rect.x + (cell2.x - snapshot.viewport.origin.x + 0.5) * cellW;
+    const y = rect.y + (cell2.y - snapshot.viewport.origin.y + 0.5) * cellH;
     const distance = (x - point.x) ** 2 + (y - point.y) ** 2;
     if (distance < nearest) {
       nearest = distance;
-      chosen = { x: cell.x, y: cell.y };
+      chosen = { x: cell2.x, y: cell2.y };
     }
   }
   return chosen;
@@ -4921,13 +5196,13 @@ function installMapHoverCards(ctx) {
         termSize: { cols: snapshot.grid.cols, rows: snapshot.grid.rows }
       };
     }
-    const cell = hoverCellAt(game.getBoundingClientRect(), clientX, clientY);
-    if (!cell) return null;
-    const grid = hoverCaveGrid(cell.col, cell.row, chunk.width, chunk.height);
+    const cell2 = hoverCellAt(game.getBoundingClientRect(), clientX, clientY);
+    if (!cell2) return null;
+    const grid = hoverCaveGrid(cell2.col, cell2.row, chunk.width, chunk.height);
     if (!grid) return null;
     return {
       grid,
-      cell,
+      cell: cell2,
       view: { origin: { x: 0, y: 0 }, size: { width: chunk.width, height: chunk.height } },
       termSize: { cols: TERM_COLS, rows: TERM_ROWS }
     };
@@ -5787,8 +6062,8 @@ function installItems(ctx) {
         const row = el3(table, "tr");
         el3(row, "td", choice.letter);
         if (choice.handle === promptChoice) row.className = "chosen";
-        const cell = el3(row, "td");
-        const b = button(cell, item ? item.label : choice.label, () => {
+        const cell2 = el3(row, "td");
+        const b = button(cell2, item ? item.label : choice.label, () => {
           promptChoice = choice.handle;
           paint(true);
         });
@@ -5955,8 +6230,8 @@ function installItems(ctx) {
       if (block2.body) el3(details, "p", block2.body).className = "info";
     }
   };
-  const itemButton = (cell, item, badge) => {
-    const b = button(cell, `${item.label}${badge ? ` ${badge}` : ""}`, () => {
+  const itemButton = (cell2, item, badge) => {
+    const b = button(cell2, `${item.label}${badge ? ` ${badge}` : ""}`, () => {
       selected = item.key;
       changes.acknowledge(item);
       paint(true);
@@ -6238,9 +6513,9 @@ function drawGrids(parent, data) {
       if (row.labelColor.css) label2.style.color = row.labelColor.css;
       const symbols = el4(tr, "td");
       symbols.className = "cells";
-      for (const cell of row.cells) {
-        const mark = el4(symbols, "span", cell.symbol || " ");
-        if (cell.css) mark.style.color = cell.css;
+      for (const cell2 of row.cells) {
+        const mark = el4(symbols, "span", cell2.symbol || " ");
+        if (cell2.css) mark.style.color = cell2.css;
       }
     }
   }
@@ -6757,8 +7032,8 @@ function block(parent, item) {
   if (item.columns.some((column) => column.label)) {
     const head = el6(table, "tr");
     for (const column of item.columns) {
-      const cell = el6(head, "th", column.label ?? "");
-      if (item.headerColor) cell.style.color = item.headerColor;
+      const cell2 = el6(head, "th", column.label ?? "");
+      if (item.headerColor) cell2.style.color = item.headerColor;
     }
   }
   for (const row of item.rows) {
@@ -6943,9 +7218,9 @@ function installKnowledgeBrowser(ctx) {
       if (entry2.cells && entry2.cells.length > 0) {
         const cells = el6(row, "span");
         cells.className = "cells";
-        for (const cell of entry2.cells) {
-          const part = el6(cells, "span", ` ${cell.text}`);
-          part.style.color = cell.color;
+        for (const cell2 of entry2.cells) {
+          const part = el6(cells, "span", ` ${cell2.text}`);
+          part.style.color = cell2.color;
         }
       }
     }
@@ -7133,10 +7408,10 @@ function installOptionsEditor(ctx) {
     const change = pending();
     const count = changeCount(change);
     if (count === 0 || !ctx.options?.set) return;
-    ask({ question: `Save ${count} changed ${count === 1 ? "option" : "options"}? This replaces the game's current values.`, yes: "Save", onYes: () => {
+    ask({ question: `Save ${count} changed ${count === 1 ? "option" : "options"}? This replaces the game's current values.`, yes: "Save", onYes: async () => {
       let result;
       try {
-        result = ctx.options.set(change);
+        result = await ctx.options.set(change);
       } catch (err) {
         result = { ok: false, reason: err instanceof Error ? err.message : String(err) };
       }
@@ -7857,7 +8132,7 @@ function effectGrids(s, known, revealHidden = false) {
     if (m.afraid) afraid.push(m.grid);
     if (m.unique ?? m.raceFlags.includes("UNIQUE")) uniques.push({ grid: m.grid, final: m.finalGuardian ?? m.race === "Morgoth, Lord of Darkness" });
   }
-  const truth = revealHidden ? new Map(truthLevel(known).cells.map((cell) => [cell.y * 65536 + cell.x, cell])) : null;
+  const truth = revealHidden ? new Map(truthLevel(known).cells.map((cell2) => [cell2.y * 65536 + cell2.x, cell2])) : null;
   for (const c of known?.cells ?? []) {
     const auras = /* @__PURE__ */ new Set();
     const actual = truth?.get(c.y * 65536 + c.x);
@@ -8054,17 +8329,17 @@ function sceneTerrain(code) {
 }
 function sceneCells(known) {
   const out = [];
-  for (const cell of known?.cells ?? []) {
-    const kind = sceneTerrain(featureCode(cell));
-    if (kind) out.push({ grid: { x: cell.x, y: cell.y }, kind });
+  for (const cell2 of known?.cells ?? []) {
+    const kind = sceneTerrain(featureCode(cell2));
+    if (kind) out.push({ grid: { x: cell2.x, y: cell2.y }, kind });
   }
   return out;
 }
 function playerOnStairs(known, grid) {
   if (!grid) return false;
-  const cell = known?.cells?.find((entry2) => entry2.x === grid.x && entry2.y === grid.y);
-  if (!cell) return false;
-  const kind = sceneTerrain(featureCode(cell));
+  const cell2 = known?.cells?.find((entry2) => entry2.x === grid.x && entry2.y === grid.y);
+  if (!cell2) return false;
+  const kind = sceneTerrain(featureCode(cell2));
   return kind === "up" || kind === "down";
 }
 function recallGrid(player) {
@@ -8304,7 +8579,7 @@ function installEffects(ctx) {
     if (live && view.viewport.size.width > 0 && view.viewport.size.height > 0) {
       let paint2 = function(p, color, a, aura) {
         if (!a) return;
-        const q = cell(p);
+        const q = cell2(p);
         if (aura && glowFigure(aura) === "sunburst") {
           const unit = Math.max(cellW, cellH), spin = staticMode ? 0 : now / 8e3;
           const beat = staticMode ? 0.65 : 0.5 + 0.5 * Math.sin(now / 420);
@@ -8330,7 +8605,7 @@ function installEffects(ctx) {
         g.globalAlpha = 1;
       }, embers2 = function(p, kind, a) {
         if (!a || !seen(p)) return;
-        const q = cell(p), seed = p.x * 0.173 + p.y * 0.317;
+        const q = cell2(p), seed = p.x * 0.173 + p.y * 0.317;
         if (kind === "lava") {
           g.fillStyle = `rgba(255,70,12,${0.28 * a})`;
           g.fillRect(q.x - cellW / 2, q.y - cellH / 2, cellW, cellH);
@@ -8352,7 +8627,7 @@ function installEffects(ctx) {
         }
       }, ring2 = function(p, a) {
         if (!a) return;
-        const q = cell(p), unit = Math.max(cellW, cellH), spin = staticMode ? 0 : now / 2800;
+        const q = cell2(p), unit = Math.max(cellW, cellH), spin = staticMode ? 0 : now / 2800;
         g.strokeStyle = `rgba(64,191,255,${0.75 * a})`;
         g.lineWidth = Math.max(1, unit * 0.06);
         const radius = unit * 0.62;
@@ -8365,9 +8640,9 @@ function installEffects(ctx) {
       };
       var paint = paint2, embers = embers2, ring = ring2;
       const cellW = live.width / view.viewport.size.width, cellH = live.height / view.viewport.size.height;
-      const cell = (p) => cellAnchor(view.viewport.origin, view.viewport.size, live, p);
+      const cell2 = (p) => cellAnchor(view.viewport.origin, view.viewport.size, live, p);
       const seen = (p) => {
-        const q = cell(p);
+        const q = cell2(p);
         return q.x >= -cellW && q.y >= -cellH && q.x <= live.width + cellW && q.y <= live.height + cellH;
       };
       if (flags["anybandui.lowHealthEffect"] && intensity("lowHealth") > 0) {
@@ -8388,7 +8663,7 @@ function installEffects(ctx) {
       if (flags["anybandui.itemGlow"]) for (const glow of grids.glows) paint2(glow.grid, AURA_COLOURS[glow.aura], intensity("itemGlow"), glow.aura);
       const marked = markGrids(grids.asleep, grids.afraid, flags["anybandui.fearMarks"] === true && intensity("fearMarks") > 0);
       if (flags["anybandui.sleepMarks"]) for (const p of marked.sleep) {
-        const q = cell(p);
+        const q = cell2(p);
         g.strokeStyle = `rgba(190,220,255,${intensity("sleepMarks")})`;
         g.lineWidth = 1.5;
         g.beginPath();
@@ -8398,7 +8673,7 @@ function installEffects(ctx) {
         g.stroke();
       }
       if (flags["anybandui.fearMarks"]) for (const p of marked.fear) {
-        const q = cell(p);
+        const q = cell2(p);
         const bob = staticMode ? 0 : Math.sin(now / 200) * cellH * 0.06;
         g.globalAlpha = intensity("fearMarks");
         g.fillStyle = "#f5ba69";
@@ -8420,7 +8695,7 @@ function installEffects(ctx) {
       if (recallAt && seen(recallAt)) ring2(recallAt, intensity("recall"));
       const flash = flags["anybandui.levelFlash"] ? levelFlashIntensity(levelWatch.started, now, staticMode) * intensity("level") : 0;
       if (flash > 0 && player?.grid && seen(player.grid)) {
-        const q = cell(player.grid);
+        const q = cell2(player.grid);
         g.fillStyle = `rgba(255,196,80,${0.45 * flash})`;
         g.beginPath();
         g.arc(q.x, q.y, Math.max(cellW, cellH) * 0.9, 0, Math.PI * 2);
@@ -8436,7 +8711,7 @@ function installEffects(ctx) {
         const age = elapsed / life;
         if (age >= (staticMode ? 0.08 : 1)) continue;
         active = true;
-        const q = cell(c.grid), a = staticMode ? 0.45 : (1 - age) * c.strength / 100;
+        const q = cell2(c.grid), a = staticMode ? 0.45 : (1 - age) * c.strength / 100;
         if (c.kind === "blast") {
           g.fillStyle = c.colour ?? "#ffbe5a";
           g.globalAlpha = a * 0.55;
@@ -8457,7 +8732,7 @@ function installEffects(ctx) {
         }
         if (c.kind === "slide" && c.from) {
           const at = slidePlace(c.from, c.grid, staticMode ? 1 : age);
-          const s = cell(at);
+          const s = cell2(at);
           g.globalAlpha = a;
           g.fillStyle = "#d7e6f5";
           g.beginPath();
@@ -8472,7 +8747,7 @@ function installEffects(ctx) {
           for (const p of cells) {
             const band = staticMode ? 0.3 : rippleAlpha(Math.hypot(p.x - c.grid.x, p.y - c.grid.y), radius, age);
             if (band <= 0) continue;
-            const s = cell(p);
+            const s = cell2(p);
             g.globalAlpha = band * c.strength / 100;
             g.fillStyle = "#a6d4ff";
             g.fillRect(s.x - cellW / 2, s.y - cellH / 2, cellW, cellH);
@@ -8661,7 +8936,7 @@ function outcome(action, result) {
 async function runSessionAction(session, action) {
   if (!session) return { ok: false, message: "This game does not let mods save it." };
   try {
-    if (action === "save") return outcome(action, session.save());
+    if (action === "save") return outcome(action, await session.save());
     return outcome(action, await (action === "close" ? session.exitToTitle() : session.quit()));
   } catch (err) {
     return { ok: false, message: `The game was not saved: ${err instanceof Error ? err.message : String(err)}` };
@@ -9414,7 +9689,7 @@ function tileMenuActions(ctx, snap, at) {
   actions.push({ label: "Look", intent: { kind: "command", command: { code: "look", args: { x: at.x, y: at.y } } } });
   actions.push({ label: "Target", intent: { kind: "target", ...at } });
   const known = viewLevel(ctx);
-  if (known && sameToken3(known.token, snap.token) && known.cells.some((cell) => cell.x === at.x && cell.y === at.y && cell.remembered.objects.length > 0)) {
+  if (known && sameToken3(known.token, snap.token) && known.cells.some((cell2) => cell2.x === at.x && cell2.y === at.y && cell2.remembered.objects.length > 0)) {
     actions.push({ label: "Pick up", pickup: true });
   }
   const offered = ctx.inspect?.tileActions?.(at);
@@ -9468,7 +9743,7 @@ function finishPickup(ctx, at, previous) {
   const grid = viewPlayer(next).grid;
   if (grid.x !== at.x || grid.y !== at.y) return false;
   const level = viewLevel(ctx);
-  if (!level || !sameToken3(level.token, next.token) || !level.cells.some((cell) => cell.x === at.x && cell.y === at.y && cell.remembered.objects.length > 0)) return false;
+  if (!level || !sameToken3(level.token, next.token) || !level.cells.some((cell2) => cell2.x === at.x && cell2.y === at.y && cell2.remembered.objects.length > 0)) return false;
   return ctx.intent.submit(next.token, { kind: "command", command: { code: "pickup" } }).accepted;
 }
 function aimingPath(ctx, snap, hovered) {
@@ -10014,8 +10289,8 @@ ${viewPlayer(snap)?.race ?? ""}`;
         for (const spell of book.spells) {
           const row = el7(table, "tr");
           if (!spell.canCast && !spell.canStudy) row.className = "muted";
-          const cell = el7(row, "td");
-          const pick = button3(cell, spell.name, () => {
+          const cell2 = el7(row, "td");
+          const pick = button3(cell2, spell.name, () => {
             spellIndex = spell.index;
             paint(true);
           });
@@ -10344,8 +10619,8 @@ function adaptStore(snap, known) {
   const world = viewWorld(snap);
   if (snap.phase !== "store" || !world.stores || !world.player || !world.inventory) return null;
   const status = snap.storeStatus && same2(snap.storeStatus.token, snap.token) ? snap.storeStatus : null;
-  const cell = known && same2(known.token, snap.token) ? known.cells.find((entry2) => entry2.x === world.player.grid.x && entry2.y === world.player.grid.y) : null;
-  const feat = status?.feat ?? cell?.remembered.feat;
+  const cell2 = known && same2(known.token, snap.token) ? known.cells.find((entry2) => entry2.x === world.player.grid.x && entry2.y === world.player.grid.y) : null;
+  const feat = status?.feat ?? cell2?.remembered.feat;
   if (feat === void 0) return null;
   const index = world.stores.findIndex((store2) => store2.feat === feat);
   if (index < 0) return null;
@@ -10599,9 +10874,9 @@ function installStores(ctx) {
       if (!rows.length) el8(box, "p", side === "stock" ? "No stock here." : "No items in your pack.");
       for (const row of rows) {
         const tr = el8(table, "tr");
-        const cell = el8(tr, "td");
+        const cell2 = el8(tr, "td");
         if (!row.eligible) tr.className = "muted";
-        const pick = button4(cell, row.label, () => {
+        const pick = button4(cell2, row.label, () => {
           if (side === "stock") {
             if (stockSelection !== row.key) browsing = null;
             stockSelection = row.key;
@@ -10687,8 +10962,8 @@ function installStores(ctx) {
           for (const label2 of ["Spell", "Level", "Mana", "Fail"]) el8(head2, "th", label2);
           for (const spell of spells) {
             const tr = el8(table2, "tr");
-            const cell = el8(tr, "td");
-            button4(cell, spell.name, () => {
+            const cell2 = el8(tr, "td");
+            button4(cell2, spell.name, () => {
               spellPick = spell.index;
               paint(true);
             });
@@ -11873,11 +12148,11 @@ var HEADINGS = {
 };
 var CSS9 = `.scores td.num,.scores th.num{text-align:right}
 .scores tr.you td{color:var(--anyband-accent);font-weight:bold}`;
-function cellText(cell) {
-  if (!cell) return "";
-  const current = cell.values?.["current"], max = cell.values?.["max"];
+function cellText(cell2) {
+  if (!cell2) return "";
+  const current = cell2.values?.["current"], max = cell2.values?.["max"];
   if (typeof current === "number" && typeof max === "number" && max > current) return `${current} (max ${max})`;
-  return cell.text;
+  return cell2.text;
 }
 function hallOfFamePart(ctx) {
   if (ctx.flags?.["anybandui.hallOfFame"] !== true) return null;
@@ -12637,15 +12912,15 @@ function statTable(parent, rows, editable, pointsLeft, actions) {
     if (!editable) continue;
     el10(tr, "td", String(row.spent));
     el10(tr, "td", row.buyCost === null ? "-" : String(row.buyCost));
-    const cell = el10(tr, "td", void 0, "adjust");
+    const cell2 = el10(tr, "td", void 0, "adjust");
     const canBuy = row.canBuy;
-    const sell = button6(cell, "-", `sell-${row.index}`, () => {
+    const sell = button6(cell2, "-", `sell-${row.index}`, () => {
       if (row.canSell) actions.act((s) => s.sell(row.index));
     });
     sell.setAttribute("aria-label", `Refund a point from ${row.name}`);
     if (row.sellRefund !== null) sell.title = `Refunds ${row.sellRefund} ${row.sellRefund === 1 ? "point" : "points"}.`;
     if (!row.canSell) sell.setAttribute("aria-disabled", "true");
-    const buy = button6(cell, "+", `buy-${row.index}`, () => {
+    const buy = button6(cell2, "+", `buy-${row.index}`, () => {
       if (canBuy) actions.act((s) => s.buy(row.index));
     });
     buy.setAttribute("aria-label", `Spend points on ${row.name}`);
@@ -13082,8 +13357,8 @@ function mapTarget(snap, point, known, player) {
   const grid = snapLandmark(snap, point, known.cells) ?? hoverGrid(snap, point);
   if (!grid || grid.x >= snap.level.width || grid.y >= snap.level.height) return null;
   if (player && player.x === grid.x && player.y === grid.y) return null;
-  const cell = known.cells.find((entry2) => entry2.x === grid.x && entry2.y === grid.y);
-  return cell && cell.remembered.feat > 0 && cell.remembered.featCode !== "NONE" ? { x: grid.x, y: grid.y } : null;
+  const cell2 = known.cells.find((entry2) => entry2.x === grid.x && entry2.y === grid.y);
+  return cell2 && cell2.remembered.feat > 0 && cell2.remembered.featCode !== "NONE" ? { x: grid.x, y: grid.y } : null;
 }
 function installMinimapTravel(ctx) {
   if (ctx.flags["anybandui.minimapTravel"] !== true) return () => {

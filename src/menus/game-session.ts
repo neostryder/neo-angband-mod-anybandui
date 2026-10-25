@@ -44,7 +44,7 @@ function outcome(action: SessionAction, result: SaveResult): SessionOutcome {
 export async function runSessionAction(session: ModGameSession | undefined, action: SessionAction): Promise<SessionOutcome> {
   if (!session) return { ok: false, message: "This game does not let mods save it." };
   try {
-    if (action === "save") return outcome(action, session.save());
+    if (action === "save") return outcome(action, await session.save());
     return outcome(action, await (action === "close" ? session.exitToTitle() : session.quit()));
   } catch (err) {
     return { ok: false, message: `The game was not saved: ${err instanceof Error ? err.message : String(err)}` };
