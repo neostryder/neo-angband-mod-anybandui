@@ -1,5 +1,272 @@
-// p8-core122 - generated from plugin.ts by neo-angband-mod-build
+// anybandui - generated from plugin.ts by neo-angband-mod-build
 // (@rpgm-tools/neo-angband-mod-sdk). Edit the TypeScript source, not this file.
+
+// src/bridge.ts
+var MAP_ACTUAL = "state:map-actual.read";
+var BRIDGE_CAPS = Object.freeze({ has: (capability) => capability !== MAP_ACTUAL });
+var sameToken = (a, b) => !!a && !!b && a.epoch === b.epoch && a.revision === b.revision;
+function createBridge(mod) {
+  const engine = mod.engine;
+  const display = mod.presentation?.display;
+  let input = null;
+  let prefs = null;
+  let settings = {};
+  let mods = [];
+  let busy = false;
+  let disposed = false;
+  let inflight = null;
+  let again = false;
+  const inputListeners = /* @__PURE__ */ new Set();
+  const settingListeners = /* @__PURE__ */ new Set();
+  const cleanups = [];
+  const log = (message) => mod.meta.log(message);
+  const stateOf2 = () => engine?.state;
+  const viewOf = (state) => engine.core.createAgentView(state, void 0, { ...state.knownWorldDeps, perceivedMonstersOnly: true }, BRIDGE_CAPS);
+  function applyInput(next) {
+    const changed = !sameInput(input, next);
+    input = next;
+    if (changed) for (const listener of [...inputListeners]) listener(next);
+  }
+  function refresh() {
+    if (disposed) return Promise.resolve();
+    if (inflight) {
+      again = true;
+      return inflight;
+    }
+    inflight = (async () => {
+      try {
+        do {
+          again = false;
+          const read = await mod.view.input();
+          if (disposed) return;
+          applyInput(read.ok ? read.value : null);
+          busy = false;
+        } while (again);
+      } catch (error) {
+        log(`bridge: reading the input wait failed (${String(error)})`);
+        busy = false;
+      } finally {
+        inflight = null;
+      }
+    })();
+    return inflight;
+  }
+  async function prime() {
+    const [stored, own, list] = await Promise.all([mod.store.prefs.get(), mod.meta.settings(), mod.meta.mods(), refresh()]);
+    prefs = stored.ok ? stored.value : null;
+    settings = own.ok ? own.value : {};
+    mods = list.ok ? list.value : [];
+  }
+  const snapshot = () => {
+    const state = stateOf2();
+    if (!state || !engine) return null;
+    const core = viewOf(state).capture();
+    const wait = input;
+    if (!sameToken(wait?.token, core.token)) void refresh();
+    return Object.freeze({
+      token: wait && sameToken(wait.token, core.token) ? wait.token : core.token,
+      driver: wait?.driver ?? { kind: "player" },
+      phase: wait?.phase ?? null,
+      messagePending: wait?.messagePending ?? null,
+      resting: wait?.resting ?? null,
+      messages: wait?.messages ? Object.freeze({ token: core.token, entries: Object.freeze(wait.messages.map((m) => m.text)), log: Object.freeze(wait.messages.map((m) => Object.freeze({ ...m }))) }) : null,
+      storeStatus: wait?.storeStatus ?? null,
+      activeBlast: wait?.activeBlast ?? null,
+      prompt: wait?.prompt ?? null,
+      core,
+      frame: null
+    });
+  };
+  const knownLevel = () => {
+    const state = stateOf2();
+    return state && engine ? viewOf(state).knownLevel?.() ?? null : null;
+  };
+  const inspectView = () => {
+    const state = stateOf2();
+    return state && engine ? viewOf(state) : null;
+  };
+  const inspect = {
+    inspectItem: (ref) => inspectView()?.inspectItem?.(ref) ?? null,
+    bookForItem: (handle) => inspectView()?.bookForItem?.(handle) ?? null,
+    compareLoadoutSlots: (ref) => inspectView()?.compareLoadoutSlots?.(ref) ?? null,
+    monsterRecall: (raceIndex) => inspectView()?.monsterRecall?.(raceIndex) ?? null,
+    spellInfo: (spellIndex) => inspectView()?.spellInfo?.(spellIndex) ?? null,
+    itemTester: (code) => inspectView()?.itemTester?.(code) ?? null,
+    projectionPath: (to) => inspectView()?.projectionPath?.(to) ?? null,
+    blastArea: (to, radius, arc) => inspectView()?.blastArea?.(to, radius, arc) ?? null,
+    travelPath: (to) => inspectView()?.travelPath?.(to) ?? null,
+    tileActions: (to) => inspectView()?.tileActions?.(to) ?? null,
+    itemRules: () => inspectView()?.itemRules?.() ?? null,
+    terrainCatalogue: () => inspectView()?.terrainCatalogue?.() ?? null
+  };
+  const eventHandlers = /* @__PURE__ */ new Map();
+  const events = {
+    on(type, listener) {
+      const state = stateOf2();
+      if (!state?.events || !engine) throw new Error("no game is running");
+      const guarded = (t, payload) => {
+        try {
+          listener(t, payload);
+        } catch (error) {
+          log(`event ${String(t)}: ${String(error)}`);
+        }
+      };
+      let byListener = eventHandlers.get(type);
+      if (!byListener) eventHandlers.set(type, byListener = /* @__PURE__ */ new Map());
+      byListener.set(listener, guarded);
+      state.events.on(type, guarded);
+    },
+    off(type, listener) {
+      const guarded = eventHandlers.get(type)?.get(listener);
+      if (!guarded) return;
+      eventHandlers.get(type)?.delete(listener);
+      stateOf2()?.events?.off(type, guarded);
+    }
+  };
+  cleanups.push(() => {
+    const bus = stateOf2()?.events;
+    for (const [type, byListener] of eventHandlers) for (const guarded of byListener.values()) bus?.off(type, guarded);
+    eventHandlers.clear();
+  });
+  function refusalOf(result) {
+    const code = result.code === "controller-owned" ? "controller-owned" : void 0;
+    return { accepted: false, reason: result.message ?? result.reason, ...code ? { code } : {} };
+  }
+  function precheck(token) {
+    if (!input) return { accepted: false, reason: "No input wait is open." };
+    if (input.driver.kind === "controller" && input.driver.owner !== mod.meta.id) return { accepted: false, reason: "Another mod holds the keyboard.", code: "controller-owned" };
+    if (token && !sameToken(token, input.token)) return { accepted: false, reason: "That input wait is over." };
+    if (busy) return { accepted: false, reason: "The game is still working." };
+    return null;
+  }
+  const settle = (call, what) => {
+    void call.then((result) => {
+      if (!result.ok) log(`${what} was refused (${result.message ?? "no reason given"})`);
+    }, (error) => log(`${what} failed (${String(error)})`)).finally(() => {
+      void refresh();
+    });
+  };
+  const intent = {
+    submit(token, wanted) {
+      const refused = precheck(token);
+      if (refused) return refused;
+      busy = true;
+      settle(mod.act.submit(token, wanted), "an action");
+      return { accepted: true };
+    },
+    catalogue: () => catalogueCache
+  };
+  let catalogueCache;
+  const reloadCatalogue = async () => {
+    const read = await mod.view.catalogue();
+    if (read.ok) catalogueCache = read.value;
+  };
+  const prompt = {
+    reply(promptId, answer) {
+      const refused = precheck(null);
+      if (refused) return refused;
+      if (input?.prompt?.promptId !== promptId) return { accepted: false, reason: "That question is no longer open." };
+      busy = true;
+      settle(mod.act.answer(promptId, answer), "an answer");
+      return { accepted: true };
+    }
+  };
+  const prefsSeam = {
+    get: () => prefs,
+    set(value2) {
+      prefs = value2 === void 0 ? null : value2;
+      settle(mod.store.prefs.set(prefs), "saving preferences");
+    }
+  };
+  const settingsSeam = {
+    get: (id) => settings[id],
+    all: () => settings,
+    set(id, value2) {
+      if (!(id in settings) || typeof value2 !== "number") return void 0;
+      settings = { ...settings, [id]: value2 };
+      void mod.meta.setSetting(id, value2).then((result) => {
+        if (!result.ok) return;
+        settings = { ...settings, [id]: result.value };
+        for (const listener of [...settingListeners]) listener(id, result.value);
+      });
+      return value2;
+    },
+    onChange(listener) {
+      settingListeners.add(listener);
+      return () => {
+        settingListeners.delete(listener);
+      };
+    }
+  };
+  const presentation = mod.presentation;
+  const displayHandle = display;
+  if (displayHandle?.onFrame) cleanups.push(displayHandle.onFrame(() => {
+    void refresh();
+  }));
+  if (displayHandle) cleanups.push(displayHandle.onKey(() => {
+    void refresh();
+  }));
+  if (presentation) cleanups.push(presentation.onPhaseChanged(() => {
+    void refresh();
+  }));
+  void mod.events.on("driver-changed", () => {
+    void refresh();
+  });
+  void reloadCatalogue();
+  const ctx = {
+    id: mod.meta.id,
+    engine: mod.meta.engine,
+    log,
+    flags: mod.meta.flags,
+    ...engine ? { core: engine.core, registries: engine.registries } : {},
+    get state() {
+      return stateOf2();
+    },
+    snapshot,
+    knownLevel,
+    inspect,
+    intent,
+    prompt,
+    events,
+    driver: () => input?.driver ?? { kind: "player" },
+    mods: () => mods,
+    prefs: prefsSeam,
+    settings: settingsSeam,
+    ...displayHandle ? { display: displayHandle } : {},
+    ...presentation?.panels ? { ui: presentation.panels } : {},
+    ...presentation?.subwindows ? { subwindows: presentation.subwindows } : {},
+    ...presentation?.tiles ? { tiles: presentation.tiles } : {},
+    ...presentation?.keyRepeat ? { keyRepeat: presentation.keyRepeat } : {}
+  };
+  return {
+    ctx,
+    prime,
+    refresh,
+    input: () => input,
+    onInput(listener) {
+      inputListeners.add(listener);
+      return () => {
+        inputListeners.delete(listener);
+      };
+    },
+    dispose() {
+      disposed = true;
+      for (const cleanup of cleanups.splice(0).reverse()) {
+        try {
+          cleanup();
+        } catch {
+        }
+      }
+      inputListeners.clear();
+      settingListeners.clear();
+    }
+  };
+}
+function sameInput(a, b) {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return sameToken(a.token, b.token) && a.phase === b.phase && a.messagePending === b.messagePending && a.driver.kind === b.driver.kind && a.driver.owner === b.driver.owner && (a.prompt?.promptId ?? null) === (b.prompt?.promptId ?? null);
+}
 
 // src/view-model/adapter.ts
 function entry(frame, key) {
@@ -7418,7 +7685,7 @@ function installKeybindingEditor(ctx) {
 }
 
 // src/view-model/spells.ts
-var sameToken = (a, b) => a.epoch === b.epoch && a.revision === b.revision;
+var sameToken2 = (a, b) => a.epoch === b.epoch && a.revision === b.revision;
 var itemKey = (item) => item.kindId ?? `${item.tval}:${item.sval}`;
 function bookFor(snap, item, books, inspect) {
   if (!books.some((book) => book.tval === item.tval)) return null;
@@ -7429,7 +7696,7 @@ function bookFor(snap, item, books, inspect) {
     } catch {
       mapped = null;
     }
-    if (!mapped || !sameToken(mapped.token, snap.token)) return null;
+    if (!mapped || !sameToken2(mapped.token, snap.token)) return null;
     return books[mapped.bookIndex] ?? null;
   }
   const siblings = books.filter((book) => book.tval === item.tval);
@@ -7445,7 +7712,7 @@ function adaptSpells(snap, inspect) {
     if (!book || books.some((entry2) => entry2.key === itemKey(item))) continue;
     const spells = book.spells.map((spell) => {
       const info = inspect?.spellInfo?.(spell.sidx);
-      const detail = info && sameToken(info.token, snap.token) ? info : null;
+      const detail = info && sameToken2(info.token, snap.token) ? info : null;
       const canCast = !!detail?.canCastNow && spell.learned && !spell.forgotten;
       const eligible = spell.studyEligible ?? (!spell.learned && !spell.forgotten && spell.level <= (player.level ?? 0));
       const canStudy = eligible && learnable !== 0;
@@ -7482,7 +7749,7 @@ var DEFAULT_COLORS = ["rgba(245,185,70,.095)", "rgba(245,190,80,.745)"];
 var elementEdgeColour = (element) => (element ? ELEMENT_COLORS[element]?.[1] : void 0) ?? DEFAULT_COLORS[1];
 function blastGrids(ctx, snap, hovered) {
   const blast = snap?.activeBlast, prompt = snap?.prompt;
-  if (!snap || !blast || !sameToken(blast.token, snap.token) || blast.radius < 1) return null;
+  if (!snap || !blast || !sameToken2(blast.token, snap.token) || blast.radius < 1) return null;
   if (prompt?.kind !== "target" && prompt?.kind !== "direction") return null;
   const at = (prompt.kind === "target" ? prompt.cursor : null) ?? hovered;
   if (!at) return null;
@@ -7492,7 +7759,7 @@ function blastGrids(ctx, snap, hovered) {
   } catch {
     area = null;
   }
-  if (!area || !sameToken(area.token, snap.token) || !area.grids.length) return null;
+  if (!area || !sameToken2(area.token, snap.token) || !area.grids.length) return null;
   return { grids: area.grids, element: area.element ?? blast.element ?? null };
 }
 function installBlastPreview(ctx) {
@@ -7801,7 +8068,7 @@ function playerOnStairs(known, grid) {
   return kind === "up" || kind === "down";
 }
 function recallGrid(player) {
-  if (!player?.grid || !(typeof player.recall === "number" && player.recall > 0)) return null;
+  if (!player?.grid || !(player.recall === true || typeof player.recall === "number" && player.recall > 0)) return null;
   return player.grid;
 }
 function driftingEmbers(now, seed, count, reduced) {
@@ -9107,7 +9374,7 @@ function installSettingsWindow(ctx) {
 function ready(snap) {
   return !!snap && snap.phase === "play" && !snap.messagePending && !snap.prompt && !!viewPlayer(snap);
 }
-function sameToken2(a, b) {
+function sameToken3(a, b) {
   return a.epoch === b.epoch && a.revision === b.revision;
 }
 function walkIntent(player, at) {
@@ -9147,11 +9414,11 @@ function tileMenuActions(ctx, snap, at) {
   actions.push({ label: "Look", intent: { kind: "command", command: { code: "look", args: { x: at.x, y: at.y } } } });
   actions.push({ label: "Target", intent: { kind: "target", ...at } });
   const known = viewLevel(ctx);
-  if (known && sameToken2(known.token, snap.token) && known.cells.some((cell) => cell.x === at.x && cell.y === at.y && cell.remembered.objects.length > 0)) {
+  if (known && sameToken3(known.token, snap.token) && known.cells.some((cell) => cell.x === at.x && cell.y === at.y && cell.remembered.objects.length > 0)) {
     actions.push({ label: "Pick up", pickup: true });
   }
   const offered = ctx.inspect?.tileActions?.(at);
-  if (offered && sameToken2(offered.token, snap.token)) {
+  if (offered && sameToken3(offered.token, snap.token)) {
     const player = viewPlayer(snap).grid;
     const dx = at.x - player.x, dy = at.y - player.y;
     const dir = 5 + Math.sign(dx) - 3 * Math.sign(dy);
@@ -9197,11 +9464,11 @@ function runMenuAction(ctx, at, label2) {
 function finishPickup(ctx, at, previous) {
   if (!playerIsDriving(ctx)) return false;
   const next = viewInput(ctx);
-  if (!ready(next) || !next || sameToken2(previous.token, next.token) || !ctx.intent) return false;
+  if (!ready(next) || !next || sameToken3(previous.token, next.token) || !ctx.intent) return false;
   const grid = viewPlayer(next).grid;
   if (grid.x !== at.x || grid.y !== at.y) return false;
   const level = viewLevel(ctx);
-  if (!level || !sameToken2(level.token, next.token) || !level.cells.some((cell) => cell.x === at.x && cell.y === at.y && cell.remembered.objects.length > 0)) return false;
+  if (!level || !sameToken3(level.token, next.token) || !level.cells.some((cell) => cell.x === at.x && cell.y === at.y && cell.remembered.objects.length > 0)) return false;
   return ctx.intent.submit(next.token, { kind: "command", command: { code: "pickup" } }).accepted;
 }
 function aimingPath(ctx, snap, hovered) {
@@ -9209,12 +9476,12 @@ function aimingPath(ctx, snap, hovered) {
   if (snap.prompt.kind === "target") return snap.prompt.path;
   const cursor = hovered;
   const path = cursor ? ctx.inspect?.projectionPath?.(cursor) : null;
-  return path && sameToken2(path.token, snap.token) ? path.grids : [];
+  return path && sameToken3(path.token, snap.token) ? path.grids : [];
 }
 function walkingPath(ctx, snap, hovered) {
   if (!ready(snap) || !snap || !hovered) return [];
   const path = ctx.inspect?.travelPath?.(hovered);
-  return path && sameToken2(path.token, snap.token) ? path.grids : [];
+  return path && sameToken3(path.token, snap.token) ? path.grids : [];
 }
 function installMapMouse(ctx) {
   const flags = ctx.flags;
@@ -9227,17 +9494,17 @@ function installMapMouse(ctx) {
   }
   const display = ctx.display;
   let theme = themeFromPrefs(ctx.prefs?.get());
-  const menu = document.createElement("div");
-  menu.setAttribute("role", "menu");
-  menu.setAttribute("aria-label", "Dungeon actions");
-  menu.style.cssText = `display:none;position:fixed;z-index:1002;background:${theme.surface};color:${theme.text};border:1px solid ${paintColours(theme).border};border-radius:${Math.round(theme.rounding * 0.6)}px;padding:4px;font:${PAINT_FONT_SIZE}px/${PAINT_LINE_HEIGHT}px ${PAINT_FONT}`;
+  const menu2 = document.createElement("div");
+  menu2.setAttribute("role", "menu");
+  menu2.setAttribute("aria-label", "Dungeon actions");
+  menu2.style.cssText = `display:none;position:fixed;z-index:1002;background:${theme.surface};color:${theme.text};border:1px solid ${paintColours(theme).border};border-radius:${Math.round(theme.rounding * 0.6)}px;padding:4px;font:${PAINT_FONT_SIZE}px/${PAINT_LINE_HEIGHT}px ${PAINT_FONT}`;
   const paintMenu = () => {
     const colours2 = paintColours(theme);
-    menu.style.background = theme.surface;
-    menu.style.color = theme.text;
-    menu.style.border = `1px solid ${colours2.border}`;
-    menu.style.borderRadius = `${Math.round(theme.rounding * 0.6)}px`;
-    const buttons = menu.querySelectorAll("button");
+    menu2.style.background = theme.surface;
+    menu2.style.color = theme.text;
+    menu2.style.border = `1px solid ${colours2.border}`;
+    menu2.style.borderRadius = `${Math.round(theme.rounding * 0.6)}px`;
+    const buttons = menu2.querySelectorAll("button");
     for (let index = 0; index < buttons.length; index += 1) {
       const button7 = buttons[index];
       if (!button7) continue;
@@ -9252,7 +9519,7 @@ function installMapMouse(ctx) {
   const canvas = document.createElement("canvas");
   canvas.setAttribute("aria-hidden", "true");
   canvas.style.cssText = "position:fixed;inset:0;pointer-events:none;z-index:49";
-  document.body.append(menu, canvas);
+  document.body.append(menu2, canvas);
   let menuAt = null;
   let menuToken = null;
   let menuPromptId = null;
@@ -9262,8 +9529,8 @@ function installMapMouse(ctx) {
   let targetPromptId = null;
   let hovered = null;
   const hide = () => {
-    menu.style.display = "none";
-    menu.replaceChildren();
+    menu2.style.display = "none";
+    menu2.replaceChildren();
     menuAt = null;
   };
   const locate = (event) => {
@@ -9275,7 +9542,7 @@ function installMapMouse(ctx) {
   };
   const onClick = (event) => {
     if (event.button !== 0) return;
-    if (menu.contains(event.target)) return;
+    if (menu2.contains(event.target)) return;
     hide();
     if (!flags["anybandui.clickToWalk"]) return;
     const at = locate(event);
@@ -9315,7 +9582,7 @@ function installMapMouse(ctx) {
       });
       button7.addEventListener("click", () => {
         const current = viewInput(ctx);
-        if (!menuAt || !current || !menuToken || !sameToken2(menuToken, current.token) || menuPromptId !== (current.prompt?.promptId ?? null)) {
+        if (!menuAt || !current || !menuToken || !sameToken3(menuToken, current.token) || menuPromptId !== (current.prompt?.promptId ?? null)) {
           hide();
           return;
         }
@@ -9333,12 +9600,12 @@ function installMapMouse(ctx) {
         } else runMenuAction(ctx, selected, action.label);
         hide();
       });
-      menu.appendChild(button7);
+      menu2.appendChild(button7);
     }
-    menu.style.display = "block";
-    menu.style.left = `${Math.min(event.clientX, window.innerWidth - menu.offsetWidth)}px`;
-    menu.style.top = `${Math.min(event.clientY, window.innerHeight - menu.offsetHeight)}px`;
-    menu.firstElementChild?.focus();
+    menu2.style.display = "block";
+    menu2.style.left = `${Math.min(event.clientX, window.innerWidth - menu2.offsetWidth)}px`;
+    menu2.style.top = `${Math.min(event.clientY, window.innerHeight - menu2.offsetHeight)}px`;
+    menu2.firstElementChild?.focus();
   };
   const onKey = (event) => {
     if (event.key === "Escape") hide();
@@ -9349,7 +9616,7 @@ function installMapMouse(ctx) {
   const render = () => {
     if (pickupAt && pickupSnap) {
       const next = viewInput(ctx);
-      if (next && !sameToken2(next.token, pickupSnap.token)) {
+      if (next && !sameToken3(next.token, pickupSnap.token)) {
         finishPickup(ctx, pickupAt, pickupSnap);
         pickupAt = null;
         pickupSnap = null;
@@ -9412,7 +9679,7 @@ function installMapMouse(ctx) {
     window.removeEventListener("contextmenu", onContext, true);
     window.removeEventListener("keydown", onKey);
     hide();
-    menu.remove();
+    menu2.remove();
     canvas.remove();
   };
 }
@@ -9420,7 +9687,7 @@ function installMapMouse(ctx) {
 // src/spell-actions.ts
 function actionReady(ctx, snap) {
   const next = viewInput(ctx);
-  return !!next && sameToken(next.token, snap.token) && next.phase === "play" && !next.prompt && !next.messagePending && playerIsDriving(ctx);
+  return !!next && sameToken2(next.token, snap.token) && next.phase === "play" && !next.prompt && !next.messagePending && playerIsDriving(ctx);
 }
 function castSpell(ctx, snap, spell) {
   if (!spell.canCast || !actionReady(ctx, snap)) return false;
@@ -9432,13 +9699,13 @@ function studySpell(ctx, snap, book, spell) {
 }
 function answerSpell(ctx, snap, index) {
   const next = viewInput(ctx);
-  if (snap.prompt?.kind !== "spell" || !next || !sameToken(next.token, snap.token) || next.prompt?.promptId !== snap.prompt.promptId || !playerIsDriving(ctx)) return false;
+  if (snap.prompt?.kind !== "spell" || !next || !sameToken2(next.token, snap.token) || next.prompt?.promptId !== snap.prompt.promptId || !playerIsDriving(ctx)) return false;
   if (!snap.prompt.choices.some((choice) => choice.index === index)) return false;
   return ctx.prompt?.reply(snap.prompt.promptId, index).accepted ?? false;
 }
 function cancelSpell(ctx, snap) {
   const next = viewInput(ctx);
-  if (snap.prompt?.kind !== "spell" || !next || !sameToken(next.token, snap.token) || next.prompt?.promptId !== snap.prompt.promptId || !playerIsDriving(ctx) || !ctx.prompt?.reply) return false;
+  if (snap.prompt?.kind !== "spell" || !next || !sameToken2(next.token, snap.token) || next.prompt?.promptId !== snap.prompt.promptId || !playerIsDriving(ctx) || !ctx.prompt?.reply) return false;
   return ctx.prompt.reply(snap.prompt.promptId, { action: "cancel" }).accepted ?? false;
 }
 var validRest = (count) => [-3, -2, -1].includes(count) || Number.isInteger(count) && count >= 1 && count <= 9999;
@@ -9672,7 +9939,7 @@ function installPhase4(ctx) {
     ctx.log("phase 4: panel seam unavailable");
     return blastCleanup;
   }
-  let bookKey = "", spellIndex = -1, menu = -1, customize = -1, restOpen = false, restMode = -2, turns = 10, promptChoice = -1, error = "", signature = "", closed = false;
+  let bookKey = "", spellIndex = -1, menu2 = -1, customize = -1, restOpen = false, restMode = -2, turns = 10, promptChoice = -1, error = "", signature = "", closed = false;
   let appearance = { style: "automatic", text: "", color: "#7abaf4" };
   let adopted = "";
   const identify = (snap) => {
@@ -9698,7 +9965,7 @@ ${viewPlayer(snap)?.race ?? ""}`;
     next[index] = binding;
     slots = next;
     save();
-    menu = -1;
+    menu2 = -1;
     paint(true);
   };
   const paint = (force = false) => {
@@ -9713,7 +9980,7 @@ ${viewPlayer(snap)?.race ?? ""}`;
       slots = key ? readSlots(ctx.prefs?.get(), key) : Array(30).fill(null);
     }
     const model = snap ? adaptSpells(snap, ctx.inspect) : null;
-    const sig = JSON.stringify([[...mounts.keys()], snap, slots, bookKey, spellIndex, menu, customize, appearance, restOpen, restMode, turns, promptChoice, error]);
+    const sig = JSON.stringify([[...mounts.keys()], snap, slots, bookKey, spellIndex, menu2, customize, appearance, restOpen, restMode, turns, promptChoice, error]);
     if (!force && sig === signature) return;
     signature = sig;
     for (const target of mounts.values()) target.replaceChildren();
@@ -9765,7 +10032,7 @@ ${viewPlayer(snap)?.race ?? ""}`;
           pick.addEventListener("contextmenu", (event) => {
             if (!quickOn) return;
             event.preventDefault();
-            menu = -2;
+            menu2 = -2;
             spellIndex = spell.index;
             paint(true);
           });
@@ -9791,7 +10058,7 @@ ${viewPlayer(snap)?.race ?? ""}`;
           if (selected.canCast && (viewPlayer(snap)?.sp ?? 0) < selected.mana) el7(spellMount, "p", "Not enough mana. Confirmation may be required.");
           el7(spellMount, "p", selected.description);
           if (selected.infoLine) el7(spellMount, "p", `Info: ${selected.infoLine}`);
-          if (quickOn && menu === -2) {
+          if (quickOn && menu2 === -2) {
             const box = el7(spellMount, "div");
             box.className = "menu";
             el7(box, "strong", "Assign spell to quickbar");
@@ -9844,7 +10111,7 @@ ${viewPlayer(snap)?.race ?? ""}`;
           slot.setAttribute("aria-label", slot.title);
           slot.addEventListener("contextmenu", (event) => {
             event.preventDefault();
-            menu = index;
+            menu2 = index;
             paint(true);
           });
           slot.addEventListener("dragstart", (event) => {
@@ -9880,27 +10147,27 @@ ${viewPlayer(snap)?.race ?? ""}`;
           });
         }
       }
-      if (menu >= 0) {
+      if (menu2 >= 0) {
         const box = el7(quickMount, "div");
         box.className = "menu";
-        el7(box, "strong", `Assign ${keys[menu % 10]}`);
-        if (slots[menu]) button3(box, "Customize", () => {
-          customize = menu;
-          appearance = slots[menu]?.appearance ?? { style: "automatic", text: "", color: "#7abaf4" };
-          menu = -1;
+        el7(box, "strong", `Assign ${keys[menu2 % 10]}`);
+        if (slots[menu2]) button3(box, "Customize", () => {
+          customize = menu2;
+          appearance = slots[menu2]?.appearance ?? { style: "automatic", text: "", color: "#7abaf4" };
+          menu2 = -1;
           paint(true);
         });
-        button3(box, "Rest until recovered", () => assign(menu, { type: "command", code: "rest", name: "Rest" }));
-        for (const binding of catalogueCommands(ctx)) button3(box, assignLabel(binding), () => assign(menu, binding));
+        button3(box, "Rest until recovered", () => assign(menu2, { type: "command", code: "rest", name: "Rest" }));
+        for (const binding of catalogueCommands(ctx)) button3(box, assignLabel(binding), () => assign(menu2, binding));
         for (const binding of itemBindings(snap, ctx)) {
-          const choice = button3(box, assignLabel(binding), () => assign(menu, binding));
+          const choice = button3(box, assignLabel(binding), () => assign(menu2, binding));
           choice.draggable = true;
           choice.addEventListener("dragstart", (event) => event.dataTransfer?.setData("application/x-anybandui-binding", JSON.stringify(binding)));
         }
-        for (const book of model?.books ?? []) for (const spell of book.spells) button3(box, `Cast: ${spell.name}`, () => assign(menu, { type: "spell", key: book.key, index: spell.index, name: spell.name }));
-        button3(box, "Clear", () => assign(menu, null));
+        for (const book of model?.books ?? []) for (const spell of book.spells) button3(box, `Cast: ${spell.name}`, () => assign(menu2, { type: "spell", key: book.key, index: spell.index, name: spell.name }));
+        button3(box, "Clear", () => assign(menu2, null));
         button3(box, "Close", () => {
-          menu = -1;
+          menu2 = -1;
           paint(true);
         });
       }
@@ -10011,10 +10278,10 @@ ${viewPlayer(snap)?.race ?? ""}`;
     if (quickMount) surfaces.fit("quickbar", quickMount.getBoundingClientRect().height + 16);
   };
   const keydown = (event) => {
-    if (!quickOn || menu >= 0 || customize >= 0 || restOpen || event.repeat || event.altKey || event.metaKey || event.defaultPrevented || event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement || event.target instanceof HTMLElement && event.target.isContentEditable) return;
+    if (!quickOn || menu2 >= 0 || customize >= 0 || restOpen || event.repeat || event.altKey || event.metaKey || event.defaultPrevented || event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement || event.target instanceof HTMLElement && event.target.isContentEditable) return;
     const index = slotIndex(event.code, event.shiftKey, event.ctrlKey);
     const snap = viewInput(ctx);
-    if (!quickbarOwnsKey(quickOn, snap ?? null, event.code, event.shiftKey, event.ctrlKey, menu >= 0 || restOpen) || !snap || !actionReady(ctx, snap)) return;
+    if (!quickbarOwnsKey(quickOn, snap ?? null, event.code, event.shiftKey, event.ctrlKey, menu2 >= 0 || restOpen) || !snap || !actionReady(ctx, snap)) return;
     const binding = slots[index] ?? null;
     event.preventDefault();
     event.stopImmediatePropagation();
@@ -12871,287 +13138,314 @@ var tileFullOverviewApplied = false;
 var displayCleanups = [];
 var characterPane = null;
 var statusRepaint = null;
-var plugin_default = {
-  api: 1,
-  register(_host, ctx) {
-    this.uninstall();
-    ctx.log(`AnybandUI loaded on engine ${ctx.engine}`);
-    const flags = coexistingFlags(ctx.flags ?? {}, ctx.mods?.bind(ctx), ctx.log);
-    setThemePacks(flags["anybandui.themePacks"] === true);
-    if (ctx.events) {
-      const events = ctx.events;
-      const repaint = () => statusRepaint?.();
-      try {
-        events.on("driver-changed", repaint);
-        displayCleanups.push(() => events.off("driver-changed", repaint));
-      } catch {
+function registerAll(ctx) {
+  uninstall();
+  ctx.log(`AnybandUI loaded on engine ${ctx.engine}`);
+  const flags = coexistingFlags(ctx.flags ?? {}, ctx.mods?.bind(ctx), ctx.log);
+  setThemePacks(flags["anybandui.themePacks"] === true);
+  if (ctx.events) {
+    const events = ctx.events;
+    const repaint = () => statusRepaint?.();
+    try {
+      events.on("driver-changed", repaint);
+      displayCleanups.push(() => events.off("driver-changed", repaint));
+    } catch {
+    }
+  }
+  displayCleanups.push(installEffects({ flags, ...ctx.snapshot ? { snapshot: ctx.snapshot } : {}, ...ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {}, ...ctx.events ? { events: ctx.events } : {}, ...ctx.display?.snapshot ? { display: { snapshot: ctx.display.snapshot.bind(ctx.display) } } : {}, ...ctx.prefs ? { prefs: ctx.prefs } : {}, ...ctx.settings ? { settings: ctx.settings } : {} }));
+  const theme = themeFromPrefs(ctx.prefs?.get());
+  displayCleanups.push(installChromePaint(ctx.display, flags, theme, ctx.log));
+  const { liveCore, liveState } = liveGame(ctx);
+  const itemContext = {
+    flags,
+    log: ctx.log,
+    ...ctx.snapshot ? { snapshot: ctx.snapshot } : {},
+    ...ctx.inspect ? { inspect: ctx.inspect } : {},
+    ...ctx.intent ? { intent: ctx.intent } : {},
+    ...ctx.prompt ? { prompt: ctx.prompt } : {},
+    ...ctx.ui ? { ui: ctx.ui } : {},
+    ...ctx.prefs ? { prefs: ctx.prefs } : {},
+    ...itemsGame(liveCore, liveState)
+  };
+  displayCleanups.push(installItems(itemContext));
+  displayCleanups.push(installStores({ ...itemContext, ...ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {}, ...ctx.driver ? { driver: ctx.driver } : {} }));
+  displayCleanups.push(installCharacterSheet({
+    flags,
+    log: ctx.log,
+    ...ctx.ui ? { ui: ctx.ui } : {},
+    ...ctx.prefs ? { prefs: ctx.prefs } : {},
+    ...ctx.character ? { character: ctx.character } : {}
+  }));
+  displayCleanups.push(installThemeEditor({
+    flags,
+    log: ctx.log,
+    ...ctx.ui ? { ui: ctx.ui } : {},
+    ...ctx.prefs ? { prefs: ctx.prefs } : {},
+    ...ctx.display ? { display: ctx.display } : {}
+  }));
+  displayCleanups.push(installMenus({ ...ctx, flags }));
+  const menuContext = { flags, log: ctx.log, ...ctx.ui ? { ui: ctx.ui } : {}, ...ctx.prefs ? { prefs: ctx.prefs } : {} };
+  displayCleanups.push(installKnowledgeBrowser({ ...menuContext, ...ctx.knowledge ? { knowledge: ctx.knowledge } : {} }));
+  displayCleanups.push(installOptionsEditor({ ...menuContext, ...ctx.options ? { options: ctx.options } : {} }));
+  displayCleanups.push(installKeybindingEditor({ ...menuContext, ...ctx.keybindings ? { keybindings: ctx.keybindings } : {} }));
+  displayCleanups.push(installSettingsWindow({
+    ...menuContext,
+    ...ctx.settings ? { settings: ctx.settings } : {},
+    ...ctx.display ? { display: ctx.display } : {},
+    ...ctx.session ? { session: ctx.session } : {},
+    ...ctx.subwindows ? { subwindows: ctx.subwindows } : {}
+  }));
+  if (flags["anybandui.highContrast"] || flags["anybandui.colourblind"] || flags["anybandui.crt"] || theme.invert_dungeon) {
+    installAccessibilityAccommodations({ flags, invertDungeon: theme.invert_dungeon, ...ctx.display ? { display: ctx.display } : {}, log: ctx.log });
+  }
+  if (flags["anybandui.quiverItemization"]) {
+    if (!ctx.display) ctx.log("this game is too old for display conveniences");
+    else {
+      if (flags["anybandui.quiverItemization"] && ctx.display.setQuiverItemization) {
+        quiverDisplay = ctx.display;
+        ctx.display.setQuiverItemization(true);
       }
     }
-    displayCleanups.push(installEffects({ flags, ...ctx.snapshot ? { snapshot: ctx.snapshot } : {}, ...ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {}, ...ctx.events ? { events: ctx.events } : {}, ...ctx.display?.snapshot ? { display: { snapshot: ctx.display.snapshot.bind(ctx.display) } } : {}, ...ctx.prefs ? { prefs: ctx.prefs } : {}, ...ctx.settings ? { settings: ctx.settings } : {} }));
-    const theme = themeFromPrefs(ctx.prefs?.get());
-    displayCleanups.push(installChromePaint(ctx.display, flags, theme, ctx.log));
-    const { liveCore, liveState } = liveGame(ctx);
-    const itemContext = {
+  }
+  if (ctx.display?.snapshot && ctx.display.onKey && ctx.display.setGrid && ctx.display.setCamera && ctx.display.setSidebarExtent && ctx.display.repaint) {
+    const display = ctx.display;
+    installZoomPan({
       flags,
-      log: ctx.log,
+      display: gateSidebarExtent(display),
+      manageTileSettings: false,
+      ...ctx.prefs ? { prefs: ctx.prefs } : {},
+      ...ctx.snapshot ? { snapshot: ctx.snapshot } : {},
+      ...ctx.subwindows ? { subwindows: ctx.subwindows } : {},
+      ...liveState ? { state: liveState } : {},
+      log: ctx.log
+    });
+    displayCleanups.push(uninstallZoomPan);
+    if (ctx.display.setFullMapOverview && ctx.display.setMapView && ctx.display.setTileScaling) {
+      displayCleanups.push(installMapOverview({
+        flags,
+        display: ctx.display,
+        ...liveState ? { state: liveState } : {},
+        ...ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {},
+        ...ctx.prefs ? { prefs: ctx.prefs } : {},
+        log: ctx.log
+      }));
+    }
+    displayCleanups.push(installMapHoverCards({
+      flags,
+      ...liveCore ? { core: liveCore } : { core: null },
+      ...liveState ? { state: liveState } : {},
+      ...ctx.prefs ? { prefs: ctx.prefs } : {},
+      display
+    }));
+    displayCleanups.push(installHoverCards({
+      flags: { ...flags, "anybandui.mapHoverCards": false },
+      display,
       ...ctx.snapshot ? { snapshot: ctx.snapshot } : {},
       ...ctx.inspect ? { inspect: ctx.inspect } : {},
-      ...ctx.intent ? { intent: ctx.intent } : {},
-      ...ctx.prompt ? { prompt: ctx.prompt } : {},
-      ...ctx.ui ? { ui: ctx.ui } : {},
+      ...liveCore ? { core: liveCore } : {},
+      ...ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {},
+      ...liveState ? { state: liveState } : {},
       ...ctx.prefs ? { prefs: ctx.prefs } : {},
-      ...itemsGame(liveCore, liveState)
-    };
-    displayCleanups.push(installItems(itemContext));
-    displayCleanups.push(installStores({ ...itemContext, ...ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {}, ...ctx.driver ? { driver: ctx.driver } : {} }));
-    displayCleanups.push(installCharacterSheet({
-      flags,
-      log: ctx.log,
-      ...ctx.ui ? { ui: ctx.ui } : {},
-      ...ctx.prefs ? { prefs: ctx.prefs } : {},
-      ...ctx.character ? { character: ctx.character } : {}
+      log: ctx.log
     }));
-    displayCleanups.push(installThemeEditor({
-      flags,
-      log: ctx.log,
-      ...ctx.ui ? { ui: ctx.ui } : {},
-      ...ctx.prefs ? { prefs: ctx.prefs } : {},
-      ...ctx.display ? { display: ctx.display } : {}
-    }));
-    displayCleanups.push(installMenus({ ...ctx, flags }));
-    const menuContext = { flags, log: ctx.log, ...ctx.ui ? { ui: ctx.ui } : {}, ...ctx.prefs ? { prefs: ctx.prefs } : {} };
-    displayCleanups.push(installKnowledgeBrowser({ ...menuContext, ...ctx.knowledge ? { knowledge: ctx.knowledge } : {} }));
-    displayCleanups.push(installOptionsEditor({ ...menuContext, ...ctx.options ? { options: ctx.options } : {} }));
-    displayCleanups.push(installKeybindingEditor({ ...menuContext, ...ctx.keybindings ? { keybindings: ctx.keybindings } : {} }));
-    displayCleanups.push(installSettingsWindow({
-      ...menuContext,
-      ...ctx.settings ? { settings: ctx.settings } : {},
-      ...ctx.display ? { display: ctx.display } : {},
-      ...ctx.session ? { session: ctx.session } : {},
-      ...ctx.subwindows ? { subwindows: ctx.subwindows } : {}
-    }));
-    if (flags["anybandui.highContrast"] || flags["anybandui.colourblind"] || flags["anybandui.crt"] || theme.invert_dungeon) {
-      installAccessibilityAccommodations({ flags, invertDungeon: theme.invert_dungeon, ...ctx.display ? { display: ctx.display } : {}, log: ctx.log });
+  } else if (flags["anybandui.crispTiles"] && ctx.display?.setTileScaling) {
+    tileDisplay = ctx.display;
+    ctx.display.setTileScaling("crisp");
+    if (ctx.display.setFullMapOverview) {
+      ctx.display.setFullMapOverview(true);
+      tileFullOverviewApplied = true;
     }
-    if (flags["anybandui.quiverItemization"]) {
-      if (!ctx.display) ctx.log("this game is too old for display conveniences");
-      else {
-        if (flags["anybandui.quiverItemization"] && ctx.display.setQuiverItemization) {
-          quiverDisplay = ctx.display;
-          ctx.display.setQuiverItemization(true);
-        }
-      }
-    }
-    if (ctx.display?.snapshot && ctx.display.onKey && ctx.display.setGrid && ctx.display.setCamera && ctx.display.setSidebarExtent && ctx.display.repaint) {
-      const display = ctx.display;
-      installZoomPan({
-        flags,
-        display: gateSidebarExtent(display),
-        manageTileSettings: false,
+  }
+  if (flags["anybandui.mapHoverCards"] && !(ctx.display?.snapshot && ctx.display.onKey && ctx.display.setGrid && ctx.display.setCamera && ctx.display.setSidebarExtent && ctx.display.repaint)) {
+    displayCleanups.push(installMapHoverCards({
+      flags,
+      core: liveCore ?? null,
+      ...liveState ? { state: liveState } : {},
+      ...ctx.prefs ? { prefs: ctx.prefs } : {},
+      ...ctx.display?.snapshot ? { display: ctx.display } : {}
+    }));
+  }
+  displayCleanups.push(installMapMouse({
+    flags,
+    ...ctx.display?.snapshot ? { display: ctx.display } : {},
+    ...ctx.snapshot ? { snapshot: ctx.snapshot } : {},
+    ...ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {},
+    ...ctx.intent ? { intent: ctx.intent } : {},
+    ...ctx.prompt ? { prompt: ctx.prompt } : {},
+    ...ctx.inspect ? { inspect: ctx.inspect } : {},
+    ...ctx.prefs ? { prefs: ctx.prefs } : {},
+    log: ctx.log
+  }));
+  displayCleanups.push(installMinimapTravel({
+    flags,
+    ...ctx.display?.snapshot ? { display: { snapshot: ctx.display.snapshot.bind(ctx.display) } } : {},
+    ...ctx.snapshot ? { snapshot: ctx.snapshot } : {},
+    ...ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {},
+    ...ctx.intent ? { intent: ctx.intent } : {},
+    ...ctx.prompt ? { prompt: ctx.prompt } : {},
+    ...ctx.driver ? { driver: ctx.driver.bind(ctx) } : {},
+    log: ctx.log
+  }));
+  displayCleanups.push(installPhase4({
+    flags,
+    log: ctx.log,
+    ...ctx.snapshot ? { snapshot: ctx.snapshot } : {},
+    ...ctx.intent ? { intent: ctx.intent } : {},
+    ...ctx.prompt ? { prompt: ctx.prompt } : {},
+    ...ctx.inspect ? { inspect: ctx.inspect } : {},
+    ...ctx.ui ? { ui: ctx.ui } : {},
+    ...ctx.prefs ? { prefs: ctx.prefs } : {},
+    ...ctx.display?.snapshot ? { display: { snapshot: ctx.display.snapshot.bind(ctx.display) } } : {},
+    ...ctx.driver ? { driver: ctx.driver } : {},
+    ...ctx.character ? { character: ctx.character } : {},
+    ...liveState ? { state: liveState } : {}
+  }));
+  if (flags["anybandui.firstEncounter"]) {
+    if (liveCore && liveState) {
+      const theme2 = themeFromPrefs(ctx.prefs?.get());
+      installFirstEncounter({
+        core: liveCore,
+        state: liveState,
+        theme: theme2,
+        ...ctx.ui ? { ui: ctx.ui } : {},
         ...ctx.prefs ? { prefs: ctx.prefs } : {},
-        ...ctx.snapshot ? { snapshot: ctx.snapshot } : {},
-        ...ctx.subwindows ? { subwindows: ctx.subwindows } : {},
-        ...liveState ? { state: liveState } : {},
+        ...ctx.tiles ? { tiles: ctx.tiles } : {},
         log: ctx.log
       });
-      displayCleanups.push(uninstallZoomPan);
-      if (ctx.display.setFullMapOverview && ctx.display.setMapView && ctx.display.setTileScaling) {
-        displayCleanups.push(installMapOverview({
-          flags,
-          display: ctx.display,
-          ...liveState ? { state: liveState } : {},
-          ...ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {},
-          ...ctx.prefs ? { prefs: ctx.prefs } : {},
-          log: ctx.log
-        }));
-      }
-      displayCleanups.push(installMapHoverCards({
-        flags,
-        ...liveCore ? { core: liveCore } : { core: null },
-        ...liveState ? { state: liveState } : {},
-        ...ctx.prefs ? { prefs: ctx.prefs } : {},
-        display
-      }));
-      displayCleanups.push(installHoverCards({
-        flags: { ...flags, "anybandui.mapHoverCards": false },
-        display,
-        ...ctx.snapshot ? { snapshot: ctx.snapshot } : {},
-        ...ctx.inspect ? { inspect: ctx.inspect } : {},
-        ...liveCore ? { core: liveCore } : {},
-        ...ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {},
-        ...liveState ? { state: liveState } : {},
-        ...ctx.prefs ? { prefs: ctx.prefs } : {},
-        log: ctx.log
-      }));
-    } else if (flags["anybandui.crispTiles"] && ctx.display?.setTileScaling) {
-      tileDisplay = ctx.display;
-      ctx.display.setTileScaling("crisp");
-      if (ctx.display.setFullMapOverview) {
-        ctx.display.setFullMapOverview(true);
-        tileFullOverviewApplied = true;
-      }
-    }
-    if (flags["anybandui.mapHoverCards"] && !(ctx.display?.snapshot && ctx.display.onKey && ctx.display.setGrid && ctx.display.setCamera && ctx.display.setSidebarExtent && ctx.display.repaint)) {
-      displayCleanups.push(installMapHoverCards({
-        flags,
-        core: liveCore ?? null,
-        ...liveState ? { state: liveState } : {},
-        ...ctx.prefs ? { prefs: ctx.prefs } : {},
-        ...ctx.display?.snapshot ? { display: ctx.display } : {}
-      }));
-    }
-    displayCleanups.push(installMapMouse({
-      flags,
-      ...ctx.display?.snapshot ? { display: ctx.display } : {},
-      ...ctx.snapshot ? { snapshot: ctx.snapshot } : {},
-      ...ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {},
-      ...ctx.intent ? { intent: ctx.intent } : {},
-      ...ctx.prompt ? { prompt: ctx.prompt } : {},
-      ...ctx.inspect ? { inspect: ctx.inspect } : {},
-      ...ctx.prefs ? { prefs: ctx.prefs } : {},
-      log: ctx.log
-    }));
-    displayCleanups.push(installMinimapTravel({
-      flags,
-      ...ctx.display?.snapshot ? { display: { snapshot: ctx.display.snapshot.bind(ctx.display) } } : {},
-      ...ctx.snapshot ? { snapshot: ctx.snapshot } : {},
-      ...ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {},
-      ...ctx.intent ? { intent: ctx.intent } : {},
-      ...ctx.prompt ? { prompt: ctx.prompt } : {},
-      ...ctx.driver ? { driver: ctx.driver.bind(ctx) } : {},
-      log: ctx.log
-    }));
-    displayCleanups.push(installPhase4({
-      flags,
-      log: ctx.log,
-      ...ctx.snapshot ? { snapshot: ctx.snapshot } : {},
-      ...ctx.intent ? { intent: ctx.intent } : {},
-      ...ctx.prompt ? { prompt: ctx.prompt } : {},
-      ...ctx.inspect ? { inspect: ctx.inspect } : {},
-      ...ctx.ui ? { ui: ctx.ui } : {},
-      ...ctx.prefs ? { prefs: ctx.prefs } : {},
-      ...ctx.display?.snapshot ? { display: { snapshot: ctx.display.snapshot.bind(ctx.display) } } : {},
-      ...ctx.driver ? { driver: ctx.driver } : {},
-      ...ctx.character ? { character: ctx.character } : {},
-      ...liveState ? { state: liveState } : {}
-    }));
-    if (flags["anybandui.firstEncounter"]) {
-      if (liveCore && liveState) {
-        const theme2 = themeFromPrefs(ctx.prefs?.get());
-        installFirstEncounter({
-          core: liveCore,
-          state: liveState,
-          theme: theme2,
-          ...ctx.ui ? { ui: ctx.ui } : {},
-          ...ctx.prefs ? { prefs: ctx.prefs } : {},
-          ...ctx.tiles ? { tiles: ctx.tiles } : {},
-          log: ctx.log
-        });
-      } else ctx.log("first-encounter alerts: no live game at register time");
-    }
-  },
-  uninstall() {
-    characterPane?.close();
-    characterPane = null;
-    for (const cleanup of displayCleanups.splice(0).reverse()) cleanup();
-    setThemePacks(false);
-    uninstallFirstEncounter();
-    uninstallAccessibilityAccommodations();
-    quiverDisplay?.setQuiverItemization?.(false);
-    if (tileDisplay?.setTileScaling) releaseTileSettings(tileDisplay, tileFullOverviewApplied);
-    quiverDisplay = void 0;
-    tileDisplay = void 0;
-    tileFullOverviewApplied = false;
-  },
-  /** The save roster as cards. Undefined with the switch off, so Core asks every menu itself. */
-  menu(ctx) {
-    return menuPresenter({ ...ctx, flags: coexistingFlags(ctx.flags ?? {}, ctx.mods?.bind(ctx)) });
-  },
-  /** The hall of fame as a table. Undefined with the switch off, so Core draws every screen itself. */
-  screen(ctx) {
-    return screenPresenter({ ...ctx, flags: coexistingFlags(ctx.flags ?? {}, ctx.mods?.bind(ctx)) });
-  },
-  /* Character creation (ui:birth.replace). Off, or without the panel seam,
-   * this returns undefined and the game shows its own birth screens. */
-  birth(ctx) {
-    return installBirthWizard(ctx);
-  },
-  hud(ctx) {
-    characterPane?.close();
-    characterPane = null;
-    const doc = globalThis.document;
-    if (!doc?.body) return void 0;
-    const enabled = {
-      sidebar: ctx.flags["anybandui.sidebar"] === true,
-      status: ctx.flags["anybandui.status"] === true,
-      messages: ctx.flags["anybandui.messages"] === true
+    } else ctx.log("first-encounter alerts: no live game at register time");
+  }
+}
+function uninstall() {
+  characterPane?.close();
+  characterPane = null;
+  for (const cleanup of displayCleanups.splice(0).reverse()) cleanup();
+  setThemePacks(false);
+  uninstallFirstEncounter();
+  uninstallAccessibilityAccommodations();
+  quiverDisplay?.setQuiverItemization?.(false);
+  if (tileDisplay?.setTileScaling) releaseTileSettings(tileDisplay, tileFullOverviewApplied);
+  quiverDisplay = void 0;
+  tileDisplay = void 0;
+  tileFullOverviewApplied = false;
+}
+function menu(ctx) {
+  return menuPresenter({ ...ctx, flags: coexistingFlags(ctx.flags ?? {}, ctx.mods?.bind(ctx)) });
+}
+function screen(ctx) {
+  return screenPresenter({ ...ctx, flags: coexistingFlags(ctx.flags ?? {}, ctx.mods?.bind(ctx)) });
+}
+function birth(ctx) {
+  return installBirthWizard(ctx);
+}
+function hud(ctx) {
+  characterPane?.close();
+  characterPane = null;
+  const doc = globalThis.document;
+  if (!doc?.body) return void 0;
+  const enabled = {
+    sidebar: ctx.flags["anybandui.sidebar"] === true,
+    status: ctx.flags["anybandui.status"] === true,
+    messages: ctx.flags["anybandui.messages"] === true
+  };
+  const zoomSidebar = !enabled.sidebar && (ctx.flags["anybandui.zoom"] || ctx.flags["anybandui.enlargedDisplay"]);
+  if (!enabled.sidebar && !enabled.status && !enabled.messages && !zoomSidebar) return void 0;
+  const source = createSource(ctx);
+  const theme = themeFromPrefs(ctx.prefs?.get());
+  const output = {};
+  const cardPanels = [
+    { key: "character", render: renderCharacterCard, select: (m) => {
+      const p = m.player;
+      return [p.name, p.race, p.class, p.title, p.hp, p.max_hp, p.sp, p.max_sp, p.food, p.food_max, p.experience, p.level_start_experience, p.next_level_experience, p.level, p.stats, p.gold, p.armour, p.speed, p.extra_moves];
+    } },
+    { key: "tracked", render: renderTrackedCreature, select: (m) => m.player.tracked_creature }
+  ];
+  const pane = enabled.sidebar ? installCharacterPane({ flags: ctx.flags, ui: ctx.ui, prefs: ctx.prefs, display: ctx.display, log: ctx.log ?? (() => {
+  }) }, cardPanels) : null;
+  characterPane = pane;
+  if (pane) {
+    output.sidebar = { present(section2, frame) {
+      zoomPanHud({ flags: ctx.flags })?.sidebar?.present(section2, frame);
+      source.hud.sidebar.present(section2, frame);
+      pane.claimSidebar();
+      const model = source.snapshot();
+      if (model) pane.paint(model);
+    } };
+  } else if (enabled.sidebar) {
+    const host = createPanelHost(doc, cardPanels, theme);
+    output.sidebar = { present(section2, frame) {
+      zoomPanHud({ flags: ctx.flags })?.sidebar?.present(section2, frame);
+      source.hud.sidebar.present(section2, frame);
+      const model = source.snapshot();
+      if (model) host.present(section2, frame, model);
+    } };
+  } else if (zoomSidebar) {
+    const sink = zoomPanHud({ flags: ctx.flags })?.sidebar;
+    if (sink) output.sidebar = sink;
+  }
+  if (enabled.status) {
+    const host = createPanelHost(doc, [
+      { key: "driver", render: (mount) => renderDriverBadge(mount, currentDriver(ctx)), select: () => currentDriver(ctx) },
+      { key: "status", render: renderStatusBadges, select: (m) => [m.player.statuses, m.player.study] },
+      { key: "dungeon", render: renderDungeonCard, select: (m) => [m.dungeon, m.player.trap_detected, m.player.recall, m.player.descent, m.player.resting, m.player.running, m.player.repeat, m.player.unignoring] }
+    ], theme);
+    let last = null;
+    output.status = { present(section2, frame) {
+      last = [section2, frame];
+      source.hud.status.present(section2, frame);
+      const model = source.snapshot();
+      if (model) host.present(section2, frame, model);
+      if (model) pane?.paint(model);
+    } };
+    statusRepaint = () => {
+      if (last) output.status.present(last[0], last[1]);
     };
-    const zoomSidebar = !enabled.sidebar && (ctx.flags["anybandui.zoom"] || ctx.flags["anybandui.enlargedDisplay"]);
-    if (!enabled.sidebar && !enabled.status && !enabled.messages && !zoomSidebar) return void 0;
-    const source = createSource(ctx);
-    const theme = themeFromPrefs(ctx.prefs?.get());
-    const output = {};
-    const cardPanels = [
-      { key: "character", render: renderCharacterCard, select: (m) => {
-        const p = m.player;
-        return [p.name, p.race, p.class, p.title, p.hp, p.max_hp, p.sp, p.max_sp, p.food, p.food_max, p.experience, p.level_start_experience, p.next_level_experience, p.level, p.stats, p.gold, p.armour, p.speed, p.extra_moves];
-      } },
-      { key: "tracked", render: renderTrackedCreature, select: (m) => m.player.tracked_creature }
-    ];
-    const pane = enabled.sidebar ? installCharacterPane({ flags: ctx.flags, ui: ctx.ui, prefs: ctx.prefs, display: ctx.display, log: ctx.log ?? (() => {
-    }) }, cardPanels) : null;
-    characterPane = pane;
-    if (pane) {
-      output.sidebar = { present(section2, frame) {
-        zoomPanHud({ flags: ctx.flags })?.sidebar?.present(section2, frame);
-        source.hud.sidebar.present(section2, frame);
-        pane.claimSidebar();
-        const model = source.snapshot();
-        if (model) pane.paint(model);
-      } };
-    } else if (enabled.sidebar) {
-      const host = createPanelHost(doc, cardPanels, theme);
-      output.sidebar = { present(section2, frame) {
-        zoomPanHud({ flags: ctx.flags })?.sidebar?.present(section2, frame);
-        source.hud.sidebar.present(section2, frame);
-        const model = source.snapshot();
-        if (model) host.present(section2, frame, model);
-      } };
-    } else if (zoomSidebar) {
-      const sink = zoomPanHud({ flags: ctx.flags })?.sidebar;
-      if (sink) output.sidebar = sink;
-    }
-    if (enabled.status) {
-      const host = createPanelHost(doc, [
-        { key: "driver", render: (mount) => renderDriverBadge(mount, currentDriver(ctx)), select: () => currentDriver(ctx) },
-        { key: "status", render: renderStatusBadges, select: (m) => [m.player.statuses, m.player.study] },
-        { key: "dungeon", render: renderDungeonCard, select: (m) => [m.dungeon, m.player.trap_detected, m.player.recall, m.player.descent, m.player.resting, m.player.running, m.player.repeat, m.player.unignoring] }
-      ], theme);
-      let last = null;
-      output.status = { present(section2, frame) {
-        last = [section2, frame];
-        source.hud.status.present(section2, frame);
-        const model = source.snapshot();
-        if (model) host.present(section2, frame, model);
-        if (model) pane?.paint(model);
-      } };
-      statusRepaint = () => {
-        if (last) output.status.present(last[0], last[1]);
-      };
-    }
-    if (enabled.messages) {
-      const acknowledge = source.acknowledge;
-      const host = createPanelHost(doc, [{ key: "messages", render: (mount, model) => renderMessageLog(mount, model, acknowledge ? { acknowledge } : {}), select: (m) => [m.messages, m.message_pending] }], theme);
-      output.messages = { present(section2, frame) {
-        source.hud.messages.present(section2, frame);
-        const model = source.snapshot({ messages: true });
-        if (model) host.present(section2, frame, model);
-        if (model) pane?.paint(model);
-      } };
-    }
-    return output;
+  }
+  if (enabled.messages) {
+    const acknowledge = source.acknowledge;
+    const host = createPanelHost(doc, [{ key: "messages", render: (mount, model) => renderMessageLog(mount, model, acknowledge ? { acknowledge } : {}), select: (m) => [m.messages, m.message_pending] }], theme);
+    output.messages = { present(section2, frame) {
+      source.hud.messages.present(section2, frame);
+      const model = source.snapshot({ messages: true });
+      if (model) host.present(section2, frame, model);
+      if (model) pane?.paint(model);
+    } };
+  }
+  return output;
+}
+var shared = null;
+var primed = null;
+function bridgeFor(mod) {
+  if (!shared) {
+    shared = createBridge(mod);
+    primed = shared.prime();
+  }
+  return shared;
+}
+var definition = {
+  api: ">=2.0.0 <3.0.0",
+  /* Stored preferences keep their API 1 shape; the version only starts counting. */
+  prefs: { version: 1, migrate: (value2) => value2 },
+  async start(mod) {
+    const bridge = bridgeFor(mod);
+    await primed;
+    registerAll(bridge.ctx);
+  },
+  stop() {
+    uninstall();
+    shared?.dispose();
+    shared = null;
+    primed = null;
+  },
+  presentation: {
+    menu: (mod) => menu(bridgeFor(mod).ctx),
+    screen: (mod) => screen(bridgeFor(mod).ctx),
+    birth: (mod) => birth(bridgeFor(mod).ctx),
+    hud: (mod) => hud(bridgeFor(mod).ctx)
   }
 };
+var plugin_default = definition;
+var internals = { register: registerAll, uninstall, menu, screen, birth, hud };
 export {
-  plugin_default as default
+  plugin_default as default,
+  internals
 };

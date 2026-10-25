@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { BirthCatalogue, BirthDraftView, BirthResult, ModBirthSession, ModPanelSpec } from "@rpgm-tools/neo-angband-core";
-import plugin from "../../plugin.js";
+import { internals as plugin } from "../../plugin.js";
 import { notifyThemeChange, THEMES } from "../theme.js";
 import { BIRTH_FLAG, installBirthWizard, type BirthWizardContext } from "./birth.js";
 

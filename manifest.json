@@ -9,11 +9,11 @@
     "facets": [
       "plugin"
     ],
-    "api": ">=1.0.0 <2.0.0",
+    "api": ">=2.0.0 <3.0.0",
     "runtime": "in-process",
     "engine": {
       "range": ">=1.22.0",
-      "because": "Core 1.22.0 is the first release with every API 1 seam this mod calls."
+      "because": "The first Neo Angband release with mod API 2: the engine domain, the presentation seams and the manage namespace this mod calls."
     },
     "dependencies": {
       "required": {
@@ -35,7 +35,6 @@
       "state:stores.read",
       "state:messages.read",
       "state:monsters.read",
-      "state:map-actual.read",
       "input:intent",
       "input:prompt.reply",
       "event:combat-outcome",
@@ -53,7 +52,11 @@
       "state:knowledge.read",
       "state:options.read",
       "options:write",
-      "keymap:edit"
+      "keymap:edit",
+      "engine:access",
+      "session:control",
+      "profiles:manage",
+      "screens:manage"
     ],
     "author": "WurliMonkhaven, neostryder",
     "license": "GPL-2.0-only",

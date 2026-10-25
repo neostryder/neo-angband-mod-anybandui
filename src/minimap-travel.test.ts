@@ -10,7 +10,7 @@ const display = (mode: DisplaySnapshot["mode"]): DisplaySnapshot => ({
   level: { width: 20, height: 20 }, layout: "left", regions: { map: { pixels: { x: 0, y: 0, width: 200, height: 200 } } },
 }) as unknown as DisplaySnapshot;
 const level = (feat = 1): KnownLevel => ({ token, levelId: 1, depth: 1, width: 20, height: 20,
-  cells: [{ x: 8, y: 8, visible: false, remembered: { feat, traps: [], objects: [] } }] });
+  cells: [{ x: 8, y: 8, visible: false, remembered: { feat, traps: [], objects: [] } }] }) as unknown as KnownLevel;
 const input = (phase: InputSnapshot["phase"] = "play"): InputSnapshot => ({ token, phase, messagePending: false, prompt: null, core: { player: { grid: { x: 2, y: 2 } } } });
 
 describe("the map square under a click", () => {

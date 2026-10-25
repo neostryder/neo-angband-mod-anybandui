@@ -12,11 +12,11 @@ const token = { epoch: 2, revision: 9 };
  * status line prints, gives food as a percentage, and makes recall and descent
  * booleans. */
 const turns = { confused: 3, food: 9000, fast: 12, resFire: 7, image: 4 } as const;
-const status: KnownPlayerStatus = {
+const status = {
   blind: null, confused: "Confused", afraid: null, poisoned: null, cut: null, stun: null, paralyzed: null, food: 90, foodGrade: "Fed", fast: "Haste", sprint: null,
   protEvil: null, hero: null, shero: null, shield: null, stoneskin: null, blessed: null, fastcast: null,
   resAcid: null, resElec: null, resFire: "RFire", resCold: null, resPois: null, fearful: false, terror: null, amnesia: null, image: "Halluc",
-};
+} as unknown as KnownPlayerStatus;
 const player = { race: "Dwarf", cls: "Priest", hp: 13, maxHp: 21, grid: { x: 3, y: 2 }, status, depth: 2, recall: true, descent: false } as unknown as KnownPlayer;
 const statusTurns = Object.fromEntries(Object.entries(status).map(([field, value]) => [field, typeof value === "boolean" ? value : (turns as Record<string, number>)[field] ?? 0]));
 const player1 = { ...player, status: statusTurns, recall: 15, descent: 0 };
@@ -26,11 +26,11 @@ const item = (handle: number, artifact = false): KnownItem => ({ handle, kindKey
 const inventory = [item(1), item(2, true)];
 const equipment = [item(10), null, item(11, true)];
 const quiver = [item(20)];
-const monsters: KnownMonster[] = [
+const monsters = [
   { id: 1, race: "Grip, Farmer Maggot's Dog", raceIndex: 5, grid: { x: 1, y: 2 }, visible: true, health: "unhurt", living: true, status: ["asleep"], look: "asleep", raceLevel: 2, raceSpeed: 120, knownFlags: ["UNIQUE"], knownSpells: [], unique: true, questGuardian: false, finalGuardian: false },
   { id: 4, race: "Cave spider", raceIndex: 60, grid: { x: 4, y: 3 }, visible: true, health: "wounded", living: true, status: ["afraid", "stunned"], look: "wounded, afraid", raceLevel: 2, raceSpeed: 120, knownFlags: [], knownSpells: [], unique: false, questGuardian: false, finalGuardian: false },
   { id: 6, race: "Clear worm", raceIndex: 33, grid: { x: 0, y: 0 }, visible: false, health: "unhurt", living: true, status: [], look: "", raceLevel: 3, raceSpeed: 100, knownFlags: ["INVISIBLE"], knownSpells: [], unique: false, questGuardian: false, finalGuardian: false },
-];
+] as unknown as KnownMonster[];
 /* API 1's MonsterView.raceFlags is the race's full flag list; API 2's row
  * holds only the learned flags (knownFlags above). */
 const fullRaceFlags: Record<number, string[]> = {
@@ -56,14 +56,14 @@ const cells = Array.from({ length: width * height }, (_, i) => {
     remembered: { feat: shopAt(x, y) ? SHOP_FEAT : 1, traps: trapAt(x, y) ? [{ index: 1, name: "pit" }] : [], objects: pileAt(x, y) },
   };
 }).filter(({ x, y }) => !unseen(x, y));
-const level: KnownLevel = { token, levelId: 77, depth: 2, width, height, cells };
+const level = { token, levelId: 77, depth: 2, width, height, cells } as unknown as KnownLevel;
 const stores = [{ feat: SHOP_FEAT, featName: "General Store", isHome: false, owner: { name: "Bilbo", purse: 5000 }, stock: [] }];
 const world = { version: 1, token, turn: 100, player, inventory, equipment, quiver, floorHere: [], monsters, target: null, targetReadable: true, stores, spellbooks: [], level } as unknown as KnownWorldData;
-const input: Api2InputState = { token, driver: { kind: "player" }, phase: "play", messagePending: false, prompt: null };
-const trueLevel: Api2TrueLevel = {
+const input = { token, driver: { kind: "player" }, phase: "play", messagePending: false, prompt: null } as unknown as Api2InputState;
+const trueLevel = {
   token, levelId: 77, depth: 2, width, height,
   cells: cells.flatMap(({ x, y }) => { const real = realAt(x, y); return real ? [{ x, y, ...real }] : []; }),
-};
+} as unknown as Api2TrueLevel;
 
 /* API 1: the snapshot and remembered map seams, and the live core and state. */
 const monsterView = (m: KnownMonster) => ({ id: m.id, race: m.race, raceIndex: m.raceIndex, grid: m.grid, visible: m.visible, asleep: m.status.includes("asleep"), afraid: m.status.includes("afraid"), confused: false, stunned: m.status.includes("stunned"), unique: m.unique, questGuardian: m.questGuardian, finalGuardian: m.finalGuardian, raceFlags: fullRaceFlags[m.id] ?? [], hp: 5, maxHp: 9 });
@@ -166,7 +166,7 @@ describe("API 2 host adapter parity", () => {
     expect(api.truthCalls()).toBe(0);
     const frame = await v2.readFrame(api, { revealHidden: true });
     expect(api.truthCalls()).toBe(1);
-    expect(v2.truthLevel(frame).cells).toEqual(v1.truthLevel(seam.knownLevel() as Parameters<typeof v1.truthLevel>[0]).cells);
+    expect(v2.truthLevel(frame).cells).toEqual(v1.truthLevel(seam.knownLevel() as unknown as Parameters<typeof v1.truthLevel>[0]).cells);
     expect(v2.truthLevel(frame).cells).toHaveLength(1);
   });
 

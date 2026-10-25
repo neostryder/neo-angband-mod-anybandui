@@ -15,8 +15,9 @@
  * Each capability is added with the first feature that needs it, so the
  * consent list a player reads matches what the mod does.
  */
-import type { HudFrame, HudOwnership, HudSection, MenuPresenter, ScreenPresenter } from "@rpgm-tools/neo-angband-mod-sdk";
+import type { Api2BirthPresenter, Api2ModDefinition, HudFrame, HudOwnership, HudSection, MenuPresenter, ModApi2, ScreenPresenter } from "@rpgm-tools/neo-angband-mod-sdk";
 import type { ModDisplay, ModPluginContext } from "@rpgm-tools/neo-angband-core";
+import { createBridge, type Bridge } from "./src/bridge.js";
 import { createSource } from "./src/view-model/source.js";
 import { createPanelHost, type PanelSpec } from "./src/panels/panel-host.js";
 import { gateSidebarExtent, installCharacterPane, type CharacterPane } from "./src/panels/character-pane.js";
@@ -66,246 +67,287 @@ let statusRepaint: (() => void) | null = null;
 
 type HudCtx = Parameters<typeof createSource>[0] & Pick<ModPluginContext, "flags"> & Partial<Pick<ModPluginContext, "prefs" | "ui" | "display" | "log">>;
 
-export default {
-  api: 1,
-
-  register(_host: unknown, ctx: RegisterCtx): void {
-    this.uninstall();
-    ctx.log(`AnybandUI loaded on engine ${ctx.engine}`);
-    const flags = coexistingFlags(ctx.flags ?? {}, ctx.mods?.bind(ctx), ctx.log);
-    // Before anything reads the theme, so a saved pack theme draws from the first frame.
-    setThemePacks(flags["anybandui.themePacks"] === true);
-    /* The listener lives here rather than in hud() so that uninstall removes
-     * it. An engine without the event still redraws the badge on the next HUD
-     * frame, because the badge's select reads the driver on every frame. */
-    if (ctx.events) {
-      const events = ctx.events;
-      const repaint = (): void => statusRepaint?.();
-      try {
-        events.on("driver-changed", repaint);
-        displayCleanups.push(() => events.off("driver-changed", repaint));
-      } catch { /* no driver-changed event or grant on this engine */ }
-    }
-    displayCleanups.push(installEffects({ flags, ...(ctx.snapshot ? { snapshot: ctx.snapshot } : {}), ...(ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {}), ...(ctx.events ? { events: ctx.events } : {}), ...(ctx.display?.snapshot ? { display: { snapshot: ctx.display.snapshot.bind(ctx.display) } } : {}), ...(ctx.prefs ? { prefs: ctx.prefs } : {}), ...(ctx.settings ? { settings: ctx.settings } : {}) }));
-    /* The window frames around the cards take the same paint as the cards. */
-    const theme = themeFromPrefs(ctx.prefs?.get());
-    displayCleanups.push(installChromePaint(ctx.display, flags, theme, ctx.log));
-    const { liveCore, liveState } = liveGame(ctx);
-    const itemContext: ItemsContext = { flags, log: ctx.log,
-      ...(ctx.snapshot ? { snapshot: ctx.snapshot } : {}), ...(ctx.inspect ? { inspect: ctx.inspect } : {}),
-      ...(ctx.intent ? { intent: ctx.intent } : {}), ...(ctx.prompt ? { prompt: ctx.prompt } : {}),
-      ...(ctx.ui ? { ui: ctx.ui } : {}), ...(ctx.prefs ? { prefs: ctx.prefs } : {}),
-      ...itemsGame(liveCore, liveState) };
-    displayCleanups.push(installItems(itemContext));
-    displayCleanups.push(installStores({ ...itemContext, ...(ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {}), ...(ctx.driver ? { driver: ctx.driver } : {}) }));
-    displayCleanups.push(installCharacterSheet({ flags, log: ctx.log,
-      ...(ctx.ui ? { ui: ctx.ui } : {}), ...(ctx.prefs ? { prefs: ctx.prefs } : {}),
-      ...(ctx.character ? { character: ctx.character } : {}) }));
-    displayCleanups.push(installThemeEditor({ flags, log: ctx.log,
-      ...(ctx.ui ? { ui: ctx.ui } : {}), ...(ctx.prefs ? { prefs: ctx.prefs } : {}),
-      ...(ctx.display ? { display: ctx.display } : {}) }));
-    /* Phase 8: the Yes/No prompts, the run journal and the graveyard. The save
-     * cards and the hall of fame are presenter parts, in menu() and screen(). */
-    displayCleanups.push(installMenus({ ...ctx, flags }));
-    const menuContext = { flags, log: ctx.log, ...(ctx.ui ? { ui: ctx.ui } : {}), ...(ctx.prefs ? { prefs: ctx.prefs } : {}) };
-    displayCleanups.push(installKnowledgeBrowser({ ...menuContext, ...(ctx.knowledge ? { knowledge: ctx.knowledge } : {}) }));
-    displayCleanups.push(installOptionsEditor({ ...menuContext, ...(ctx.options ? { options: ctx.options } : {}) }));
-    displayCleanups.push(installKeybindingEditor({ ...menuContext, ...(ctx.keybindings ? { keybindings: ctx.keybindings } : {}) }));
-    /* Last, so the panels its pages open have registered by the time it draws. */
-    displayCleanups.push(installSettingsWindow({ ...menuContext, ...(ctx.settings ? { settings: ctx.settings } : {}),
-      ...(ctx.display ? { display: ctx.display } : {}), ...(ctx.session ? { session: ctx.session } : {}),
-      ...(ctx.subwindows ? { subwindows: ctx.subwindows } : {}) }));
-    if (flags["anybandui.highContrast"] || flags["anybandui.colourblind"] || flags["anybandui.crt"] || theme.invert_dungeon) {
-      installAccessibilityAccommodations({ flags, invertDungeon: theme.invert_dungeon, ...(ctx.display ? { display: ctx.display } : {}), log: ctx.log });
-    }
-    if (flags["anybandui.quiverItemization"]) {
-      if (!ctx.display) ctx.log("this game is too old for display conveniences");
-      else {
-        if (flags["anybandui.quiverItemization"] && ctx.display.setQuiverItemization) {
-          quiverDisplay = ctx.display;
-          ctx.display.setQuiverItemization(true);
-        }
+function registerAll(ctx: RegisterCtx): void {
+  uninstall();
+  ctx.log(`AnybandUI loaded on engine ${ctx.engine}`);
+  const flags = coexistingFlags(ctx.flags ?? {}, ctx.mods?.bind(ctx), ctx.log);
+  // Before anything reads the theme, so a saved pack theme draws from the first frame.
+  setThemePacks(flags["anybandui.themePacks"] === true);
+  /* The listener lives here rather than in hud() so that uninstall removes
+   * it. An engine without the event still redraws the badge on the next HUD
+   * frame, because the badge's select reads the driver on every frame. */
+  if (ctx.events) {
+    const events = ctx.events;
+    const repaint = (): void => statusRepaint?.();
+    try {
+      events.on("driver-changed", repaint);
+      displayCleanups.push(() => events.off("driver-changed", repaint));
+    } catch { /* no driver-changed event or grant on this engine */ }
+  }
+  displayCleanups.push(installEffects({ flags, ...(ctx.snapshot ? { snapshot: ctx.snapshot } : {}), ...(ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {}), ...(ctx.events ? { events: ctx.events } : {}), ...(ctx.display?.snapshot ? { display: { snapshot: ctx.display.snapshot.bind(ctx.display) } } : {}), ...(ctx.prefs ? { prefs: ctx.prefs } : {}), ...(ctx.settings ? { settings: ctx.settings } : {}) }));
+  /* The window frames around the cards take the same paint as the cards. */
+  const theme = themeFromPrefs(ctx.prefs?.get());
+  displayCleanups.push(installChromePaint(ctx.display, flags, theme, ctx.log));
+  const { liveCore, liveState } = liveGame(ctx);
+  const itemContext: ItemsContext = { flags, log: ctx.log,
+    ...(ctx.snapshot ? { snapshot: ctx.snapshot } : {}), ...(ctx.inspect ? { inspect: ctx.inspect } : {}),
+    ...(ctx.intent ? { intent: ctx.intent } : {}), ...(ctx.prompt ? { prompt: ctx.prompt } : {}),
+    ...(ctx.ui ? { ui: ctx.ui } : {}), ...(ctx.prefs ? { prefs: ctx.prefs } : {}),
+    ...itemsGame(liveCore, liveState) };
+  displayCleanups.push(installItems(itemContext));
+  displayCleanups.push(installStores({ ...itemContext, ...(ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {}), ...(ctx.driver ? { driver: ctx.driver } : {}) }));
+  displayCleanups.push(installCharacterSheet({ flags, log: ctx.log,
+    ...(ctx.ui ? { ui: ctx.ui } : {}), ...(ctx.prefs ? { prefs: ctx.prefs } : {}),
+    ...(ctx.character ? { character: ctx.character } : {}) }));
+  displayCleanups.push(installThemeEditor({ flags, log: ctx.log,
+    ...(ctx.ui ? { ui: ctx.ui } : {}), ...(ctx.prefs ? { prefs: ctx.prefs } : {}),
+    ...(ctx.display ? { display: ctx.display } : {}) }));
+  /* Phase 8: the Yes/No prompts, the run journal and the graveyard. The save
+   * cards and the hall of fame are presenter parts, in menu() and screen(). */
+  displayCleanups.push(installMenus({ ...ctx, flags }));
+  const menuContext = { flags, log: ctx.log, ...(ctx.ui ? { ui: ctx.ui } : {}), ...(ctx.prefs ? { prefs: ctx.prefs } : {}) };
+  displayCleanups.push(installKnowledgeBrowser({ ...menuContext, ...(ctx.knowledge ? { knowledge: ctx.knowledge } : {}) }));
+  displayCleanups.push(installOptionsEditor({ ...menuContext, ...(ctx.options ? { options: ctx.options } : {}) }));
+  displayCleanups.push(installKeybindingEditor({ ...menuContext, ...(ctx.keybindings ? { keybindings: ctx.keybindings } : {}) }));
+  /* Last, so the panels its pages open have registered by the time it draws. */
+  displayCleanups.push(installSettingsWindow({ ...menuContext, ...(ctx.settings ? { settings: ctx.settings } : {}),
+    ...(ctx.display ? { display: ctx.display } : {}), ...(ctx.session ? { session: ctx.session } : {}),
+    ...(ctx.subwindows ? { subwindows: ctx.subwindows } : {}) }));
+  if (flags["anybandui.highContrast"] || flags["anybandui.colourblind"] || flags["anybandui.crt"] || theme.invert_dungeon) {
+    installAccessibilityAccommodations({ flags, invertDungeon: theme.invert_dungeon, ...(ctx.display ? { display: ctx.display } : {}), log: ctx.log });
+  }
+  if (flags["anybandui.quiverItemization"]) {
+    if (!ctx.display) ctx.log("this game is too old for display conveniences");
+    else {
+      if (flags["anybandui.quiverItemization"] && ctx.display.setQuiverItemization) {
+        quiverDisplay = ctx.display;
+        ctx.display.setQuiverItemization(true);
       }
     }
-    if (ctx.display?.snapshot && ctx.display.onKey && ctx.display.setGrid && ctx.display.setCamera && ctx.display.setSidebarExtent && ctx.display.repaint) {
-      const display = ctx.display as NonNullable<ZoomPanContext["display"]>;
-      // The gate keeps zoom's sidebar reservation from reopening the strip the character pane released.
-      installZoomPan({ flags, display: gateSidebarExtent(display), manageTileSettings: false, ...(ctx.prefs ? { prefs: ctx.prefs as NonNullable<ZoomPanContext["prefs"]> } : {}),
-        ...(ctx.snapshot ? { snapshot: ctx.snapshot as NonNullable<ZoomPanContext["snapshot"]> } : {}),
-        ...(ctx.subwindows ? { subwindows: ctx.subwindows } : {}),
-        ...(liveState ? { state: liveState as unknown as NonNullable<ZoomPanContext["state"]> } : {}), log: ctx.log });
-      displayCleanups.push(uninstallZoomPan);
-      if (ctx.display.setFullMapOverview && ctx.display.setMapView && ctx.display.setTileScaling) {
-        displayCleanups.push(installMapOverview({ flags, display: ctx.display as unknown as NonNullable<Parameters<typeof installMapOverview>[0]["display"]>,
-          ...(liveState ? { state: liveState as unknown as NonNullable<ZoomPanContext["state"]> } : {}),
-          ...(ctx.knownLevel ? { knownLevel: ctx.knownLevel as NonNullable<Parameters<typeof installMapOverview>[0]["knownLevel"]> } : {}),
-          ...(ctx.prefs ? { prefs: ctx.prefs } : {}), log: ctx.log }));
-      }
-      displayCleanups.push(installMapHoverCards({ flags,
-        ...(liveCore ? { core: liveCore } : { core: null }),
-        ...(liveState ? { state: liveState as unknown as NonNullable<Parameters<typeof installMapHoverCards>[0]["state"]> } : {}),
-        ...(ctx.prefs ? { prefs: ctx.prefs } : {}),
-        display }));
-      displayCleanups.push(installHoverCards({ flags: { ...flags, "anybandui.mapHoverCards": false }, display,
-        ...(ctx.snapshot ? { snapshot: ctx.snapshot } : {}),
-        ...(ctx.inspect ? { inspect: ctx.inspect as NonNullable<Parameters<typeof installHoverCards>[0]["inspect"]> } : {}),
-        ...(liveCore ? { core: liveCore as unknown as NonNullable<Parameters<typeof installHoverCards>[0]["core"]> } : {}),
-        ...(ctx.knownLevel ? { knownLevel: ctx.knownLevel as NonNullable<Parameters<typeof installHoverCards>[0]["knownLevel"]> } : {}),
-        ...(liveState ? { state: liveState as unknown as NonNullable<ZoomPanContext["state"]> } : {}), ...(ctx.prefs ? { prefs: ctx.prefs } : {}), log: ctx.log }));
-    } else if (flags["anybandui.crispTiles"] && ctx.display?.setTileScaling) {
-      tileDisplay = ctx.display;
-      ctx.display.setTileScaling("crisp");
-      if (ctx.display.setFullMapOverview) {
-        ctx.display.setFullMapOverview(true);
-        tileFullOverviewApplied = true;
-      }
+  }
+  if (ctx.display?.snapshot && ctx.display.onKey && ctx.display.setGrid && ctx.display.setCamera && ctx.display.setSidebarExtent && ctx.display.repaint) {
+    const display = ctx.display as NonNullable<ZoomPanContext["display"]>;
+    // The gate keeps zoom's sidebar reservation from reopening the strip the character pane released.
+    installZoomPan({ flags, display: gateSidebarExtent(display), manageTileSettings: false, ...(ctx.prefs ? { prefs: ctx.prefs as NonNullable<ZoomPanContext["prefs"]> } : {}),
+      ...(ctx.snapshot ? { snapshot: ctx.snapshot as NonNullable<ZoomPanContext["snapshot"]> } : {}),
+      ...(ctx.subwindows ? { subwindows: ctx.subwindows } : {}),
+      ...(liveState ? { state: liveState as unknown as NonNullable<ZoomPanContext["state"]> } : {}), log: ctx.log });
+    displayCleanups.push(uninstallZoomPan);
+    if (ctx.display.setFullMapOverview && ctx.display.setMapView && ctx.display.setTileScaling) {
+      displayCleanups.push(installMapOverview({ flags, display: ctx.display as unknown as NonNullable<Parameters<typeof installMapOverview>[0]["display"]>,
+        ...(liveState ? { state: liveState as unknown as NonNullable<ZoomPanContext["state"]> } : {}),
+        ...(ctx.knownLevel ? { knownLevel: ctx.knownLevel as NonNullable<Parameters<typeof installMapOverview>[0]["knownLevel"]> } : {}),
+        ...(ctx.prefs ? { prefs: ctx.prefs } : {}), log: ctx.log }));
     }
-    if (flags["anybandui.mapHoverCards"] &&
-        !(ctx.display?.snapshot && ctx.display.onKey && ctx.display.setGrid && ctx.display.setCamera && ctx.display.setSidebarExtent && ctx.display.repaint)) {
-      displayCleanups.push(installMapHoverCards({ flags, core: liveCore ?? null,
-        ...(liveState ? { state: liveState as unknown as NonNullable<Parameters<typeof installMapHoverCards>[0]["state"]> } : {}),
-        ...(ctx.prefs ? { prefs: ctx.prefs } : {}),
-        ...(ctx.display?.snapshot ? { display: ctx.display as NonNullable<ZoomPanContext["display"]> } : {}) }));
-    }
-    displayCleanups.push(installMapMouse({ flags,
-      ...(ctx.display?.snapshot ? { display: ctx.display as NonNullable<ZoomPanContext["display"]> } : {}),
+    displayCleanups.push(installMapHoverCards({ flags,
+      ...(liveCore ? { core: liveCore } : { core: null }),
+      ...(liveState ? { state: liveState as unknown as NonNullable<Parameters<typeof installMapHoverCards>[0]["state"]> } : {}),
+      ...(ctx.prefs ? { prefs: ctx.prefs } : {}),
+      display }));
+    displayCleanups.push(installHoverCards({ flags: { ...flags, "anybandui.mapHoverCards": false }, display,
       ...(ctx.snapshot ? { snapshot: ctx.snapshot } : {}),
-      ...(ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {}),
-      ...(ctx.intent ? { intent: ctx.intent } : {}),
-      ...(ctx.prompt ? { prompt: ctx.prompt } : {}),
-      ...(ctx.inspect ? { inspect: ctx.inspect } : {}),
-      ...(ctx.prefs ? { prefs: ctx.prefs } : {}), log: ctx.log }));
-    displayCleanups.push(installMinimapTravel({ flags,
-      ...(ctx.display?.snapshot ? { display: { snapshot: ctx.display.snapshot.bind(ctx.display) } } : {}),
-      ...(ctx.snapshot ? { snapshot: ctx.snapshot } : {}),
-      ...(ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {}),
-      ...(ctx.intent ? { intent: ctx.intent } : {}),
-      ...(ctx.prompt ? { prompt: ctx.prompt } : {}),
-      ...(ctx.driver ? { driver: ctx.driver.bind(ctx) } : {}), log: ctx.log }));
-    displayCleanups.push(installPhase4({ flags, log: ctx.log,
-      ...(ctx.snapshot ? { snapshot: ctx.snapshot } : {}), ...(ctx.intent ? { intent: ctx.intent } : {}),
-      ...(ctx.prompt ? { prompt: ctx.prompt } : {}), ...(ctx.inspect ? { inspect: ctx.inspect } : {}),
-      ...(ctx.ui ? { ui: ctx.ui } : {}), ...(ctx.prefs ? { prefs: ctx.prefs } : {}),
-      ...(ctx.display?.snapshot ? { display: { snapshot: ctx.display.snapshot.bind(ctx.display) } } : {}),
-      ...(ctx.driver ? { driver: ctx.driver } : {}), ...(ctx.character ? { character: ctx.character } : {}),
-      ...(liveState ? { state: liveState } : {}) }));
-    /* The live state is available at register time. See first-encounter.ts
-     * for why sightings are polled and stored in prefs by character. */
-    if (flags["anybandui.firstEncounter"]) {
-      if (liveCore && liveState) {
-        const theme = themeFromPrefs(ctx.prefs?.get());
-        installFirstEncounter({ core: liveCore, state: liveState, theme,
-          ...(ctx.ui ? { ui: ctx.ui } : {}), ...(ctx.prefs ? { prefs: ctx.prefs } : {}),
-          ...(ctx.tiles ? { tiles: ctx.tiles } : {}), log: ctx.log });
-      } else ctx.log("first-encounter alerts: no live game at register time");
+      ...(ctx.inspect ? { inspect: ctx.inspect as NonNullable<Parameters<typeof installHoverCards>[0]["inspect"]> } : {}),
+      ...(liveCore ? { core: liveCore as unknown as NonNullable<Parameters<typeof installHoverCards>[0]["core"]> } : {}),
+      ...(ctx.knownLevel ? { knownLevel: ctx.knownLevel as NonNullable<Parameters<typeof installHoverCards>[0]["knownLevel"]> } : {}),
+      ...(liveState ? { state: liveState as unknown as NonNullable<ZoomPanContext["state"]> } : {}), ...(ctx.prefs ? { prefs: ctx.prefs } : {}), log: ctx.log }));
+  } else if (flags["anybandui.crispTiles"] && ctx.display?.setTileScaling) {
+    tileDisplay = ctx.display;
+    ctx.display.setTileScaling("crisp");
+    if (ctx.display.setFullMapOverview) {
+      ctx.display.setFullMapOverview(true);
+      tileFullOverviewApplied = true;
     }
+  }
+  if (flags["anybandui.mapHoverCards"] &&
+      !(ctx.display?.snapshot && ctx.display.onKey && ctx.display.setGrid && ctx.display.setCamera && ctx.display.setSidebarExtent && ctx.display.repaint)) {
+    displayCleanups.push(installMapHoverCards({ flags, core: liveCore ?? null,
+      ...(liveState ? { state: liveState as unknown as NonNullable<Parameters<typeof installMapHoverCards>[0]["state"]> } : {}),
+      ...(ctx.prefs ? { prefs: ctx.prefs } : {}),
+      ...(ctx.display?.snapshot ? { display: ctx.display as NonNullable<ZoomPanContext["display"]> } : {}) }));
+  }
+  displayCleanups.push(installMapMouse({ flags,
+    ...(ctx.display?.snapshot ? { display: ctx.display as NonNullable<ZoomPanContext["display"]> } : {}),
+    ...(ctx.snapshot ? { snapshot: ctx.snapshot } : {}),
+    ...(ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {}),
+    ...(ctx.intent ? { intent: ctx.intent } : {}),
+    ...(ctx.prompt ? { prompt: ctx.prompt } : {}),
+    ...(ctx.inspect ? { inspect: ctx.inspect } : {}),
+    ...(ctx.prefs ? { prefs: ctx.prefs } : {}), log: ctx.log }));
+  displayCleanups.push(installMinimapTravel({ flags,
+    ...(ctx.display?.snapshot ? { display: { snapshot: ctx.display.snapshot.bind(ctx.display) } } : {}),
+    ...(ctx.snapshot ? { snapshot: ctx.snapshot } : {}),
+    ...(ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {}),
+    ...(ctx.intent ? { intent: ctx.intent } : {}),
+    ...(ctx.prompt ? { prompt: ctx.prompt } : {}),
+    ...(ctx.driver ? { driver: ctx.driver.bind(ctx) } : {}), log: ctx.log }));
+  displayCleanups.push(installPhase4({ flags, log: ctx.log,
+    ...(ctx.snapshot ? { snapshot: ctx.snapshot } : {}), ...(ctx.intent ? { intent: ctx.intent } : {}),
+    ...(ctx.prompt ? { prompt: ctx.prompt } : {}), ...(ctx.inspect ? { inspect: ctx.inspect } : {}),
+    ...(ctx.ui ? { ui: ctx.ui } : {}), ...(ctx.prefs ? { prefs: ctx.prefs } : {}),
+    ...(ctx.display?.snapshot ? { display: { snapshot: ctx.display.snapshot.bind(ctx.display) } } : {}),
+    ...(ctx.driver ? { driver: ctx.driver } : {}), ...(ctx.character ? { character: ctx.character } : {}),
+    ...(liveState ? { state: liveState } : {}) }));
+  /* The live state is available at register time. See first-encounter.ts
+   * for why sightings are polled and stored in prefs by character. */
+  if (flags["anybandui.firstEncounter"]) {
+    if (liveCore && liveState) {
+      const theme = themeFromPrefs(ctx.prefs?.get());
+      installFirstEncounter({ core: liveCore, state: liveState, theme,
+        ...(ctx.ui ? { ui: ctx.ui } : {}), ...(ctx.prefs ? { prefs: ctx.prefs } : {}),
+        ...(ctx.tiles ? { tiles: ctx.tiles } : {}), log: ctx.log });
+    } else ctx.log("first-encounter alerts: no live game at register time");
+  }
+}
+
+function uninstall(): void {
+  characterPane?.close();
+  characterPane = null;
+  for (const cleanup of displayCleanups.splice(0).reverse()) cleanup();
+  setThemePacks(false);
+  uninstallFirstEncounter();
+  uninstallAccessibilityAccommodations();
+  quiverDisplay?.setQuiverItemization?.(false);
+  if (tileDisplay?.setTileScaling) releaseTileSettings(tileDisplay as Parameters<typeof releaseTileSettings>[0], tileFullOverviewApplied);
+  quiverDisplay = undefined;
+  tileDisplay = undefined;
+  tileFullOverviewApplied = false;
+}
+
+/** The save roster as cards. Undefined with the switch off, so Core asks every menu itself. */
+function menu(ctx: RegisterCtx): MenuPresenter | undefined {
+  return menuPresenter({ ...ctx, flags: coexistingFlags(ctx.flags ?? {}, ctx.mods?.bind(ctx)) });
+}
+
+/** The hall of fame as a table. Undefined with the switch off, so Core draws every screen itself. */
+function screen(ctx: RegisterCtx): ScreenPresenter | undefined {
+  return screenPresenter({ ...ctx, flags: coexistingFlags(ctx.flags ?? {}, ctx.mods?.bind(ctx)) });
+}
+
+/* Character creation (ui:birth.replace). Off, or without the panel seam,
+ * this returns undefined and the game shows its own birth screens. */
+function birth(ctx: BirthWizardContext): BirthPresenter | undefined {
+  return installBirthWizard(ctx);
+}
+
+function hud(ctx: HudCtx): HudOwnership | undefined {
+  characterPane?.close();
+  characterPane = null;
+  const doc = globalThis.document;
+  if (!doc?.body) return undefined;
+  const enabled = { sidebar: ctx.flags["anybandui.sidebar"] === true,
+    status: ctx.flags["anybandui.status"] === true,
+    messages: ctx.flags["anybandui.messages"] === true };
+  const zoomSidebar = !enabled.sidebar && (ctx.flags["anybandui.zoom"] || ctx.flags["anybandui.enlargedDisplay"]);
+  if (!enabled.sidebar && !enabled.status && !enabled.messages && !zoomSidebar) return undefined;
+  const source = createSource(ctx);
+  const theme = themeFromPrefs(ctx.prefs?.get());
+  const output: { -readonly [K in keyof HudOwnership]: HudOwnership[K] } = {};
+  const cardPanels: PanelSpec[] = [
+    { key: "character", render: renderCharacterCard, select: (m) => { const p = m.player; return [p.name, p.race, p.class, p.title, p.hp, p.max_hp, p.sp, p.max_sp, p.food, p.food_max, p.experience, p.level_start_experience, p.next_level_experience, p.level, p.stats, p.gold, p.armour, p.speed, p.extra_moves]; } },
+    { key: "tracked", render: renderTrackedCreature, select: (m) => m.player.tracked_creature },
+  ];
+  /* With panel kinds the card is always a pane of its own. The sidebar sink is
+   * still claimed so core stops drawing its column, and character-pane.ts says
+   * how the column's cells go back to the map. Without panel kinds the card is
+   * drawn over the sidebar region, as on older engines. */
+  const pane = enabled.sidebar
+    ? installCharacterPane({ flags: ctx.flags, ui: ctx.ui, prefs: ctx.prefs, display: ctx.display, log: ctx.log ?? (() => {}) }, cardPanels)
+    : null;
+  characterPane = pane;
+  if (pane) {
+    output.sidebar = { present(section: HudSection, frame: HudFrame) {
+      zoomPanHud({ flags: ctx.flags })?.sidebar?.present(section, frame);
+      source.hud.sidebar!.present(section, frame);
+      pane.claimSidebar();
+      const model = source.snapshot();
+      if (model) pane.paint(model);
+    } };
+  }
+  else if (enabled.sidebar) {
+    const host = createPanelHost(doc, cardPanels, theme);
+    output.sidebar = { present(section: HudSection, frame: HudFrame) {
+      zoomPanHud({ flags: ctx.flags })?.sidebar?.present(section, frame);
+      source.hud.sidebar!.present(section, frame);
+      const model = source.snapshot();
+      if (model) host.present(section, frame, model);
+    } };
+  }
+  else if (zoomSidebar) {
+    const sink = zoomPanHud({ flags: ctx.flags })?.sidebar;
+    if (sink) output.sidebar = sink as NonNullable<HudOwnership["sidebar"]>;
+  }
+  if (enabled.status) {
+    const host = createPanelHost(doc, [
+      { key: "driver", render: (mount) => renderDriverBadge(mount, currentDriver(ctx)), select: () => currentDriver(ctx) },
+      { key: "status", render: renderStatusBadges, select: (m) => [m.player.statuses, m.player.study] },
+      { key: "dungeon", render: renderDungeonCard, select: (m) => [m.dungeon, m.player.trap_detected, m.player.recall, m.player.descent, m.player.resting, m.player.running, m.player.repeat, m.player.unignoring] },
+    ], theme);
+    let last: readonly [HudSection, HudFrame] | null = null;
+    output.status = { present(section: HudSection, frame: HudFrame) {
+      last = [section, frame];
+      source.hud.status!.present(section, frame);
+      const model = source.snapshot();
+      if (model) host.present(section, frame, model);
+      /* The pane is not tied to the sidebar region, so any frame this mod sees
+       * refreshes it; the card's own signatures skip unchanged data. */
+      if (model) pane?.paint(model);
+    } };
+    statusRepaint = () => { if (last) output.status!.present(last[0], last[1]); };
+  }
+  if (enabled.messages) {
+    const acknowledge = source.acknowledge;
+    const host = createPanelHost(doc, [{ key: "messages", render: (mount, model) => renderMessageLog(mount, model, acknowledge ? { acknowledge } : {}), select: (m) => [m.messages, m.message_pending] }], theme);
+    output.messages = { present(section: HudSection, frame: HudFrame) {
+      source.hud.messages!.present(section, frame);
+      const model = source.snapshot({ messages: true });
+      if (model) host.present(section, frame, model);
+      if (model) pane?.paint(model);
+    } };
+  }
+  return output;
+}
+
+
+let shared: Bridge | null = null;
+let primed: Promise<void> | null = null;
+
+/** The bridge `start` built. Core can ask a presenter before the game starts, so a presenter builds it first and `start` takes it over. */
+function bridgeFor(mod: ModApi2): Bridge {
+  if (!shared) {
+    shared = createBridge(mod);
+    primed = shared.prime();
+  }
+  return shared;
+}
+
+/** A mod folder cannot import the SDK by name, so the definition is typed here instead of built by defineApi2Mod. */
+const definition: Api2ModDefinition = {
+  api: ">=2.0.0 <3.0.0",
+  /* Stored preferences keep their API 1 shape; the version only starts counting. */
+  prefs: { version: 1, migrate: (value) => value },
+
+  async start(mod) {
+    const bridge = bridgeFor(mod);
+    await primed;
+    registerAll(bridge.ctx as RegisterCtx);
   },
 
-  uninstall(): void {
-    characterPane?.close();
-    characterPane = null;
-    for (const cleanup of displayCleanups.splice(0).reverse()) cleanup();
-    setThemePacks(false);
-    uninstallFirstEncounter();
-    uninstallAccessibilityAccommodations();
-    quiverDisplay?.setQuiverItemization?.(false);
-    if (tileDisplay?.setTileScaling) releaseTileSettings(tileDisplay as Parameters<typeof releaseTileSettings>[0], tileFullOverviewApplied);
-    quiverDisplay = undefined;
-    tileDisplay = undefined;
-    tileFullOverviewApplied = false;
+  stop() {
+    uninstall();
+    shared?.dispose();
+    shared = null;
+    primed = null;
   },
 
-  /** The save roster as cards. Undefined with the switch off, so Core asks every menu itself. */
-  menu(ctx: RegisterCtx): MenuPresenter | undefined {
-    return menuPresenter({ ...ctx, flags: coexistingFlags(ctx.flags ?? {}, ctx.mods?.bind(ctx)) });
-  },
-
-  /** The hall of fame as a table. Undefined with the switch off, so Core draws every screen itself. */
-  screen(ctx: RegisterCtx): ScreenPresenter | undefined {
-    return screenPresenter({ ...ctx, flags: coexistingFlags(ctx.flags ?? {}, ctx.mods?.bind(ctx)) });
-  },
-
-  /* Character creation (ui:birth.replace). Off, or without the panel seam,
-   * this returns undefined and the game shows its own birth screens. */
-  birth(ctx: BirthWizardContext): BirthPresenter | undefined {
-    return installBirthWizard(ctx);
-  },
-
-  hud(ctx: HudCtx): HudOwnership | undefined {
-    characterPane?.close();
-    characterPane = null;
-    const doc = globalThis.document;
-    if (!doc?.body) return undefined;
-    const enabled = { sidebar: ctx.flags["anybandui.sidebar"] === true,
-      status: ctx.flags["anybandui.status"] === true,
-      messages: ctx.flags["anybandui.messages"] === true };
-    const zoomSidebar = !enabled.sidebar && (ctx.flags["anybandui.zoom"] || ctx.flags["anybandui.enlargedDisplay"]);
-    if (!enabled.sidebar && !enabled.status && !enabled.messages && !zoomSidebar) return undefined;
-    const source = createSource(ctx);
-    const theme = themeFromPrefs(ctx.prefs?.get());
-    const output: { -readonly [K in keyof HudOwnership]: HudOwnership[K] } = {};
-    const cardPanels: PanelSpec[] = [
-      { key: "character", render: renderCharacterCard, select: (m) => { const p = m.player; return [p.name, p.race, p.class, p.title, p.hp, p.max_hp, p.sp, p.max_sp, p.food, p.food_max, p.experience, p.level_start_experience, p.next_level_experience, p.level, p.stats, p.gold, p.armour, p.speed, p.extra_moves]; } },
-      { key: "tracked", render: renderTrackedCreature, select: (m) => m.player.tracked_creature },
-    ];
-    /* With panel kinds the card is always a pane of its own. The sidebar sink is
-     * still claimed so core stops drawing its column, and character-pane.ts says
-     * how the column's cells go back to the map. Without panel kinds the card is
-     * drawn over the sidebar region, as on older engines. */
-    const pane = enabled.sidebar
-      ? installCharacterPane({ flags: ctx.flags, ui: ctx.ui, prefs: ctx.prefs, display: ctx.display, log: ctx.log ?? (() => {}) }, cardPanels)
-      : null;
-    characterPane = pane;
-    if (pane) {
-      output.sidebar = { present(section: HudSection, frame: HudFrame) {
-        zoomPanHud({ flags: ctx.flags })?.sidebar?.present(section, frame);
-        source.hud.sidebar!.present(section, frame);
-        pane.claimSidebar();
-        const model = source.snapshot();
-        if (model) pane.paint(model);
-      } };
-    }
-    else if (enabled.sidebar) {
-      const host = createPanelHost(doc, cardPanels, theme);
-      output.sidebar = { present(section: HudSection, frame: HudFrame) {
-        zoomPanHud({ flags: ctx.flags })?.sidebar?.present(section, frame);
-        source.hud.sidebar!.present(section, frame);
-        const model = source.snapshot();
-        if (model) host.present(section, frame, model);
-      } };
-    }
-    else if (zoomSidebar) {
-      const sink = zoomPanHud({ flags: ctx.flags })?.sidebar;
-      if (sink) output.sidebar = sink as NonNullable<HudOwnership["sidebar"]>;
-    }
-    if (enabled.status) {
-      const host = createPanelHost(doc, [
-        { key: "driver", render: (mount) => renderDriverBadge(mount, currentDriver(ctx)), select: () => currentDriver(ctx) },
-        { key: "status", render: renderStatusBadges, select: (m) => [m.player.statuses, m.player.study] },
-        { key: "dungeon", render: renderDungeonCard, select: (m) => [m.dungeon, m.player.trap_detected, m.player.recall, m.player.descent, m.player.resting, m.player.running, m.player.repeat, m.player.unignoring] },
-      ], theme);
-      let last: readonly [HudSection, HudFrame] | null = null;
-      output.status = { present(section: HudSection, frame: HudFrame) {
-        last = [section, frame];
-        source.hud.status!.present(section, frame);
-        const model = source.snapshot();
-        if (model) host.present(section, frame, model);
-        /* The pane is not tied to the sidebar region, so any frame this mod sees
-         * refreshes it; the card's own signatures skip unchanged data. */
-        if (model) pane?.paint(model);
-      } };
-      statusRepaint = () => { if (last) output.status!.present(last[0], last[1]); };
-    }
-    if (enabled.messages) {
-      const acknowledge = source.acknowledge;
-      const host = createPanelHost(doc, [{ key: "messages", render: (mount, model) => renderMessageLog(mount, model, acknowledge ? { acknowledge } : {}), select: (m) => [m.messages, m.message_pending] }], theme);
-      output.messages = { present(section: HudSection, frame: HudFrame) {
-        source.hud.messages!.present(section, frame);
-        const model = source.snapshot({ messages: true });
-        if (model) host.present(section, frame, model);
-        if (model) pane?.paint(model);
-      } };
-    }
-    return output;
+  presentation: {
+    menu: (mod) => menu(bridgeFor(mod).ctx as RegisterCtx),
+    screen: (mod) => screen(bridgeFor(mod).ctx as RegisterCtx),
+    birth: (mod) => birth(bridgeFor(mod).ctx as BirthWizardContext) as Api2BirthPresenter | undefined,
+    hud: (mod) => hud(bridgeFor(mod).ctx as HudCtx),
   },
 };
+
+export default definition;
+
+/** The entry points the tests call directly, with a hand-made context instead of a host. */
+export const internals = { register: registerAll, uninstall, menu, screen, birth, hud };

@@ -9,7 +9,7 @@ import ts from "typescript";
  * domain. A feature that reads one directly would still work today, and would
  * break silently when the features move to mod API 2. */
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
-const ADAPTERS = new Set([join("src", "host-adapter.ts"), join("src", "host-adapter-api2.ts")]);
+const ADAPTERS = new Set([join("src", "host-adapter.ts"), join("src", "host-adapter-api2.ts"), join("src", "bridge.ts")]);
 const RULES: readonly [string, RegExp][] = [
   ["ctx.core, ctx.state or ctx.registries", /\bctx!?\??\.(?:core|state|registries)\b/],
   ["a .core member, such as a snapshot's", /\.core\b/],
@@ -21,7 +21,7 @@ const RULES: readonly [string, RegExp][] = [
   ["a host member read by name", /\bctx!?\??\.?\[\s*["'`](?:core|state|registries|snapshot|knownLevel)["'`]\s*\]/],
 ];
 
-/** Whether the boundary rules apply to a file: every .ts file except the two adapters and the tests. */
+/** Whether the boundary rules apply to a file: every .ts file except the adapters (the bridge is the one that reads the engine domain) and the tests. */
 function checked(path: string): boolean {
   return path.endsWith(".ts") && !path.endsWith(".test.ts") && !ADAPTERS.has(path);
 }
