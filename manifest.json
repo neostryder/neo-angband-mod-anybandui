@@ -12,8 +12,8 @@
     "api": ">=1.0.0 <2.0.0",
     "runtime": "in-process",
     "engine": {
-      "range": ">=1.21.1",
-      "because": "Core 1.21.1 is the first release with every API 1 seam this mod calls."
+      "range": ">=1.22.0",
+      "because": "Core 1.22.0 is the first release with every API 1 seam this mod calls."
     },
     "dependencies": {
       "required": {

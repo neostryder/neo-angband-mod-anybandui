@@ -15,7 +15,14 @@ const catalogue = (previous: BirthCatalogue["previous"] = null): BirthCatalogue 
 });
 
 const draft = (patch: Partial<BirthDraftView> = {}): BirthDraftView => ({
-  race: "Dwarf", cls: "Mage", method: "point", stats: [10, 17, 10, 12, 18], pointsLeft: 3, pointsSpent: [0, 9, 0, 2, 6], statCosts: [],
+  race: "Dwarf", cls: "Mage", method: "point", stats: [10, 17, 10, 12, 18], pointsLeft: 3, pointsSpent: [0, 9, 0, 2, 6],
+  statCosts: [
+    { buyCost: 1, sellRefund: null, canBuy: true, canSell: false },
+    { buyCost: 4, sellRefund: 4, canBuy: false, canSell: true },
+    { buyCost: 1, sellRefund: null, canBuy: true, canSell: false },
+    { buyCost: 1, sellRefund: 1, canBuy: true, canSell: true },
+    { buyCost: null, sellRefund: 4, canBuy: false, canSell: true },
+  ],
   canPreviousRoll: false, name: "Ari", history: "Born under a hill.", historyEdited: false, options: [],
   preview: {
     stats: [
@@ -80,11 +87,11 @@ describe("character creation steps", () => {
 
   it("builds stat rows from the game's preview, with spent points and limits", () => {
     const rows = statRows(draft(), catalogue());
-    expect(rows[0]).toEqual({ index: 0, name: "STR", base: "10", race: "+2", cls: "-3", total: "9", spent: 0, canSell: false, atMaximum: false });
-    expect(rows[1]!.canSell).toBe(true);
-    expect(rows[4]!.atMaximum).toBe(true);
-    const bare = statRows(draft({ preview: null, method: "roller", pointsSpent: [0, 0, 0, 0, 0] }), catalogue());
-    expect(bare[1]).toMatchObject({ base: "17", race: "-", cls: "-", total: "-", canSell: false });
+    expect(rows[0]).toEqual({ index: 0, name: "STR", base: "10", race: "+2", cls: "-3", total: "9", spent: 0, buyCost: 1, sellRefund: null, canBuy: true, canSell: false, atMaximum: false });
+    expect(rows[1]).toMatchObject({ buyCost: 4, sellRefund: 4, canBuy: false, canSell: true });
+    expect(rows[4]).toMatchObject({ buyCost: null, canBuy: false, atMaximum: true });
+    const bare = statRows(draft({ preview: null, method: "roller", pointsSpent: [0, 0, 0, 0, 0], statCosts: [] }), catalogue());
+    expect(bare[1]).toMatchObject({ base: "17", race: "-", cls: "-", total: "-", buyCost: null, sellRefund: null, canBuy: false, canSell: false });
   });
 
   it("reads hit points, spell points and gold from the preview sheet", () => {
@@ -148,13 +155,6 @@ describe("the wizard over a birth session", () => {
     expect(wizard.error).toBe("broken");
     expect(wizard.run((s) => s.reset())).toBe(true);
     expect(wizard.error).toBe("");
-  });
-
-  it("remembers the generated background so an edit can be taken back", () => {
-    const wizard = new BirthWizard(session());
-    expect(wizard.generatedHistory).toBe("Born under a hill.");
-    wizard.run((s) => s.setHistory("Mine."), false);
-    expect(wizard.generatedHistory).toBe("Born under a hill.");
   });
 
   it("applies the previous character once until the build changes", () => {

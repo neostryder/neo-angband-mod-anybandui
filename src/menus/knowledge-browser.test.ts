@@ -56,6 +56,30 @@ describe("knowledge browser", () => {
     expect(visibleEntries(lists["monsters"]!, "Canines", "").map((v) => v.entry.name)).toEqual(["Jackal", "Wild dog"]);
   });
 
+  it("hides unlearned entries with Known only, which starts on", () => {
+    const flavours: KnowledgeListView = { title: "known objects", groups: [{ name: "Potions", entries: [
+      { id: "o1", name: "Cure Light Wounds", color: "#ffffff", known: true },
+      { id: "o9", name: "Bubbling Potion", color: "#ffffff", known: false },
+    ] }] };
+    expect(visibleEntries(flavours, "", "").map((v) => v.entry.name)).toEqual(["Cure Light Wounds", "Bubbling Potion"]);
+    expect(visibleEntries(flavours, "", "", true).map((v) => v.entry.name)).toEqual(["Cure Light Wounds"]);
+    const before = lists["objects"]!;
+    lists["objects"] = flavours;
+    try {
+      const { root, ui } = overlayUi();
+      cleanup = installKnowledgeBrowser({ flags: { "anybandui.knowledgeBrowser": true }, log: () => {}, ui, knowledge: seam() });
+      const known = root.byFocus("known-only")!;
+      expect(known.checked).toBe(true);
+      expect((known as unknown as { title: string }).title).toBe("Hide item types whose identity you have not learned.");
+      expect(root.byFocus("entry:o9")).toBeUndefined();
+      known.checked = false;
+      known.fire("change");
+      expect(root.byFocus("entry:o9")).toBeDefined();
+      expect(root.byFocus("known-only")!.checked).toBe(false);
+      expect(root.focused()).toBe("known-only");
+    } finally { lists["objects"] = before; }
+  });
+
   it("opens on the first category with entries, selects the first entry and shows its recall page", () => {
     const { root, ui } = overlayUi();
     const knowledge = seam();

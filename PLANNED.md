@@ -37,6 +37,25 @@ The web host needs its own pieces as well: a panel seam through which this mod's
 
 ## Phases
 
+```mermaid
+flowchart TD
+  P0["Phase 0<br/>Foundation, view model and theme tokens"] --> P1["Phase 1<br/>Status and messages"]
+  P1 --> P2["Phase 2<br/>The map under the mouse"]
+  P2 --> P3["Phase 3<br/>Items"]
+  P3 --> P4["Phase 4<br/>Spells and the quickbar"]
+  P4 --> P5["Phase 5<br/>Stores"]
+  P5 --> P6["Phase 6<br/>Layout"]
+  P6 --> P7["Phase 7<br/>Effects"]
+  P7 --> P8["Phase 8<br/>Menus, save cards, birth, knowledge and hall of fame<br/>The checkout includes unreleased additions"]
+  P8 --> P9["Phase 9, planned<br/>Touch, controller and phone layouts"]
+  P9 --> P10["Phase 10, planned<br/>Headless launcher and Anyband Protocol bridge"]
+  BASE["deluxe baseline<br/>6b598dca0"] -.-> LEDGER["UPSTREAM.md tracks later commits<br/>ported, not applicable or pending"]
+  LEDGER -.-> TABLE["PLANNED.md compares modules<br/>through e7dd1a22c"]
+  TABLE -.-> P8
+```
+
+*Source of truth: `PLANNED.md`, `UPSTREAM.md`, `CHANGELOG.md`, and `plugin.ts`. Phase 8 work is in the checkout but listed under Unreleased.*
+
 Version 1.0.0 carries phases 0 to 7: the view model, the HUD panels, map clicks and hover cards, items, spells and the quickbar, stores, panes and effects. The menus, touch and controller play, and the Anyband Protocol bridge in phases 8 to 10 come after it.
 
 ### Phase 0: foundation
@@ -107,7 +126,7 @@ This table compares each AnybandUI module on the `deluxe` branch with the port, 
 | `projectile_feedback.h` | Ported | Nothing. | |
 | `dungeon_feedback.h` | Ported | Nothing. | |
 | `floor_items.h` | Ported | Nothing. | |
-| `detached_panels.h`, `workspace_layout.h` | Partial | Undo and redo, and named saved layouts. Panels never open their own operating system window, as phase 6 records. | Core seam. A mod can read panel geometry but cannot set it, so undo and named layouts belong in the game's window manager (neostryder/neo-angband#287). |
+| `detached_panels.h`, `workspace_layout.h` | Ported | Nothing missing, but undo, redo and named layouts sit on the Layout page of the settings window instead of a Layout menu. Any layout change can be undone, not only one made while customizing, and the history holds 50 steps to AnybandUI's 64. No panel opens its own operating system window (see phase 6). | |
 | `ui_theme.h` | Ported | Nothing. | |
 | `tileset.cpp` | Different | No tileset code. Linoleum draws the tiles and this mod draws effects over them. | Recorded under Works with the other mods. |
 | `font_library.h` | Ported | Nothing. | |
@@ -118,12 +137,12 @@ This table compares each AnybandUI module on the `deluxe` branch with the port, 
 | `level_feedback.h` | Ported | Nothing. | |
 | `character_select.h` | Ported | Nothing. | |
 | `run_history.h`, `run_journal.h` | Ported | Nothing. | The journal reads the depth once a second to mark new depths, because Core does not yet send its level-change event (neostryder/neo-angband#363). |
-| `birth_panel.h` | Partial | The cost of the next point for each stat, and a way back to the generated background after editing it. | Needs a Core seam (neostryder/neo-angband#362). |
-| `knowledge_browser.h` | Partial | The known-only switch. | Needs a Core seam: knowledge entries do not say whether the player knows them (neostryder/neo-angband#362). |
+| `birth_panel.h` | Ported | Nothing. | |
+| `knowledge_browser.h` | Ported | Nothing. | |
 | `engine_options.h` | Ported | Nothing. | |
-| `keybinding_editor.h` | Partial | Naming the game command a key already runs, editing the keyset that is not active, and cancelling a key capture outright. | Needs a Core seam (neostryder/neo-angband#362). Until then a capture interrupted by hiding the panel ignores the key that ends it. |
+| `keybinding_editor.h` | Ported | Nothing. | |
 
-Two things in AnybandUI's `client.cpp` have no module of their own. The low-health glitch and the death flash are ported as the low-health wash and the death burst. The Rename save and Delete save dialogs and the plain Yes and No prompt are ported. The Save and Close game dialogs are missing and need a Core seam to save and leave the game (neostryder/neo-angband#361).
+Two things in AnybandUI's `client.cpp` have no module of their own. The low-health glitch and the death flash are ported as the low-health wash and the death burst. The Rename save and Delete save dialogs and the plain Yes and No prompt are ported. The Save and Close game dialogs became the Save game page in the settings window, since this mod has no toolbar to hang them on. It offers Save and continue, Save and return to main menu, and Save and quit.
 
 ## Keeping in step with AnybandUI
 

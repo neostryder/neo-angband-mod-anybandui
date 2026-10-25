@@ -10,7 +10,7 @@
  * The depth recorder keeps each new deepest level in this mod's per-character
  * storage, because Angband's history does not record depths. It runs while
  * either the journal or the graveyard is on, since both show the timeline.
- * Core 1.21.1 declares the `dungeonlevel` event but never sends it, so the
+ * Core declares the `dungeonlevel` event but does not send it yet, so the
  * recorder also reads the depth once a second.
  */
 import type { CharacterHistoryEntry, ModPluginContext, RunReport } from "@rpgm-tools/neo-angband-core";

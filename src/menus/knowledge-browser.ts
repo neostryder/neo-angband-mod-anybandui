@@ -3,6 +3,8 @@
  * a search box over names and groups, a group filter, the entries on the left
  * and the selected entry's recall page on the right. The lists and pages are
  * the game's own, read through ctx.knowledge, and reading one changes nothing.
+ * The Known only switch hides object flavours the player has seen but not
+ * identified, and starts on, as upstream's does (knowledge_browser.h:4, :34).
  */
 import type { KnowledgeCategoryView, KnowledgeEntryView, KnowledgeListView, ModKnowledge } from "@rpgm-tools/neo-angband-core";
 import type { ScreenView } from "@rpgm-tools/neo-angband-mod-sdk";
@@ -23,16 +25,20 @@ export interface KnowledgeState {
   group: string;
   search: string;
   selected: string | null;
+  knownOnly: boolean;
 }
 
 export interface VisibleEntry { readonly group: string; readonly entry: KnowledgeEntryView }
 
-/** The entries the search and group filter leave, in the game's order (knowledge_browser.h:56). */
-export function visibleEntries(list: KnowledgeListView | null, group: string, search: string): VisibleEntry[] {
+/** The entries the known-only switch, search and group filter leave, in the game's order (knowledge_browser.h:56). */
+export function visibleEntries(list: KnowledgeListView | null, group: string, search: string, knownOnly = false): VisibleEntry[] {
   const out: VisibleEntry[] = [];
   for (const g of list?.groups ?? []) {
     if (group && g.name !== group) continue;
-    for (const entry of g.entries) if (matches(`${entry.name} ${g.name}`, search)) out.push({ group: g.name, entry });
+    for (const entry of g.entries) {
+      if (knownOnly && !entry.known) continue;
+      if (matches(`${entry.name} ${g.name}`, search)) out.push({ group: g.name, entry });
+    }
   }
   return out;
 }
@@ -51,7 +57,7 @@ interface Model {
 export function installKnowledgeBrowser(ctx: KnowledgeContext): () => void {
   if (ctx.flags?.["anybandui.knowledgeBrowser"] !== true) return () => {};
   if (!ctx.knowledge) ctx.log("knowledge browser: this game does not share its knowledge lists");
-  const state: KnowledgeState = { category: "", group: "", search: "", selected: null };
+  const state: KnowledgeState = { category: "", group: "", search: "", selected: null, knownOnly: true };
   let signature = "";
   let timer: ReturnType<typeof globalThis.setInterval> | null = null;
 
@@ -66,7 +72,7 @@ export function installKnowledgeBrowser(ctx: KnowledgeContext): () => void {
       }
       const list = state.category ? seam.list(state.category) : null;
       if (state.group && !list?.groups.some((g) => g.name === state.group)) state.group = "";
-      const visible = visibleEntries(list, state.group, state.search);
+      const visible = visibleEntries(list, state.group, state.search, state.knownOnly);
       // knowledge_browser.h:61: a selection the filter hides moves to the first entry left.
       if (!visible.some((v) => v.entry.id === state.selected)) state.selected = visible[0]?.entry.id ?? null;
       const recall = state.selected ? seam.recall(state.category, state.selected) : null;
@@ -112,6 +118,14 @@ export function installKnowledgeBrowser(ctx: KnowledgeContext): () => void {
     });
     const controls = el(mount, "div");
     controls.className = "controls";
+    const knownLabel = el(controls, "label");
+    const known = el(knownLabel, "input");
+    known.type = "checkbox";
+    known.checked = state.knownOnly;
+    known.dataset["focus"] = "known-only";
+    known.title = "Hide item types whose identity you have not learned.";
+    known.addEventListener("change", () => { state.knownOnly = known.checked; repaint("known-only"); });
+    el(knownLabel, "span", " Known only");
     const search = el(controls, "input");
     search.type = "search";
     search.placeholder = "Search by name or group";

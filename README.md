@@ -16,6 +16,58 @@ The effects (CRT scanlines, item glows, sleeping-monster marks, the presence haz
 
 ## Features
 
+```mermaid
+flowchart TD
+  C["Neo Angband<br/>ctx.core and ctx.state"] --> H["host-adapter.ts<br/>liveHud reads createAgentView and live fields"]
+  F["HUD present callbacks<br/>The source keeps the latest HudFrame"] --> S["createSource"]
+  H --> S
+  I["InputSnapshot<br/>Messages, phase and prompt"] -->|"The source requests messages"| S
+  S --> A["adapt"]
+  A --> V["ViewModel<br/>player, messages, message_pending, dungeon"]
+  V --> P["Character, tracked-creature,<br/>status, dungeon and message panels"]
+  I --> FE["Feature-specific adapters and handlers"]
+  K["knownLevel and inspect"] --> FE
+  FE --> UI["Items, stores, spells,<br/>map mouse and effects"]
+  E["Resolved events"] --> UI
+  D["display"] --> UI
+```
+
+*Source of truth: `src/view-model/`, `src/host-adapter.ts`, and `plugin.ts`. The shared view model covers the HUD only; items, stores, spells, and effects read through their own paths.*
+
+```mermaid
+sequenceDiagram
+  participant P as Player
+  participant U as AnybandUI controls
+  participant H as Host seams
+  participant E as src/effects.ts
+  P->>U: Click the map, quickbar, Cast, Study, Buy, Sell or Rest
+  U->>H: Read snapshot and current input driver
+  H-->>U: Return token, phase and prompt
+  alt The feature finds input ready
+    U->>H: intent.submit with snapshot token and intent
+    H-->>U: Return accepted or refused
+  else A matching prompt is waiting
+    U->>H: prompt.reply with promptId and typed answer
+    H-->>U: Return accepted or refused
+  end
+  opt The player is aiming
+    U->>H: inspect.projectionPath or inspect.blastArea
+    H-->>U: Return token and preview grids
+    U->>U: Draw the matching preview
+  end
+  opt The store asks for quantity or confirmation
+    H-->>U: Publish the store prompt
+    P->>U: Answer the game's question
+    U->>H: prompt.reply with promptId and answer
+  end
+  H-->>E: Emit combat-outcome, heal, motion, explosion or bolt
+  E->>E: Draw enabled cues
+  H-->>U: Emit driver-changed
+  U->>U: Repaint the status badge
+```
+
+*Source of truth: `src/map-mouse.ts`, `src/blast-preview.ts`, `src/effects.ts`, and `plugin.ts`.*
+
 | Area | What you get |
 | --- | --- |
 | Layout | Each card is a pane in the game's own window layout, so it docks, tabs, resizes, floats and hides like the game's subwindows. Add the panes you want from Subwindow setup on the options menu. |
@@ -29,7 +81,7 @@ The effects (CRT scanlines, item glows, sleeping-monster marks, the presence haz
 
 ## Installing
 
-AnybandUI is on the recommended list on the in-game Mods screen. Install it there, enable it, then open its options to turn on the features you want. It needs Neo Angband 1.21.1 or later.
+AnybandUI is on the recommended list on the in-game Mods screen. Install it there, enable it, then open its options to turn on the features you want. It needs Neo Angband 1.22.0 or later.
 
 ![AnybandUI on the Mods screen](docs/img/anybandui-enable.jpg)
 

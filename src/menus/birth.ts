@@ -120,28 +120,31 @@ function birthOptions(parent: HTMLElement, draft: BirthDraftView, actions: StepA
   }
 }
 
-/** birth_panel.h:65-93. Editable rows carry Spent and the - and + buttons. */
+/** birth_panel.h:65-93. Editable rows carry Spent, the next point's Cost and the - and + buttons. */
 export function statTable(parent: HTMLElement, rows: readonly StatRowView[], editable: boolean, pointsLeft: number, actions: StepActions): void {
   const table = el(parent, "table");
   const head = el(table, "tr");
-  for (const name of ["Stat", "Base", "Race", "Class", "Total", ...(editable ? ["Spent", "Adjust"] : [])]) el(head, "th", name);
+  for (const name of ["Stat", "Base", "Race", "Class", "Total", ...(editable ? ["Spent", "Cost", "Adjust"] : [])]) el(head, "th", name);
   for (const row of rows) {
     const tr = el(table, "tr");
     for (const value of [row.name, row.base, row.race, row.cls, row.total]) el(tr, "td", value);
     if (!editable) continue;
     el(tr, "td", String(row.spent));
+    el(tr, "td", row.buyCost === null ? "-" : String(row.buyCost));
     const cell = el(tr, "td", undefined, "adjust");
     /* aria-disabled rather than disabled keeps the buttons focusable for the
-     * row keys below, so each handler checks the same condition itself. */
-    const canBuy = !row.atMaximum && pointsLeft > 0;
+     * row keys below, so each handler checks the same condition itself. The
+     * game says whether each buy and sell would succeed, and what it costs. */
+    const canBuy = row.canBuy;
     const sell = button(cell, "-", `sell-${row.index}`, () => { if (row.canSell) actions.act((s) => s.sell(row.index)); });
     sell.setAttribute("aria-label", `Refund a point from ${row.name}`);
+    if (row.sellRefund !== null) sell.title = `Refunds ${row.sellRefund} ${row.sellRefund === 1 ? "point" : "points"}.`;
     if (!row.canSell) sell.setAttribute("aria-disabled", "true");
     const buy = button(cell, "+", `buy-${row.index}`, () => { if (canBuy) actions.act((s) => s.buy(row.index)); });
     buy.setAttribute("aria-label", `Spend points on ${row.name}`);
-    /* Core's draft has no per-stat cost, so the hint gives what it has and
-     * a refused buy says why. */
-    buy.title = row.atMaximum ? "Base stat is at its maximum." : `Spends points. ${pointsLeft} remaining.`;
+    // birth_panel.h:84-85.
+    buy.title = row.atMaximum || row.buyCost === null ? "Base stat is at its maximum."
+      : `Costs ${row.buyCost} ${row.buyCost === 1 ? "point" : "points"}. ${pointsLeft} remaining.${canBuy ? "" : " Reduce another stat to free points."}`;
     if (!canBuy) buy.setAttribute("aria-disabled", "true");
     for (const [node, kind] of [[sell, "sell"], [buy, "buy"]] as const) {
       node.addEventListener("keydown", (event: KeyboardEvent) => {
@@ -296,9 +299,7 @@ function identityStep(parent: HTMLElement, wizard: BirthWizard, draft: BirthDraf
   history.setAttribute("aria-label", "Background");
   history.addEventListener("input", () => actions.act((s) => s.setHistory(history.value), false));
   const row = el(parent, "div", undefined, "row");
-  const generated = wizard.generatedHistory;
-  button(row, "Restore generated background", "restore-history", () => actions.act((s) => s.setHistory(generated), false),
-    !draft.historyEdited || generated === "" || generated === draft.history);
+  button(row, "Restore generated background", "restore-history", () => actions.act((s) => s.restoreHistory(), false), !draft.historyEdited);
   button(row, "New background", "new-history", () => actions.act((s) => s.regenerateHistory(), false), draft.race === null);
 }
 

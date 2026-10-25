@@ -21,6 +21,12 @@ An entry opens with one or more bracketed tags. `[Visible]` marks a change a pla
 - [Visible] [UI] **A death recap.** When your character dies, a recap shows what killed it, the last blows and healing it took, its final messages, and its depth, level, turns and latest milestones. With the graveyard on it is the first page of the post-mortem, and it names the autoplayer if one was playing. It has its own switch and starts off.
 - [Visible] [UI] **Pickup previews.** Items on the floor where you stand get the item panel's equipment comparison before you pick them up, along with how many of that kind you already carry. Hovering one shows the comparison in a single line, and so does the dungeon hover card for an item you can see. It has its own switch and starts off.
 - [Visible] [UI] **Map travel.** Clicking a square you remember on the level map sends your character there by the game's own travel, which stops when something disturbs you. It has its own switch and starts off.
+- [Visible] [UI] **Save and leave from the settings window.** Its Save game page saves and carries on, saves and returns to the main menu, or saves and quits, asking first before you leave. When the game will not save, the page says why.
+- [Visible] [UI] **Layout undo and redo, and saved layouts.** The settings window's Layout page undoes and redoes changes to the panel layout, the last 50 of them. You can save the current layout under a name, then restore, rename or delete it, up to 32 layouts.
+- [Visible] [UI] **The knowledge browser has a Known only switch.** It starts on and hides item types whose identity you have not learned.
+- [Visible] [UI] **The keybinding editor edits either keyset and names the game commands.** You can edit the original or the roguelike keymaps whichever one is in use. Choosing a key says which game command it runs now, a keymap's row says which command it hides, and a list shows every game command with its keys in both keysets. Cancel keymap now stops a key capture at once.
+- [Visible] [UI] **The settings window changes effect strengths.** The presets and sliders on its Effects page set the strengths the Mods screen shows, when you press Save.
+- [Visible] [UI] **The creation wizard shows point costs and restores the background.** Each stat shows what its next point costs, and its raise and cut buttons grey out when the game would refuse them. Restore generated background puts back the background the game wrote after you edit it.
 - [Visible] [UI] **Two theme packs.** Linoleum, dark and warm with cyan highlights, and Plain terminal, grey on black with square corners and no decorative marks, join the theme presets in the theme panel and the settings window. They have their own switch and start off.
 
 ### Changed
@@ -29,6 +35,7 @@ An entry opens with one or more bracketed tags. `[Visible]` marks a change a pla
 - [Visible] [UI] **Hovering on the map overview waits for the shared hover delay instead of two seconds.**
 - [Internal] [Modding-API] **AnybandUI reads the game through one file, src/host-adapter.ts.** Features used to call the engine core, the live state and the input snapshot themselves. Now they call functions in that file, each named for the mod API 2 call that will take its place, so porting to API 2 means rewriting one file. The real-map read behind the hidden-magic glow has its own function, separate from what the character knows, and a new test fails if any other file reaches into the host. Play is the same as before.
 - [Internal] [Modding-API] **The manifest is a schema 2 document, and src/host-adapter-api2.ts answers the adapter's reads through mod API 2.** The mod stays on API 1, and only a game that reads schema 2 manifests can load it. Nothing calls the API 2 adapter yet. Its tests check it against the API 1 adapter, and docs/API2-MIGRATION.md lists where every read goes and what Core still has to add. The item panels now build their own command objects instead of asking the engine for them, and send the same commands as before.
+- [Visible] [Compatibility] **AnybandUI now needs Neo Angband 1.22.0 or later.** It is built and tested against that version.
 
 ## 1.1.0 - 2026-10-01
 
