@@ -2134,6 +2134,20 @@ var FONT_FILES = [
   "Xanmono-Regular.ttf",
   "Zector.ttf"
 ];
+var EFFECT_FONT = "tengwar-annatar/tngan.ttf";
+async function loadFonts(ctx, files = [...FONT_FILES, EFFECT_FONT]) {
+  if (typeof FontFace === "undefined" || typeof document === "undefined" || !document.fonts) return [];
+  const loaded = [];
+  for (const file of files) {
+    const url = await ctx.assetUrl(`fonts/${file}`);
+    if (url === null) continue;
+    const face = new FontFace(file, `url(${JSON.stringify(url)})`);
+    await face.load();
+    document.fonts.add(face);
+    loaded.push(file);
+  }
+  return loaded;
+}
 
 // src/settings.ts
 var DEFAULT_SETTINGS = {
@@ -8973,13 +8987,13 @@ function createLayoutHistory(seam, limit = HISTORY_LIMIT) {
     if (target === void 0) return false;
     const previous = last;
     restoring = target;
-    let ok = false;
+    let ok2 = false;
     try {
-      ok = seam.setLayout(target);
+      ok2 = seam.setLayout(target);
     } catch {
-      ok = false;
+      ok2 = false;
     }
-    if (!ok) {
+    if (!ok2) {
       restoring = null;
       notify();
       return false;
@@ -9080,6 +9094,1253 @@ function createSavedLayouts(seam, prefs) {
   };
 }
 
+// src/neo-manager/model.ts
+var ledgerText = {
+  mods: "Mods",
+  installed: "Installed",
+  browse: "Browse",
+  lists: "Mod lists",
+  settings: "Settings",
+  look: "Look",
+  on: "ON",
+  off: "OFF",
+  details: "Details",
+  close: "Close",
+  about: "About",
+  all: "All",
+  updates: "Updates ready",
+  update: "Update",
+  updateAll: "Update all",
+  review: "Review",
+  install: "Install",
+  remove: "Remove",
+  rollback: "Roll back",
+  permissions: "Permissions",
+  allow: "Allow these",
+  cancel: "Not now",
+  required: "required",
+  optional: "optional",
+  noPermissions: "No new permissions.",
+  unknownPermissions: "Review permissions with Core.",
+  pending: "Waiting for confirmation in the game.",
+  busy: "Working...",
+  unavailable: "The mod manager is unavailable.",
+  noMatches: "No matches.",
+  searchMods: "Search installed mods",
+  searchBrowse: "Search mods",
+  searchSettings: "Search settings",
+  show: "Show",
+  turnOn: "Turn on",
+  turnOff: "Turn off",
+  version: "Version",
+  can: "Can",
+  updateReady: "Update ready",
+  firstParty: "First-party: made by the Neo Angband team.",
+  reviewed: "Reviewed: checked by a person before listing.",
+  listed: "Listed: not reviewed.",
+  sideloaded: "Unreviewed: loaded from this device. Nobody has checked it.",
+  unknownTrust: "Trust is unknown.",
+  permissionDetails: "Permission details are available in the game.",
+  noPermissionsRequested: "No permissions requested.",
+  notAllowed: "Not allowed",
+  undecided: "Not decided",
+  updatesRule: "Applied between games. Each old version stays for rollback.",
+  newPermissions: "New permissions. Needs your OK.",
+  rowHint: "Hover, focus, or long-press a name for a card.",
+  keys: "Up/Down move | Enter open | Space on or off | / search | ? help | Esc back | Gamepad: A open, B back, Y details",
+  settingsKeys: "Up/Down move | Enter open or close a group | / search | ? help | Esc back | Gamepad: A open, B back, Y details",
+  settingsHint: "A search opens any group that holds a match. Every setting is in one JSON file you can export.",
+  export: "Export settings",
+  import: "Import settings",
+  chooseFile: "Choose settings file",
+  backup: "Backup",
+  json: "Settings JSON",
+  invalidSettings: "The settings JSON is invalid.",
+  saved: "Settings saved.",
+  lookTitle: "Choose your look",
+  vanilla: "Vanilla",
+  neoAngband: "Neo Angband",
+  keepVanilla: "Keep Vanilla",
+  chooseNeoAngband: "Choose Neo Angband",
+  backVanilla: "Back to Vanilla",
+  lookHint: "Both looks play the same game with the same mods and saves. Switch any time from the title screen.",
+  vanillaHint: "The classic Angband look. Nothing to download. Mods managed on classic screens.",
+  neoAngbandHint: "The same game in windows and menus that work with keyboard, gamepad, and touch. Installs and turns on AnybandUI.",
+  lookSettings: "Tile art, high contrast, and screen reader labels are in Settings.",
+  lookPending: "Neo Angband is waiting for AnybandUI to download. Back to Vanilla restores your earlier settings.",
+  safeMode: "Safe mode",
+  startingOff: "Starting with every mod off",
+  safeHint: "The game did not finish starting twice in a row. Saves are untouched. Mods stay off until you turn them on.",
+  openManager: "Open mod manager",
+  startOff: "Start with mods off",
+  restore: "Restore my mods",
+  restoreHint: "One confirmation installs them and anything they depend on.",
+  removed: "Removed for harm",
+  removedHint: "This version was removed from the registry because it caused harm. Your saves are safe. The game will not load this version.",
+  continue: "Continue",
+  ready: "Ready",
+  removedStatus: "Removed",
+  unavailableVersion: "Unavailable",
+  switchedOff: "was switched off",
+  needs: "This save needs",
+  downloads: "Downloads",
+  consentHint: "Choose what it may do. Change this any time in Mod settings."
+};
+function displayText(text) {
+  return text.replace(/\bNeo\b(?! Angband)/g, "Neo Angband");
+}
+var initialView = { tab: "installed", selected: 0, expanded: null, query: "", filter: "all" };
+function reduceManager(view, action) {
+  switch (action.type) {
+    case "tab":
+      return { ...initialView, tab: action.tab };
+    case "move":
+      return { ...view, selected: Math.max(0, Math.min(action.length - 1, view.selected + action.delta)) };
+    case "expand":
+      return { ...view, expanded: view.expanded === action.id ? null : action.id };
+    case "search":
+      return { ...view, query: action.query, selected: 0 };
+    case "filter":
+      return { ...view, filter: action.filter, selected: 0 };
+    case "back":
+      return { ...view, expanded: null };
+  }
+}
+function updateRows(state, permissions) {
+  return state.updates.filter((update) => update.standing === "behind" && update.newest !== null).map((update) => {
+    const asks = permissions?.(update.id) ?? null;
+    return {
+      ...update,
+      name: displayText(update.name ?? state.installed.find((mod) => mod.id === update.id)?.name ?? update.id),
+      review: asks === null || asks.length > 0,
+      note: asks === null ? ledgerText.unknownPermissions : asks.length ? ledgerText.newPermissions : ledgerText.noPermissions
+    };
+  });
+}
+function managerRows(state, view, updatePermissions, permissions) {
+  const updates = updateRows(state, updatePermissions);
+  return state.installed.filter((mod) => `${mod.name} ${mod.id}`.toLowerCase().includes(view.query.trim().toLowerCase())).filter((mod) => view.filter === "all" || view.filter === "on" && mod.enabled || view.filter === "off" && !mod.enabled || view.filter === "updates" && updates.some((update) => update.id === mod.id)).map((mod, index) => {
+    const update = updates.find((entry2) => entry2.id === mod.id);
+    const trust = mod.tier?.trust;
+    const asks = permissions?.(mod.id).filter((ask) => ask.modId === mod.id);
+    const permissionText = asks ? asks.length ? asks.map((ask) => `${mod.consent.granted.includes(ask.capability) ? ledgerText.can : mod.consent.refused.includes(ask.capability) ? ledgerText.notAllowed : ledgerText.undecided}: ${displayText(ask.consentText)}.`).join(" ") : ledgerText.noPermissionsRequested : ledgerText.permissionDetails;
+    const description = [
+      displayText(mod.name),
+      `v${mod.version}`,
+      displayText(mod.catalogMod.manifest.description ?? ""),
+      trust === "first-party" ? ledgerText.firstParty : trust === "reviewed" ? ledgerText.reviewed : trust === "listed" ? ledgerText.listed : trust === "sideloaded" ? ledgerText.sideloaded : ledgerText.unknownTrust,
+      permissionText,
+      update ? `${ledgerText.updateReady}: ${update.newest}. ${update.note}` : ""
+    ].filter(Boolean).join(" ");
+    const letter = index < 26 ? String.fromCharCode(97 + index) : String(index + 1);
+    return {
+      ...mod,
+      name: displayText(mod.name),
+      letter,
+      label: `${letter}) ${displayText(mod.name)}`,
+      description,
+      selected: index === view.selected,
+      expanded: view.expanded === mod.id,
+      stateText: mod.enabled ? ledgerText.on : ledgerText.off,
+      update
+    };
+  });
+}
+function consentDecision(asks, granted) {
+  return {
+    granted: asks.filter((ask) => !ask.canRunWithout || granted.includes(ask.capability)).map((ask) => ask.capability),
+    refused: asks.filter((ask) => ask.canRunWithout && !granted.includes(ask.capability)).map((ask) => ask.capability)
+  };
+}
+function settingsGroups(definitions, values, query) {
+  const needle = query.trim().toLowerCase();
+  return [...new Set(definitions.map((definition2) => definition2.group))].map((name) => {
+    const members = definitions.filter((definition2) => definition2.group === name);
+    const matches3 = members.filter((definition2) => `${name} ${definition2.title} ${definition2.description}`.toLowerCase().includes(needle));
+    return {
+      name,
+      members: needle ? matches3 : members,
+      open: needle.length > 0 && matches3.length > 0,
+      summary: members.map((definition2) => {
+        const value2 = values[definition2.id] ?? definition2.default;
+        return `${definition2.title}: ${typeof value2 === "boolean" ? value2 ? ledgerText.on : ledgerText.off : definition2.choices?.find((choice) => choice.value === value2)?.label ?? value2}${definition2.unit ?? ""}`;
+      }).join(" | ")
+    };
+  }).filter((group) => group.members.length > 0);
+}
+function validSetting(definition2, value2) {
+  if (definition2.control === "switch") return typeof value2 === "boolean";
+  if (definition2.control !== "range") return typeof value2 === "string" && definition2.choices?.some((choice) => choice.value === value2) === true;
+  return typeof value2 === "number" && Number.isFinite(value2) && value2 >= (definition2.min ?? 0) && value2 <= (definition2.max ?? 100) && Math.abs((value2 - (definition2.min ?? 0)) / (definition2.step ?? 1) - Math.round((value2 - (definition2.min ?? 0)) / (definition2.step ?? 1))) < 1e-8;
+}
+function exportSettings(host) {
+  const settings = Object.fromEntries(host.settings.definitions.map((definition2) => [definition2.id, host.settings.get()[definition2.id] ?? definition2.default]));
+  return JSON.stringify({ format: "neo-angband/anybandui/manager-settings", schemaVersion: 1, look: host.look.read().desired === "Neo" ? ledgerText.neoAngband : ledgerText.vanilla, settings }, null, 2);
+}
+function importSettings(text, definitions) {
+  try {
+    const raw = JSON.parse(text);
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+    const record2 = raw;
+    if (record2["format"] !== "neo-angband/anybandui/manager-settings" || record2["schemaVersion"] !== 1 || !["Vanilla", "Neo Angband"].includes(String(record2["look"]))) return null;
+    const settings = record2["settings"];
+    if (!settings || typeof settings !== "object" || Array.isArray(settings) || Object.keys(settings).length !== definitions.length) return null;
+    if (!definitions.every((definition2) => Object.hasOwn(settings, definition2.id) && validSetting(definition2, settings[definition2.id]))) return null;
+    return raw;
+  } catch {
+    return null;
+  }
+}
+function lookView(host) {
+  const look = host.look.read();
+  return { active: look.active === "Neo" ? ledgerText.neoAngband : ledgerText.vanilla, pending: look.pending !== null, text: look.pending ? ledgerText.lookPending : ledgerText.lookHint };
+}
+function recoveryView(state, host) {
+  const recovery = host.recovery?.read();
+  return state.safeMode ? { kind: "safe", title: ledgerText.safeMode, text: ledgerText.safeHint } : recovery?.removed.length ? { kind: "removed", title: ledgerText.removed, text: ledgerText.removedHint, mods: recovery.removed } : recovery?.restore ? { kind: "restore", title: ledgerText.restore, text: ledgerText.restoreHint, ...recovery.restore } : null;
+}
+function keyAction(key) {
+  return { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right", Enter: "a", Escape: "b", "?": "y", " ": "toggle", "/": "search", i: "installed", b: "browse", m: "lists", s: "settings" }[key] ?? null;
+}
+function createCardTiming(clock, open) {
+  let timer2;
+  let pressed = null;
+  const cancel = () => {
+    if (timer2 !== void 0) clock.clearTimeout(timer2);
+    timer2 = void 0;
+  };
+  return {
+    hover() {
+      cancel();
+      timer2 = clock.setTimeout(() => {
+        timer2 = void 0;
+        open(false);
+      }, 250);
+    },
+    leave: cancel,
+    press() {
+      cancel();
+      pressed = clock.now();
+    },
+    release() {
+      const held = pressed !== null && clock.now() - pressed >= 450;
+      pressed = null;
+      if (held) open(true);
+      return held;
+    },
+    cancel() {
+      pressed = null;
+      cancel();
+    }
+  };
+}
+
+// src/neo-manager/styles.ts
+var LEDGER_FONTS = ["IBMPlexMono-Regular.ttf", "IMFellEnglishSC-Regular.ttf"];
+var ledgerStyles = `
+.na-manager {
+  --ledger-bg:#0b0b0b; --ledger-panel:#101010; --ledger-text:#cfcfcf; --ledger-muted:#9a9a9a;
+  --ledger-border:#6a6a6a; --ledger-rule:#3a3a3a; --ledger-accent:#d4a24c; --ledger-on:#6fcf6f;
+  --ledger-update:#e8d24a; --ledger-harm:#ee6a5a; --ledger-focus:#fff; --ledger-size:15px;
+  position:absolute; inset:0; z-index:30; display:flex; flex-direction:column; overflow:hidden;
+  background:var(--ledger-bg); color:var(--ledger-text); font:var(--ledger-size)/1.5 "IBMPlexMono-Regular.ttf","IBM Plex Mono",monospace;
+  container-type:inline-size;
+}
+.na-manager[hidden], .na-manager [hidden] { display:none !important; }
+.na-manager[data-contrast="high"] { --ledger-bg:#000; --ledger-panel:#000; --ledger-text:#fff; --ledger-muted:#ddd; --ledger-border:#fff; --ledger-rule:#aaa; --ledger-accent:#ffce70; }
+.na-manager[data-theme="light"] { --ledger-bg:#f3eedf; --ledger-panel:#fffaf0; --ledger-text:#171717; --ledger-muted:#454545; --ledger-border:#555; --ledger-rule:#888; --ledger-accent:#754600; --ledger-on:#176025; --ledger-update:#704400; --ledger-harm:#a52215; }
+@media (prefers-color-scheme:light) { .na-manager[data-theme="system"][data-contrast="normal"] { --ledger-bg:#f3eedf; --ledger-panel:#fffaf0; --ledger-text:#171717; --ledger-muted:#454545; --ledger-border:#555; --ledger-rule:#888; --ledger-accent:#754600; --ledger-on:#176025; --ledger-update:#704400; --ledger-harm:#a52215; } }
+.na-manager[data-colorblind="red-green"] { --ledger-on:#6aa8ff; --ledger-harm:#ffb65c; }
+.na-manager[data-colorblind="blue-yellow"] { --ledger-on:#8edf9f; --ledger-update:#f7a8d0; }
+.na-manager * { box-sizing:border-box; border-radius:0; }
+.na-manager button,.na-manager input,.na-manager select,.na-manager textarea { font:inherit; color:inherit; min-height:44px; min-width:44px; }
+.na-manager button,.na-manager select,.na-manager summary { cursor:pointer; }
+.na-manager button { padding:0 16px; background:var(--ledger-bg); border:1px solid var(--ledger-border); }
+.na-manager input,.na-manager select,.na-manager textarea { background:var(--ledger-bg); border:1px solid var(--ledger-border); padding:0 10px; max-width:100%; }
+.na-manager :focus-visible { outline:2px solid var(--ledger-focus); outline-offset:2px; box-shadow:0 0 0 5px #000; }
+.na-manager h1,.na-manager h2 { font-family:"IMFellEnglishSC-Regular.ttf","IM Fell English SC",serif; font-weight:400; letter-spacing:.08em; color:var(--ledger-accent); margin:0; }
+.na-manager h1 { font-size:32px; } .na-manager h2 { font-size:22px; }
+.na-manager header,.na-manager footer { display:flex; flex-wrap:wrap; align-items:center; gap:10px 24px; padding:14px 36px; border-bottom:3px double var(--ledger-border); }
+.na-manager footer { border-bottom:0; border-top:3px double var(--ledger-border); font-size:14px; }
+.na-manager nav { display:flex; gap:4px; flex-wrap:wrap; }
+.na-manager nav button { border:0; color:var(--ledger-muted); }
+.na-manager nav [aria-current="page"],.na-manager [aria-pressed="true"] { background:var(--ledger-text); color:var(--ledger-bg); }
+.na-manager main { width:100%; max-width:1112px; min-height:0; overflow:auto; padding:22px 36px; margin:auto; display:flex; flex:1; flex-direction:column; gap:24px; }
+.na-manager .frame { position:relative; border:3px double var(--ledger-border); background:var(--ledger-panel); padding:26px 18px 18px; margin:12px 0; }
+.na-manager .frame > h2 { position:absolute; top:-18px; left:18px; padding:0 10px; background:var(--ledger-panel); }
+.na-manager .tools,.na-manager .actions { display:flex; align-items:center; flex-wrap:wrap; gap:10px; }
+.na-manager .tools { padding-bottom:14px; } .na-manager .tools input { flex:1; width:180px; }
+.na-manager .line { display:flex; align-items:center; gap:14px; min-height:48px; padding:0 12px; border-top:1px dashed var(--ledger-rule); white-space:nowrap; }
+.na-manager .name { flex:1; min-width:0; text-align:left; font-weight:600; padding:0; border:0; background:transparent; overflow:hidden; text-overflow:ellipsis; }
+.na-manager .selected { background:var(--ledger-accent); color:var(--ledger-bg); }
+.na-manager .selected .update { color:inherit; }
+.na-manager .updates-banner { display:flex; align-items:center; flex-wrap:wrap; gap:10px 18px; padding:10px 16px; border:1px solid var(--ledger-accent); }
+.na-manager .updates-banner > span { flex:1 1 260px; }
+.na-manager [role="switch"] { min-width:64px; padding:0 8px; font-weight:600; color:var(--ledger-muted); }
+.na-manager [role="switch"][aria-checked="true"] { border-color:var(--ledger-on); color:var(--ledger-on); background:var(--ledger-bg); }
+.na-manager .question { width:44px; padding:0; color:var(--ledger-accent); }
+.na-manager .expanded { border-top:1px dashed var(--ledger-border); padding:14px 18px 20px 40px; }
+.na-manager .muted { color:var(--ledger-muted); } .na-manager .update { color:var(--ledger-update); } .na-manager .harm { color:var(--ledger-harm); }
+.na-manager .primary { background:var(--ledger-accent); color:var(--ledger-bg); border-color:var(--ledger-accent); font-weight:600; }
+.na-manager na-detail-card { display:block; padding:12px 14px; margin:8px 0; background:var(--ledger-bg); border:1px solid var(--ledger-accent); box-shadow:4px 4px 0 #000; font-size:14px; line-height:1.45; overflow-wrap:anywhere; }
+.na-manager na-detail-card .actions { padding-top:10px; }
+.na-manager na-settings-page,.na-manager na-look-picker,.na-manager na-manager-notices { display:block; }
+.na-manager details { border:1px solid var(--ledger-border); background:var(--ledger-panel); margin:14px 0; }
+.na-manager summary { display:flex; align-items:center; gap:10px; min-height:52px; padding:10px 18px; font-weight:600; list-style:none; }
+.na-manager summary::-webkit-details-marker { display:none; }
+.na-manager summary::before { content:">"; color:var(--ledger-accent); }
+.na-manager details[open] > summary::before { content:"v"; }
+.na-manager summary > span:first-child { flex:none; }
+.na-manager summary .muted { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:400; font-size:13px; }
+.na-manager .setting { display:flex; flex-wrap:wrap; align-items:center; gap:8px 14px; min-height:56px; padding:6px 20px; border-top:1px dashed var(--ledger-rule); }
+.na-manager .setting > label { flex:1; } .na-manager .segments { display:flex; margin-left:auto; }
+.na-manager input[type="range"] { width:180px; accent-color:var(--ledger-accent); }
+.na-manager textarea { width:100%; min-height:130px; }
+.na-manager .choices { display:flex; flex-wrap:wrap; gap:24px; } .na-manager .choices section { flex:1 1 280px; }
+.na-manager pre { padding:12px; background:var(--ledger-bg); border:1px solid var(--ledger-rule); font:inherit; }
+.na-manager .modal { position:fixed; inset:0; z-index:40; background:rgba(0,0,0,.72); display:flex; padding:32px; overflow:auto; }
+.na-manager na-consent-dialog { display:block; width:100%; max-width:700px; margin:auto; }
+.na-manager .permission { display:flex; align-items:center; gap:12px; min-height:54px; border-top:1px dashed var(--ledger-rule); }
+.na-manager .permission label { display:flex; flex:1; align-items:center; gap:14px; min-height:54px; }
+.na-manager input[type="checkbox"] { width:44px; height:44px; accent-color:var(--ledger-accent); }
+.na-manager[data-rows="tight"] .line { min-height:44px; }
+.na-manager[data-motion="reduce"] * { animation:none !important; transition:none !important; scroll-behavior:auto !important; }
+@media (prefers-reduced-motion:reduce) { .na-manager * { animation:none !important; transition:none !important; scroll-behavior:auto !important; } }
+@container (width < 600px) {
+  .na-manager header { padding:10px 14px; } .na-manager main { padding:12px 14px; margin:0; padding-bottom:76px; }
+  .na-manager nav { position:absolute; bottom:0; left:0; right:0; z-index:20; background:var(--ledger-bg); border-top:3px double var(--ledger-border); gap:0; flex-wrap:nowrap; }
+  .na-manager nav button { flex:1; min-height:60px; padding:0 6px; font-size:13px; }
+  .na-manager footer { display:none; } .na-manager .line { gap:6px; padding:0 6px; }
+  .na-manager .version { display:none; } .na-manager .frame { padding:24px 8px 8px; }
+  .na-manager .setting { padding:6px 12px; gap:6px; } .na-manager .segments button { padding:0 8px; font-size:13px; }
+  .na-manager .expanded { padding:10px 12px; } .na-manager .modal { padding:14px; }
+}
+`;
+
+// src/neo-manager/components.ts
+function registerNeoManagerElements(registry, base) {
+  for (const name of ["na-mod-manager", "na-detail-card", "na-consent-dialog", "na-settings-page", "na-look-picker", "na-manager-notices"]) {
+    if (!registry.get(name)) registry.define(name, class extends base {
+    });
+  }
+}
+var mountId = 0;
+function mountNeoManager(host, target, onClose) {
+  const window2 = target.ownerDocument.defaultView;
+  if (window2?.customElements) registerNeoManagerElements(window2.customElements, window2.HTMLElement);
+  const root = target.ownerDocument.createElement("na-mod-manager");
+  root.className = "na-manager";
+  root.hidden = true;
+  root.setAttribute("role", "dialog");
+  root.setAttribute("aria-label", ledgerText.mods);
+  target.appendChild(root);
+  const prefix = `na-manager-${++mountId}`;
+  let view = initialView;
+  let state = null;
+  let disposed = false;
+  let busy = false;
+  let message = "";
+  let picker = false;
+  let showUpdates = false;
+  let consentId = null;
+  let consentGranted = [];
+  let subscription = null;
+  let backupText = "";
+  let opener = null;
+  let consentOpener = "";
+  let closeCard = null;
+  let cardNumber = 0;
+  let cleanupRender = [];
+  let search = null;
+  let navigation = [];
+  const cardOpeners = /* @__PURE__ */ new Map();
+  const openedGroups = /* @__PURE__ */ new Set();
+  const active = () => root.getRootNode().activeElement;
+  const focusables = () => Array.from(root.querySelectorAll("[data-focus]"));
+  const focus = (key) => {
+    focusables().find((node2) => node2.dataset["focus"] === key)?.focus();
+  };
+  const setting = (id) => host.settings.get()[id] ?? host.settings.definitions.find((definition2) => definition2.id === id)?.default;
+  const variants = () => {
+    root.dataset["contrast"] = setting("highContrast") === true ? "high" : "normal";
+    root.dataset["motion"] = host.prefersReducedMotion() || setting("motion") === "reduce" ? "reduce" : "device";
+    root.dataset["theme"] = String(setting("theme") ?? "system");
+    root.dataset["colorblind"] = String(setting("colorblind") ?? "off");
+    root.dataset["rows"] = String(setting("listRows") ?? "roomy");
+    const size = setting("textSize");
+    root.style.fontSize = `${15 * (typeof size === "number" ? size : 100) / 100}px`;
+  };
+  const safeMessage = (value2) => {
+    message = displayText(value2);
+  };
+  const takeState = (next) => {
+    if (disposed || state && next.revision < state.revision) return;
+    state = next;
+    if (next.pendingConfirmation) consentId = null;
+    render();
+  };
+  const refresh = async () => {
+    try {
+      const result = await host.mods.snapshot();
+      if (disposed) return;
+      if (result.ok) takeState(result.value);
+      else {
+        safeMessage(result.message);
+        render();
+      }
+    } catch {
+      if (!disposed) {
+        message = ledgerText.unavailable;
+        render();
+      }
+    }
+  };
+  const run2 = async (operation) => {
+    if (disposed || busy || state?.pendingConfirmation) return false;
+    busy = true;
+    message = "";
+    render();
+    let ok2 = false;
+    try {
+      const result = await operation();
+      ok2 = result.ok;
+      if (!result.ok) safeMessage(result.message);
+    } catch {
+      message = ledgerText.unavailable;
+    } finally {
+      busy = false;
+      if (!disposed) await refresh();
+    }
+    return ok2;
+  };
+  const command = (parent, label2, key, operation) => {
+    const node2 = button2(parent, label2, key, () => {
+      void run2(operation);
+    });
+    node2.disabled = busy || state?.pendingConfirmation !== null && state?.pendingConfirmation !== void 0;
+    return node2;
+  };
+  const part = (parent, name) => {
+    const node2 = parent.ownerDocument.createElement(name);
+    parent.appendChild(node2);
+    return node2;
+  };
+  const frame = (parent, title) => {
+    const node2 = el6(parent, "section");
+    node2.className = "frame";
+    el6(node2, "h2", title);
+    return node2;
+  };
+  const card = (parent, anchor, description, details) => {
+    const node2 = part(parent, "na-detail-card");
+    const id = `${prefix}-card-${++cardNumber}`;
+    node2.id = id;
+    node2.hidden = true;
+    node2.setAttribute("role", "tooltip");
+    const body = el6(node2, "div", description);
+    body.id = `${id}-text`;
+    anchor.setAttribute("aria-describedby", body.id);
+    const actions = el6(node2, "div");
+    actions.className = "actions";
+    actions.hidden = true;
+    const hide = () => {
+      node2.hidden = true;
+      if (closeCard === hide) closeCard = null;
+    };
+    const show = (touch) => {
+      closeCard?.();
+      node2.hidden = false;
+      actions.hidden = !touch;
+      closeCard = hide;
+      if (touch && setting("haptics") === true) host.haptics.tick();
+    };
+    button2(actions, ledgerText.details, `${id}-details`, () => {
+      hide();
+      details();
+    });
+    button2(actions, ledgerText.close, `${id}-close`, () => {
+      hide();
+      anchor.focus();
+    });
+    const timing = createCardTiming(host.clock, show);
+    cleanupRender.push(timing.cancel);
+    let suppressClick = false;
+    let touchOrigin = null;
+    let leaveTimer;
+    const cancelLeave = () => {
+      host.clock.clearTimeout(leaveTimer);
+    };
+    const leave = () => {
+      timing.leave();
+      cancelLeave();
+      leaveTimer = host.clock.setTimeout(hide, 100);
+    };
+    cleanupRender.push(() => host.clock.clearTimeout(leaveTimer));
+    anchor.addEventListener("pointerenter", (event) => {
+      if (event.pointerType !== "touch" && setting("hoverCards") !== false) timing.hover();
+    });
+    anchor.addEventListener("focus", () => {
+      if (setting("hoverCards") !== false) timing.hover();
+    });
+    parent.addEventListener("pointerleave", leave);
+    node2.addEventListener("pointerenter", cancelLeave);
+    parent.addEventListener("focusout", (event) => {
+      if (!event.relatedTarget || !parent.contains(event.relatedTarget)) leave();
+    });
+    anchor.addEventListener("pointerdown", (event) => {
+      if (event.pointerType === "touch") {
+        touchOrigin = { x: event.clientX, y: event.clientY };
+        timing.press();
+      }
+    });
+    anchor.addEventListener("pointerup", (event) => {
+      if (event.pointerType === "touch") suppressClick = timing.release();
+    });
+    anchor.addEventListener("pointercancel", () => {
+      touchOrigin = null;
+      timing.cancel();
+    });
+    anchor.addEventListener("pointermove", (event) => {
+      if (event.pointerType === "touch" && touchOrigin && Math.hypot(event.clientX - touchOrigin.x, event.clientY - touchOrigin.y) > 10) {
+        touchOrigin = null;
+        timing.cancel();
+      }
+    });
+    anchor.addEventListener("contextmenu", (event) => {
+      event.preventDefault();
+    });
+    anchor.addEventListener("click", (event) => {
+      if (suppressClick) {
+        suppressClick = false;
+        swallow(event);
+        return;
+      }
+      details();
+    });
+    const key = anchor.dataset["focus"] ?? id;
+    cardOpeners.set(key, () => show(false));
+    const question = button2(parent, "?", `${key}-help`, () => show(false));
+    question.className = "question";
+    question.setAttribute("aria-label", `${ledgerText.about}: ${anchor.getAttribute("aria-label") ?? anchor.textContent}`);
+    question.setAttribute("aria-describedby", body.id);
+    question.addEventListener("focus", timing.hover);
+    cardOpeners.set(`${key}-help`, () => show(false));
+  };
+  const renderRows = (main) => {
+    if (!state) return;
+    const rows = managerRows(state, view, host.updatePermissions, host.permissions);
+    const box = frame(main, `${ledgerText.installed} (${state.installed.length})`);
+    renderSearch(box, ledgerText.searchMods);
+    const tools = el6(box, "div");
+    tools.className = "tools";
+    el6(tools, "span", ledgerText.show);
+    const filter = el6(tools, "select");
+    filter.dataset["focus"] = "filter";
+    filter.setAttribute("aria-label", ledgerText.show);
+    for (const [value2, label2] of [["all", ledgerText.all], ["on", ledgerText.on], ["off", ledgerText.off], ["updates", ledgerText.updates]]) {
+      const option = el6(filter, "option", label2);
+      option.value = value2;
+    }
+    filter.value = view.filter;
+    filter.addEventListener("change", () => {
+      view = reduceManager(view, { type: "filter", filter: filter.value });
+      render();
+    });
+    const list = el6(box, "div");
+    list.setAttribute("role", "list");
+    if (!rows.length) el6(list, "p", ledgerText.noMatches);
+    rows.forEach((row, index) => {
+      const item = el6(list, "div");
+      item.setAttribute("role", "listitem");
+      item.setAttribute("aria-label", row.label);
+      const line = el6(item, "div");
+      line.className = `line${row.selected && setting("rowHighlight") !== false ? " selected" : ""}`;
+      el6(line, "span", `${row.letter})`).setAttribute("aria-hidden", "true");
+      const name = button2(line, row.name, `mod:${row.id}`, () => {
+      });
+      name.className = "name";
+      name.setAttribute("aria-label", row.label);
+      name.setAttribute("aria-expanded", String(row.expanded));
+      name.tabIndex = row.selected ? 0 : -1;
+      name.addEventListener("focus", () => {
+        view = { ...view, selected: index };
+        for (const node2 of navigation) node2.tabIndex = node2 === name ? 0 : -1;
+        for (const child of Array.from(list.children)) {
+          const childLine = child.firstElementChild;
+          if (childLine) childLine.classList.toggle("selected", child === item && setting("rowHighlight") !== false);
+        }
+      });
+      navigation.push(name);
+      el6(line, "span", `v${row.version}`).className = "version";
+      if (row.update) el6(line, "span", `+ ${row.update.newest}`).className = "update";
+      const toggle = command(line, row.stateText, `toggle:${row.id}`, () => row.enabled ? host.mods.disable(row.id) : host.mods.enable(row.id));
+      toggle.setAttribute("role", "switch");
+      toggle.setAttribute("aria-checked", String(row.enabled));
+      toggle.setAttribute("aria-label", `${row.enabled ? ledgerText.turnOff : ledgerText.turnOn} ${row.name}`);
+      card(item, name, row.description, () => {
+        view = reduceManager(view, { type: "expand", id: row.id });
+        render(`mod:${row.id}`);
+      });
+      toggle.setAttribute("aria-describedby", name.getAttribute("aria-describedby"));
+      cardOpeners.set(`toggle:${row.id}`, cardOpeners.get(`mod:${row.id}`));
+      const question = item.lastElementChild;
+      if (question) line.appendChild(question);
+      if (row.expanded) {
+        const detail = el6(item, "div");
+        detail.className = "expanded";
+        el6(detail, "p", displayText(row.catalogMod.manifest.description ?? ""));
+        const actions = el6(detail, "div");
+        actions.className = "actions";
+        if (row.update) command(actions, row.update.review ? ledgerText.review : ledgerText.update, `update:${row.id}`, () => host.mods.update(row.id));
+        command(actions, row.enabled ? ledgerText.turnOff : ledgerText.turnOn, `enable:${row.id}`, () => row.enabled ? host.mods.disable(row.id) : host.mods.enable(row.id));
+        command(actions, ledgerText.rollback, `rollback:${row.id}`, () => host.mods.rollback(row.id));
+        command(actions, ledgerText.remove, `remove:${row.id}`, () => host.mods.remove(row.id));
+        const permissions = button2(actions, ledgerText.permissions, `permissions:${row.id}`, () => {
+          consentId = row.id;
+          consentGranted = row.consent.granted;
+          consentOpener = `permissions:${row.id}`;
+          render("consent-cancel");
+        });
+        permissions.disabled = !host.permissions || busy || state?.pendingConfirmation !== null;
+      }
+    });
+    el6(main, "p", ledgerText.rowHint).className = "muted";
+  };
+  const renderSearch = (parent, label2) => {
+    const tools = el6(parent, "div");
+    tools.className = "tools";
+    search = el6(tools, "input");
+    const input = search;
+    input.type = "search";
+    input.placeholder = label2;
+    input.setAttribute("aria-label", label2);
+    input.dataset["focus"] = "search";
+    input.value = view.query;
+    input.addEventListener("input", () => {
+      view = reduceManager(view, { type: "search", query: input.value });
+      render("search");
+    });
+  };
+  const renderUpdates = (main) => {
+    if (!state) return;
+    const updates = updateRows(state, host.updatePermissions);
+    if (!updates.length) return;
+    if (!showUpdates) {
+      const banner = el6(main, "div");
+      banner.className = "updates-banner";
+      banner.setAttribute("role", "status");
+      el6(banner, "span", `${updates.length} ${ledgerText.updates.toLowerCase()}. ${ledgerText.updatesRule}`);
+      command(banner, ledgerText.updateAll, "update-all", () => host.mods.updateAll()).className = "primary";
+      button2(banner, ledgerText.review, "review-updates", () => {
+        showUpdates = true;
+        render("updates-close");
+      });
+      return;
+    }
+    const box = frame(main, `${ledgerText.updates} (${updates.length})`);
+    el6(box, "p", ledgerText.updatesRule).className = "muted";
+    command(box, ledgerText.updateAll, "update-all", () => host.mods.updateAll()).className = "primary";
+    button2(box, ledgerText.close, "updates-close", () => {
+      showUpdates = false;
+      render("review-updates");
+    });
+    const list = el6(box, "div");
+    list.setAttribute("role", "list");
+    for (const update of updates) {
+      const row = el6(list, "div");
+      row.setAttribute("role", "listitem");
+      const line = el6(row, "div");
+      line.className = "line";
+      const name = button2(line, update.name, `update-name:${update.id}`, () => {
+      });
+      name.className = "name";
+      el6(line, "span", `${update.installed} to ${update.newest}`).className = "version";
+      const review = () => {
+        void run2(() => host.mods.update(update.id));
+      };
+      command(line, update.review ? ledgerText.review : ledgerText.update, `apply-update:${update.id}`, () => host.mods.update(update.id));
+      card(row, name, `${update.name}. ${update.installed} to ${update.newest}. ${update.note}`, review);
+      if (row.lastElementChild) line.appendChild(row.lastElementChild);
+    }
+  };
+  const renderBrowse = (main) => {
+    if (!state) return;
+    const box = frame(main, ledgerText.browse);
+    renderSearch(box, ledgerText.searchBrowse);
+    const list = el6(box, "div");
+    list.setAttribute("role", "list");
+    const entries = [...state.catalog.curated, ...state.catalog.community, ...state.catalog.sideloads];
+    const seen = /* @__PURE__ */ new Set();
+    for (const entry2 of entries) {
+      if (!entry2.ok) {
+        el6(box, "p", displayText(entry2.problem)).className = "harm";
+        continue;
+      }
+      const mod = entry2.mod;
+      if (seen.has(mod.id) || !mod.name.toLowerCase().includes(view.query.toLowerCase())) continue;
+      seen.add(mod.id);
+      const item = el6(list, "div");
+      item.setAttribute("role", "listitem");
+      const line = el6(item, "div");
+      line.className = "line";
+      const name = button2(line, displayText(mod.name), `browse:${mod.id}`, () => {
+      });
+      name.className = "name";
+      const install = async () => {
+        const plan = await host.mods.planInstall([entry2.ref]);
+        if (!plan.ok) return plan;
+        return host.mods.applyPlan(plan.value.id);
+      };
+      const installButton = command(line, ledgerText.install, `install:${mod.id}`, install);
+      installButton.disabled ||= !mod.compatible;
+      card(item, name, displayText(`${mod.name} v${mod.version}. ${mod.description ?? ""} ${mod.engineNote ?? ""}`), () => {
+        view = reduceManager(view, { type: "expand", id: mod.id });
+        render(`browse:${mod.id}`);
+      });
+      if (item.lastElementChild) line.appendChild(item.lastElementChild);
+      navigation.push(name);
+      if (view.expanded === mod.id) {
+        const detail = el6(item, "div");
+        detail.className = "expanded";
+        el6(detail, "p", displayText(mod.description ?? ""));
+        el6(detail, "p", displayText(mod.engineNote ?? ""));
+      }
+    }
+    for (const problem of state.catalog.problems) el6(box, "p", displayText(problem)).className = "harm";
+    if (!seen.size) el6(box, "p", ledgerText.noMatches);
+  };
+  const saveSetting = (definition2, value2) => {
+    if (validSetting(definition2, value2)) void run2(() => host.settings.set({ ...host.settings.get(), [definition2.id]: value2 }));
+  };
+  const renderSettings = (main) => {
+    const page = part(main, "na-settings-page");
+    el6(page, "h2", ledgerText.settings);
+    renderSearch(page, ledgerText.searchSettings);
+    el6(page, "p", ledgerText.settingsHint).className = "muted";
+    const look = el6(page, "details");
+    look.open = openedGroups.has(ledgerText.look) || view.query.trim().length > 0 && `${ledgerText.look} ${ledgerText.vanilla} ${ledgerText.neoAngband}`.toLowerCase().includes(view.query.trim().toLowerCase());
+    look.addEventListener("toggle", () => {
+      if (look.open) openedGroups.add(ledgerText.look);
+      else openedGroups.delete(ledgerText.look);
+    });
+    const summary = el6(look, "summary", `${ledgerText.look}: ${lookView(host).active}`);
+    summary.dataset["focus"] = "group:look";
+    navigation.push(summary);
+    button2(look, ledgerText.lookTitle, "choose-look", () => {
+      picker = true;
+      render("look-vanilla");
+    });
+    for (const group of settingsGroups(host.settings.definitions, host.settings.get(), view.query)) {
+      const details = el6(page, "details");
+      details.open = group.open || openedGroups.has(group.name);
+      details.addEventListener("toggle", () => {
+        if (details.open) openedGroups.add(group.name);
+        else openedGroups.delete(group.name);
+      });
+      const title = el6(details, "summary");
+      title.dataset["focus"] = `group:${group.name}`;
+      el6(title, "span", displayText(group.name));
+      el6(title, "span", displayText(group.summary)).className = "muted";
+      navigation.push(title);
+      for (const definition2 of group.members) {
+        const row = el6(details, "div");
+        const line = el6(row, "div");
+        line.className = "setting";
+        const label2 = el6(line, "label", displayText(definition2.title));
+        const key = `setting:${definition2.id}`;
+        label2.dataset["focus"] = `${key}-label`;
+        label2.tabIndex = 0;
+        const value2 = host.settings.get()[definition2.id] ?? definition2.default;
+        if (definition2.control === "switch") {
+          const toggle = command(line, value2 ? ledgerText.on : ledgerText.off, key, () => host.settings.set({ ...host.settings.get(), [definition2.id]: !value2 }));
+          toggle.setAttribute("role", "switch");
+          toggle.setAttribute("aria-checked", String(value2));
+          toggle.setAttribute("aria-label", displayText(definition2.title));
+        } else if (definition2.control === "segments") {
+          const segments = el6(line, "div");
+          segments.className = "segments";
+          segments.setAttribute("role", "group");
+          segments.setAttribute("aria-label", displayText(definition2.title));
+          for (const choice of definition2.choices ?? []) {
+            const node2 = command(segments, displayText(choice.label), `${key}:${choice.value}`, () => host.settings.set({ ...host.settings.get(), [definition2.id]: choice.value }));
+            node2.setAttribute("aria-pressed", String(value2 === choice.value));
+          }
+        } else {
+          const input = definition2.control === "range" ? el6(line, "input") : el6(line, "select");
+          input.dataset["focus"] = key;
+          input.id = `${prefix}-${definition2.id}`;
+          label2.htmlFor = input.id;
+          input.setAttribute("aria-label", displayText(definition2.title));
+          input.disabled = busy || state?.pendingConfirmation !== null;
+          if (input.tagName === "INPUT" || definition2.control === "range") {
+            const range = input;
+            range.type = "range";
+            range.min = String(definition2.min ?? 0);
+            range.max = String(definition2.max ?? 100);
+            range.step = String(definition2.step ?? 1);
+            const readout = el6(line, "span", `${value2}${definition2.unit ?? ""}`);
+            range.addEventListener("input", () => {
+              readout.textContent = `${range.value}${definition2.unit ?? ""}`;
+            });
+          } else for (const choice of definition2.choices ?? []) {
+            const option = el6(input, "option", displayText(choice.label));
+            option.value = choice.value;
+          }
+          input.value = String(value2);
+          input.addEventListener("change", () => saveSetting(definition2, definition2.control === "range" ? Number(input.value) : input.value));
+        }
+        card(row, label2, displayText(definition2.description), () => {
+        });
+        const showCard = cardOpeners.get(`${key}-label`);
+        for (const control of Array.from(line.querySelectorAll("[data-focus]"))) {
+          if (control.dataset["focus"]) cardOpeners.set(control.dataset["focus"], showCard);
+          control.setAttribute("aria-describedby", label2.getAttribute("aria-describedby"));
+        }
+        const question = row.lastElementChild;
+        if (question) line.appendChild(question);
+      }
+    }
+    const backup = el6(page, "details");
+    backup.open = openedGroups.has(ledgerText.backup) || view.query.trim().length > 0 && `${ledgerText.backup} ${ledgerText.export} ${ledgerText.import} ${ledgerText.json}`.toLowerCase().includes(view.query.trim().toLowerCase());
+    const backupSummary = el6(backup, "summary", ledgerText.backup);
+    backupSummary.dataset["focus"] = "group:backup";
+    navigation.push(backupSummary);
+    backup.addEventListener("toggle", () => {
+      if (backup.open) openedGroups.add(ledgerText.backup);
+      else openedGroups.delete(ledgerText.backup);
+    });
+    const area = el6(backup, "textarea");
+    area.dataset["focus"] = "backup-json";
+    area.setAttribute("aria-label", ledgerText.json);
+    area.value = backupText;
+    area.addEventListener("input", () => {
+      backupText = area.value;
+    });
+    const file = el6(backup, "input");
+    file.type = "file";
+    file.accept = ".json,application/json";
+    file.dataset["focus"] = "import-file";
+    file.setAttribute("aria-label", ledgerText.chooseFile);
+    file.addEventListener("change", () => {
+      const selected = file.files?.[0];
+      if (!selected) return;
+      void selected.text().then((value2) => {
+        if (disposed) return;
+        backupText = value2;
+        render("import");
+      }).catch(() => {
+        if (!disposed) {
+          message = ledgerText.invalidSettings;
+          render("import-file");
+        }
+      });
+    });
+    button2(backup, ledgerText.export, "export", () => {
+      backupText = exportSettings(host);
+      area.value = backupText;
+      area.focus();
+      if (window2?.URL.createObjectURL) {
+        const url = window2.URL.createObjectURL(new Blob([backupText], { type: "application/json" }));
+        const link = el6(backup, "a");
+        link.href = url;
+        link.download = "neo-angband-settings.json";
+        link.click();
+        link.remove();
+        const timer2 = host.clock.setTimeout(() => window2.URL.revokeObjectURL(url), 0);
+        cleanupRender.push(() => {
+          host.clock.clearTimeout(timer2);
+          window2.URL.revokeObjectURL(url);
+        });
+      }
+    });
+    command(backup, ledgerText.import, "import", async () => {
+      const document2 = importSettings(backupText, host.settings.definitions);
+      if (!document2) return { ok: false, reason: "refused", code: "settings-json", message: ledgerText.invalidSettings };
+      const result = await host.settings.set(document2.settings);
+      if (!result.ok) return result;
+      const desired = document2.look === "Neo Angband" ? "Neo" : "Vanilla";
+      const look2 = desired === host.look.read().desired ? result : await host.look.choose(desired);
+      if (look2.ok) message = ledgerText.saved;
+      return look2;
+    });
+  };
+  const renderLook = (main) => {
+    const page = part(main, "na-look-picker");
+    el6(page, "h1", ledgerText.lookTitle);
+    el6(page, "p", ledgerText.lookHint);
+    const choices = el6(page, "div");
+    choices.className = "choices";
+    for (const choice of ["Vanilla", "Neo"]) {
+      const box = frame(choices, choice === "Neo" ? ledgerText.neoAngband : ledgerText.vanilla);
+      el6(box, "pre", choice === "Neo" ? "+-----------+-----------+\n| #....@....#| HP 42/50  |\n| #...o.....#| SP 12/12  |\n+-----------+-----------+" : "###########\n#....@....#\n#.........#\n#...o.....#\n###########").setAttribute("aria-hidden", "true");
+      el6(box, "p", choice === "Neo" ? ledgerText.neoAngbandHint : ledgerText.vanillaHint);
+      if (choice === "Neo") el6(box, "p", ledgerText.lookSettings).className = "muted";
+      const choose = command(box, choice === "Neo" ? ledgerText.chooseNeoAngband : ledgerText.keepVanilla, choice === "Neo" ? "look-neo-angband" : "look-vanilla", () => host.look.choose(choice));
+      choose.setAttribute("aria-pressed", String(host.look.read().desired === choice));
+      navigation.push(choose);
+    }
+    if (lookView(host).pending) {
+      el6(page, "p", ledgerText.lookPending).setAttribute("role", "status");
+      command(page, ledgerText.backVanilla, "look-back", () => host.look.choose("Vanilla"));
+    }
+    button2(page, ledgerText.close, "look-close", () => {
+      picker = false;
+      render("look");
+    });
+  };
+  const renderNotices = (main) => {
+    if (!state) return;
+    const notice = recoveryView(state, host);
+    if (!notice) return;
+    const component = part(main, "na-manager-notices");
+    const box = frame(component, notice.title);
+    box.setAttribute("role", "status");
+    el6(box, "p", notice.text);
+    if (notice.kind === "restore") {
+      el6(box, "p", `${ledgerText.needs} ${notice.plan.downloads.length + notice.unavailable.length} ${ledgerText.mods.toLowerCase()}`);
+      const list = el6(box, "ul");
+      for (const { mod } of notice.plan.downloads) el6(list, "li", `${displayText(mod.name)} v${mod.version}: ${ledgerText.ready}`);
+      for (const mod of notice.unavailable) el6(list, "li", `${displayText(mod.name)} v${mod.version}: ${displayText(mod.reason ?? ledgerText.unavailableVersion)}`).className = "harm";
+      command(box, `${ledgerText.restore} (${notice.plan.downloads.length})`, "restore", () => host.recovery.restore(notice.plan.id));
+    } else {
+      if (notice.kind === "safe") el6(box, "p", ledgerText.startingOff);
+      else for (const mod of notice.mods) el6(box, "p", `${displayText(mod.name)} v${mod.version} ${ledgerText.switchedOff}`).className = "harm";
+      button2(box, ledgerText.openManager, "notice-manager", () => {
+        picker = false;
+        view = initialView;
+        render();
+      });
+      const action2 = command(box, notice.kind === "safe" ? ledgerText.startOff : ledgerText.continue, "notice-continue", () => notice.kind === "safe" ? host.recovery.startWithModsOff() : host.recovery.continue());
+      action2.disabled ||= !host.recovery;
+    }
+  };
+  const closeConsent = () => {
+    consentId = null;
+    render(consentOpener);
+  };
+  const renderConsent = () => {
+    const mod = state?.installed.find((entry2) => entry2.id === consentId);
+    if (!mod || !host.permissions) {
+      consentId = null;
+      return;
+    }
+    const asks = host.permissions(mod.id).filter((ask) => ask.modId === mod.id);
+    const modal = el6(root, "div");
+    modal.className = "modal";
+    const dialog = part(modal, "na-consent-dialog");
+    dialog.setAttribute("role", "dialog");
+    dialog.setAttribute("aria-modal", "true");
+    dialog.setAttribute("aria-label", `${ledgerText.permissions}: ${displayText(mod.name)}`);
+    const box = frame(dialog, `${ledgerText.permissions}: ${displayText(mod.name)}`);
+    el6(box, "p", ledgerText.consentHint);
+    for (const ask of asks) {
+      const row = el6(box, "div");
+      const line = el6(row, "div");
+      line.className = "permission";
+      const label2 = el6(line, "label");
+      const input = el6(label2, "input");
+      input.type = "checkbox";
+      input.dataset["focus"] = `consent:${ask.capability}`;
+      input.checked = !ask.canRunWithout || consentGranted.includes(ask.capability);
+      input.disabled = !ask.canRunWithout || busy;
+      input.setAttribute("aria-label", displayText(ask.consentText));
+      input.addEventListener("change", () => {
+        consentGranted = consentDecision(asks, input.checked ? [...consentGranted, ask.capability] : consentGranted.filter((capability) => capability !== ask.capability)).granted;
+      });
+      el6(label2, "span", displayText(ask.consentText));
+      el6(line, "span", ask.canRunWithout ? ledgerText.optional : ledgerText.required).className = ask.canRunWithout ? "muted" : "update";
+      card(row, input, displayText([ask.consentText, ask.withoutIt].filter(Boolean).join(" ")), () => {
+      });
+      const question = row.lastElementChild;
+      if (question) line.appendChild(question);
+    }
+    command(box, ledgerText.allow, "consent-allow", async () => {
+      const result = await host.mods.recordConsent(mod.id, consentDecision(asks, consentGranted));
+      if (result.ok) consentId = null;
+      return result;
+    }).className = "primary";
+    button2(box, ledgerText.cancel, "consent-cancel", closeConsent);
+    modal.addEventListener("click", (event) => {
+      if (event.target === modal) closeConsent();
+    });
+    for (const child of Array.from(root.children)) if (child !== modal && child.tagName !== "STYLE") child.inert = true;
+    dialog.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        swallow(event);
+        closeConsent();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const nodes = Array.from(dialog.querySelectorAll("[data-focus]")).filter((node2) => !node2.disabled && !node2.closest("[hidden]"));
+      if (!nodes.length) return;
+      const index = nodes.indexOf(active());
+      swallow(event);
+      nodes[(index + (event.shiftKey ? -1 : 1) + nodes.length) % nodes.length]?.focus();
+    });
+  };
+  function render(focusKey) {
+    if (disposed) return;
+    const previous = active();
+    const restoreKey = focusKey ?? previous?.dataset["focus"];
+    const selection = previous && "selectionStart" in previous ? previous.selectionStart : null;
+    closeCard?.();
+    for (const cleanup of cleanupRender) cleanup();
+    cleanupRender = [];
+    cardOpeners.clear();
+    navigation = [];
+    search = null;
+    cardNumber = 0;
+    root.replaceChildren();
+    variants();
+    el6(root, "style", ledgerStyles);
+    const header = el6(root, "header");
+    el6(header, "h1", ledgerText.mods);
+    const nav = el6(header, "nav");
+    nav.setAttribute("aria-label", "Sections");
+    for (const tab of ["installed", "browse", "lists", "settings"]) {
+      const label2 = ledgerText[tab];
+      const node2 = button2(nav, "", `tab:${tab}`, () => open(tab));
+      el6(node2, "u", label2[0]);
+      el6(node2, "span", label2.slice(1));
+      node2.setAttribute("aria-current", view.tab === tab ? "page" : "false");
+    }
+    button2(header, lookView(host).active, "look", () => {
+      picker = true;
+      render("look-vanilla");
+    });
+    button2(header, ledgerText.close, "close", close);
+    const main = el6(root, "main");
+    if (message || busy || state?.pendingConfirmation) {
+      const status = el6(main, "p", state?.pendingConfirmation ? ledgerText.pending : busy ? ledgerText.busy : message);
+      status.setAttribute("role", "status");
+    }
+    renderNotices(main);
+    if (picker) renderLook(main);
+    else if (view.tab === "settings") renderSettings(main);
+    else if (view.tab === "installed") {
+      renderUpdates(main);
+      renderRows(main);
+    } else if (view.tab === "browse") renderBrowse(main);
+    else if (state) {
+      const box = frame(main, ledgerText.lists);
+      for (const mod of state.modList) el6(box, "p", `${displayText(state.installed.find((entry2) => entry2.id === mod.id)?.name ?? mod.id)} v${mod.version}: ${mod.enabled ? ledgerText.on : ledgerText.off}`);
+      command(box, ledgerText.restore, "restore-list", () => host.mods.restoreModList(state.modList.map(({ id, enabled }) => ({ id, enabled })), true));
+    }
+    el6(root, "footer", view.tab === "settings" ? ledgerText.settingsKeys : ledgerText.keys);
+    if (consentId && !state?.pendingConfirmation) renderConsent();
+    if (restoreKey) {
+      focus(restoreKey);
+      if (selection !== null && active()?.tagName === "INPUT" && active().type !== "range") active().setSelectionRange?.(selection, selection);
+    }
+  }
+  const open = (tab = "installed") => {
+    if (disposed) return;
+    if (root.hidden) opener = active();
+    root.hidden = false;
+    picker = false;
+    consentId = null;
+    view = reduceManager(view, { type: "tab", tab });
+    render(`tab:${tab}`);
+    void refresh();
+    if (tab === "browse") void run2(() => host.mods.browse());
+  };
+  function close() {
+    closeCard?.();
+    for (const cleanup of cleanupRender) cleanup();
+    const wasOpen = !root.hidden;
+    root.hidden = true;
+    consentId = null;
+    opener?.focus();
+    if (wasOpen) onClose?.();
+  }
+  const action = (input) => {
+    if (disposed || root.hidden || input === null) return;
+    if (input === "b") {
+      if (closeCard) {
+        closeCard();
+        return;
+      }
+      if (consentId) {
+        closeConsent();
+        return;
+      }
+      if (picker) {
+        picker = false;
+        render("look");
+        return;
+      }
+      if (view.expanded) {
+        view = reduceManager(view, { type: "back" });
+        render();
+        return;
+      }
+      close();
+      return;
+    }
+    if (input === "y") {
+      cardOpeners.get(active()?.dataset["focus"] ?? "")?.();
+      return;
+    }
+    if (input === "search") {
+      search?.focus();
+      return;
+    }
+    if (["installed", "browse", "lists", "settings"].includes(input)) {
+      if (!consentId) open(input);
+      return;
+    }
+    if (picker && ["up", "down", "left", "right"].includes(input)) {
+      const index2 = navigation.indexOf(active());
+      navigation[Math.max(0, Math.min(navigation.length - 1, index2 + (input === "up" || input === "left" ? -1 : 1)))]?.focus();
+      return;
+    }
+    if (consentId) {
+      const dialog = Array.from(root.children).find((node2) => node2.className === "modal");
+      const nodes = focusables().filter((node2) => dialog?.contains(node2) && !node2.disabled && !node2.closest("[hidden]"));
+      const index2 = nodes.indexOf(active());
+      if (input === "up" || input === "down") nodes[Math.max(0, Math.min(nodes.length - 1, index2 + (input === "up" ? -1 : 1)))]?.focus();
+      else if (input === "a") active()?.click();
+      return;
+    }
+    if (input === "toggle") {
+      const row = state ? managerRows(state, view, host.updatePermissions, host.permissions)[view.selected] : void 0;
+      if (view.tab === "installed" && row) void run2(() => row.enabled ? host.mods.disable(row.id) : host.mods.enable(row.id));
+      return;
+    }
+    if (input === "a") {
+      active()?.click();
+      return;
+    }
+    if (input === "left" || input === "right") {
+      const tabs = ["installed", "browse", "lists", "settings"];
+      const at = tabs.indexOf(view.tab);
+      open(tabs[(at + (input === "left" ? -1 : 1) + tabs.length) % tabs.length]);
+      return;
+    }
+    const index = navigation.indexOf(active());
+    const next = Math.max(0, Math.min(navigation.length - 1, index + (input === "up" ? -1 : 1)));
+    view = reduceManager(view, { type: "move", delta: next - view.selected, length: navigation.length });
+    navigation[next]?.focus();
+  };
+  root.addEventListener("keydown", (event) => {
+    if (root.hidden || disposed) return;
+    event.stopPropagation();
+    const input = event.target;
+    const editing = ["INPUT", "SELECT", "TEXTAREA"].includes(input.tagName);
+    const mapped = keyAction(event.key.length === 1 && event.key !== "?" ? event.key.toLowerCase() : event.key);
+    if (!mapped || editing && mapped !== "b" && mapped !== "y") return;
+    if (mapped === "a" && !consentId) return;
+    if (mapped === "toggle" && !input.dataset["focus"]?.startsWith("mod:")) return;
+    swallow(event);
+    action(mapped);
+  });
+  root.addEventListener("pointerdown", (event) => {
+    if (!event.target.closest("na-detail-card")) closeCard?.();
+  });
+  const stopSettings = host.settings.subscribe(() => {
+    if (!disposed) render();
+  });
+  void host.mods.subscribe(takeState).then((result) => {
+    if (!result.ok) {
+      if (!disposed) {
+        safeMessage(result.message);
+        render();
+      }
+      return;
+    }
+    if (disposed) void host.mods.unsubscribe(result.value);
+    else subscription = result.value;
+  }).catch(() => {
+    if (!disposed) {
+      message = ledgerText.unavailable;
+      render();
+    }
+  });
+  if (host.assetUrl) void loadFonts({ assetUrl: host.assetUrl }, LEDGER_FONTS).catch(() => {
+  });
+  void refresh();
+  return {
+    open,
+    close,
+    handleGamepad: action,
+    dispose() {
+      if (disposed) return;
+      close();
+      disposed = true;
+      stopSettings();
+      if (subscription) void host.mods.unsubscribe(subscription);
+      root.replaceChildren();
+      root.remove?.();
+    }
+  };
+}
+
+// src/neo-manager/open.ts
+var NEO_MANAGER_KEY = "neo-manager";
+var PANEL_ID = "neo-angband-manager";
+var TITLE = "Mods";
+function installNeoManager(deps) {
+  let handle = null;
+  let panel = null;
+  let stopped = false;
+  const open = (tab) => {
+    if (stopped) return;
+    if (handle) {
+      handle.open(tab);
+      return;
+    }
+    if (!deps.panels) {
+      deps.log("neo-manager: this host has no panels to open it in");
+      return;
+    }
+    try {
+      const shown = deps.panels.openPanel({ id: PANEL_ID, modal: true, label: TITLE });
+      panel = shown;
+      const frame = shown.root.ownerDocument.createElement("div");
+      shown.root.appendChild(frame);
+      const mounted = mountNeoManager(deps.host, frame, () => {
+        if (panel === shown) shown.close();
+      });
+      handle = mounted;
+      void shown.closed.then(() => {
+        if (panel !== shown) return;
+        panel = null;
+        handle = null;
+        mounted.dispose();
+      });
+      mounted.open(tab);
+    } catch (error) {
+      handle?.dispose();
+      handle = null;
+      panel = null;
+      deps.log(`neo-manager: could not open (${String(error)})`);
+    }
+  };
+  const stopOpener = registerOpener(NEO_MANAGER_KEY, () => open());
+  let row = null;
+  if (deps.title) {
+    void deps.title.registerRow({ id: "anybandui:mods", label: TITLE, run: () => open() }).then((result) => {
+      if (!result.ok) {
+        deps.log(`neo-manager: title row refused (${result.message})`);
+        return;
+      }
+      if (stopped) void deps.title?.removeRow(result.value);
+      else row = result;
+    }).catch((error) => deps.log(`neo-manager: title row failed (${String(error)})`));
+  }
+  return () => {
+    if (stopped) return;
+    stopped = true;
+    stopOpener();
+    if (row && row.ok && deps.title) void deps.title.removeRow(row.value);
+    const shown = panel;
+    panel = null;
+    handle?.dispose();
+    handle = null;
+    shown?.close();
+  };
+}
+
 // src/menus/settings-window.ts
 var SETTINGS_KEY = "settings-window";
 var STRENGTH_GROUPS = [
@@ -9123,6 +10384,7 @@ var PAGES = [
   { id: "keys", group: "Play", title: "Keybindings", summary: "Your keymaps for the current keyset.", opens: { key: KEYBINDINGS_KEY, flag: "anybandui.keybindingEditor", switchTitle: "Keybinding editor" } },
   { id: "options", group: "Play", title: "Game options", summary: "The game's own options for this character.", opens: { key: OPTIONS_KEY, flag: "anybandui.optionsEditor", switchTitle: "Game options editor" } },
   { id: "knowledge", group: "Play", title: "Knowledge", summary: "What your character has learned about the world.", opens: { key: KNOWLEDGE_KEY, flag: "anybandui.knowledgeBrowser", switchTitle: "Knowledge browser" } },
+  { id: "mods", group: "Play", title: "Mods", summary: "Turn mods on and off, and install or update them.", opens: { key: NEO_MANAGER_KEY, switchTitle: "the Mods screen" } },
   { id: "session", group: "Play", title: "Save game", summary: "Save this character, or save and leave. These act at once." },
   { id: "theme", group: "Presentation", title: "Theme", summary: "The colours of this mod's panels and window frames." },
   { id: "effects", group: "Presentation", title: "Effects", summary: "How strongly each dungeon effect is drawn." },
@@ -9422,7 +10684,8 @@ function installSettingsWindow(ctx) {
     };
     if (info.opens) {
       const opens = info.opens;
-      if (ctx.flags?.[opens.flag] === true && hasOpener(opens.key)) {
+      if (opens.flag === void 0 && !hasOpener(opens.key)) el6(parent, "p", "This game does not let mods manage mods.").className = "muted";
+      else if ((opens.flag === void 0 || ctx.flags?.[opens.flag] === true) && hasOpener(opens.key)) {
         mark(button2(parent, `Open ${info.title}`, `open:${info.id}`, () => {
           if (!openMenu(opens.key)) {
             note = `${info.title} is not open.`;
@@ -9642,6 +10905,95 @@ function installSettingsWindow(ctx) {
     history?.close();
     surface?.close();
     surface = null;
+  };
+}
+
+// src/neo-manager/settings.ts
+var MANAGER_SETTINGS = [
+  { id: "theme", group: "Display", title: "Theme", description: "The panel colors follow the device or your choice.", default: "system", control: "segments", choices: [{ value: "system", label: "System" }, { value: "light", label: "Light" }, { value: "dark", label: "Dark" }] },
+  { id: "textSize", group: "Display", title: "Text size", description: "Sizes the text on every manager panel.", default: 100, control: "range", min: 80, max: 140, step: 10, unit: "%" },
+  { id: "colorblind", group: "Display", title: "Colorblind correction", description: "Re-tints status colors (on, update ready, problem) on every panel. Status is always also shown as a word or a symbol.", default: "off", control: "select", choices: [{ value: "off", label: "Off" }, { value: "red-green", label: "Red and green" }, { value: "blue-yellow", label: "Blue and yellow" }] },
+  { id: "highContrast", group: "Display", title: "High contrast", description: "Uses white borders and brighter text on black.", default: false, control: "switch" },
+  { id: "listRows", group: "Display", title: "List rows", description: "Changes row spacing. Controls keep their touch target size.", default: "roomy", control: "segments", choices: [{ value: "roomy", label: "Roomy" }, { value: "tight", label: "Tight" }] },
+  { id: "motion", group: "Motion and effects", title: "Reduce motion", description: "Cards appear without a fade or slide. Device follows your system setting.", default: "device", control: "segments", choices: [{ value: "device", label: "Device" }, { value: "reduce", label: "Reduce" }] },
+  { id: "rowHighlight", group: "Motion and effects", title: "Row highlight", description: "Marks the selected row with a bright bar. Keyboard focus always has a white ring.", default: true, control: "switch" },
+  { id: "hoverCards", group: "Motion and effects", title: "Hover cards", description: "Opens a name's card after a quarter second. The question button always opens it.", default: true, control: "switch" },
+  { id: "sound", group: "Sound and touch", title: "Sound cues", description: "Stores your choice for sound cues in the host presentation.", default: true, control: "switch" },
+  { id: "haptics", group: "Sound and touch", title: "Haptics", description: "Plays a tick when a long press opens a card.", default: false, control: "switch" }
+];
+
+// src/neo-manager/host.ts
+var MANAGER_SETTINGS_KEY = "neoManager.settings";
+var ok = { ok: true, value: null };
+function pageEnvironment(page = window) {
+  return {
+    now: () => Date.now(),
+    setTimeout: (callback, ms) => page.setTimeout(callback, ms),
+    clearTimeout: (id) => page.clearTimeout(id),
+    vibrate: (ms) => {
+      try {
+        page.navigator.vibrate?.(ms);
+      } catch {
+      }
+    },
+    reducedMotion: () => {
+      try {
+        return page.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      } catch {
+        return false;
+      }
+    }
+  };
+}
+function defaults() {
+  return Object.fromEntries(MANAGER_SETTINGS.map((entry2) => [entry2.id, entry2.default]));
+}
+function readStored(value2) {
+  const out = defaults();
+  if (!value2 || typeof value2 !== "object" || Array.isArray(value2)) return out;
+  for (const entry2 of MANAGER_SETTINGS) {
+    const stored = value2[entry2.id];
+    if (typeof stored === typeof entry2.default) out[entry2.id] = stored;
+  }
+  return out;
+}
+async function createManageHost(mod, env = pageEnvironment()) {
+  const manage = mod.manage;
+  if (!manage) return null;
+  let values = defaults();
+  try {
+    const read = await mod.store.kv.get(MANAGER_SETTINGS_KEY);
+    if (read.ok) values = readStored(read.value);
+  } catch {
+  }
+  const listeners = /* @__PURE__ */ new Set();
+  return {
+    mods: manage.mods,
+    look: {
+      read: () => ({ desired: "Neo", active: "Neo", pending: null }),
+      choose: async (look) => look === "Neo" ? ok : { ok: false, reason: "unavailable", message: "The game has no way yet to switch the look back from here." }
+    },
+    settings: {
+      definitions: MANAGER_SETTINGS,
+      get: () => values,
+      set: async (change) => {
+        const next = readStored({ ...values, ...change });
+        const written = await mod.store.kv.set(MANAGER_SETTINGS_KEY, next);
+        if (!written.ok) return written;
+        values = next;
+        for (const listener of [...listeners]) listener();
+        return ok;
+      },
+      subscribe: (listener) => {
+        listeners.add(listener);
+        return () => {
+          listeners.delete(listener);
+        };
+      }
+    },
+    clock: { now: env.now, setTimeout: env.setTimeout, clearTimeout: env.clearTimeout },
+    haptics: { tick: () => env.vibrate(10) },
+    prefersReducedMotion: env.reducedMotion
   };
 }
 
@@ -12813,14 +14165,14 @@ var BirthWizard = class {
   usePrevious() {
     if (!this.catalogue.previous) return false;
     if (!this.changedSincePrevious) return true;
-    const ok = this.run((s) => s.usePrevious());
-    if (ok) this.changedSincePrevious = false;
-    return ok;
+    const ok2 = this.run((s) => s.usePrevious());
+    if (ok2) this.changedSincePrevious = false;
+    return ok2;
   }
   accept() {
-    const ok = this.run((s) => s.accept(), false);
-    if (ok) this.finished = true;
-    return ok;
+    const ok2 = this.run((s) => s.accept(), false);
+    if (ok2) this.finished = true;
+    return ok2;
   }
   cancel() {
     if (this.finished) return;
@@ -13689,6 +15041,7 @@ function hud(ctx) {
 }
 var shared = null;
 var primed = null;
+var stopManager = null;
 function bridgeFor(mod) {
   if (!shared) {
     shared = createBridge(mod);
@@ -13704,8 +15057,12 @@ var definition = {
     const bridge = bridgeFor(mod);
     await primed;
     registerAll(bridge.ctx);
+    const host = await createManageHost(mod);
+    if (host) stopManager = installNeoManager({ host, panels: mod.presentation?.panels, title: mod.presentation?.title, log: mod.meta.log });
   },
   stop() {
+    stopManager?.();
+    stopManager = null;
     uninstall();
     shared?.dispose();
     shared = null;

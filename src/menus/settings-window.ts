@@ -27,6 +27,7 @@ import { KEYBINDINGS_KEY } from "./keybinding-editor.js";
 import { KNOWLEDGE_KEY } from "./knowledge-browser.js";
 import { createLayoutHistory, createSavedLayouts, LAYOUT_NAME_MAX, SAVED_LAYOUT_LIMIT, type LayoutSeam } from "./layout-history.js";
 import { openMenuSurface } from "./menu-surface.js";
+import { NEO_MANAGER_KEY } from "../neo-manager/open.js";
 import { hasOpener, openMenu } from "./openers.js";
 import { OPTIONS_KEY } from "./options-editor.js";
 
@@ -84,13 +85,14 @@ export function cueKindsFor(id: string): string[] {
   return Object.entries(STRENGTH_SETTINGS).filter(([, setting]) => setting === id).map(([kind]) => kind);
 }
 
-interface Page { readonly id: string; readonly group: "Play" | "Presentation"; readonly title: string; readonly summary: string; readonly opens?: { readonly key: string; readonly flag: string; readonly switchTitle: string } }
+interface Page { readonly id: string; readonly group: "Play" | "Presentation"; readonly title: string; readonly summary: string; readonly opens?: { readonly key: string; readonly flag?: string; readonly switchTitle: string } }
 
 const PAGES: readonly Page[] = [
   { id: "interaction", group: "Play", title: "Interaction", summary: "How the mouse and hover cards behave." },
   { id: "keys", group: "Play", title: "Keybindings", summary: "Your keymaps for the current keyset.", opens: { key: KEYBINDINGS_KEY, flag: "anybandui.keybindingEditor", switchTitle: "Keybinding editor" } },
   { id: "options", group: "Play", title: "Game options", summary: "The game's own options for this character.", opens: { key: OPTIONS_KEY, flag: "anybandui.optionsEditor", switchTitle: "Game options editor" } },
   { id: "knowledge", group: "Play", title: "Knowledge", summary: "What your character has learned about the world.", opens: { key: KNOWLEDGE_KEY, flag: "anybandui.knowledgeBrowser", switchTitle: "Knowledge browser" } },
+  { id: "mods", group: "Play", title: "Mods", summary: "Turn mods on and off, and install or update them.", opens: { key: NEO_MANAGER_KEY, switchTitle: "the Mods screen" } },
   { id: "session", group: "Play", title: "Save game", summary: "Save this character, or save and leave. These act at once." },
   { id: "theme", group: "Presentation", title: "Theme", summary: "The colours of this mod's panels and window frames." },
   { id: "effects", group: "Presentation", title: "Effects", summary: "How strongly each dungeon effect is drawn." },
@@ -361,7 +363,8 @@ export function installSettingsWindow(ctx: SettingsWindowContext): () => void {
     const mark = (node: HTMLElement): HTMLElement => { if (first) { node.dataset["first"] = "true"; first = false; } return node; };
     if (info.opens) {
       const opens = info.opens;
-      if (ctx.flags?.[opens.flag] === true && hasOpener(opens.key)) {
+      if (opens.flag === undefined && !hasOpener(opens.key)) el(parent, "p", "This game does not let mods manage mods.").className = "muted";
+      else if ((opens.flag === undefined || ctx.flags?.[opens.flag] === true) && hasOpener(opens.key)) {
         mark(button(parent, `Open ${info.title}`, `open:${info.id}`, () => { if (!openMenu(opens.key)) { note = `${info.title} is not open.`; repaint(); } }));
       } else el(parent, "p", `Turn on ${opens.switchTitle} on the Mods screen to use it here.`);
       return;

@@ -23,7 +23,7 @@ export function registerNeoManagerElements(registry: CustomElementRegistry, base
 
 let mountId = 0;
 
-export function mountNeoManager(host: ManageHost, target: HTMLElement): NeoManagerHandle {
+export function mountNeoManager(host: ManageHost, target: HTMLElement, onClose?: () => void): NeoManagerHandle {
   const window = target.ownerDocument.defaultView;
   if (window?.customElements) registerNeoManagerElements(window.customElements, window.HTMLElement);
   const root = target.ownerDocument.createElement("na-mod-manager");
@@ -623,9 +623,11 @@ export function mountNeoManager(host: ManageHost, target: HTMLElement): NeoManag
   function close(): void {
     closeCard?.();
     for (const cleanup of cleanupRender) cleanup();
+    const wasOpen = !root.hidden;
     root.hidden = true;
     consentId = null;
     opener?.focus();
+    if (wasOpen) onClose?.();
   }
   const action = (input: ReturnType<typeof keyAction>): void => {
     if (disposed || root.hidden || input === null) return;

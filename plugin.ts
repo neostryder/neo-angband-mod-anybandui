@@ -40,6 +40,8 @@ import { installKnowledgeBrowser } from "./src/menus/knowledge-browser.js";
 import { installOptionsEditor } from "./src/menus/options-editor.js";
 import { installKeybindingEditor } from "./src/menus/keybinding-editor.js";
 import { installSettingsWindow } from "./src/menus/settings-window.js";
+import { createManageHost } from "./src/neo-manager/host.js";
+import { installNeoManager } from "./src/neo-manager/open.js";
 import type { ItemsContext } from "./src/seams.js";
 import { installMapMouse } from "./src/map-mouse.js";
 import { installPhase4 } from "./src/phase4.js";
@@ -311,6 +313,9 @@ function hud(ctx: HudCtx): HudOwnership | undefined {
 let shared: Bridge | null = null;
 let primed: Promise<void> | null = null;
 
+/** Takes the Neo Angband manager down again when the mod stops. */
+let stopManager: (() => void) | null = null;
+
 /** The bridge `start` built. Core can ask a presenter before the game starts, so a presenter builds it first and `start` takes it over. */
 function bridgeFor(mod: ModApi2): Bridge {
   if (!shared) {
@@ -330,9 +335,13 @@ const definition: Api2ModDefinition = {
     const bridge = bridgeFor(mod);
     await primed;
     registerAll(bridge.ctx as RegisterCtx);
+    const host = await createManageHost(mod);
+    if (host) stopManager = installNeoManager({ host, panels: mod.presentation?.panels, title: mod.presentation?.title, log: mod.meta.log });
   },
 
   stop() {
+    stopManager?.();
+    stopManager = null;
     uninstall();
     shared?.dispose();
     shared = null;
