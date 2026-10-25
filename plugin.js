@@ -14765,6 +14765,7 @@ var tileFullOverviewApplied = false;
 var displayCleanups = [];
 var characterPane = null;
 var statusRepaint = null;
+var messagesRepaint = null;
 function registerAll(ctx) {
   uninstall();
   ctx.log(`AnybandUI loaded on engine ${ctx.engine}`);
@@ -14779,6 +14780,7 @@ function registerAll(ctx) {
     } catch {
     }
   }
+  if (shared) displayCleanups.push(shared.onInput(() => messagesRepaint?.()));
   displayCleanups.push(installEffects({ flags, ...ctx.snapshot ? { snapshot: ctx.snapshot } : {}, ...ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {}, ...ctx.events ? { events: ctx.events } : {}, ...ctx.display?.snapshot ? { display: { snapshot: ctx.display.snapshot.bind(ctx.display) } } : {}, ...ctx.prefs ? { prefs: ctx.prefs } : {}, ...ctx.settings ? { settings: ctx.settings } : {} }));
   const theme = themeFromPrefs(ctx.prefs?.get());
   displayCleanups.push(installChromePaint(ctx.display, flags, theme, ctx.log));
@@ -15030,12 +15032,17 @@ function hud(ctx) {
   if (enabled.messages) {
     const acknowledge = source.acknowledge;
     const host = createPanelHost(doc, [{ key: "messages", render: (mount, model) => renderMessageLog(mount, model, acknowledge ? { acknowledge } : {}), select: (m) => [m.messages, m.message_pending] }], theme);
+    let last = null;
     output.messages = { present(section2, frame) {
+      last = [section2, frame];
       source.hud.messages.present(section2, frame);
       const model = source.snapshot({ messages: true });
       if (model) host.present(section2, frame, model);
       if (model) pane?.paint(model);
     } };
+    messagesRepaint = () => {
+      if (last) output.messages.present(last[0], last[1]);
+    };
   }
   return output;
 }
@@ -15063,6 +15070,7 @@ var definition = {
   stop() {
     stopManager?.();
     stopManager = null;
+    messagesRepaint = null;
     uninstall();
     shared?.dispose();
     shared = null;

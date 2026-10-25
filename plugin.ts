@@ -66,6 +66,8 @@ let displayCleanups: Array<() => void> = [];
 let characterPane: CharacterPane | null = null;
 /** Redraws the status panel with its last frame; set by hud(), called on driver-changed. */
 let statusRepaint: (() => void) | null = null;
+/** Redraws the message bar with its last frame; set by hud(), called when the cached input wait changes. */
+let messagesRepaint: (() => void) | null = null;
 
 type HudCtx = Parameters<typeof createSource>[0] & Pick<ModPluginContext, "flags"> & Partial<Pick<ModPluginContext, "prefs" | "ui" | "display" | "log">>;
 
@@ -86,6 +88,8 @@ function registerAll(ctx: RegisterCtx): void {
       displayCleanups.push(() => events.off("driver-changed", repaint));
     } catch { /* no driver-changed event or grant on this engine */ }
   }
+  /* A -more- pause repaints nothing: the game draws once as the pause starts, while the cached input wait is still the one before it. The bar redraws when the cache catches up, or it shows the last line and no pause at all. */
+  if (shared) displayCleanups.push(shared.onInput(() => messagesRepaint?.()));
   displayCleanups.push(installEffects({ flags, ...(ctx.snapshot ? { snapshot: ctx.snapshot } : {}), ...(ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {}), ...(ctx.events ? { events: ctx.events } : {}), ...(ctx.display?.snapshot ? { display: { snapshot: ctx.display.snapshot.bind(ctx.display) } } : {}), ...(ctx.prefs ? { prefs: ctx.prefs } : {}), ...(ctx.settings ? { settings: ctx.settings } : {}) }));
   /* The window frames around the cards take the same paint as the cards. */
   const theme = themeFromPrefs(ctx.prefs?.get());
@@ -299,12 +303,15 @@ function hud(ctx: HudCtx): HudOwnership | undefined {
   if (enabled.messages) {
     const acknowledge = source.acknowledge;
     const host = createPanelHost(doc, [{ key: "messages", render: (mount, model) => renderMessageLog(mount, model, acknowledge ? { acknowledge } : {}), select: (m) => [m.messages, m.message_pending] }], theme);
+    let last: readonly [HudSection, HudFrame] | null = null;
     output.messages = { present(section: HudSection, frame: HudFrame) {
+      last = [section, frame];
       source.hud.messages!.present(section, frame);
       const model = source.snapshot({ messages: true });
       if (model) host.present(section, frame, model);
       if (model) pane?.paint(model);
     } };
+    messagesRepaint = () => { if (last) output.messages!.present(last[0], last[1]); };
   }
   return output;
 }
@@ -342,6 +349,7 @@ const definition: Api2ModDefinition = {
   stop() {
     stopManager?.();
     stopManager = null;
+    messagesRepaint = null;
     uninstall();
     shared?.dispose();
     shared = null;
