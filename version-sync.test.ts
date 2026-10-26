@@ -16,8 +16,11 @@ import { readFileSync } from "node:fs";
  * so a missing one is a version that reaches the site as nothing at all.
  */
 describe("the two version sites", () => {
-  const read = (f: string): string =>
-    (JSON.parse(readFileSync(new URL(f, import.meta.url), "utf8")) as { version: string }).version;
+  /* manifest.json is a schema 2 document, so its version sits under data. */
+  const read = (f: string): string => {
+    const doc = JSON.parse(readFileSync(new URL(f, import.meta.url), "utf8")) as { version?: string; data?: { version: string } };
+    return (doc.data ?? doc).version ?? "";
+  };
 
   const changelog = (): string => readFileSync(new URL("./CHANGELOG.md", import.meta.url), "utf8");
 

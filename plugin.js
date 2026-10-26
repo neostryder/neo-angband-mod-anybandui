@@ -1,5 +1,547 @@
-// p8-core122 - generated from plugin.ts by neo-angband-mod-build
+// anybandui - generated from plugin.ts by neo-angband-mod-build
 // (@rpgm-tools/neo-angband-mod-sdk). Edit the TypeScript source, not this file.
+
+// src/bridge-seams.ts
+function cell(load, initial, ttlMs, now) {
+  let value2 = initial;
+  let at = Number.NEGATIVE_INFINITY;
+  let loaded = false;
+  let inflight = null;
+  const reload = () => {
+    if (inflight) return inflight;
+    inflight = (async () => {
+      try {
+        const read = await load();
+        if (read.ok) {
+          value2 = read.value;
+          loaded = true;
+        }
+        return read.ok;
+      } catch {
+        return false;
+      } finally {
+        at = now();
+        inflight = null;
+      }
+    })();
+    return inflight;
+  };
+  return {
+    get() {
+      if (now() - at > ttlMs) void reload();
+      return value2;
+    },
+    reload,
+    put(next) {
+      value2 = next;
+      at = now();
+      loaded = true;
+    },
+    empty: () => !loaded
+  };
+}
+var refusal = (read) => read.message ?? read.reason ?? "the game refused";
+var saveResult = (read) => read.ok ? { ok: true } : { ok: false, reason: refusal(read) };
+function createManagedSeams(mod, now = Date.now) {
+  const cleanups = [];
+  const manage = mod.manage;
+  const log = (message) => mod.meta.log(message);
+  const character = cell(() => mod.view.character(), null, 1e3, now);
+  const runEnds = /* @__PURE__ */ new Set();
+  let runEndHooked = false;
+  const hookRunEnd = () => {
+    if (runEndHooked) return;
+    runEndHooked = true;
+    void mod.events.on("run-end", (event) => {
+      if (event.report) for (const listener of [...runEnds]) {
+        try {
+          listener(event.report);
+        } catch (error) {
+          log(`run end: ${String(error)}`);
+        }
+      }
+    }).then((subscription) => {
+      if (subscription.ok) cleanups.push(() => {
+        void mod.events.off(subscription.value);
+      });
+    });
+  };
+  const characterSeam = {
+    key: () => character.get()?.key ?? null,
+    sheet: () => character.get()?.sheet ?? null,
+    history: () => character.get()?.history ?? [],
+    runReport: () => character.get()?.report ?? null,
+    onRunEnd(listener) {
+      hookRunEnd();
+      runEnds.add(listener);
+      return () => {
+        runEnds.delete(listener);
+      };
+    }
+  };
+  const categories = cell(async () => {
+    const read = await mod.view.knowledge();
+    return read.ok ? { ok: true, value: read.value.categories } : read;
+  }, [], 2e3, now);
+  const lists = /* @__PURE__ */ new Map();
+  const pages = /* @__PURE__ */ new Map();
+  const PAGE_LIMIT = 64;
+  const knowledge = {
+    categories: () => categories.get(),
+    list(category) {
+      let entry2 = lists.get(category);
+      if (!entry2) {
+        entry2 = cell(async () => {
+          const read = await mod.view.knowledge(category);
+          return read.ok ? { ok: true, value: read.value.lists[category] ?? null } : read;
+        }, null, 2e3, now);
+        lists.set(category, entry2);
+      }
+      return entry2.get();
+    },
+    recall(category, id) {
+      const key = `${category}\0${id}`;
+      let entry2 = pages.get(key);
+      if (!entry2) {
+        if (pages.size >= PAGE_LIMIT) pages.delete(pages.keys().next().value);
+        entry2 = cell(async () => {
+          const read = await mod.view.knowledge(category, id);
+          return read.ok ? { ok: true, value: read.value.recall ?? null } : read;
+        }, null, 2e3, now);
+        pages.set(key, entry2);
+      }
+      return entry2.get();
+    }
+  };
+  const options = manage ? cell(async () => {
+    const read = await manage.options.get();
+    return read.ok ? { ok: true, value: read.value } : read;
+  }, null, 1500, now) : null;
+  const optionsSeam = manage && options ? {
+    get() {
+      const view = options.get();
+      if (!view) throw new Error("the game has not answered with its options yet");
+      return view;
+    },
+    set: ((change) => manage.options.set(change).then(async (read) => {
+      if (!read.ok) return { ok: false, reason: refusal(read) };
+      await options.reload();
+      return { ok: true, changed: read.value };
+    }))
+  } : void 0;
+  const keyset = manage ? cell(() => manage.keys.keyset(), "original", 1500, now) : null;
+  const keyLists = /* @__PURE__ */ new Map();
+  const keysFor = (set) => {
+    let entry2 = keyLists.get(set);
+    if (!entry2) {
+      entry2 = cell(() => manage.keys.list(set), [], 1500, now);
+      keyLists.set(set, entry2);
+    }
+    return entry2;
+  };
+  const commands = manage ? cell(() => manage.keys.commands(), [], 3e3, now) : null;
+  const keybindingsSeam = manage && keyset && commands ? {
+    keyset: () => keyset.get(),
+    list: (set) => keysFor(set ?? keyset.get()).get(),
+    set(trigger, action, set) {
+      if (!trigger || !action) return false;
+      const target = set ?? keyset.get();
+      const entry2 = keysFor(target);
+      const before = entry2.get();
+      entry2.put([...before.filter((binding) => binding.trigger !== trigger), { trigger, action, owner: null }]);
+      void manage.keys.set(trigger, action, target, true).then((read) => {
+        if (!read.ok) log(`keymap ${trigger} was refused (${refusal(read)})`);
+      }).finally(() => {
+        void entry2.reload();
+      });
+      return true;
+    },
+    remove(trigger, set) {
+      const target = set ?? keyset.get();
+      const entry2 = keysFor(target);
+      const before = entry2.get();
+      if (!before.some((binding) => binding.trigger === trigger)) return false;
+      entry2.put(before.filter((binding) => binding.trigger !== trigger));
+      void manage.keys.remove(trigger, target).then((read) => {
+        if (!read.ok) log(`removing keymap ${trigger} was refused (${refusal(read)})`);
+      }).finally(() => {
+        void entry2.reload();
+      });
+      return true;
+    },
+    commands: () => commands.get(),
+    capture: async () => {
+      const read = await manage.keys.capture();
+      return read.ok ? read.value : null;
+    },
+    cancelCapture: () => {
+      void manage.keys.cancelCapture();
+      return true;
+    }
+  } : void 0;
+  const savesSeam = manage ? {
+    async list() {
+      const read = await manage.saves.list();
+      return read.ok ? { ok: true, entries: read.value } : { ok: false, reason: refusal(read) };
+    },
+    load: async (id) => saveResult(await manage.saves.load(id)),
+    rename: async (id, name) => saveResult(await manage.saves.rename(id, name)),
+    delete: async (id) => saveResult(await manage.saves.delete(id)),
+    create: async (create) => saveResult(await manage.saves.create(create))
+  } : void 0;
+  const sessionSeam = manage ? {
+    // The features await every session call, so a save answers with what the host said.
+    save: (() => manage.session.save().then(saveResult)),
+    exitToTitle: async () => saveResult(await manage.session.exitToTitle()),
+    quit: async () => saveResult(await manage.session.quit())
+  } : void 0;
+  const titleHandle = mod.presentation?.title;
+  const titleSeam = titleHandle ? {
+    registerRow(row) {
+      let subscription = null;
+      let removed = false;
+      void titleHandle.registerRow({ id: `${mod.meta.id}:${row.label}`, label: row.label, ...row.key ? { key: row.key } : {}, run: () => row.run() }).then((read) => {
+        if (!read.ok) {
+          log(`title row ${row.label} was refused (${refusal(read)})`);
+          return;
+        }
+        subscription = read.value;
+        if (removed) void titleHandle.removeRow(read.value);
+      });
+      const remove = () => {
+        if (removed) return;
+        removed = true;
+        if (subscription) void titleHandle.removeRow(subscription);
+      };
+      cleanups.push(remove);
+      return remove;
+    },
+    choose: async (label2, choices) => {
+      const read = await titleHandle.choose(label2, choices);
+      return read.ok ? read.value : null;
+    }
+  } : void 0;
+  let stored = null;
+  const storedCell = cell(() => mod.store.character.get(), null, 1e3, now);
+  const characterStore = {
+    get: () => {
+      stored = storedCell.get();
+      return stored;
+    },
+    set(value2) {
+      const next = value2 === void 0 ? null : value2;
+      storedCell.put(next);
+      void mod.store.character.set(next).then((read) => {
+        if (!read.ok) log(`saving the character record was refused (${refusal(read)})`);
+      });
+    }
+  };
+  return {
+    seams: {
+      character: characterSeam,
+      knowledge,
+      ...optionsSeam ? { options: optionsSeam } : {},
+      ...keybindingsSeam ? { keybindings: keybindingsSeam } : {},
+      ...savesSeam ? { saves: savesSeam } : {},
+      ...sessionSeam ? { session: sessionSeam } : {},
+      ...titleSeam ? { title: titleSeam } : {},
+      characterStore
+    },
+    async prime() {
+      await Promise.all([
+        character.reload(),
+        categories.reload(),
+        storedCell.reload(),
+        options?.reload(),
+        keyset?.reload(),
+        commands?.reload()
+      ]);
+      if (keyset) await keysFor(keyset.get()).reload();
+    },
+    dispose() {
+      for (const cleanup of cleanups.splice(0).reverse()) {
+        try {
+          cleanup();
+        } catch {
+        }
+      }
+      runEnds.clear();
+      lists.clear();
+      pages.clear();
+      keyLists.clear();
+    }
+  };
+}
+
+// src/bridge.ts
+var MAP_ACTUAL = "state:map-actual.read";
+var BRIDGE_CAPS = Object.freeze({ has: (capability) => capability !== MAP_ACTUAL });
+var sameToken = (a, b) => !!a && !!b && a.epoch === b.epoch && a.revision === b.revision;
+function createBridge(mod) {
+  const engine = mod.engine;
+  const display = mod.presentation?.display;
+  let input = null;
+  let prefs = null;
+  let settings = {};
+  let mods = [];
+  let busy = false;
+  let disposed = false;
+  let inflight = null;
+  let again = false;
+  const inputListeners = /* @__PURE__ */ new Set();
+  const settingListeners = /* @__PURE__ */ new Set();
+  const cleanups = [];
+  const log = (message) => mod.meta.log(message);
+  const managed = createManagedSeams(mod);
+  const stateOf2 = () => engine?.state;
+  const viewOf = (state) => engine.core.createAgentView(state, void 0, { ...state.knownWorldDeps, perceivedMonstersOnly: true }, BRIDGE_CAPS);
+  function applyInput(next) {
+    const changed = !sameInput(input, next);
+    input = next;
+    if (changed) for (const listener of [...inputListeners]) listener(next);
+  }
+  function refresh() {
+    if (disposed) return Promise.resolve();
+    if (inflight) {
+      again = true;
+      return inflight;
+    }
+    inflight = (async () => {
+      try {
+        do {
+          again = false;
+          const read = await mod.view.input();
+          if (disposed) return;
+          applyInput(read.ok ? read.value : null);
+          busy = false;
+        } while (again);
+      } catch (error) {
+        log(`bridge: reading the input wait failed (${String(error)})`);
+        busy = false;
+      } finally {
+        inflight = null;
+      }
+    })();
+    return inflight;
+  }
+  async function prime() {
+    const [stored, own, list] = await Promise.all([mod.store.prefs.get(), mod.meta.settings(), mod.meta.mods(), refresh(), managed.prime()]);
+    prefs = stored.ok ? stored.value : null;
+    settings = own.ok ? own.value : {};
+    mods = list.ok ? list.value : [];
+  }
+  const snapshot = () => {
+    const state = stateOf2();
+    if (!state || !engine) return null;
+    const core = viewOf(state).capture();
+    const wait = input;
+    if (!sameToken(wait?.token, core.token)) void refresh();
+    return Object.freeze({
+      token: wait && sameToken(wait.token, core.token) ? wait.token : core.token,
+      driver: wait?.driver ?? { kind: "player" },
+      phase: wait?.phase ?? null,
+      messagePending: wait?.messagePending ?? null,
+      resting: wait?.resting ?? null,
+      messages: wait?.messages ? Object.freeze({ token: core.token, entries: Object.freeze(wait.messages.map((m) => m.text)), log: Object.freeze(wait.messages.map((m) => Object.freeze({ ...m }))) }) : null,
+      storeStatus: wait?.storeStatus ?? null,
+      activeBlast: wait?.activeBlast ?? null,
+      prompt: wait?.prompt ?? null,
+      core,
+      frame: null
+    });
+  };
+  const knownLevel = () => {
+    const state = stateOf2();
+    return state && engine ? viewOf(state).knownLevel?.() ?? null : null;
+  };
+  const inspectView = () => {
+    const state = stateOf2();
+    return state && engine ? viewOf(state) : null;
+  };
+  const inspect = {
+    inspectItem: (ref) => inspectView()?.inspectItem?.(ref) ?? null,
+    bookForItem: (handle) => inspectView()?.bookForItem?.(handle) ?? null,
+    compareLoadoutSlots: (ref) => inspectView()?.compareLoadoutSlots?.(ref) ?? null,
+    monsterRecall: (raceIndex) => inspectView()?.monsterRecall?.(raceIndex) ?? null,
+    spellInfo: (spellIndex) => inspectView()?.spellInfo?.(spellIndex) ?? null,
+    itemTester: (code) => inspectView()?.itemTester?.(code) ?? null,
+    projectionPath: (to) => inspectView()?.projectionPath?.(to) ?? null,
+    blastArea: (to, radius, arc) => inspectView()?.blastArea?.(to, radius, arc) ?? null,
+    travelPath: (to) => inspectView()?.travelPath?.(to) ?? null,
+    tileActions: (to) => inspectView()?.tileActions?.(to) ?? null,
+    itemRules: () => inspectView()?.itemRules?.() ?? null,
+    terrainCatalogue: () => inspectView()?.terrainCatalogue?.() ?? null
+  };
+  const eventHandlers = /* @__PURE__ */ new Map();
+  const events = {
+    on(type, listener) {
+      const state = stateOf2();
+      if (!state?.events || !engine) throw new Error("no game is running");
+      const guarded = (t, payload) => {
+        try {
+          listener(t, payload);
+        } catch (error) {
+          log(`event ${String(t)}: ${String(error)}`);
+        }
+      };
+      let byListener = eventHandlers.get(type);
+      if (!byListener) eventHandlers.set(type, byListener = /* @__PURE__ */ new Map());
+      byListener.set(listener, guarded);
+      state.events.on(type, guarded);
+    },
+    off(type, listener) {
+      const guarded = eventHandlers.get(type)?.get(listener);
+      if (!guarded) return;
+      eventHandlers.get(type)?.delete(listener);
+      stateOf2()?.events?.off(type, guarded);
+    }
+  };
+  cleanups.push(() => {
+    const bus = stateOf2()?.events;
+    for (const [type, byListener] of eventHandlers) for (const guarded of byListener.values()) bus?.off(type, guarded);
+    eventHandlers.clear();
+  });
+  function refusalOf(result) {
+    const code = result.code === "controller-owned" ? "controller-owned" : void 0;
+    return { accepted: false, reason: result.message ?? result.reason, ...code ? { code } : {} };
+  }
+  function precheck(token) {
+    if (!input) return { accepted: false, reason: "No input wait is open." };
+    if (input.driver.kind === "controller" && input.driver.owner !== mod.meta.id) return { accepted: false, reason: "Another mod holds the keyboard.", code: "controller-owned" };
+    if (token && !sameToken(token, input.token)) return { accepted: false, reason: "That input wait is over." };
+    if (busy) return { accepted: false, reason: "The game is still working." };
+    return null;
+  }
+  const settle = (call, what) => {
+    void call.then((result) => {
+      if (!result.ok) log(`${what} was refused (${result.message ?? "no reason given"})`);
+    }, (error) => log(`${what} failed (${String(error)})`)).finally(() => {
+      void refresh();
+    });
+  };
+  const intent = {
+    submit(token, wanted) {
+      const refused = precheck(token);
+      if (refused) return refused;
+      busy = true;
+      settle(mod.act.submit(token, wanted), "an action");
+      return { accepted: true };
+    },
+    catalogue: () => catalogueCache
+  };
+  let catalogueCache;
+  const reloadCatalogue = async () => {
+    const read = await mod.view.catalogue();
+    if (read.ok) catalogueCache = read.value;
+  };
+  const prompt = {
+    reply(promptId, answer) {
+      const refused = precheck(null);
+      if (refused) return refused;
+      if (input?.prompt?.promptId !== promptId) return { accepted: false, reason: "That question is no longer open." };
+      busy = true;
+      settle(mod.act.answer(promptId, answer), "an answer");
+      return { accepted: true };
+    }
+  };
+  const prefsSeam = {
+    get: () => prefs,
+    set(value2) {
+      prefs = value2 === void 0 ? null : value2;
+      settle(mod.store.prefs.set(prefs), "saving preferences");
+    }
+  };
+  const settingsSeam = {
+    get: (id) => settings[id],
+    all: () => settings,
+    set(id, value2) {
+      if (!(id in settings) || typeof value2 !== "number") return void 0;
+      settings = { ...settings, [id]: value2 };
+      void mod.meta.setSetting(id, value2).then((result) => {
+        if (!result.ok) return;
+        settings = { ...settings, [id]: result.value };
+        for (const listener of [...settingListeners]) listener(id, result.value);
+      });
+      return value2;
+    },
+    onChange(listener) {
+      settingListeners.add(listener);
+      return () => {
+        settingListeners.delete(listener);
+      };
+    }
+  };
+  const presentation = mod.presentation;
+  const displayHandle = display;
+  if (displayHandle?.onFrame) cleanups.push(displayHandle.onFrame(() => {
+    void refresh();
+  }));
+  if (displayHandle) cleanups.push(displayHandle.onKey(() => {
+    void refresh();
+  }));
+  if (presentation) cleanups.push(presentation.onPhaseChanged(() => {
+    void refresh();
+  }));
+  void mod.events.on("driver-changed", () => {
+    void refresh();
+  });
+  void reloadCatalogue();
+  const ctx = {
+    id: mod.meta.id,
+    engine: mod.meta.engine,
+    log,
+    flags: mod.meta.flags,
+    ...engine ? { core: engine.core, registries: engine.registries } : {},
+    get state() {
+      return stateOf2();
+    },
+    snapshot,
+    knownLevel,
+    inspect,
+    intent,
+    prompt,
+    events,
+    driver: () => input?.driver ?? { kind: "player" },
+    mods: () => mods,
+    prefs: prefsSeam,
+    settings: settingsSeam,
+    ...displayHandle ? { display: displayHandle } : {},
+    ...presentation?.panels ? { ui: presentation.panels } : {},
+    ...presentation?.subwindows ? { subwindows: presentation.subwindows } : {},
+    ...presentation?.tiles ? { tiles: presentation.tiles } : {},
+    ...presentation?.keyRepeat ? { keyRepeat: presentation.keyRepeat } : {},
+    ...managed.seams
+  };
+  return {
+    ctx,
+    prime,
+    refresh,
+    input: () => input,
+    onInput(listener) {
+      inputListeners.add(listener);
+      return () => {
+        inputListeners.delete(listener);
+      };
+    },
+    dispose() {
+      disposed = true;
+      managed.dispose();
+      for (const cleanup of cleanups.splice(0).reverse()) {
+        try {
+          cleanup();
+        } catch {
+        }
+      }
+      inputListeners.clear();
+      settingListeners.clear();
+    }
+  };
+}
+function sameInput(a, b) {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return sameToken(a.token, b.token) && a.phase === b.phase && a.messagePending === b.messagePending && a.driver.kind === b.driver.kind && a.driver.owner === b.driver.owner && (a.prompt?.promptId ?? null) === (b.prompt?.promptId ?? null);
+}
 
 // src/view-model/adapter.ts
 function entry(frame, key) {
@@ -205,7 +747,7 @@ function viewLevel(seam) {
 }
 function truthLevel(level) {
   const cells = [];
-  for (const cell of level?.cells ?? []) if (cell.actual) cells.push({ ...cell.actual, x: cell.x, y: cell.y });
+  for (const cell2 of level?.cells ?? []) if (cell2.actual) cells.push({ ...cell2.actual, x: cell2.x, y: cell2.y });
   return { cells };
 }
 function liveGame(ctx) {
@@ -215,7 +757,6 @@ function itemsGame(core, state) {
   if (!core || !state) return {};
   return { state, core: {
     createAgentView: () => core.createAgentView(state),
-    createAgentActions: () => core.createAgentActions(state),
     floorObject: (grid, floorIndex) => listedFloorObject(core, state, grid, floorIndex)
   } };
 }
@@ -319,9 +860,6 @@ function liveHud(game) {
     descent: state.actor.player.deepDescent,
     extraMoves: state.playerState?.numMoves ?? 0
   };
-}
-function itemActionBuilders(game) {
-  return coreOf(game)?.createAgentActions?.(game.state);
 }
 function visibleMonsterRaces(game) {
   return game.core.monsterListCollect(game.state).entries.map((entry2) => entry2.race);
@@ -1408,14 +1946,14 @@ function fraction(current, maximum2) {
   return maximum2 > 0 ? Math.max(0, Math.min(1, current / maximum2)) : 0;
 }
 function meter(parent, label2, value2, amount, colour, tip2) {
-  const cell = node(parent, "div", "meter");
-  node(cell, "span", "", label2);
-  node(cell, "span", "", ` ${value2}`);
-  const track = node(cell, "div", "bar");
+  const cell2 = node(parent, "div", "meter");
+  node(cell2, "span", "", label2);
+  node(cell2, "span", "", ` ${value2}`);
+  const track = node(cell2, "div", "bar");
   const fill = node(track, "div", "fill");
   fill.style.width = `${Math.round(amount * 100)}%`;
   fill.style.backgroundColor = colour;
-  if (tip2) cell.dataset.tip = tip2;
+  if (tip2) cell2.dataset.tip = tip2;
 }
 function intersects(a, b) {
   return a.col < b.col + b.cols && b.col < a.col + a.cols && a.row < b.row + b.rows && b.row < a.row + a.rows;
@@ -1596,6 +2134,20 @@ var FONT_FILES = [
   "Xanmono-Regular.ttf",
   "Zector.ttf"
 ];
+var EFFECT_FONT = "tengwar-annatar/tngan.ttf";
+async function loadFonts(ctx, files = [...FONT_FILES, EFFECT_FONT]) {
+  if (typeof FontFace === "undefined" || typeof document === "undefined" || !document.fonts) return [];
+  const loaded = [];
+  for (const file of files) {
+    const url = await ctx.assetUrl(`fonts/${file}`);
+    if (url === null) continue;
+    const face = new FontFace(file, `url(${JSON.stringify(url)})`);
+    await face.load();
+    document.fonts.add(face);
+    loaded.push(file);
+  }
+  return loaded;
+}
 
 // src/settings.ts
 var DEFAULT_SETTINGS = {
@@ -2996,10 +3548,10 @@ Remaining: ${Math.max(0, next - p.experience)}`].join("\n");
   if (p.stats.length) {
     const stats = node(mount, "div", "stats");
     for (const item of p.stats) {
-      const cell = node(stats, "div", item.drained ? "drained" : "");
-      node(cell, "div", "", `${item.label}${item.drained ? "*" : ""}`);
-      node(cell, "div", "", stat(item.value));
-      cell.dataset.tip = `${item.label}: ${stat(item.value)}`;
+      const cell2 = node(stats, "div", item.drained ? "drained" : "");
+      node(cell2, "div", "", `${item.label}${item.drained ? "*" : ""}`);
+      node(cell2, "div", "", stat(item.value));
+      cell2.dataset.tip = `${item.label}: ${stat(item.value)}`;
     }
   }
   const metrics = node(mount, "div", "metric-grid");
@@ -3645,7 +4197,7 @@ function mapProjection(snapshot) {
   }
   return snapshot.regions.map?.pixels;
 }
-function featureCode(cell) {
+function featureCode(cell2) {
   const builtIn = [
     "NONE",
     "FLOOR",
@@ -3673,7 +4225,7 @@ function featureCode(cell) {
     "LAVA",
     "PASS_RUBBLE"
   ];
-  return cell.remembered.featCode ?? builtIn[cell.remembered.feat];
+  return cell2.remembered.featCode ?? builtIn[cell2.remembered.feat];
 }
 function landmarkKind(code) {
   if (!code) return null;
@@ -3847,14 +4399,14 @@ function installMapOverview(ctx) {
       const g = overlay.getContext("2d");
       if (g) {
         const cw = rect.width / snap.viewport.size.width, ch = rect.height / snap.viewport.size.height;
-        for (const cell of known.cells) {
-          const x = (cell.x - snap.viewport.origin.x) * cw, y = (cell.y - snap.viewport.origin.y) * ch;
+        for (const cell2 of known.cells) {
+          const x = (cell2.x - snap.viewport.origin.x) * cw, y = (cell2.y - snap.viewport.origin.y) * ch;
           if (x + cw < 0 || y + ch < 0 || x >= rect.width || y >= rect.height) continue;
           if (ctx.flags["anybandui.mapSchematic"]) {
-            g.fillStyle = schematicColour(featureCode(cell));
+            g.fillStyle = schematicColour(featureCode(cell2));
             g.fillRect(x, y, Math.ceil(cw), Math.ceil(ch));
           }
-          const kind = landmarkKind(featureCode(cell));
+          const kind = landmarkKind(featureCode(cell2));
           if (kind) drawMarker(g, x + cw / 2, y + ch / 2, Math.max(3, Math.min(7, Math.min(cw, ch) * 0.4)), kind);
         }
         if (playView) {
@@ -4085,14 +4637,14 @@ function snapLandmark(snapshot, point, cells) {
   const cellW = rect.width / snapshot.viewport.size.width, cellH = rect.height / snapshot.viewport.size.height;
   let nearest = 64;
   let chosen = null;
-  for (const cell of cells) {
-    if (!landmarkKind(featureCode(cell))) continue;
-    const x = rect.x + (cell.x - snapshot.viewport.origin.x + 0.5) * cellW;
-    const y = rect.y + (cell.y - snapshot.viewport.origin.y + 0.5) * cellH;
+  for (const cell2 of cells) {
+    if (!landmarkKind(featureCode(cell2))) continue;
+    const x = rect.x + (cell2.x - snapshot.viewport.origin.x + 0.5) * cellW;
+    const y = rect.y + (cell2.y - snapshot.viewport.origin.y + 0.5) * cellH;
     const distance = (x - point.x) ** 2 + (y - point.y) ** 2;
     if (distance < nearest) {
       nearest = distance;
-      chosen = { x: cell.x, y: cell.y };
+      chosen = { x: cell2.x, y: cell2.y };
     }
   }
   return chosen;
@@ -4658,13 +5210,13 @@ function installMapHoverCards(ctx) {
         termSize: { cols: snapshot.grid.cols, rows: snapshot.grid.rows }
       };
     }
-    const cell = hoverCellAt(game.getBoundingClientRect(), clientX, clientY);
-    if (!cell) return null;
-    const grid = hoverCaveGrid(cell.col, cell.row, chunk.width, chunk.height);
+    const cell2 = hoverCellAt(game.getBoundingClientRect(), clientX, clientY);
+    if (!cell2) return null;
+    const grid = hoverCaveGrid(cell2.col, cell2.row, chunk.width, chunk.height);
     if (!grid) return null;
     return {
       grid,
-      cell,
+      cell: cell2,
       view: { origin: { x: 0, y: 0 }, size: { width: chunk.width, height: chunk.height } },
       termSize: { cols: TERM_COLS, rows: TERM_ROWS }
     };
@@ -5089,16 +5641,12 @@ function answerItem(seam, prompt, handle) {
   if (!prompt.choices.some((choice) => choice.handle === handle)) return { accepted: false, reason: "Item is unavailable for this action." };
   return seam?.reply(prompt.promptId, handle) ?? { accepted: false, reason: "Prompt reply unavailable." };
 }
-function buildItemCommand(builders, code, handle, inscription) {
-  if (code === "wield") return builders?.wear(handle) ?? { code, args: { handle } };
-  if (code === "takeoff") return builders?.takeoff(handle) ?? { code, args: { handle } };
-  if (code === "drop") return builders?.drop(handle) ?? { code, args: { handle } };
-  const args = inscription === void 0 ? { handle } : { handle, inscription };
-  return builders?.raw(code, args) ?? { code, args };
+function buildItemCommand(code, handle, inscription) {
+  if (code === "wield" || code === "takeoff" || code === "drop") return { code, args: { handle } };
+  return { code, args: inscription === void 0 ? { handle } : { handle, inscription } };
 }
-function buildFloorCommand(builders, code, floorIndex, inscription) {
-  const args = inscription === void 0 ? { floor: floorIndex } : { floor: floorIndex, inscription };
-  return builders?.raw(code, args) ?? { code, args };
+function buildFloorCommand(code, floorIndex, inscription) {
+  return { code, args: inscription === void 0 ? { floor: floorIndex } : { floor: floorIndex, inscription } };
 }
 function submitItem(intent, inspect, token, code, handle, command) {
   const tester = inspect?.itemTester(code);
@@ -5397,7 +5945,6 @@ function installItems(ctx) {
       paint(true);
       return;
     }
-    const builders = itemActionBuilders(ctx);
     let inscription;
     if (code === "inscribe") {
       const input = globalThis.prompt?.("Inscription", item.inscription ?? "");
@@ -5410,14 +5957,14 @@ function installItems(ctx) {
         paint(true);
         return;
       }
-      const command2 = buildFloorCommand(builders, actualCode, item.floorIndex, inscription);
+      const command2 = buildFloorCommand(actualCode, item.floorIndex, inscription);
       const floor = { x: model.player.x, y: model.player.y, index: item.floorIndex };
       const result2 = submitFloorItem(ctx.intent, ctx.inspect, model.token, actualCode, floor, command2);
       report({ ...result2, quiet: result2.code === "controller-owned" }, "Action rejected.");
       paint(true);
       return;
     }
-    const command = buildItemCommand(builders, actualCode, item.handle, inscription);
+    const command = buildItemCommand(actualCode, item.handle, inscription);
     const result = submitItem(ctx.intent, ctx.inspect, model.token, actualCode, item.handle, command);
     report({ ...result, quiet: result.code === "controller-owned" }, "Action rejected.");
     paint(true);
@@ -5433,8 +5980,7 @@ function installItems(ctx) {
       paint(true);
       return;
     }
-    const builders = itemActionBuilders(ctx);
-    const command = buildFloorCommand(builders, "pickup", item.floorIndex);
+    const command = buildFloorCommand("pickup", item.floorIndex);
     const result = ctx.intent.submit(model.token, { kind: "command", command });
     report({ ...result, quiet: result.code === "controller-owned" }, "You cannot pick that up right now.");
     paint(true);
@@ -5530,8 +6076,8 @@ function installItems(ctx) {
         const row = el3(table, "tr");
         el3(row, "td", choice.letter);
         if (choice.handle === promptChoice) row.className = "chosen";
-        const cell = el3(row, "td");
-        const b = button(cell, item ? item.label : choice.label, () => {
+        const cell2 = el3(row, "td");
+        const b = button(cell2, item ? item.label : choice.label, () => {
           promptChoice = choice.handle;
           paint(true);
         });
@@ -5698,8 +6244,8 @@ function installItems(ctx) {
       if (block2.body) el3(details, "p", block2.body).className = "info";
     }
   };
-  const itemButton = (cell, item, badge) => {
-    const b = button(cell, `${item.label}${badge ? ` ${badge}` : ""}`, () => {
+  const itemButton = (cell2, item, badge) => {
+    const b = button(cell2, `${item.label}${badge ? ` ${badge}` : ""}`, () => {
       selected = item.key;
       changes.acknowledge(item);
       paint(true);
@@ -5981,9 +6527,9 @@ function drawGrids(parent, data) {
       if (row.labelColor.css) label2.style.color = row.labelColor.css;
       const symbols = el4(tr, "td");
       symbols.className = "cells";
-      for (const cell of row.cells) {
-        const mark = el4(symbols, "span", cell.symbol || " ");
-        if (cell.css) mark.style.color = cell.css;
+      for (const cell2 of row.cells) {
+        const mark = el4(symbols, "span", cell2.symbol || " ");
+        if (cell2.css) mark.style.color = cell2.css;
       }
     }
   }
@@ -6500,8 +7046,8 @@ function block(parent, item) {
   if (item.columns.some((column) => column.label)) {
     const head = el6(table, "tr");
     for (const column of item.columns) {
-      const cell = el6(head, "th", column.label ?? "");
-      if (item.headerColor) cell.style.color = item.headerColor;
+      const cell2 = el6(head, "th", column.label ?? "");
+      if (item.headerColor) cell2.style.color = item.headerColor;
     }
   }
   for (const row of item.rows) {
@@ -6686,9 +7232,9 @@ function installKnowledgeBrowser(ctx) {
       if (entry2.cells && entry2.cells.length > 0) {
         const cells = el6(row, "span");
         cells.className = "cells";
-        for (const cell of entry2.cells) {
-          const part = el6(cells, "span", ` ${cell.text}`);
-          part.style.color = cell.color;
+        for (const cell2 of entry2.cells) {
+          const part = el6(cells, "span", ` ${cell2.text}`);
+          part.style.color = cell2.color;
         }
       }
     }
@@ -6876,10 +7422,10 @@ function installOptionsEditor(ctx) {
     const change = pending();
     const count = changeCount(change);
     if (count === 0 || !ctx.options?.set) return;
-    ask({ question: `Save ${count} changed ${count === 1 ? "option" : "options"}? This replaces the game's current values.`, yes: "Save", onYes: () => {
+    ask({ question: `Save ${count} changed ${count === 1 ? "option" : "options"}? This replaces the game's current values.`, yes: "Save", onYes: async () => {
       let result;
       try {
-        result = ctx.options.set(change);
+        result = await ctx.options.set(change);
       } catch (err) {
         result = { ok: false, reason: err instanceof Error ? err.message : String(err) };
       }
@@ -7016,7 +7562,7 @@ function installOptionsEditor(ctx) {
       cancel(writable ? "cancel" : "search");
     });
   };
-  surface = openMenuSurface(ctx, { key: OPTIONS_KEY, label: "Game options", tab: "Settings", minSize: { width: 360, height: 240 }, placement: { kind: "dock", target: "main", edge: "right" }, firstFocus: "search" }, render);
+  surface = openMenuSurface(ctx, { key: OPTIONS_KEY, label: "Game options", tab: "Options", minSize: { width: 360, height: 240 }, placement: { kind: "dock", target: "main", edge: "right" }, firstFocus: "search" }, render);
   if (!surface) {
     ctx.log("options editor: panel seam unavailable");
     return () => {
@@ -7413,7 +7959,7 @@ function installKeybindingEditor(ctx) {
       cancel();
     });
   };
-  surface = openMenuSurface(ctx, { key: KEYBINDINGS_KEY, label: "Keybindings", tab: "Settings", minSize: { width: 360, height: 240 }, placement: { kind: "dock", target: "main", edge: "right" }, firstFocus: "add", onHidden: dropCapture }, render);
+  surface = openMenuSurface(ctx, { key: KEYBINDINGS_KEY, label: "Keybindings", tab: "Keys", minSize: { width: 360, height: 240 }, placement: { kind: "dock", target: "main", edge: "right" }, firstFocus: "add", onHidden: dropCapture }, render);
   if (!surface) {
     ctx.log("keybinding editor: panel seam unavailable");
     return () => {
@@ -7428,7 +7974,7 @@ function installKeybindingEditor(ctx) {
 }
 
 // src/view-model/spells.ts
-var sameToken = (a, b) => a.epoch === b.epoch && a.revision === b.revision;
+var sameToken2 = (a, b) => a.epoch === b.epoch && a.revision === b.revision;
 var itemKey = (item) => item.kindId ?? `${item.tval}:${item.sval}`;
 function bookFor(snap, item, books, inspect) {
   if (!books.some((book) => book.tval === item.tval)) return null;
@@ -7439,7 +7985,7 @@ function bookFor(snap, item, books, inspect) {
     } catch {
       mapped = null;
     }
-    if (!mapped || !sameToken(mapped.token, snap.token)) return null;
+    if (!mapped || !sameToken2(mapped.token, snap.token)) return null;
     return books[mapped.bookIndex] ?? null;
   }
   const siblings = books.filter((book) => book.tval === item.tval);
@@ -7455,7 +8001,7 @@ function adaptSpells(snap, inspect) {
     if (!book || books.some((entry2) => entry2.key === itemKey(item))) continue;
     const spells = book.spells.map((spell) => {
       const info = inspect?.spellInfo?.(spell.sidx);
-      const detail = info && sameToken(info.token, snap.token) ? info : null;
+      const detail = info && sameToken2(info.token, snap.token) ? info : null;
       const canCast = !!detail?.canCastNow && spell.learned && !spell.forgotten;
       const eligible = spell.studyEligible ?? (!spell.learned && !spell.forgotten && spell.level <= (player.level ?? 0));
       const canStudy = eligible && learnable !== 0;
@@ -7492,7 +8038,7 @@ var DEFAULT_COLORS = ["rgba(245,185,70,.095)", "rgba(245,190,80,.745)"];
 var elementEdgeColour = (element) => (element ? ELEMENT_COLORS[element]?.[1] : void 0) ?? DEFAULT_COLORS[1];
 function blastGrids(ctx, snap, hovered) {
   const blast = snap?.activeBlast, prompt = snap?.prompt;
-  if (!snap || !blast || !sameToken(blast.token, snap.token) || blast.radius < 1) return null;
+  if (!snap || !blast || !sameToken2(blast.token, snap.token) || blast.radius < 1) return null;
   if (prompt?.kind !== "target" && prompt?.kind !== "direction") return null;
   const at = (prompt.kind === "target" ? prompt.cursor : null) ?? hovered;
   if (!at) return null;
@@ -7502,7 +8048,7 @@ function blastGrids(ctx, snap, hovered) {
   } catch {
     area = null;
   }
-  if (!area || !sameToken(area.token, snap.token) || !area.grids.length) return null;
+  if (!area || !sameToken2(area.token, snap.token) || !area.grids.length) return null;
   return { grids: area.grids, element: area.element ?? blast.element ?? null };
 }
 function installBlastPreview(ctx) {
@@ -7600,7 +8146,7 @@ function effectGrids(s, known, revealHidden = false) {
     if (m.afraid) afraid.push(m.grid);
     if (m.unique ?? m.raceFlags.includes("UNIQUE")) uniques.push({ grid: m.grid, final: m.finalGuardian ?? m.race === "Morgoth, Lord of Darkness" });
   }
-  const truth = revealHidden ? new Map(truthLevel(known).cells.map((cell) => [cell.y * 65536 + cell.x, cell])) : null;
+  const truth = revealHidden ? new Map(truthLevel(known).cells.map((cell2) => [cell2.y * 65536 + cell2.x, cell2])) : null;
   for (const c of known?.cells ?? []) {
     const auras = /* @__PURE__ */ new Set();
     const actual = truth?.get(c.y * 65536 + c.x);
@@ -7797,21 +8343,21 @@ function sceneTerrain(code) {
 }
 function sceneCells(known) {
   const out = [];
-  for (const cell of known?.cells ?? []) {
-    const kind = sceneTerrain(featureCode(cell));
-    if (kind) out.push({ grid: { x: cell.x, y: cell.y }, kind });
+  for (const cell2 of known?.cells ?? []) {
+    const kind = sceneTerrain(featureCode(cell2));
+    if (kind) out.push({ grid: { x: cell2.x, y: cell2.y }, kind });
   }
   return out;
 }
 function playerOnStairs(known, grid) {
   if (!grid) return false;
-  const cell = known?.cells?.find((entry2) => entry2.x === grid.x && entry2.y === grid.y);
-  if (!cell) return false;
-  const kind = sceneTerrain(featureCode(cell));
+  const cell2 = known?.cells?.find((entry2) => entry2.x === grid.x && entry2.y === grid.y);
+  if (!cell2) return false;
+  const kind = sceneTerrain(featureCode(cell2));
   return kind === "up" || kind === "down";
 }
 function recallGrid(player) {
-  if (!player?.grid || !(typeof player.recall === "number" && player.recall > 0)) return null;
+  if (!player?.grid || !(player.recall === true || typeof player.recall === "number" && player.recall > 0)) return null;
   return player.grid;
 }
 function driftingEmbers(now, seed, count, reduced) {
@@ -8047,7 +8593,7 @@ function installEffects(ctx) {
     if (live && view.viewport.size.width > 0 && view.viewport.size.height > 0) {
       let paint2 = function(p, color, a, aura) {
         if (!a) return;
-        const q = cell(p);
+        const q = cell2(p);
         if (aura && glowFigure(aura) === "sunburst") {
           const unit = Math.max(cellW, cellH), spin = staticMode ? 0 : now / 8e3;
           const beat = staticMode ? 0.65 : 0.5 + 0.5 * Math.sin(now / 420);
@@ -8073,7 +8619,7 @@ function installEffects(ctx) {
         g.globalAlpha = 1;
       }, embers2 = function(p, kind, a) {
         if (!a || !seen(p)) return;
-        const q = cell(p), seed = p.x * 0.173 + p.y * 0.317;
+        const q = cell2(p), seed = p.x * 0.173 + p.y * 0.317;
         if (kind === "lava") {
           g.fillStyle = `rgba(255,70,12,${0.28 * a})`;
           g.fillRect(q.x - cellW / 2, q.y - cellH / 2, cellW, cellH);
@@ -8095,7 +8641,7 @@ function installEffects(ctx) {
         }
       }, ring2 = function(p, a) {
         if (!a) return;
-        const q = cell(p), unit = Math.max(cellW, cellH), spin = staticMode ? 0 : now / 2800;
+        const q = cell2(p), unit = Math.max(cellW, cellH), spin = staticMode ? 0 : now / 2800;
         g.strokeStyle = `rgba(64,191,255,${0.75 * a})`;
         g.lineWidth = Math.max(1, unit * 0.06);
         const radius = unit * 0.62;
@@ -8108,9 +8654,9 @@ function installEffects(ctx) {
       };
       var paint = paint2, embers = embers2, ring = ring2;
       const cellW = live.width / view.viewport.size.width, cellH = live.height / view.viewport.size.height;
-      const cell = (p) => cellAnchor(view.viewport.origin, view.viewport.size, live, p);
+      const cell2 = (p) => cellAnchor(view.viewport.origin, view.viewport.size, live, p);
       const seen = (p) => {
-        const q = cell(p);
+        const q = cell2(p);
         return q.x >= -cellW && q.y >= -cellH && q.x <= live.width + cellW && q.y <= live.height + cellH;
       };
       if (flags["anybandui.lowHealthEffect"] && intensity("lowHealth") > 0) {
@@ -8131,7 +8677,7 @@ function installEffects(ctx) {
       if (flags["anybandui.itemGlow"]) for (const glow of grids.glows) paint2(glow.grid, AURA_COLOURS[glow.aura], intensity("itemGlow"), glow.aura);
       const marked = markGrids(grids.asleep, grids.afraid, flags["anybandui.fearMarks"] === true && intensity("fearMarks") > 0);
       if (flags["anybandui.sleepMarks"]) for (const p of marked.sleep) {
-        const q = cell(p);
+        const q = cell2(p);
         g.strokeStyle = `rgba(190,220,255,${intensity("sleepMarks")})`;
         g.lineWidth = 1.5;
         g.beginPath();
@@ -8141,7 +8687,7 @@ function installEffects(ctx) {
         g.stroke();
       }
       if (flags["anybandui.fearMarks"]) for (const p of marked.fear) {
-        const q = cell(p);
+        const q = cell2(p);
         const bob = staticMode ? 0 : Math.sin(now / 200) * cellH * 0.06;
         g.globalAlpha = intensity("fearMarks");
         g.fillStyle = "#f5ba69";
@@ -8163,7 +8709,7 @@ function installEffects(ctx) {
       if (recallAt && seen(recallAt)) ring2(recallAt, intensity("recall"));
       const flash = flags["anybandui.levelFlash"] ? levelFlashIntensity(levelWatch.started, now, staticMode) * intensity("level") : 0;
       if (flash > 0 && player?.grid && seen(player.grid)) {
-        const q = cell(player.grid);
+        const q = cell2(player.grid);
         g.fillStyle = `rgba(255,196,80,${0.45 * flash})`;
         g.beginPath();
         g.arc(q.x, q.y, Math.max(cellW, cellH) * 0.9, 0, Math.PI * 2);
@@ -8179,7 +8725,7 @@ function installEffects(ctx) {
         const age = elapsed / life;
         if (age >= (staticMode ? 0.08 : 1)) continue;
         active = true;
-        const q = cell(c.grid), a = staticMode ? 0.45 : (1 - age) * c.strength / 100;
+        const q = cell2(c.grid), a = staticMode ? 0.45 : (1 - age) * c.strength / 100;
         if (c.kind === "blast") {
           g.fillStyle = c.colour ?? "#ffbe5a";
           g.globalAlpha = a * 0.55;
@@ -8200,7 +8746,7 @@ function installEffects(ctx) {
         }
         if (c.kind === "slide" && c.from) {
           const at = slidePlace(c.from, c.grid, staticMode ? 1 : age);
-          const s = cell(at);
+          const s = cell2(at);
           g.globalAlpha = a;
           g.fillStyle = "#d7e6f5";
           g.beginPath();
@@ -8215,7 +8761,7 @@ function installEffects(ctx) {
           for (const p of cells) {
             const band = staticMode ? 0.3 : rippleAlpha(Math.hypot(p.x - c.grid.x, p.y - c.grid.y), radius, age);
             if (band <= 0) continue;
-            const s = cell(p);
+            const s = cell2(p);
             g.globalAlpha = band * c.strength / 100;
             g.fillStyle = "#a6d4ff";
             g.fillRect(s.x - cellW / 2, s.y - cellH / 2, cellW, cellH);
@@ -8404,7 +8950,7 @@ function outcome(action, result) {
 async function runSessionAction(session, action) {
   if (!session) return { ok: false, message: "This game does not let mods save it." };
   try {
-    if (action === "save") return outcome(action, session.save());
+    if (action === "save") return outcome(action, await session.save());
     return outcome(action, await (action === "close" ? session.exitToTitle() : session.quit()));
   } catch (err) {
     return { ok: false, message: `The game was not saved: ${err instanceof Error ? err.message : String(err)}` };
@@ -8441,13 +8987,13 @@ function createLayoutHistory(seam, limit = HISTORY_LIMIT) {
     if (target === void 0) return false;
     const previous = last;
     restoring = target;
-    let ok = false;
+    let ok2 = false;
     try {
-      ok = seam.setLayout(target);
+      ok2 = seam.setLayout(target);
     } catch {
-      ok = false;
+      ok2 = false;
     }
-    if (!ok) {
+    if (!ok2) {
       restoring = null;
       notify();
       return false;
@@ -8548,6 +9094,1253 @@ function createSavedLayouts(seam, prefs) {
   };
 }
 
+// src/neo-manager/model.ts
+var ledgerText = {
+  mods: "Mods",
+  installed: "Installed",
+  browse: "Browse",
+  lists: "Mod lists",
+  settings: "Settings",
+  look: "Look",
+  on: "ON",
+  off: "OFF",
+  details: "Details",
+  close: "Close",
+  about: "About",
+  all: "All",
+  updates: "Updates ready",
+  update: "Update",
+  updateAll: "Update all",
+  review: "Review",
+  install: "Install",
+  remove: "Remove",
+  rollback: "Roll back",
+  permissions: "Permissions",
+  allow: "Allow these",
+  cancel: "Not now",
+  required: "required",
+  optional: "optional",
+  noPermissions: "No new permissions.",
+  unknownPermissions: "Review permissions with Core.",
+  pending: "Waiting for confirmation in the game.",
+  busy: "Working...",
+  unavailable: "The mod manager is unavailable.",
+  noMatches: "No matches.",
+  searchMods: "Search installed mods",
+  searchBrowse: "Search mods",
+  searchSettings: "Search settings",
+  show: "Show",
+  turnOn: "Turn on",
+  turnOff: "Turn off",
+  version: "Version",
+  can: "Can",
+  updateReady: "Update ready",
+  firstParty: "First-party: made by the Neo Angband team.",
+  reviewed: "Reviewed: checked by a person before listing.",
+  listed: "Listed: not reviewed.",
+  sideloaded: "Unreviewed: loaded from this device. Nobody has checked it.",
+  unknownTrust: "Trust is unknown.",
+  permissionDetails: "Permission details are available in the game.",
+  noPermissionsRequested: "No permissions requested.",
+  notAllowed: "Not allowed",
+  undecided: "Not decided",
+  updatesRule: "Applied between games. Each old version stays for rollback.",
+  newPermissions: "New permissions. Needs your OK.",
+  rowHint: "Hover, focus, or long-press a name for a card.",
+  keys: "Up/Down move | Enter open | Space on or off | / search | ? help | Esc back | Gamepad: A open, B back, Y details",
+  settingsKeys: "Up/Down move | Enter open or close a group | / search | ? help | Esc back | Gamepad: A open, B back, Y details",
+  settingsHint: "A search opens any group that holds a match. Every setting is in one JSON file you can export.",
+  export: "Export settings",
+  import: "Import settings",
+  chooseFile: "Choose settings file",
+  backup: "Backup",
+  json: "Settings JSON",
+  invalidSettings: "The settings JSON is invalid.",
+  saved: "Settings saved.",
+  lookTitle: "Choose your look",
+  vanilla: "Vanilla",
+  neoAngband: "Neo Angband",
+  keepVanilla: "Keep Vanilla",
+  chooseNeoAngband: "Choose Neo Angband",
+  backVanilla: "Back to Vanilla",
+  lookHint: "Both looks play the same game with the same mods and saves. Switch any time from the title screen.",
+  vanillaHint: "The classic Angband look. Nothing to download. Mods managed on classic screens.",
+  neoAngbandHint: "The same game in windows and menus that work with keyboard, gamepad, and touch. Installs and turns on AnybandUI.",
+  lookSettings: "Tile art, high contrast, and screen reader labels are in Settings.",
+  lookPending: "Neo Angband is waiting for AnybandUI to download. Back to Vanilla restores your earlier settings.",
+  safeMode: "Safe mode",
+  startingOff: "Starting with every mod off",
+  safeHint: "The game did not finish starting twice in a row. Saves are untouched. Mods stay off until you turn them on.",
+  openManager: "Open mod manager",
+  startOff: "Start with mods off",
+  restore: "Restore my mods",
+  restoreHint: "One confirmation installs them and anything they depend on.",
+  removed: "Removed for harm",
+  removedHint: "This version was removed from the registry because it caused harm. Your saves are safe. The game will not load this version.",
+  continue: "Continue",
+  ready: "Ready",
+  removedStatus: "Removed",
+  unavailableVersion: "Unavailable",
+  switchedOff: "was switched off",
+  needs: "This save needs",
+  downloads: "Downloads",
+  consentHint: "Choose what it may do. Change this any time in Mod settings."
+};
+function displayText(text) {
+  return text.replace(/\bNeo\b(?! Angband)/g, "Neo Angband");
+}
+var initialView = { tab: "installed", selected: 0, expanded: null, query: "", filter: "all" };
+function reduceManager(view, action) {
+  switch (action.type) {
+    case "tab":
+      return { ...initialView, tab: action.tab };
+    case "move":
+      return { ...view, selected: Math.max(0, Math.min(action.length - 1, view.selected + action.delta)) };
+    case "expand":
+      return { ...view, expanded: view.expanded === action.id ? null : action.id };
+    case "search":
+      return { ...view, query: action.query, selected: 0 };
+    case "filter":
+      return { ...view, filter: action.filter, selected: 0 };
+    case "back":
+      return { ...view, expanded: null };
+  }
+}
+function updateRows(state, permissions) {
+  return state.updates.filter((update) => update.standing === "behind" && update.newest !== null).map((update) => {
+    const asks = permissions?.(update.id) ?? null;
+    return {
+      ...update,
+      name: displayText(update.name ?? state.installed.find((mod) => mod.id === update.id)?.name ?? update.id),
+      review: asks === null || asks.length > 0,
+      note: asks === null ? ledgerText.unknownPermissions : asks.length ? ledgerText.newPermissions : ledgerText.noPermissions
+    };
+  });
+}
+function managerRows(state, view, updatePermissions, permissions) {
+  const updates = updateRows(state, updatePermissions);
+  return state.installed.filter((mod) => `${mod.name} ${mod.id}`.toLowerCase().includes(view.query.trim().toLowerCase())).filter((mod) => view.filter === "all" || view.filter === "on" && mod.enabled || view.filter === "off" && !mod.enabled || view.filter === "updates" && updates.some((update) => update.id === mod.id)).map((mod, index) => {
+    const update = updates.find((entry2) => entry2.id === mod.id);
+    const trust = mod.tier?.trust;
+    const asks = permissions?.(mod.id).filter((ask) => ask.modId === mod.id);
+    const permissionText = asks ? asks.length ? asks.map((ask) => `${mod.consent.granted.includes(ask.capability) ? ledgerText.can : mod.consent.refused.includes(ask.capability) ? ledgerText.notAllowed : ledgerText.undecided}: ${displayText(ask.consentText)}.`).join(" ") : ledgerText.noPermissionsRequested : ledgerText.permissionDetails;
+    const description = [
+      displayText(mod.name),
+      `v${mod.version}`,
+      displayText(mod.catalogMod.manifest.description ?? ""),
+      trust === "first-party" ? ledgerText.firstParty : trust === "reviewed" ? ledgerText.reviewed : trust === "listed" ? ledgerText.listed : trust === "sideloaded" ? ledgerText.sideloaded : ledgerText.unknownTrust,
+      permissionText,
+      update ? `${ledgerText.updateReady}: ${update.newest}. ${update.note}` : ""
+    ].filter(Boolean).join(" ");
+    const letter = index < 26 ? String.fromCharCode(97 + index) : String(index + 1);
+    return {
+      ...mod,
+      name: displayText(mod.name),
+      letter,
+      label: `${letter}) ${displayText(mod.name)}`,
+      description,
+      selected: index === view.selected,
+      expanded: view.expanded === mod.id,
+      stateText: mod.enabled ? ledgerText.on : ledgerText.off,
+      update
+    };
+  });
+}
+function consentDecision(asks, granted) {
+  return {
+    granted: asks.filter((ask) => !ask.canRunWithout || granted.includes(ask.capability)).map((ask) => ask.capability),
+    refused: asks.filter((ask) => ask.canRunWithout && !granted.includes(ask.capability)).map((ask) => ask.capability)
+  };
+}
+function settingsGroups(definitions, values, query) {
+  const needle = query.trim().toLowerCase();
+  return [...new Set(definitions.map((definition2) => definition2.group))].map((name) => {
+    const members = definitions.filter((definition2) => definition2.group === name);
+    const matches3 = members.filter((definition2) => `${name} ${definition2.title} ${definition2.description}`.toLowerCase().includes(needle));
+    return {
+      name,
+      members: needle ? matches3 : members,
+      open: needle.length > 0 && matches3.length > 0,
+      summary: members.map((definition2) => {
+        const value2 = values[definition2.id] ?? definition2.default;
+        return `${definition2.title}: ${typeof value2 === "boolean" ? value2 ? ledgerText.on : ledgerText.off : definition2.choices?.find((choice) => choice.value === value2)?.label ?? value2}${definition2.unit ?? ""}`;
+      }).join(" | ")
+    };
+  }).filter((group) => group.members.length > 0);
+}
+function validSetting(definition2, value2) {
+  if (definition2.control === "switch") return typeof value2 === "boolean";
+  if (definition2.control !== "range") return typeof value2 === "string" && definition2.choices?.some((choice) => choice.value === value2) === true;
+  return typeof value2 === "number" && Number.isFinite(value2) && value2 >= (definition2.min ?? 0) && value2 <= (definition2.max ?? 100) && Math.abs((value2 - (definition2.min ?? 0)) / (definition2.step ?? 1) - Math.round((value2 - (definition2.min ?? 0)) / (definition2.step ?? 1))) < 1e-8;
+}
+function exportSettings(host) {
+  const settings = Object.fromEntries(host.settings.definitions.map((definition2) => [definition2.id, host.settings.get()[definition2.id] ?? definition2.default]));
+  return JSON.stringify({ format: "neo-angband/anybandui/manager-settings", schemaVersion: 1, look: host.look.read().desired === "Neo" ? ledgerText.neoAngband : ledgerText.vanilla, settings }, null, 2);
+}
+function importSettings(text, definitions) {
+  try {
+    const raw = JSON.parse(text);
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+    const record2 = raw;
+    if (record2["format"] !== "neo-angband/anybandui/manager-settings" || record2["schemaVersion"] !== 1 || !["Vanilla", "Neo Angband"].includes(String(record2["look"]))) return null;
+    const settings = record2["settings"];
+    if (!settings || typeof settings !== "object" || Array.isArray(settings) || Object.keys(settings).length !== definitions.length) return null;
+    if (!definitions.every((definition2) => Object.hasOwn(settings, definition2.id) && validSetting(definition2, settings[definition2.id]))) return null;
+    return raw;
+  } catch {
+    return null;
+  }
+}
+function lookView(host) {
+  const look = host.look.read();
+  return { active: look.active === "Neo" ? ledgerText.neoAngband : ledgerText.vanilla, pending: look.pending !== null, text: look.pending ? ledgerText.lookPending : ledgerText.lookHint };
+}
+function recoveryView(state, host) {
+  const recovery = host.recovery?.read();
+  return state.safeMode ? { kind: "safe", title: ledgerText.safeMode, text: ledgerText.safeHint } : recovery?.removed.length ? { kind: "removed", title: ledgerText.removed, text: ledgerText.removedHint, mods: recovery.removed } : recovery?.restore ? { kind: "restore", title: ledgerText.restore, text: ledgerText.restoreHint, ...recovery.restore } : null;
+}
+function keyAction(key) {
+  return { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right", Enter: "a", Escape: "b", "?": "y", " ": "toggle", "/": "search", i: "installed", b: "browse", m: "lists", s: "settings" }[key] ?? null;
+}
+function createCardTiming(clock, open) {
+  let timer2;
+  let pressed = null;
+  const cancel = () => {
+    if (timer2 !== void 0) clock.clearTimeout(timer2);
+    timer2 = void 0;
+  };
+  return {
+    hover() {
+      cancel();
+      timer2 = clock.setTimeout(() => {
+        timer2 = void 0;
+        open(false);
+      }, 250);
+    },
+    leave: cancel,
+    press() {
+      cancel();
+      pressed = clock.now();
+    },
+    release() {
+      const held = pressed !== null && clock.now() - pressed >= 450;
+      pressed = null;
+      if (held) open(true);
+      return held;
+    },
+    cancel() {
+      pressed = null;
+      cancel();
+    }
+  };
+}
+
+// src/neo-manager/styles.ts
+var LEDGER_FONTS = ["IBMPlexMono-Regular.ttf", "IMFellEnglishSC-Regular.ttf"];
+var ledgerStyles = `
+.na-manager {
+  --ledger-bg:#0b0b0b; --ledger-panel:#101010; --ledger-text:#cfcfcf; --ledger-muted:#9a9a9a;
+  --ledger-border:#6a6a6a; --ledger-rule:#3a3a3a; --ledger-accent:#d4a24c; --ledger-on:#6fcf6f;
+  --ledger-update:#e8d24a; --ledger-harm:#ee6a5a; --ledger-focus:#fff; --ledger-size:15px;
+  position:absolute; inset:0; z-index:30; display:flex; flex-direction:column; overflow:hidden;
+  background:var(--ledger-bg); color:var(--ledger-text); font:var(--ledger-size)/1.5 "IBMPlexMono-Regular.ttf","IBM Plex Mono",monospace;
+  container-type:inline-size;
+}
+.na-manager[hidden], .na-manager [hidden] { display:none !important; }
+.na-manager[data-contrast="high"] { --ledger-bg:#000; --ledger-panel:#000; --ledger-text:#fff; --ledger-muted:#ddd; --ledger-border:#fff; --ledger-rule:#aaa; --ledger-accent:#ffce70; }
+.na-manager[data-theme="light"] { --ledger-bg:#f3eedf; --ledger-panel:#fffaf0; --ledger-text:#171717; --ledger-muted:#454545; --ledger-border:#555; --ledger-rule:#888; --ledger-accent:#754600; --ledger-on:#176025; --ledger-update:#704400; --ledger-harm:#a52215; }
+@media (prefers-color-scheme:light) { .na-manager[data-theme="system"][data-contrast="normal"] { --ledger-bg:#f3eedf; --ledger-panel:#fffaf0; --ledger-text:#171717; --ledger-muted:#454545; --ledger-border:#555; --ledger-rule:#888; --ledger-accent:#754600; --ledger-on:#176025; --ledger-update:#704400; --ledger-harm:#a52215; } }
+.na-manager[data-colorblind="red-green"] { --ledger-on:#6aa8ff; --ledger-harm:#ffb65c; }
+.na-manager[data-colorblind="blue-yellow"] { --ledger-on:#8edf9f; --ledger-update:#f7a8d0; }
+.na-manager * { box-sizing:border-box; border-radius:0; }
+.na-manager button,.na-manager input,.na-manager select,.na-manager textarea { font:inherit; color:inherit; min-height:44px; min-width:44px; }
+.na-manager button,.na-manager select,.na-manager summary { cursor:pointer; }
+.na-manager button { padding:0 16px; background:var(--ledger-bg); border:1px solid var(--ledger-border); }
+.na-manager input,.na-manager select,.na-manager textarea { background:var(--ledger-bg); border:1px solid var(--ledger-border); padding:0 10px; max-width:100%; }
+.na-manager :focus-visible { outline:2px solid var(--ledger-focus); outline-offset:2px; box-shadow:0 0 0 5px #000; }
+.na-manager h1,.na-manager h2 { font-family:"IMFellEnglishSC-Regular.ttf","IM Fell English SC",serif; font-weight:400; letter-spacing:.08em; color:var(--ledger-accent); margin:0; }
+.na-manager h1 { font-size:32px; } .na-manager h2 { font-size:22px; }
+.na-manager header,.na-manager footer { display:flex; flex-wrap:wrap; align-items:center; gap:10px 24px; padding:14px 36px; border-bottom:3px double var(--ledger-border); }
+.na-manager footer { border-bottom:0; border-top:3px double var(--ledger-border); font-size:14px; }
+.na-manager nav { display:flex; gap:4px; flex-wrap:wrap; }
+.na-manager nav button { border:0; color:var(--ledger-muted); }
+.na-manager nav [aria-current="page"],.na-manager [aria-pressed="true"] { background:var(--ledger-text); color:var(--ledger-bg); }
+.na-manager main { width:100%; max-width:1112px; min-height:0; overflow:auto; padding:22px 36px; margin:auto; display:flex; flex:1; flex-direction:column; gap:24px; }
+.na-manager .frame { position:relative; border:3px double var(--ledger-border); background:var(--ledger-panel); padding:26px 18px 18px; margin:12px 0; }
+.na-manager .frame > h2 { position:absolute; top:-18px; left:18px; padding:0 10px; background:var(--ledger-panel); }
+.na-manager .tools,.na-manager .actions { display:flex; align-items:center; flex-wrap:wrap; gap:10px; }
+.na-manager .tools { padding-bottom:14px; } .na-manager .tools input { flex:1; width:180px; }
+.na-manager .line { display:flex; align-items:center; gap:14px; min-height:48px; padding:0 12px; border-top:1px dashed var(--ledger-rule); white-space:nowrap; }
+.na-manager .name { flex:1; min-width:0; text-align:left; font-weight:600; padding:0; border:0; background:transparent; overflow:hidden; text-overflow:ellipsis; }
+.na-manager .selected { background:var(--ledger-accent); color:var(--ledger-bg); }
+.na-manager .selected .update { color:inherit; }
+.na-manager .updates-banner { display:flex; align-items:center; flex-wrap:wrap; gap:10px 18px; padding:10px 16px; border:1px solid var(--ledger-accent); }
+.na-manager .updates-banner > span { flex:1 1 260px; }
+.na-manager [role="switch"] { min-width:64px; padding:0 8px; font-weight:600; color:var(--ledger-muted); }
+.na-manager [role="switch"][aria-checked="true"] { border-color:var(--ledger-on); color:var(--ledger-on); background:var(--ledger-bg); }
+.na-manager .question { width:44px; padding:0; color:var(--ledger-accent); }
+.na-manager .expanded { border-top:1px dashed var(--ledger-border); padding:14px 18px 20px 40px; }
+.na-manager .muted { color:var(--ledger-muted); } .na-manager .update { color:var(--ledger-update); } .na-manager .harm { color:var(--ledger-harm); }
+.na-manager .primary { background:var(--ledger-accent); color:var(--ledger-bg); border-color:var(--ledger-accent); font-weight:600; }
+.na-manager na-detail-card { display:block; padding:12px 14px; margin:8px 0; background:var(--ledger-bg); border:1px solid var(--ledger-accent); box-shadow:4px 4px 0 #000; font-size:14px; line-height:1.45; overflow-wrap:anywhere; }
+.na-manager na-detail-card .actions { padding-top:10px; }
+.na-manager na-settings-page,.na-manager na-look-picker,.na-manager na-manager-notices { display:block; }
+.na-manager details { border:1px solid var(--ledger-border); background:var(--ledger-panel); margin:14px 0; }
+.na-manager summary { display:flex; align-items:center; gap:10px; min-height:52px; padding:10px 18px; font-weight:600; list-style:none; }
+.na-manager summary::-webkit-details-marker { display:none; }
+.na-manager summary::before { content:">"; color:var(--ledger-accent); }
+.na-manager details[open] > summary::before { content:"v"; }
+.na-manager summary > span:first-child { flex:none; }
+.na-manager summary .muted { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:400; font-size:13px; }
+.na-manager .setting { display:flex; flex-wrap:wrap; align-items:center; gap:8px 14px; min-height:56px; padding:6px 20px; border-top:1px dashed var(--ledger-rule); }
+.na-manager .setting > label { flex:1; } .na-manager .segments { display:flex; margin-left:auto; }
+.na-manager input[type="range"] { width:180px; accent-color:var(--ledger-accent); }
+.na-manager textarea { width:100%; min-height:130px; }
+.na-manager .choices { display:flex; flex-wrap:wrap; gap:24px; } .na-manager .choices section { flex:1 1 280px; }
+.na-manager pre { padding:12px; background:var(--ledger-bg); border:1px solid var(--ledger-rule); font:inherit; }
+.na-manager .modal { position:fixed; inset:0; z-index:40; background:rgba(0,0,0,.72); display:flex; padding:32px; overflow:auto; }
+.na-manager na-consent-dialog { display:block; width:100%; max-width:700px; margin:auto; }
+.na-manager .permission { display:flex; align-items:center; gap:12px; min-height:54px; border-top:1px dashed var(--ledger-rule); }
+.na-manager .permission label { display:flex; flex:1; align-items:center; gap:14px; min-height:54px; }
+.na-manager input[type="checkbox"] { width:44px; height:44px; accent-color:var(--ledger-accent); }
+.na-manager[data-rows="tight"] .line { min-height:44px; }
+.na-manager[data-motion="reduce"] * { animation:none !important; transition:none !important; scroll-behavior:auto !important; }
+@media (prefers-reduced-motion:reduce) { .na-manager * { animation:none !important; transition:none !important; scroll-behavior:auto !important; } }
+@container (width < 600px) {
+  .na-manager header { padding:10px 14px; } .na-manager main { padding:12px 14px; margin:0; padding-bottom:76px; }
+  .na-manager nav { position:absolute; bottom:0; left:0; right:0; z-index:20; background:var(--ledger-bg); border-top:3px double var(--ledger-border); gap:0; flex-wrap:nowrap; }
+  .na-manager nav button { flex:1; min-height:60px; padding:0 6px; font-size:13px; }
+  .na-manager footer { display:none; } .na-manager .line { gap:6px; padding:0 6px; }
+  .na-manager .version { display:none; } .na-manager .frame { padding:24px 8px 8px; }
+  .na-manager .setting { padding:6px 12px; gap:6px; } .na-manager .segments button { padding:0 8px; font-size:13px; }
+  .na-manager .expanded { padding:10px 12px; } .na-manager .modal { padding:14px; }
+}
+`;
+
+// src/neo-manager/components.ts
+function registerNeoManagerElements(registry, base) {
+  for (const name of ["na-mod-manager", "na-detail-card", "na-consent-dialog", "na-settings-page", "na-look-picker", "na-manager-notices"]) {
+    if (!registry.get(name)) registry.define(name, class extends base {
+    });
+  }
+}
+var mountId = 0;
+function mountNeoManager(host, target, onClose) {
+  const window2 = target.ownerDocument.defaultView;
+  if (window2?.customElements) registerNeoManagerElements(window2.customElements, window2.HTMLElement);
+  const root = target.ownerDocument.createElement("na-mod-manager");
+  root.className = "na-manager";
+  root.hidden = true;
+  root.setAttribute("role", "dialog");
+  root.setAttribute("aria-label", ledgerText.mods);
+  target.appendChild(root);
+  const prefix = `na-manager-${++mountId}`;
+  let view = initialView;
+  let state = null;
+  let disposed = false;
+  let busy = false;
+  let message = "";
+  let picker = false;
+  let showUpdates = false;
+  let consentId = null;
+  let consentGranted = [];
+  let subscription = null;
+  let backupText = "";
+  let opener = null;
+  let consentOpener = "";
+  let closeCard = null;
+  let cardNumber = 0;
+  let cleanupRender = [];
+  let search = null;
+  let navigation = [];
+  const cardOpeners = /* @__PURE__ */ new Map();
+  const openedGroups = /* @__PURE__ */ new Set();
+  const active = () => root.getRootNode().activeElement;
+  const focusables = () => Array.from(root.querySelectorAll("[data-focus]"));
+  const focus = (key) => {
+    focusables().find((node2) => node2.dataset["focus"] === key)?.focus();
+  };
+  const setting = (id) => host.settings.get()[id] ?? host.settings.definitions.find((definition2) => definition2.id === id)?.default;
+  const variants = () => {
+    root.dataset["contrast"] = setting("highContrast") === true ? "high" : "normal";
+    root.dataset["motion"] = host.prefersReducedMotion() || setting("motion") === "reduce" ? "reduce" : "device";
+    root.dataset["theme"] = String(setting("theme") ?? "system");
+    root.dataset["colorblind"] = String(setting("colorblind") ?? "off");
+    root.dataset["rows"] = String(setting("listRows") ?? "roomy");
+    const size = setting("textSize");
+    root.style.fontSize = `${15 * (typeof size === "number" ? size : 100) / 100}px`;
+  };
+  const safeMessage = (value2) => {
+    message = displayText(value2);
+  };
+  const takeState = (next) => {
+    if (disposed || state && next.revision < state.revision) return;
+    state = next;
+    if (next.pendingConfirmation) consentId = null;
+    render();
+  };
+  const refresh = async () => {
+    try {
+      const result = await host.mods.snapshot();
+      if (disposed) return;
+      if (result.ok) takeState(result.value);
+      else {
+        safeMessage(result.message);
+        render();
+      }
+    } catch {
+      if (!disposed) {
+        message = ledgerText.unavailable;
+        render();
+      }
+    }
+  };
+  const run2 = async (operation) => {
+    if (disposed || busy || state?.pendingConfirmation) return false;
+    busy = true;
+    message = "";
+    render();
+    let ok2 = false;
+    try {
+      const result = await operation();
+      ok2 = result.ok;
+      if (!result.ok) safeMessage(result.message);
+    } catch {
+      message = ledgerText.unavailable;
+    } finally {
+      busy = false;
+      if (!disposed) await refresh();
+    }
+    return ok2;
+  };
+  const command = (parent, label2, key, operation) => {
+    const node2 = button2(parent, label2, key, () => {
+      void run2(operation);
+    });
+    node2.disabled = busy || state?.pendingConfirmation !== null && state?.pendingConfirmation !== void 0;
+    return node2;
+  };
+  const part = (parent, name) => {
+    const node2 = parent.ownerDocument.createElement(name);
+    parent.appendChild(node2);
+    return node2;
+  };
+  const frame = (parent, title) => {
+    const node2 = el6(parent, "section");
+    node2.className = "frame";
+    el6(node2, "h2", title);
+    return node2;
+  };
+  const card = (parent, anchor, description, details) => {
+    const node2 = part(parent, "na-detail-card");
+    const id = `${prefix}-card-${++cardNumber}`;
+    node2.id = id;
+    node2.hidden = true;
+    node2.setAttribute("role", "tooltip");
+    const body = el6(node2, "div", description);
+    body.id = `${id}-text`;
+    anchor.setAttribute("aria-describedby", body.id);
+    const actions = el6(node2, "div");
+    actions.className = "actions";
+    actions.hidden = true;
+    const hide = () => {
+      node2.hidden = true;
+      if (closeCard === hide) closeCard = null;
+    };
+    const show = (touch) => {
+      closeCard?.();
+      node2.hidden = false;
+      actions.hidden = !touch;
+      closeCard = hide;
+      if (touch && setting("haptics") === true) host.haptics.tick();
+    };
+    button2(actions, ledgerText.details, `${id}-details`, () => {
+      hide();
+      details();
+    });
+    button2(actions, ledgerText.close, `${id}-close`, () => {
+      hide();
+      anchor.focus();
+    });
+    const timing = createCardTiming(host.clock, show);
+    cleanupRender.push(timing.cancel);
+    let suppressClick = false;
+    let touchOrigin = null;
+    let leaveTimer;
+    const cancelLeave = () => {
+      host.clock.clearTimeout(leaveTimer);
+    };
+    const leave = () => {
+      timing.leave();
+      cancelLeave();
+      leaveTimer = host.clock.setTimeout(hide, 100);
+    };
+    cleanupRender.push(() => host.clock.clearTimeout(leaveTimer));
+    anchor.addEventListener("pointerenter", (event) => {
+      if (event.pointerType !== "touch" && setting("hoverCards") !== false) timing.hover();
+    });
+    anchor.addEventListener("focus", () => {
+      if (setting("hoverCards") !== false) timing.hover();
+    });
+    parent.addEventListener("pointerleave", leave);
+    node2.addEventListener("pointerenter", cancelLeave);
+    parent.addEventListener("focusout", (event) => {
+      if (!event.relatedTarget || !parent.contains(event.relatedTarget)) leave();
+    });
+    anchor.addEventListener("pointerdown", (event) => {
+      if (event.pointerType === "touch") {
+        touchOrigin = { x: event.clientX, y: event.clientY };
+        timing.press();
+      }
+    });
+    anchor.addEventListener("pointerup", (event) => {
+      if (event.pointerType === "touch") suppressClick = timing.release();
+    });
+    anchor.addEventListener("pointercancel", () => {
+      touchOrigin = null;
+      timing.cancel();
+    });
+    anchor.addEventListener("pointermove", (event) => {
+      if (event.pointerType === "touch" && touchOrigin && Math.hypot(event.clientX - touchOrigin.x, event.clientY - touchOrigin.y) > 10) {
+        touchOrigin = null;
+        timing.cancel();
+      }
+    });
+    anchor.addEventListener("contextmenu", (event) => {
+      event.preventDefault();
+    });
+    anchor.addEventListener("click", (event) => {
+      if (suppressClick) {
+        suppressClick = false;
+        swallow(event);
+        return;
+      }
+      details();
+    });
+    const key = anchor.dataset["focus"] ?? id;
+    cardOpeners.set(key, () => show(false));
+    const question = button2(parent, "?", `${key}-help`, () => show(false));
+    question.className = "question";
+    question.setAttribute("aria-label", `${ledgerText.about}: ${anchor.getAttribute("aria-label") ?? anchor.textContent}`);
+    question.setAttribute("aria-describedby", body.id);
+    question.addEventListener("focus", timing.hover);
+    cardOpeners.set(`${key}-help`, () => show(false));
+  };
+  const renderRows = (main) => {
+    if (!state) return;
+    const rows = managerRows(state, view, host.updatePermissions, host.permissions);
+    const box = frame(main, `${ledgerText.installed} (${state.installed.length})`);
+    renderSearch(box, ledgerText.searchMods);
+    const tools = el6(box, "div");
+    tools.className = "tools";
+    el6(tools, "span", ledgerText.show);
+    const filter = el6(tools, "select");
+    filter.dataset["focus"] = "filter";
+    filter.setAttribute("aria-label", ledgerText.show);
+    for (const [value2, label2] of [["all", ledgerText.all], ["on", ledgerText.on], ["off", ledgerText.off], ["updates", ledgerText.updates]]) {
+      const option = el6(filter, "option", label2);
+      option.value = value2;
+    }
+    filter.value = view.filter;
+    filter.addEventListener("change", () => {
+      view = reduceManager(view, { type: "filter", filter: filter.value });
+      render();
+    });
+    const list = el6(box, "div");
+    list.setAttribute("role", "list");
+    if (!rows.length) el6(list, "p", ledgerText.noMatches);
+    rows.forEach((row, index) => {
+      const item = el6(list, "div");
+      item.setAttribute("role", "listitem");
+      item.setAttribute("aria-label", row.label);
+      const line = el6(item, "div");
+      line.className = `line${row.selected && setting("rowHighlight") !== false ? " selected" : ""}`;
+      el6(line, "span", `${row.letter})`).setAttribute("aria-hidden", "true");
+      const name = button2(line, row.name, `mod:${row.id}`, () => {
+      });
+      name.className = "name";
+      name.setAttribute("aria-label", row.label);
+      name.setAttribute("aria-expanded", String(row.expanded));
+      name.tabIndex = row.selected ? 0 : -1;
+      name.addEventListener("focus", () => {
+        view = { ...view, selected: index };
+        for (const node2 of navigation) node2.tabIndex = node2 === name ? 0 : -1;
+        for (const child of Array.from(list.children)) {
+          const childLine = child.firstElementChild;
+          if (childLine) childLine.classList.toggle("selected", child === item && setting("rowHighlight") !== false);
+        }
+      });
+      navigation.push(name);
+      el6(line, "span", `v${row.version}`).className = "version";
+      if (row.update) el6(line, "span", `+ ${row.update.newest}`).className = "update";
+      const toggle = command(line, row.stateText, `toggle:${row.id}`, () => row.enabled ? host.mods.disable(row.id) : host.mods.enable(row.id));
+      toggle.setAttribute("role", "switch");
+      toggle.setAttribute("aria-checked", String(row.enabled));
+      toggle.setAttribute("aria-label", `${row.enabled ? ledgerText.turnOff : ledgerText.turnOn} ${row.name}`);
+      card(item, name, row.description, () => {
+        view = reduceManager(view, { type: "expand", id: row.id });
+        render(`mod:${row.id}`);
+      });
+      toggle.setAttribute("aria-describedby", name.getAttribute("aria-describedby"));
+      cardOpeners.set(`toggle:${row.id}`, cardOpeners.get(`mod:${row.id}`));
+      const question = item.lastElementChild;
+      if (question) line.appendChild(question);
+      if (row.expanded) {
+        const detail = el6(item, "div");
+        detail.className = "expanded";
+        el6(detail, "p", displayText(row.catalogMod.manifest.description ?? ""));
+        const actions = el6(detail, "div");
+        actions.className = "actions";
+        if (row.update) command(actions, row.update.review ? ledgerText.review : ledgerText.update, `update:${row.id}`, () => host.mods.update(row.id));
+        command(actions, row.enabled ? ledgerText.turnOff : ledgerText.turnOn, `enable:${row.id}`, () => row.enabled ? host.mods.disable(row.id) : host.mods.enable(row.id));
+        command(actions, ledgerText.rollback, `rollback:${row.id}`, () => host.mods.rollback(row.id));
+        command(actions, ledgerText.remove, `remove:${row.id}`, () => host.mods.remove(row.id));
+        const permissions = button2(actions, ledgerText.permissions, `permissions:${row.id}`, () => {
+          consentId = row.id;
+          consentGranted = row.consent.granted;
+          consentOpener = `permissions:${row.id}`;
+          render("consent-cancel");
+        });
+        permissions.disabled = !host.permissions || busy || state?.pendingConfirmation !== null;
+      }
+    });
+    el6(main, "p", ledgerText.rowHint).className = "muted";
+  };
+  const renderSearch = (parent, label2) => {
+    const tools = el6(parent, "div");
+    tools.className = "tools";
+    search = el6(tools, "input");
+    const input = search;
+    input.type = "search";
+    input.placeholder = label2;
+    input.setAttribute("aria-label", label2);
+    input.dataset["focus"] = "search";
+    input.value = view.query;
+    input.addEventListener("input", () => {
+      view = reduceManager(view, { type: "search", query: input.value });
+      render("search");
+    });
+  };
+  const renderUpdates = (main) => {
+    if (!state) return;
+    const updates = updateRows(state, host.updatePermissions);
+    if (!updates.length) return;
+    if (!showUpdates) {
+      const banner = el6(main, "div");
+      banner.className = "updates-banner";
+      banner.setAttribute("role", "status");
+      el6(banner, "span", `${updates.length} ${ledgerText.updates.toLowerCase()}. ${ledgerText.updatesRule}`);
+      command(banner, ledgerText.updateAll, "update-all", () => host.mods.updateAll()).className = "primary";
+      button2(banner, ledgerText.review, "review-updates", () => {
+        showUpdates = true;
+        render("updates-close");
+      });
+      return;
+    }
+    const box = frame(main, `${ledgerText.updates} (${updates.length})`);
+    el6(box, "p", ledgerText.updatesRule).className = "muted";
+    command(box, ledgerText.updateAll, "update-all", () => host.mods.updateAll()).className = "primary";
+    button2(box, ledgerText.close, "updates-close", () => {
+      showUpdates = false;
+      render("review-updates");
+    });
+    const list = el6(box, "div");
+    list.setAttribute("role", "list");
+    for (const update of updates) {
+      const row = el6(list, "div");
+      row.setAttribute("role", "listitem");
+      const line = el6(row, "div");
+      line.className = "line";
+      const name = button2(line, update.name, `update-name:${update.id}`, () => {
+      });
+      name.className = "name";
+      el6(line, "span", `${update.installed} to ${update.newest}`).className = "version";
+      const review = () => {
+        void run2(() => host.mods.update(update.id));
+      };
+      command(line, update.review ? ledgerText.review : ledgerText.update, `apply-update:${update.id}`, () => host.mods.update(update.id));
+      card(row, name, `${update.name}. ${update.installed} to ${update.newest}. ${update.note}`, review);
+      if (row.lastElementChild) line.appendChild(row.lastElementChild);
+    }
+  };
+  const renderBrowse = (main) => {
+    if (!state) return;
+    const box = frame(main, ledgerText.browse);
+    renderSearch(box, ledgerText.searchBrowse);
+    const list = el6(box, "div");
+    list.setAttribute("role", "list");
+    const entries = [...state.catalog.curated, ...state.catalog.community, ...state.catalog.sideloads];
+    const seen = /* @__PURE__ */ new Set();
+    for (const entry2 of entries) {
+      if (!entry2.ok) {
+        el6(box, "p", displayText(entry2.problem)).className = "harm";
+        continue;
+      }
+      const mod = entry2.mod;
+      if (seen.has(mod.id) || !mod.name.toLowerCase().includes(view.query.toLowerCase())) continue;
+      seen.add(mod.id);
+      const item = el6(list, "div");
+      item.setAttribute("role", "listitem");
+      const line = el6(item, "div");
+      line.className = "line";
+      const name = button2(line, displayText(mod.name), `browse:${mod.id}`, () => {
+      });
+      name.className = "name";
+      const install = async () => {
+        const plan = await host.mods.planInstall([entry2.ref]);
+        if (!plan.ok) return plan;
+        return host.mods.applyPlan(plan.value.id);
+      };
+      const installButton = command(line, ledgerText.install, `install:${mod.id}`, install);
+      installButton.disabled ||= !mod.compatible;
+      card(item, name, displayText(`${mod.name} v${mod.version}. ${mod.description ?? ""} ${mod.engineNote ?? ""}`), () => {
+        view = reduceManager(view, { type: "expand", id: mod.id });
+        render(`browse:${mod.id}`);
+      });
+      if (item.lastElementChild) line.appendChild(item.lastElementChild);
+      navigation.push(name);
+      if (view.expanded === mod.id) {
+        const detail = el6(item, "div");
+        detail.className = "expanded";
+        el6(detail, "p", displayText(mod.description ?? ""));
+        el6(detail, "p", displayText(mod.engineNote ?? ""));
+      }
+    }
+    for (const problem of state.catalog.problems) el6(box, "p", displayText(problem)).className = "harm";
+    if (!seen.size) el6(box, "p", ledgerText.noMatches);
+  };
+  const saveSetting = (definition2, value2) => {
+    if (validSetting(definition2, value2)) void run2(() => host.settings.set({ ...host.settings.get(), [definition2.id]: value2 }));
+  };
+  const renderSettings = (main) => {
+    const page = part(main, "na-settings-page");
+    el6(page, "h2", ledgerText.settings);
+    renderSearch(page, ledgerText.searchSettings);
+    el6(page, "p", ledgerText.settingsHint).className = "muted";
+    const look = el6(page, "details");
+    look.open = openedGroups.has(ledgerText.look) || view.query.trim().length > 0 && `${ledgerText.look} ${ledgerText.vanilla} ${ledgerText.neoAngband}`.toLowerCase().includes(view.query.trim().toLowerCase());
+    look.addEventListener("toggle", () => {
+      if (look.open) openedGroups.add(ledgerText.look);
+      else openedGroups.delete(ledgerText.look);
+    });
+    const summary = el6(look, "summary", `${ledgerText.look}: ${lookView(host).active}`);
+    summary.dataset["focus"] = "group:look";
+    navigation.push(summary);
+    button2(look, ledgerText.lookTitle, "choose-look", () => {
+      picker = true;
+      render("look-vanilla");
+    });
+    for (const group of settingsGroups(host.settings.definitions, host.settings.get(), view.query)) {
+      const details = el6(page, "details");
+      details.open = group.open || openedGroups.has(group.name);
+      details.addEventListener("toggle", () => {
+        if (details.open) openedGroups.add(group.name);
+        else openedGroups.delete(group.name);
+      });
+      const title = el6(details, "summary");
+      title.dataset["focus"] = `group:${group.name}`;
+      el6(title, "span", displayText(group.name));
+      el6(title, "span", displayText(group.summary)).className = "muted";
+      navigation.push(title);
+      for (const definition2 of group.members) {
+        const row = el6(details, "div");
+        const line = el6(row, "div");
+        line.className = "setting";
+        const label2 = el6(line, "label", displayText(definition2.title));
+        const key = `setting:${definition2.id}`;
+        label2.dataset["focus"] = `${key}-label`;
+        label2.tabIndex = 0;
+        const value2 = host.settings.get()[definition2.id] ?? definition2.default;
+        if (definition2.control === "switch") {
+          const toggle = command(line, value2 ? ledgerText.on : ledgerText.off, key, () => host.settings.set({ ...host.settings.get(), [definition2.id]: !value2 }));
+          toggle.setAttribute("role", "switch");
+          toggle.setAttribute("aria-checked", String(value2));
+          toggle.setAttribute("aria-label", displayText(definition2.title));
+        } else if (definition2.control === "segments") {
+          const segments = el6(line, "div");
+          segments.className = "segments";
+          segments.setAttribute("role", "group");
+          segments.setAttribute("aria-label", displayText(definition2.title));
+          for (const choice of definition2.choices ?? []) {
+            const node2 = command(segments, displayText(choice.label), `${key}:${choice.value}`, () => host.settings.set({ ...host.settings.get(), [definition2.id]: choice.value }));
+            node2.setAttribute("aria-pressed", String(value2 === choice.value));
+          }
+        } else {
+          const input = definition2.control === "range" ? el6(line, "input") : el6(line, "select");
+          input.dataset["focus"] = key;
+          input.id = `${prefix}-${definition2.id}`;
+          label2.htmlFor = input.id;
+          input.setAttribute("aria-label", displayText(definition2.title));
+          input.disabled = busy || state?.pendingConfirmation !== null;
+          if (input.tagName === "INPUT" || definition2.control === "range") {
+            const range = input;
+            range.type = "range";
+            range.min = String(definition2.min ?? 0);
+            range.max = String(definition2.max ?? 100);
+            range.step = String(definition2.step ?? 1);
+            const readout = el6(line, "span", `${value2}${definition2.unit ?? ""}`);
+            range.addEventListener("input", () => {
+              readout.textContent = `${range.value}${definition2.unit ?? ""}`;
+            });
+          } else for (const choice of definition2.choices ?? []) {
+            const option = el6(input, "option", displayText(choice.label));
+            option.value = choice.value;
+          }
+          input.value = String(value2);
+          input.addEventListener("change", () => saveSetting(definition2, definition2.control === "range" ? Number(input.value) : input.value));
+        }
+        card(row, label2, displayText(definition2.description), () => {
+        });
+        const showCard = cardOpeners.get(`${key}-label`);
+        for (const control of Array.from(line.querySelectorAll("[data-focus]"))) {
+          if (control.dataset["focus"]) cardOpeners.set(control.dataset["focus"], showCard);
+          control.setAttribute("aria-describedby", label2.getAttribute("aria-describedby"));
+        }
+        const question = row.lastElementChild;
+        if (question) line.appendChild(question);
+      }
+    }
+    const backup = el6(page, "details");
+    backup.open = openedGroups.has(ledgerText.backup) || view.query.trim().length > 0 && `${ledgerText.backup} ${ledgerText.export} ${ledgerText.import} ${ledgerText.json}`.toLowerCase().includes(view.query.trim().toLowerCase());
+    const backupSummary = el6(backup, "summary", ledgerText.backup);
+    backupSummary.dataset["focus"] = "group:backup";
+    navigation.push(backupSummary);
+    backup.addEventListener("toggle", () => {
+      if (backup.open) openedGroups.add(ledgerText.backup);
+      else openedGroups.delete(ledgerText.backup);
+    });
+    const area = el6(backup, "textarea");
+    area.dataset["focus"] = "backup-json";
+    area.setAttribute("aria-label", ledgerText.json);
+    area.value = backupText;
+    area.addEventListener("input", () => {
+      backupText = area.value;
+    });
+    const file = el6(backup, "input");
+    file.type = "file";
+    file.accept = ".json,application/json";
+    file.dataset["focus"] = "import-file";
+    file.setAttribute("aria-label", ledgerText.chooseFile);
+    file.addEventListener("change", () => {
+      const selected = file.files?.[0];
+      if (!selected) return;
+      void selected.text().then((value2) => {
+        if (disposed) return;
+        backupText = value2;
+        render("import");
+      }).catch(() => {
+        if (!disposed) {
+          message = ledgerText.invalidSettings;
+          render("import-file");
+        }
+      });
+    });
+    button2(backup, ledgerText.export, "export", () => {
+      backupText = exportSettings(host);
+      area.value = backupText;
+      area.focus();
+      if (window2?.URL.createObjectURL) {
+        const url = window2.URL.createObjectURL(new Blob([backupText], { type: "application/json" }));
+        const link = el6(backup, "a");
+        link.href = url;
+        link.download = "neo-angband-settings.json";
+        link.click();
+        link.remove();
+        const timer2 = host.clock.setTimeout(() => window2.URL.revokeObjectURL(url), 0);
+        cleanupRender.push(() => {
+          host.clock.clearTimeout(timer2);
+          window2.URL.revokeObjectURL(url);
+        });
+      }
+    });
+    command(backup, ledgerText.import, "import", async () => {
+      const document2 = importSettings(backupText, host.settings.definitions);
+      if (!document2) return { ok: false, reason: "refused", code: "settings-json", message: ledgerText.invalidSettings };
+      const result = await host.settings.set(document2.settings);
+      if (!result.ok) return result;
+      const desired = document2.look === "Neo Angband" ? "Neo" : "Vanilla";
+      const look2 = desired === host.look.read().desired ? result : await host.look.choose(desired);
+      if (look2.ok) message = ledgerText.saved;
+      return look2;
+    });
+  };
+  const renderLook = (main) => {
+    const page = part(main, "na-look-picker");
+    el6(page, "h1", ledgerText.lookTitle);
+    el6(page, "p", ledgerText.lookHint);
+    const choices = el6(page, "div");
+    choices.className = "choices";
+    for (const choice of ["Vanilla", "Neo"]) {
+      const box = frame(choices, choice === "Neo" ? ledgerText.neoAngband : ledgerText.vanilla);
+      el6(box, "pre", choice === "Neo" ? "+-----------+-----------+\n| #....@....#| HP 42/50  |\n| #...o.....#| SP 12/12  |\n+-----------+-----------+" : "###########\n#....@....#\n#.........#\n#...o.....#\n###########").setAttribute("aria-hidden", "true");
+      el6(box, "p", choice === "Neo" ? ledgerText.neoAngbandHint : ledgerText.vanillaHint);
+      if (choice === "Neo") el6(box, "p", ledgerText.lookSettings).className = "muted";
+      const choose = command(box, choice === "Neo" ? ledgerText.chooseNeoAngband : ledgerText.keepVanilla, choice === "Neo" ? "look-neo-angband" : "look-vanilla", () => host.look.choose(choice));
+      choose.setAttribute("aria-pressed", String(host.look.read().desired === choice));
+      navigation.push(choose);
+    }
+    if (lookView(host).pending) {
+      el6(page, "p", ledgerText.lookPending).setAttribute("role", "status");
+      command(page, ledgerText.backVanilla, "look-back", () => host.look.choose("Vanilla"));
+    }
+    button2(page, ledgerText.close, "look-close", () => {
+      picker = false;
+      render("look");
+    });
+  };
+  const renderNotices = (main) => {
+    if (!state) return;
+    const notice = recoveryView(state, host);
+    if (!notice) return;
+    const component = part(main, "na-manager-notices");
+    const box = frame(component, notice.title);
+    box.setAttribute("role", "status");
+    el6(box, "p", notice.text);
+    if (notice.kind === "restore") {
+      el6(box, "p", `${ledgerText.needs} ${notice.plan.downloads.length + notice.unavailable.length} ${ledgerText.mods.toLowerCase()}`);
+      const list = el6(box, "ul");
+      for (const { mod } of notice.plan.downloads) el6(list, "li", `${displayText(mod.name)} v${mod.version}: ${ledgerText.ready}`);
+      for (const mod of notice.unavailable) el6(list, "li", `${displayText(mod.name)} v${mod.version}: ${displayText(mod.reason ?? ledgerText.unavailableVersion)}`).className = "harm";
+      command(box, `${ledgerText.restore} (${notice.plan.downloads.length})`, "restore", () => host.recovery.restore(notice.plan.id));
+    } else {
+      if (notice.kind === "safe") el6(box, "p", ledgerText.startingOff);
+      else for (const mod of notice.mods) el6(box, "p", `${displayText(mod.name)} v${mod.version} ${ledgerText.switchedOff}`).className = "harm";
+      button2(box, ledgerText.openManager, "notice-manager", () => {
+        picker = false;
+        view = initialView;
+        render();
+      });
+      const action2 = command(box, notice.kind === "safe" ? ledgerText.startOff : ledgerText.continue, "notice-continue", () => notice.kind === "safe" ? host.recovery.startWithModsOff() : host.recovery.continue());
+      action2.disabled ||= !host.recovery;
+    }
+  };
+  const closeConsent = () => {
+    consentId = null;
+    render(consentOpener);
+  };
+  const renderConsent = () => {
+    const mod = state?.installed.find((entry2) => entry2.id === consentId);
+    if (!mod || !host.permissions) {
+      consentId = null;
+      return;
+    }
+    const asks = host.permissions(mod.id).filter((ask) => ask.modId === mod.id);
+    const modal = el6(root, "div");
+    modal.className = "modal";
+    const dialog = part(modal, "na-consent-dialog");
+    dialog.setAttribute("role", "dialog");
+    dialog.setAttribute("aria-modal", "true");
+    dialog.setAttribute("aria-label", `${ledgerText.permissions}: ${displayText(mod.name)}`);
+    const box = frame(dialog, `${ledgerText.permissions}: ${displayText(mod.name)}`);
+    el6(box, "p", ledgerText.consentHint);
+    for (const ask of asks) {
+      const row = el6(box, "div");
+      const line = el6(row, "div");
+      line.className = "permission";
+      const label2 = el6(line, "label");
+      const input = el6(label2, "input");
+      input.type = "checkbox";
+      input.dataset["focus"] = `consent:${ask.capability}`;
+      input.checked = !ask.canRunWithout || consentGranted.includes(ask.capability);
+      input.disabled = !ask.canRunWithout || busy;
+      input.setAttribute("aria-label", displayText(ask.consentText));
+      input.addEventListener("change", () => {
+        consentGranted = consentDecision(asks, input.checked ? [...consentGranted, ask.capability] : consentGranted.filter((capability) => capability !== ask.capability)).granted;
+      });
+      el6(label2, "span", displayText(ask.consentText));
+      el6(line, "span", ask.canRunWithout ? ledgerText.optional : ledgerText.required).className = ask.canRunWithout ? "muted" : "update";
+      card(row, input, displayText([ask.consentText, ask.withoutIt].filter(Boolean).join(" ")), () => {
+      });
+      const question = row.lastElementChild;
+      if (question) line.appendChild(question);
+    }
+    command(box, ledgerText.allow, "consent-allow", async () => {
+      const result = await host.mods.recordConsent(mod.id, consentDecision(asks, consentGranted));
+      if (result.ok) consentId = null;
+      return result;
+    }).className = "primary";
+    button2(box, ledgerText.cancel, "consent-cancel", closeConsent);
+    modal.addEventListener("click", (event) => {
+      if (event.target === modal) closeConsent();
+    });
+    for (const child of Array.from(root.children)) if (child !== modal && child.tagName !== "STYLE") child.inert = true;
+    dialog.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        swallow(event);
+        closeConsent();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const nodes = Array.from(dialog.querySelectorAll("[data-focus]")).filter((node2) => !node2.disabled && !node2.closest("[hidden]"));
+      if (!nodes.length) return;
+      const index = nodes.indexOf(active());
+      swallow(event);
+      nodes[(index + (event.shiftKey ? -1 : 1) + nodes.length) % nodes.length]?.focus();
+    });
+  };
+  function render(focusKey) {
+    if (disposed) return;
+    const previous = active();
+    const restoreKey = focusKey ?? previous?.dataset["focus"];
+    const selection = previous && "selectionStart" in previous ? previous.selectionStart : null;
+    closeCard?.();
+    for (const cleanup of cleanupRender) cleanup();
+    cleanupRender = [];
+    cardOpeners.clear();
+    navigation = [];
+    search = null;
+    cardNumber = 0;
+    root.replaceChildren();
+    variants();
+    el6(root, "style", ledgerStyles);
+    const header = el6(root, "header");
+    el6(header, "h1", ledgerText.mods);
+    const nav = el6(header, "nav");
+    nav.setAttribute("aria-label", "Sections");
+    for (const tab of ["installed", "browse", "lists", "settings"]) {
+      const label2 = ledgerText[tab];
+      const node2 = button2(nav, "", `tab:${tab}`, () => open(tab));
+      el6(node2, "u", label2[0]);
+      el6(node2, "span", label2.slice(1));
+      node2.setAttribute("aria-current", view.tab === tab ? "page" : "false");
+    }
+    button2(header, lookView(host).active, "look", () => {
+      picker = true;
+      render("look-vanilla");
+    });
+    button2(header, ledgerText.close, "close", close);
+    const main = el6(root, "main");
+    if (message || busy || state?.pendingConfirmation) {
+      const status = el6(main, "p", state?.pendingConfirmation ? ledgerText.pending : busy ? ledgerText.busy : message);
+      status.setAttribute("role", "status");
+    }
+    renderNotices(main);
+    if (picker) renderLook(main);
+    else if (view.tab === "settings") renderSettings(main);
+    else if (view.tab === "installed") {
+      renderUpdates(main);
+      renderRows(main);
+    } else if (view.tab === "browse") renderBrowse(main);
+    else if (state) {
+      const box = frame(main, ledgerText.lists);
+      for (const mod of state.modList) el6(box, "p", `${displayText(state.installed.find((entry2) => entry2.id === mod.id)?.name ?? mod.id)} v${mod.version}: ${mod.enabled ? ledgerText.on : ledgerText.off}`);
+      command(box, ledgerText.restore, "restore-list", () => host.mods.restoreModList(state.modList.map(({ id, enabled }) => ({ id, enabled })), true));
+    }
+    el6(root, "footer", view.tab === "settings" ? ledgerText.settingsKeys : ledgerText.keys);
+    if (consentId && !state?.pendingConfirmation) renderConsent();
+    if (restoreKey) {
+      focus(restoreKey);
+      if (selection !== null && active()?.tagName === "INPUT" && active().type !== "range") active().setSelectionRange?.(selection, selection);
+    }
+  }
+  const open = (tab = "installed") => {
+    if (disposed) return;
+    if (root.hidden) opener = active();
+    root.hidden = false;
+    picker = false;
+    consentId = null;
+    view = reduceManager(view, { type: "tab", tab });
+    render(`tab:${tab}`);
+    void refresh();
+    if (tab === "browse") void run2(() => host.mods.browse());
+  };
+  function close() {
+    closeCard?.();
+    for (const cleanup of cleanupRender) cleanup();
+    const wasOpen = !root.hidden;
+    root.hidden = true;
+    consentId = null;
+    opener?.focus();
+    if (wasOpen) onClose?.();
+  }
+  const action = (input) => {
+    if (disposed || root.hidden || input === null) return;
+    if (input === "b") {
+      if (closeCard) {
+        closeCard();
+        return;
+      }
+      if (consentId) {
+        closeConsent();
+        return;
+      }
+      if (picker) {
+        picker = false;
+        render("look");
+        return;
+      }
+      if (view.expanded) {
+        view = reduceManager(view, { type: "back" });
+        render();
+        return;
+      }
+      close();
+      return;
+    }
+    if (input === "y") {
+      cardOpeners.get(active()?.dataset["focus"] ?? "")?.();
+      return;
+    }
+    if (input === "search") {
+      search?.focus();
+      return;
+    }
+    if (["installed", "browse", "lists", "settings"].includes(input)) {
+      if (!consentId) open(input);
+      return;
+    }
+    if (picker && ["up", "down", "left", "right"].includes(input)) {
+      const index2 = navigation.indexOf(active());
+      navigation[Math.max(0, Math.min(navigation.length - 1, index2 + (input === "up" || input === "left" ? -1 : 1)))]?.focus();
+      return;
+    }
+    if (consentId) {
+      const dialog = Array.from(root.children).find((node2) => node2.className === "modal");
+      const nodes = focusables().filter((node2) => dialog?.contains(node2) && !node2.disabled && !node2.closest("[hidden]"));
+      const index2 = nodes.indexOf(active());
+      if (input === "up" || input === "down") nodes[Math.max(0, Math.min(nodes.length - 1, index2 + (input === "up" ? -1 : 1)))]?.focus();
+      else if (input === "a") active()?.click();
+      return;
+    }
+    if (input === "toggle") {
+      const row = state ? managerRows(state, view, host.updatePermissions, host.permissions)[view.selected] : void 0;
+      if (view.tab === "installed" && row) void run2(() => row.enabled ? host.mods.disable(row.id) : host.mods.enable(row.id));
+      return;
+    }
+    if (input === "a") {
+      active()?.click();
+      return;
+    }
+    if (input === "left" || input === "right") {
+      const tabs = ["installed", "browse", "lists", "settings"];
+      const at = tabs.indexOf(view.tab);
+      open(tabs[(at + (input === "left" ? -1 : 1) + tabs.length) % tabs.length]);
+      return;
+    }
+    const index = navigation.indexOf(active());
+    const next = Math.max(0, Math.min(navigation.length - 1, index + (input === "up" ? -1 : 1)));
+    view = reduceManager(view, { type: "move", delta: next - view.selected, length: navigation.length });
+    navigation[next]?.focus();
+  };
+  root.addEventListener("keydown", (event) => {
+    if (root.hidden || disposed) return;
+    event.stopPropagation();
+    const input = event.target;
+    const editing = ["INPUT", "SELECT", "TEXTAREA"].includes(input.tagName);
+    const mapped = keyAction(event.key.length === 1 && event.key !== "?" ? event.key.toLowerCase() : event.key);
+    if (!mapped || editing && mapped !== "b" && mapped !== "y") return;
+    if (mapped === "a" && !consentId) return;
+    if (mapped === "toggle" && !input.dataset["focus"]?.startsWith("mod:")) return;
+    swallow(event);
+    action(mapped);
+  });
+  root.addEventListener("pointerdown", (event) => {
+    if (!event.target.closest("na-detail-card")) closeCard?.();
+  });
+  const stopSettings = host.settings.subscribe(() => {
+    if (!disposed) render();
+  });
+  void host.mods.subscribe(takeState).then((result) => {
+    if (!result.ok) {
+      if (!disposed) {
+        safeMessage(result.message);
+        render();
+      }
+      return;
+    }
+    if (disposed) void host.mods.unsubscribe(result.value);
+    else subscription = result.value;
+  }).catch(() => {
+    if (!disposed) {
+      message = ledgerText.unavailable;
+      render();
+    }
+  });
+  if (host.assetUrl) void loadFonts({ assetUrl: host.assetUrl }, LEDGER_FONTS).catch(() => {
+  });
+  void refresh();
+  return {
+    open,
+    close,
+    handleGamepad: action,
+    dispose() {
+      if (disposed) return;
+      close();
+      disposed = true;
+      stopSettings();
+      if (subscription) void host.mods.unsubscribe(subscription);
+      root.replaceChildren();
+      root.remove?.();
+    }
+  };
+}
+
+// src/neo-manager/open.ts
+var NEO_MANAGER_KEY = "neo-manager";
+var PANEL_ID = "neo-angband-manager";
+var TITLE = "Mods";
+function installNeoManager(deps) {
+  let handle = null;
+  let panel = null;
+  let stopped = false;
+  const open = (tab) => {
+    if (stopped) return;
+    if (handle) {
+      handle.open(tab);
+      return;
+    }
+    if (!deps.panels) {
+      deps.log("neo-manager: this host has no panels to open it in");
+      return;
+    }
+    try {
+      const shown = deps.panels.openPanel({ id: PANEL_ID, modal: true, label: TITLE });
+      panel = shown;
+      const frame = shown.root.ownerDocument.createElement("div");
+      shown.root.appendChild(frame);
+      const mounted = mountNeoManager(deps.host, frame, () => {
+        if (panel === shown) shown.close();
+      });
+      handle = mounted;
+      void shown.closed.then(() => {
+        if (panel !== shown) return;
+        panel = null;
+        handle = null;
+        mounted.dispose();
+      });
+      mounted.open(tab);
+    } catch (error) {
+      handle?.dispose();
+      handle = null;
+      panel = null;
+      deps.log(`neo-manager: could not open (${String(error)})`);
+    }
+  };
+  const stopOpener = registerOpener(NEO_MANAGER_KEY, () => open());
+  let row = null;
+  if (deps.title) {
+    void deps.title.registerRow({ id: "anybandui:mods", label: TITLE, run: () => open() }).then((result) => {
+      if (!result.ok) {
+        deps.log(`neo-manager: title row refused (${result.message})`);
+        return;
+      }
+      if (stopped) void deps.title?.removeRow(result.value);
+      else row = result;
+    }).catch((error) => deps.log(`neo-manager: title row failed (${String(error)})`));
+  }
+  return () => {
+    if (stopped) return;
+    stopped = true;
+    stopOpener();
+    if (row && row.ok && deps.title) void deps.title.removeRow(row.value);
+    const shown = panel;
+    panel = null;
+    handle?.dispose();
+    handle = null;
+    shown?.close();
+  };
+}
+
 // src/menus/settings-window.ts
 var SETTINGS_KEY = "settings-window";
 var STRENGTH_GROUPS = [
@@ -8591,6 +10384,7 @@ var PAGES = [
   { id: "keys", group: "Play", title: "Keybindings", summary: "Your keymaps for the current keyset.", opens: { key: KEYBINDINGS_KEY, flag: "anybandui.keybindingEditor", switchTitle: "Keybinding editor" } },
   { id: "options", group: "Play", title: "Game options", summary: "The game's own options for this character.", opens: { key: OPTIONS_KEY, flag: "anybandui.optionsEditor", switchTitle: "Game options editor" } },
   { id: "knowledge", group: "Play", title: "Knowledge", summary: "What your character has learned about the world.", opens: { key: KNOWLEDGE_KEY, flag: "anybandui.knowledgeBrowser", switchTitle: "Knowledge browser" } },
+  { id: "mods", group: "Play", title: "Mods", summary: "Turn mods on and off, and install or update them.", opens: { key: NEO_MANAGER_KEY, switchTitle: "the Mods screen" } },
   { id: "session", group: "Play", title: "Save game", summary: "Save this character, or save and leave. These act at once." },
   { id: "theme", group: "Presentation", title: "Theme", summary: "The colours of this mod's panels and window frames." },
   { id: "effects", group: "Presentation", title: "Effects", summary: "How strongly each dungeon effect is drawn." },
@@ -8890,7 +10684,8 @@ function installSettingsWindow(ctx) {
     };
     if (info.opens) {
       const opens = info.opens;
-      if (ctx.flags?.[opens.flag] === true && hasOpener(opens.key)) {
+      if (opens.flag === void 0 && !hasOpener(opens.key)) el6(parent, "p", "This game does not let mods manage mods.").className = "muted";
+      else if ((opens.flag === void 0 || ctx.flags?.[opens.flag] === true) && hasOpener(opens.key)) {
         mark(button2(parent, `Open ${info.title}`, `open:${info.id}`, () => {
           if (!openMenu(opens.key)) {
             note = `${info.title} is not open.`;
@@ -9113,11 +10908,100 @@ function installSettingsWindow(ctx) {
   };
 }
 
+// src/neo-manager/settings.ts
+var MANAGER_SETTINGS = [
+  { id: "theme", group: "Display", title: "Theme", description: "The panel colors follow the device or your choice.", default: "system", control: "segments", choices: [{ value: "system", label: "System" }, { value: "light", label: "Light" }, { value: "dark", label: "Dark" }] },
+  { id: "textSize", group: "Display", title: "Text size", description: "Sizes the text on every manager panel.", default: 100, control: "range", min: 80, max: 140, step: 10, unit: "%" },
+  { id: "colorblind", group: "Display", title: "Colorblind correction", description: "Re-tints status colors (on, update ready, problem) on every panel. Status is always also shown as a word or a symbol.", default: "off", control: "select", choices: [{ value: "off", label: "Off" }, { value: "red-green", label: "Red and green" }, { value: "blue-yellow", label: "Blue and yellow" }] },
+  { id: "highContrast", group: "Display", title: "High contrast", description: "Uses white borders and brighter text on black.", default: false, control: "switch" },
+  { id: "listRows", group: "Display", title: "List rows", description: "Changes row spacing. Controls keep their touch target size.", default: "roomy", control: "segments", choices: [{ value: "roomy", label: "Roomy" }, { value: "tight", label: "Tight" }] },
+  { id: "motion", group: "Motion and effects", title: "Reduce motion", description: "Cards appear without a fade or slide. Device follows your system setting.", default: "device", control: "segments", choices: [{ value: "device", label: "Device" }, { value: "reduce", label: "Reduce" }] },
+  { id: "rowHighlight", group: "Motion and effects", title: "Row highlight", description: "Marks the selected row with a bright bar. Keyboard focus always has a white ring.", default: true, control: "switch" },
+  { id: "hoverCards", group: "Motion and effects", title: "Hover cards", description: "Opens a name's card after a quarter second. The question button always opens it.", default: true, control: "switch" },
+  { id: "sound", group: "Sound and touch", title: "Sound cues", description: "Stores your choice for sound cues in the host presentation.", default: true, control: "switch" },
+  { id: "haptics", group: "Sound and touch", title: "Haptics", description: "Plays a tick when a long press opens a card.", default: false, control: "switch" }
+];
+
+// src/neo-manager/host.ts
+var MANAGER_SETTINGS_KEY = "neoManager.settings";
+var ok = { ok: true, value: null };
+function pageEnvironment(page = window) {
+  return {
+    now: () => Date.now(),
+    setTimeout: (callback, ms) => page.setTimeout(callback, ms),
+    clearTimeout: (id) => page.clearTimeout(id),
+    vibrate: (ms) => {
+      try {
+        page.navigator.vibrate?.(ms);
+      } catch {
+      }
+    },
+    reducedMotion: () => {
+      try {
+        return page.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      } catch {
+        return false;
+      }
+    }
+  };
+}
+function defaults() {
+  return Object.fromEntries(MANAGER_SETTINGS.map((entry2) => [entry2.id, entry2.default]));
+}
+function readStored(value2) {
+  const out = defaults();
+  if (!value2 || typeof value2 !== "object" || Array.isArray(value2)) return out;
+  for (const entry2 of MANAGER_SETTINGS) {
+    const stored = value2[entry2.id];
+    if (typeof stored === typeof entry2.default) out[entry2.id] = stored;
+  }
+  return out;
+}
+async function createManageHost(mod, env = pageEnvironment()) {
+  const manage = mod.manage;
+  if (!manage) return null;
+  let values = defaults();
+  try {
+    const read = await mod.store.kv.get(MANAGER_SETTINGS_KEY);
+    if (read.ok) values = readStored(read.value);
+  } catch {
+  }
+  const listeners = /* @__PURE__ */ new Set();
+  return {
+    mods: manage.mods,
+    look: {
+      read: () => ({ desired: "Neo", active: "Neo", pending: null }),
+      choose: async (look) => look === "Neo" ? ok : { ok: false, reason: "unavailable", message: "The game has no way yet to switch the look back from here." }
+    },
+    settings: {
+      definitions: MANAGER_SETTINGS,
+      get: () => values,
+      set: async (change) => {
+        const next = readStored({ ...values, ...change });
+        const written = await mod.store.kv.set(MANAGER_SETTINGS_KEY, next);
+        if (!written.ok) return written;
+        values = next;
+        for (const listener of [...listeners]) listener();
+        return ok;
+      },
+      subscribe: (listener) => {
+        listeners.add(listener);
+        return () => {
+          listeners.delete(listener);
+        };
+      }
+    },
+    clock: { now: env.now, setTimeout: env.setTimeout, clearTimeout: env.clearTimeout },
+    haptics: { tick: () => env.vibrate(10) },
+    prefersReducedMotion: env.reducedMotion
+  };
+}
+
 // src/map-mouse.ts
 function ready(snap) {
   return !!snap && snap.phase === "play" && !snap.messagePending && !snap.prompt && !!viewPlayer(snap);
 }
-function sameToken2(a, b) {
+function sameToken3(a, b) {
   return a.epoch === b.epoch && a.revision === b.revision;
 }
 function walkIntent(player, at) {
@@ -9157,11 +11041,11 @@ function tileMenuActions(ctx, snap, at) {
   actions.push({ label: "Look", intent: { kind: "command", command: { code: "look", args: { x: at.x, y: at.y } } } });
   actions.push({ label: "Target", intent: { kind: "target", ...at } });
   const known = viewLevel(ctx);
-  if (known && sameToken2(known.token, snap.token) && known.cells.some((cell) => cell.x === at.x && cell.y === at.y && cell.remembered.objects.length > 0)) {
+  if (known && sameToken3(known.token, snap.token) && known.cells.some((cell2) => cell2.x === at.x && cell2.y === at.y && cell2.remembered.objects.length > 0)) {
     actions.push({ label: "Pick up", pickup: true });
   }
   const offered = ctx.inspect?.tileActions?.(at);
-  if (offered && sameToken2(offered.token, snap.token)) {
+  if (offered && sameToken3(offered.token, snap.token)) {
     const player = viewPlayer(snap).grid;
     const dx = at.x - player.x, dy = at.y - player.y;
     const dir = 5 + Math.sign(dx) - 3 * Math.sign(dy);
@@ -9207,11 +11091,11 @@ function runMenuAction(ctx, at, label2) {
 function finishPickup(ctx, at, previous) {
   if (!playerIsDriving(ctx)) return false;
   const next = viewInput(ctx);
-  if (!ready(next) || !next || sameToken2(previous.token, next.token) || !ctx.intent) return false;
+  if (!ready(next) || !next || sameToken3(previous.token, next.token) || !ctx.intent) return false;
   const grid = viewPlayer(next).grid;
   if (grid.x !== at.x || grid.y !== at.y) return false;
   const level = viewLevel(ctx);
-  if (!level || !sameToken2(level.token, next.token) || !level.cells.some((cell) => cell.x === at.x && cell.y === at.y && cell.remembered.objects.length > 0)) return false;
+  if (!level || !sameToken3(level.token, next.token) || !level.cells.some((cell2) => cell2.x === at.x && cell2.y === at.y && cell2.remembered.objects.length > 0)) return false;
   return ctx.intent.submit(next.token, { kind: "command", command: { code: "pickup" } }).accepted;
 }
 function aimingPath(ctx, snap, hovered) {
@@ -9219,12 +11103,12 @@ function aimingPath(ctx, snap, hovered) {
   if (snap.prompt.kind === "target") return snap.prompt.path;
   const cursor = hovered;
   const path = cursor ? ctx.inspect?.projectionPath?.(cursor) : null;
-  return path && sameToken2(path.token, snap.token) ? path.grids : [];
+  return path && sameToken3(path.token, snap.token) ? path.grids : [];
 }
 function walkingPath(ctx, snap, hovered) {
   if (!ready(snap) || !snap || !hovered) return [];
   const path = ctx.inspect?.travelPath?.(hovered);
-  return path && sameToken2(path.token, snap.token) ? path.grids : [];
+  return path && sameToken3(path.token, snap.token) ? path.grids : [];
 }
 function installMapMouse(ctx) {
   const flags = ctx.flags;
@@ -9237,17 +11121,17 @@ function installMapMouse(ctx) {
   }
   const display = ctx.display;
   let theme = themeFromPrefs(ctx.prefs?.get());
-  const menu = document.createElement("div");
-  menu.setAttribute("role", "menu");
-  menu.setAttribute("aria-label", "Dungeon actions");
-  menu.style.cssText = `display:none;position:fixed;z-index:1002;background:${theme.surface};color:${theme.text};border:1px solid ${paintColours(theme).border};border-radius:${Math.round(theme.rounding * 0.6)}px;padding:4px;font:${PAINT_FONT_SIZE}px/${PAINT_LINE_HEIGHT}px ${PAINT_FONT}`;
+  const menu2 = document.createElement("div");
+  menu2.setAttribute("role", "menu");
+  menu2.setAttribute("aria-label", "Dungeon actions");
+  menu2.style.cssText = `display:none;position:fixed;z-index:1002;background:${theme.surface};color:${theme.text};border:1px solid ${paintColours(theme).border};border-radius:${Math.round(theme.rounding * 0.6)}px;padding:4px;font:${PAINT_FONT_SIZE}px/${PAINT_LINE_HEIGHT}px ${PAINT_FONT}`;
   const paintMenu = () => {
     const colours2 = paintColours(theme);
-    menu.style.background = theme.surface;
-    menu.style.color = theme.text;
-    menu.style.border = `1px solid ${colours2.border}`;
-    menu.style.borderRadius = `${Math.round(theme.rounding * 0.6)}px`;
-    const buttons = menu.querySelectorAll("button");
+    menu2.style.background = theme.surface;
+    menu2.style.color = theme.text;
+    menu2.style.border = `1px solid ${colours2.border}`;
+    menu2.style.borderRadius = `${Math.round(theme.rounding * 0.6)}px`;
+    const buttons = menu2.querySelectorAll("button");
     for (let index = 0; index < buttons.length; index += 1) {
       const button7 = buttons[index];
       if (!button7) continue;
@@ -9262,7 +11146,7 @@ function installMapMouse(ctx) {
   const canvas = document.createElement("canvas");
   canvas.setAttribute("aria-hidden", "true");
   canvas.style.cssText = "position:fixed;inset:0;pointer-events:none;z-index:49";
-  document.body.append(menu, canvas);
+  document.body.append(menu2, canvas);
   let menuAt = null;
   let menuToken = null;
   let menuPromptId = null;
@@ -9272,8 +11156,8 @@ function installMapMouse(ctx) {
   let targetPromptId = null;
   let hovered = null;
   const hide = () => {
-    menu.style.display = "none";
-    menu.replaceChildren();
+    menu2.style.display = "none";
+    menu2.replaceChildren();
     menuAt = null;
   };
   const locate = (event) => {
@@ -9285,7 +11169,7 @@ function installMapMouse(ctx) {
   };
   const onClick = (event) => {
     if (event.button !== 0) return;
-    if (menu.contains(event.target)) return;
+    if (menu2.contains(event.target)) return;
     hide();
     if (!flags["anybandui.clickToWalk"]) return;
     const at = locate(event);
@@ -9325,7 +11209,7 @@ function installMapMouse(ctx) {
       });
       button7.addEventListener("click", () => {
         const current = viewInput(ctx);
-        if (!menuAt || !current || !menuToken || !sameToken2(menuToken, current.token) || menuPromptId !== (current.prompt?.promptId ?? null)) {
+        if (!menuAt || !current || !menuToken || !sameToken3(menuToken, current.token) || menuPromptId !== (current.prompt?.promptId ?? null)) {
           hide();
           return;
         }
@@ -9343,12 +11227,12 @@ function installMapMouse(ctx) {
         } else runMenuAction(ctx, selected, action.label);
         hide();
       });
-      menu.appendChild(button7);
+      menu2.appendChild(button7);
     }
-    menu.style.display = "block";
-    menu.style.left = `${Math.min(event.clientX, window.innerWidth - menu.offsetWidth)}px`;
-    menu.style.top = `${Math.min(event.clientY, window.innerHeight - menu.offsetHeight)}px`;
-    menu.firstElementChild?.focus();
+    menu2.style.display = "block";
+    menu2.style.left = `${Math.min(event.clientX, window.innerWidth - menu2.offsetWidth)}px`;
+    menu2.style.top = `${Math.min(event.clientY, window.innerHeight - menu2.offsetHeight)}px`;
+    menu2.firstElementChild?.focus();
   };
   const onKey = (event) => {
     if (event.key === "Escape") hide();
@@ -9359,7 +11243,7 @@ function installMapMouse(ctx) {
   const render = () => {
     if (pickupAt && pickupSnap) {
       const next = viewInput(ctx);
-      if (next && !sameToken2(next.token, pickupSnap.token)) {
+      if (next && !sameToken3(next.token, pickupSnap.token)) {
         finishPickup(ctx, pickupAt, pickupSnap);
         pickupAt = null;
         pickupSnap = null;
@@ -9422,7 +11306,7 @@ function installMapMouse(ctx) {
     window.removeEventListener("contextmenu", onContext, true);
     window.removeEventListener("keydown", onKey);
     hide();
-    menu.remove();
+    menu2.remove();
     canvas.remove();
   };
 }
@@ -9430,7 +11314,7 @@ function installMapMouse(ctx) {
 // src/spell-actions.ts
 function actionReady(ctx, snap) {
   const next = viewInput(ctx);
-  return !!next && sameToken(next.token, snap.token) && next.phase === "play" && !next.prompt && !next.messagePending && playerIsDriving(ctx);
+  return !!next && sameToken2(next.token, snap.token) && next.phase === "play" && !next.prompt && !next.messagePending && playerIsDriving(ctx);
 }
 function castSpell(ctx, snap, spell) {
   if (!spell.canCast || !actionReady(ctx, snap)) return false;
@@ -9442,13 +11326,13 @@ function studySpell(ctx, snap, book, spell) {
 }
 function answerSpell(ctx, snap, index) {
   const next = viewInput(ctx);
-  if (snap.prompt?.kind !== "spell" || !next || !sameToken(next.token, snap.token) || next.prompt?.promptId !== snap.prompt.promptId || !playerIsDriving(ctx)) return false;
+  if (snap.prompt?.kind !== "spell" || !next || !sameToken2(next.token, snap.token) || next.prompt?.promptId !== snap.prompt.promptId || !playerIsDriving(ctx)) return false;
   if (!snap.prompt.choices.some((choice) => choice.index === index)) return false;
   return ctx.prompt?.reply(snap.prompt.promptId, index).accepted ?? false;
 }
 function cancelSpell(ctx, snap) {
   const next = viewInput(ctx);
-  if (snap.prompt?.kind !== "spell" || !next || !sameToken(next.token, snap.token) || next.prompt?.promptId !== snap.prompt.promptId || !playerIsDriving(ctx) || !ctx.prompt?.reply) return false;
+  if (snap.prompt?.kind !== "spell" || !next || !sameToken2(next.token, snap.token) || next.prompt?.promptId !== snap.prompt.promptId || !playerIsDriving(ctx) || !ctx.prompt?.reply) return false;
   return ctx.prompt.reply(snap.prompt.promptId, { action: "cancel" }).accepted ?? false;
 }
 var validRest = (count) => [-3, -2, -1].includes(count) || Number.isInteger(count) && count >= 1 && count <= 9999;
@@ -9682,7 +11566,7 @@ function installPhase4(ctx) {
     ctx.log("phase 4: panel seam unavailable");
     return blastCleanup;
   }
-  let bookKey = "", spellIndex = -1, menu = -1, customize = -1, restOpen = false, restMode = -2, turns = 10, promptChoice = -1, error = "", signature = "", closed = false;
+  let bookKey = "", spellIndex = -1, menu2 = -1, customize = -1, restOpen = false, restMode = -2, turns = 10, promptChoice = -1, error = "", signature = "", closed = false;
   let appearance = { style: "automatic", text: "", color: "#7abaf4" };
   let adopted = "";
   const identify = (snap) => {
@@ -9708,7 +11592,7 @@ ${viewPlayer(snap)?.race ?? ""}`;
     next[index] = binding;
     slots = next;
     save();
-    menu = -1;
+    menu2 = -1;
     paint(true);
   };
   const paint = (force = false) => {
@@ -9723,7 +11607,7 @@ ${viewPlayer(snap)?.race ?? ""}`;
       slots = key ? readSlots(ctx.prefs?.get(), key) : Array(30).fill(null);
     }
     const model = snap ? adaptSpells(snap, ctx.inspect) : null;
-    const sig = JSON.stringify([[...mounts.keys()], snap, slots, bookKey, spellIndex, menu, customize, appearance, restOpen, restMode, turns, promptChoice, error]);
+    const sig = JSON.stringify([[...mounts.keys()], snap, slots, bookKey, spellIndex, menu2, customize, appearance, restOpen, restMode, turns, promptChoice, error]);
     if (!force && sig === signature) return;
     signature = sig;
     for (const target of mounts.values()) target.replaceChildren();
@@ -9757,8 +11641,8 @@ ${viewPlayer(snap)?.race ?? ""}`;
         for (const spell of book.spells) {
           const row = el7(table, "tr");
           if (!spell.canCast && !spell.canStudy) row.className = "muted";
-          const cell = el7(row, "td");
-          const pick = button3(cell, spell.name, () => {
+          const cell2 = el7(row, "td");
+          const pick = button3(cell2, spell.name, () => {
             spellIndex = spell.index;
             paint(true);
           });
@@ -9775,7 +11659,7 @@ ${viewPlayer(snap)?.race ?? ""}`;
           pick.addEventListener("contextmenu", (event) => {
             if (!quickOn) return;
             event.preventDefault();
-            menu = -2;
+            menu2 = -2;
             spellIndex = spell.index;
             paint(true);
           });
@@ -9801,7 +11685,7 @@ ${viewPlayer(snap)?.race ?? ""}`;
           if (selected.canCast && (viewPlayer(snap)?.sp ?? 0) < selected.mana) el7(spellMount, "p", "Not enough mana. Confirmation may be required.");
           el7(spellMount, "p", selected.description);
           if (selected.infoLine) el7(spellMount, "p", `Info: ${selected.infoLine}`);
-          if (quickOn && menu === -2) {
+          if (quickOn && menu2 === -2) {
             const box = el7(spellMount, "div");
             box.className = "menu";
             el7(box, "strong", "Assign spell to quickbar");
@@ -9854,7 +11738,7 @@ ${viewPlayer(snap)?.race ?? ""}`;
           slot.setAttribute("aria-label", slot.title);
           slot.addEventListener("contextmenu", (event) => {
             event.preventDefault();
-            menu = index;
+            menu2 = index;
             paint(true);
           });
           slot.addEventListener("dragstart", (event) => {
@@ -9890,27 +11774,27 @@ ${viewPlayer(snap)?.race ?? ""}`;
           });
         }
       }
-      if (menu >= 0) {
+      if (menu2 >= 0) {
         const box = el7(quickMount, "div");
         box.className = "menu";
-        el7(box, "strong", `Assign ${keys[menu % 10]}`);
-        if (slots[menu]) button3(box, "Customize", () => {
-          customize = menu;
-          appearance = slots[menu]?.appearance ?? { style: "automatic", text: "", color: "#7abaf4" };
-          menu = -1;
+        el7(box, "strong", `Assign ${keys[menu2 % 10]}`);
+        if (slots[menu2]) button3(box, "Customize", () => {
+          customize = menu2;
+          appearance = slots[menu2]?.appearance ?? { style: "automatic", text: "", color: "#7abaf4" };
+          menu2 = -1;
           paint(true);
         });
-        button3(box, "Rest until recovered", () => assign(menu, { type: "command", code: "rest", name: "Rest" }));
-        for (const binding of catalogueCommands(ctx)) button3(box, assignLabel(binding), () => assign(menu, binding));
+        button3(box, "Rest until recovered", () => assign(menu2, { type: "command", code: "rest", name: "Rest" }));
+        for (const binding of catalogueCommands(ctx)) button3(box, assignLabel(binding), () => assign(menu2, binding));
         for (const binding of itemBindings(snap, ctx)) {
-          const choice = button3(box, assignLabel(binding), () => assign(menu, binding));
+          const choice = button3(box, assignLabel(binding), () => assign(menu2, binding));
           choice.draggable = true;
           choice.addEventListener("dragstart", (event) => event.dataTransfer?.setData("application/x-anybandui-binding", JSON.stringify(binding)));
         }
-        for (const book of model?.books ?? []) for (const spell of book.spells) button3(box, `Cast: ${spell.name}`, () => assign(menu, { type: "spell", key: book.key, index: spell.index, name: spell.name }));
-        button3(box, "Clear", () => assign(menu, null));
+        for (const book of model?.books ?? []) for (const spell of book.spells) button3(box, `Cast: ${spell.name}`, () => assign(menu2, { type: "spell", key: book.key, index: spell.index, name: spell.name }));
+        button3(box, "Clear", () => assign(menu2, null));
         button3(box, "Close", () => {
-          menu = -1;
+          menu2 = -1;
           paint(true);
         });
       }
@@ -10021,10 +11905,10 @@ ${viewPlayer(snap)?.race ?? ""}`;
     if (quickMount) surfaces.fit("quickbar", quickMount.getBoundingClientRect().height + 16);
   };
   const keydown = (event) => {
-    if (!quickOn || menu >= 0 || customize >= 0 || restOpen || event.repeat || event.altKey || event.metaKey || event.defaultPrevented || event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement || event.target instanceof HTMLElement && event.target.isContentEditable) return;
+    if (!quickOn || menu2 >= 0 || customize >= 0 || restOpen || event.repeat || event.altKey || event.metaKey || event.defaultPrevented || event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement || event.target instanceof HTMLElement && event.target.isContentEditable) return;
     const index = slotIndex(event.code, event.shiftKey, event.ctrlKey);
     const snap = viewInput(ctx);
-    if (!quickbarOwnsKey(quickOn, snap ?? null, event.code, event.shiftKey, event.ctrlKey, menu >= 0 || restOpen) || !snap || !actionReady(ctx, snap)) return;
+    if (!quickbarOwnsKey(quickOn, snap ?? null, event.code, event.shiftKey, event.ctrlKey, menu2 >= 0 || restOpen) || !snap || !actionReady(ctx, snap)) return;
     const binding = slots[index] ?? null;
     event.preventDefault();
     event.stopImmediatePropagation();
@@ -10087,8 +11971,8 @@ function adaptStore(snap, known) {
   const world = viewWorld(snap);
   if (snap.phase !== "store" || !world.stores || !world.player || !world.inventory) return null;
   const status = snap.storeStatus && same2(snap.storeStatus.token, snap.token) ? snap.storeStatus : null;
-  const cell = known && same2(known.token, snap.token) ? known.cells.find((entry2) => entry2.x === world.player.grid.x && entry2.y === world.player.grid.y) : null;
-  const feat = status?.feat ?? cell?.remembered.feat;
+  const cell2 = known && same2(known.token, snap.token) ? known.cells.find((entry2) => entry2.x === world.player.grid.x && entry2.y === world.player.grid.y) : null;
+  const feat = status?.feat ?? cell2?.remembered.feat;
   if (feat === void 0) return null;
   const index = world.stores.findIndex((store2) => store2.feat === feat);
   if (index < 0) return null;
@@ -10342,9 +12226,9 @@ function installStores(ctx) {
       if (!rows.length) el8(box, "p", side === "stock" ? "No stock here." : "No items in your pack.");
       for (const row of rows) {
         const tr = el8(table, "tr");
-        const cell = el8(tr, "td");
+        const cell2 = el8(tr, "td");
         if (!row.eligible) tr.className = "muted";
-        const pick = button4(cell, row.label, () => {
+        const pick = button4(cell2, row.label, () => {
           if (side === "stock") {
             if (stockSelection !== row.key) browsing = null;
             stockSelection = row.key;
@@ -10430,8 +12314,8 @@ function installStores(ctx) {
           for (const label2 of ["Spell", "Level", "Mana", "Fail"]) el8(head2, "th", label2);
           for (const spell of spells) {
             const tr = el8(table2, "tr");
-            const cell = el8(tr, "td");
-            button4(cell, spell.name, () => {
+            const cell2 = el8(tr, "td");
+            button4(cell2, spell.name, () => {
               spellPick = spell.index;
               paint(true);
             });
@@ -11616,11 +13500,11 @@ var HEADINGS = {
 };
 var CSS9 = `.scores td.num,.scores th.num{text-align:right}
 .scores tr.you td{color:var(--anyband-accent);font-weight:bold}`;
-function cellText(cell) {
-  if (!cell) return "";
-  const current = cell.values?.["current"], max = cell.values?.["max"];
+function cellText(cell2) {
+  if (!cell2) return "";
+  const current = cell2.values?.["current"], max = cell2.values?.["max"];
   if (typeof current === "number" && typeof max === "number" && max > current) return `${current} (max ${max})`;
-  return cell.text;
+  return cell2.text;
 }
 function hallOfFamePart(ctx) {
   if (ctx.flags?.["anybandui.hallOfFame"] !== true) return null;
@@ -12281,14 +14165,14 @@ var BirthWizard = class {
   usePrevious() {
     if (!this.catalogue.previous) return false;
     if (!this.changedSincePrevious) return true;
-    const ok = this.run((s) => s.usePrevious());
-    if (ok) this.changedSincePrevious = false;
-    return ok;
+    const ok2 = this.run((s) => s.usePrevious());
+    if (ok2) this.changedSincePrevious = false;
+    return ok2;
   }
   accept() {
-    const ok = this.run((s) => s.accept(), false);
-    if (ok) this.finished = true;
-    return ok;
+    const ok2 = this.run((s) => s.accept(), false);
+    if (ok2) this.finished = true;
+    return ok2;
   }
   cancel() {
     if (this.finished) return;
@@ -12380,15 +14264,15 @@ function statTable(parent, rows, editable, pointsLeft, actions) {
     if (!editable) continue;
     el10(tr, "td", String(row.spent));
     el10(tr, "td", row.buyCost === null ? "-" : String(row.buyCost));
-    const cell = el10(tr, "td", void 0, "adjust");
+    const cell2 = el10(tr, "td", void 0, "adjust");
     const canBuy = row.canBuy;
-    const sell = button6(cell, "-", `sell-${row.index}`, () => {
+    const sell = button6(cell2, "-", `sell-${row.index}`, () => {
       if (row.canSell) actions.act((s) => s.sell(row.index));
     });
     sell.setAttribute("aria-label", `Refund a point from ${row.name}`);
     if (row.sellRefund !== null) sell.title = `Refunds ${row.sellRefund} ${row.sellRefund === 1 ? "point" : "points"}.`;
     if (!row.canSell) sell.setAttribute("aria-disabled", "true");
-    const buy = button6(cell, "+", `buy-${row.index}`, () => {
+    const buy = button6(cell2, "+", `buy-${row.index}`, () => {
       if (canBuy) actions.act((s) => s.buy(row.index));
     });
     buy.setAttribute("aria-label", `Spend points on ${row.name}`);
@@ -12825,8 +14709,8 @@ function mapTarget(snap, point, known, player) {
   const grid = snapLandmark(snap, point, known.cells) ?? hoverGrid(snap, point);
   if (!grid || grid.x >= snap.level.width || grid.y >= snap.level.height) return null;
   if (player && player.x === grid.x && player.y === grid.y) return null;
-  const cell = known.cells.find((entry2) => entry2.x === grid.x && entry2.y === grid.y);
-  return cell && cell.remembered.feat > 0 && cell.remembered.featCode !== "NONE" ? { x: grid.x, y: grid.y } : null;
+  const cell2 = known.cells.find((entry2) => entry2.x === grid.x && entry2.y === grid.y);
+  return cell2 && cell2.remembered.feat > 0 && cell2.remembered.featCode !== "NONE" ? { x: grid.x, y: grid.y } : null;
 }
 function installMinimapTravel(ctx) {
   if (ctx.flags["anybandui.minimapTravel"] !== true) return () => {
@@ -12881,287 +14765,327 @@ var tileFullOverviewApplied = false;
 var displayCleanups = [];
 var characterPane = null;
 var statusRepaint = null;
-var plugin_default = {
-  api: 1,
-  register(_host, ctx) {
-    this.uninstall();
-    ctx.log(`AnybandUI loaded on engine ${ctx.engine}`);
-    const flags = coexistingFlags(ctx.flags ?? {}, ctx.mods?.bind(ctx), ctx.log);
-    setThemePacks(flags["anybandui.themePacks"] === true);
-    if (ctx.events) {
-      const events = ctx.events;
-      const repaint = () => statusRepaint?.();
-      try {
-        events.on("driver-changed", repaint);
-        displayCleanups.push(() => events.off("driver-changed", repaint));
-      } catch {
+var messagesRepaint = null;
+function registerAll(ctx) {
+  uninstall();
+  ctx.log(`AnybandUI loaded on engine ${ctx.engine}`);
+  const flags = coexistingFlags(ctx.flags ?? {}, ctx.mods?.bind(ctx), ctx.log);
+  setThemePacks(flags["anybandui.themePacks"] === true);
+  if (ctx.events) {
+    const events = ctx.events;
+    const repaint = () => statusRepaint?.();
+    try {
+      events.on("driver-changed", repaint);
+      displayCleanups.push(() => events.off("driver-changed", repaint));
+    } catch {
+    }
+  }
+  if (shared) displayCleanups.push(shared.onInput(() => messagesRepaint?.()));
+  displayCleanups.push(installEffects({ flags, ...ctx.snapshot ? { snapshot: ctx.snapshot } : {}, ...ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {}, ...ctx.events ? { events: ctx.events } : {}, ...ctx.display?.snapshot ? { display: { snapshot: ctx.display.snapshot.bind(ctx.display) } } : {}, ...ctx.prefs ? { prefs: ctx.prefs } : {}, ...ctx.settings ? { settings: ctx.settings } : {} }));
+  const theme = themeFromPrefs(ctx.prefs?.get());
+  displayCleanups.push(installChromePaint(ctx.display, flags, theme, ctx.log));
+  const { liveCore, liveState } = liveGame(ctx);
+  const itemContext = {
+    flags,
+    log: ctx.log,
+    ...ctx.snapshot ? { snapshot: ctx.snapshot } : {},
+    ...ctx.inspect ? { inspect: ctx.inspect } : {},
+    ...ctx.intent ? { intent: ctx.intent } : {},
+    ...ctx.prompt ? { prompt: ctx.prompt } : {},
+    ...ctx.ui ? { ui: ctx.ui } : {},
+    ...ctx.prefs ? { prefs: ctx.prefs } : {},
+    ...itemsGame(liveCore, liveState)
+  };
+  displayCleanups.push(installItems(itemContext));
+  displayCleanups.push(installStores({ ...itemContext, ...ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {}, ...ctx.driver ? { driver: ctx.driver } : {} }));
+  displayCleanups.push(installCharacterSheet({
+    flags,
+    log: ctx.log,
+    ...ctx.ui ? { ui: ctx.ui } : {},
+    ...ctx.prefs ? { prefs: ctx.prefs } : {},
+    ...ctx.character ? { character: ctx.character } : {}
+  }));
+  displayCleanups.push(installThemeEditor({
+    flags,
+    log: ctx.log,
+    ...ctx.ui ? { ui: ctx.ui } : {},
+    ...ctx.prefs ? { prefs: ctx.prefs } : {},
+    ...ctx.display ? { display: ctx.display } : {}
+  }));
+  displayCleanups.push(installMenus({ ...ctx, flags }));
+  const menuContext = { flags, log: ctx.log, ...ctx.ui ? { ui: ctx.ui } : {}, ...ctx.prefs ? { prefs: ctx.prefs } : {} };
+  displayCleanups.push(installKnowledgeBrowser({ ...menuContext, ...ctx.knowledge ? { knowledge: ctx.knowledge } : {} }));
+  displayCleanups.push(installOptionsEditor({ ...menuContext, ...ctx.options ? { options: ctx.options } : {} }));
+  displayCleanups.push(installKeybindingEditor({ ...menuContext, ...ctx.keybindings ? { keybindings: ctx.keybindings } : {} }));
+  displayCleanups.push(installSettingsWindow({
+    ...menuContext,
+    ...ctx.settings ? { settings: ctx.settings } : {},
+    ...ctx.display ? { display: ctx.display } : {},
+    ...ctx.session ? { session: ctx.session } : {},
+    ...ctx.subwindows ? { subwindows: ctx.subwindows } : {}
+  }));
+  if (flags["anybandui.highContrast"] || flags["anybandui.colourblind"] || flags["anybandui.crt"] || theme.invert_dungeon) {
+    installAccessibilityAccommodations({ flags, invertDungeon: theme.invert_dungeon, ...ctx.display ? { display: ctx.display } : {}, log: ctx.log });
+  }
+  if (flags["anybandui.quiverItemization"]) {
+    if (!ctx.display) ctx.log("this game is too old for display conveniences");
+    else {
+      if (flags["anybandui.quiverItemization"] && ctx.display.setQuiverItemization) {
+        quiverDisplay = ctx.display;
+        ctx.display.setQuiverItemization(true);
       }
     }
-    displayCleanups.push(installEffects({ flags, ...ctx.snapshot ? { snapshot: ctx.snapshot } : {}, ...ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {}, ...ctx.events ? { events: ctx.events } : {}, ...ctx.display?.snapshot ? { display: { snapshot: ctx.display.snapshot.bind(ctx.display) } } : {}, ...ctx.prefs ? { prefs: ctx.prefs } : {}, ...ctx.settings ? { settings: ctx.settings } : {} }));
-    const theme = themeFromPrefs(ctx.prefs?.get());
-    displayCleanups.push(installChromePaint(ctx.display, flags, theme, ctx.log));
-    const { liveCore, liveState } = liveGame(ctx);
-    const itemContext = {
+  }
+  if (ctx.display?.snapshot && ctx.display.onKey && ctx.display.setGrid && ctx.display.setCamera && ctx.display.setSidebarExtent && ctx.display.repaint) {
+    const display = ctx.display;
+    installZoomPan({
       flags,
-      log: ctx.log,
+      display: gateSidebarExtent(display),
+      manageTileSettings: false,
+      ...ctx.prefs ? { prefs: ctx.prefs } : {},
+      ...ctx.snapshot ? { snapshot: ctx.snapshot } : {},
+      ...ctx.subwindows ? { subwindows: ctx.subwindows } : {},
+      ...liveState ? { state: liveState } : {},
+      log: ctx.log
+    });
+    displayCleanups.push(uninstallZoomPan);
+    if (ctx.display.setFullMapOverview && ctx.display.setMapView && ctx.display.setTileScaling) {
+      displayCleanups.push(installMapOverview({
+        flags,
+        display: ctx.display,
+        ...liveState ? { state: liveState } : {},
+        ...ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {},
+        ...ctx.prefs ? { prefs: ctx.prefs } : {},
+        log: ctx.log
+      }));
+    }
+    displayCleanups.push(installMapHoverCards({
+      flags,
+      ...liveCore ? { core: liveCore } : { core: null },
+      ...liveState ? { state: liveState } : {},
+      ...ctx.prefs ? { prefs: ctx.prefs } : {},
+      display
+    }));
+    displayCleanups.push(installHoverCards({
+      flags: { ...flags, "anybandui.mapHoverCards": false },
+      display,
       ...ctx.snapshot ? { snapshot: ctx.snapshot } : {},
       ...ctx.inspect ? { inspect: ctx.inspect } : {},
-      ...ctx.intent ? { intent: ctx.intent } : {},
-      ...ctx.prompt ? { prompt: ctx.prompt } : {},
-      ...ctx.ui ? { ui: ctx.ui } : {},
+      ...liveCore ? { core: liveCore } : {},
+      ...ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {},
+      ...liveState ? { state: liveState } : {},
       ...ctx.prefs ? { prefs: ctx.prefs } : {},
-      ...itemsGame(liveCore, liveState)
-    };
-    displayCleanups.push(installItems(itemContext));
-    displayCleanups.push(installStores({ ...itemContext, ...ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {}, ...ctx.driver ? { driver: ctx.driver } : {} }));
-    displayCleanups.push(installCharacterSheet({
-      flags,
-      log: ctx.log,
-      ...ctx.ui ? { ui: ctx.ui } : {},
-      ...ctx.prefs ? { prefs: ctx.prefs } : {},
-      ...ctx.character ? { character: ctx.character } : {}
+      log: ctx.log
     }));
-    displayCleanups.push(installThemeEditor({
-      flags,
-      log: ctx.log,
-      ...ctx.ui ? { ui: ctx.ui } : {},
-      ...ctx.prefs ? { prefs: ctx.prefs } : {},
-      ...ctx.display ? { display: ctx.display } : {}
-    }));
-    displayCleanups.push(installMenus({ ...ctx, flags }));
-    const menuContext = { flags, log: ctx.log, ...ctx.ui ? { ui: ctx.ui } : {}, ...ctx.prefs ? { prefs: ctx.prefs } : {} };
-    displayCleanups.push(installKnowledgeBrowser({ ...menuContext, ...ctx.knowledge ? { knowledge: ctx.knowledge } : {} }));
-    displayCleanups.push(installOptionsEditor({ ...menuContext, ...ctx.options ? { options: ctx.options } : {} }));
-    displayCleanups.push(installKeybindingEditor({ ...menuContext, ...ctx.keybindings ? { keybindings: ctx.keybindings } : {} }));
-    displayCleanups.push(installSettingsWindow({
-      ...menuContext,
-      ...ctx.settings ? { settings: ctx.settings } : {},
-      ...ctx.display ? { display: ctx.display } : {},
-      ...ctx.session ? { session: ctx.session } : {},
-      ...ctx.subwindows ? { subwindows: ctx.subwindows } : {}
-    }));
-    if (flags["anybandui.highContrast"] || flags["anybandui.colourblind"] || flags["anybandui.crt"] || theme.invert_dungeon) {
-      installAccessibilityAccommodations({ flags, invertDungeon: theme.invert_dungeon, ...ctx.display ? { display: ctx.display } : {}, log: ctx.log });
+  } else if (flags["anybandui.crispTiles"] && ctx.display?.setTileScaling) {
+    tileDisplay = ctx.display;
+    ctx.display.setTileScaling("crisp");
+    if (ctx.display.setFullMapOverview) {
+      ctx.display.setFullMapOverview(true);
+      tileFullOverviewApplied = true;
     }
-    if (flags["anybandui.quiverItemization"]) {
-      if (!ctx.display) ctx.log("this game is too old for display conveniences");
-      else {
-        if (flags["anybandui.quiverItemization"] && ctx.display.setQuiverItemization) {
-          quiverDisplay = ctx.display;
-          ctx.display.setQuiverItemization(true);
-        }
-      }
-    }
-    if (ctx.display?.snapshot && ctx.display.onKey && ctx.display.setGrid && ctx.display.setCamera && ctx.display.setSidebarExtent && ctx.display.repaint) {
-      const display = ctx.display;
-      installZoomPan({
-        flags,
-        display: gateSidebarExtent(display),
-        manageTileSettings: false,
+  }
+  if (flags["anybandui.mapHoverCards"] && !(ctx.display?.snapshot && ctx.display.onKey && ctx.display.setGrid && ctx.display.setCamera && ctx.display.setSidebarExtent && ctx.display.repaint)) {
+    displayCleanups.push(installMapHoverCards({
+      flags,
+      core: liveCore ?? null,
+      ...liveState ? { state: liveState } : {},
+      ...ctx.prefs ? { prefs: ctx.prefs } : {},
+      ...ctx.display?.snapshot ? { display: ctx.display } : {}
+    }));
+  }
+  displayCleanups.push(installMapMouse({
+    flags,
+    ...ctx.display?.snapshot ? { display: ctx.display } : {},
+    ...ctx.snapshot ? { snapshot: ctx.snapshot } : {},
+    ...ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {},
+    ...ctx.intent ? { intent: ctx.intent } : {},
+    ...ctx.prompt ? { prompt: ctx.prompt } : {},
+    ...ctx.inspect ? { inspect: ctx.inspect } : {},
+    ...ctx.prefs ? { prefs: ctx.prefs } : {},
+    log: ctx.log
+  }));
+  displayCleanups.push(installMinimapTravel({
+    flags,
+    ...ctx.display?.snapshot ? { display: { snapshot: ctx.display.snapshot.bind(ctx.display) } } : {},
+    ...ctx.snapshot ? { snapshot: ctx.snapshot } : {},
+    ...ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {},
+    ...ctx.intent ? { intent: ctx.intent } : {},
+    ...ctx.prompt ? { prompt: ctx.prompt } : {},
+    ...ctx.driver ? { driver: ctx.driver.bind(ctx) } : {},
+    log: ctx.log
+  }));
+  displayCleanups.push(installPhase4({
+    flags,
+    log: ctx.log,
+    ...ctx.snapshot ? { snapshot: ctx.snapshot } : {},
+    ...ctx.intent ? { intent: ctx.intent } : {},
+    ...ctx.prompt ? { prompt: ctx.prompt } : {},
+    ...ctx.inspect ? { inspect: ctx.inspect } : {},
+    ...ctx.ui ? { ui: ctx.ui } : {},
+    ...ctx.prefs ? { prefs: ctx.prefs } : {},
+    ...ctx.display?.snapshot ? { display: { snapshot: ctx.display.snapshot.bind(ctx.display) } } : {},
+    ...ctx.driver ? { driver: ctx.driver } : {},
+    ...ctx.character ? { character: ctx.character } : {},
+    ...liveState ? { state: liveState } : {}
+  }));
+  if (flags["anybandui.firstEncounter"]) {
+    if (liveCore && liveState) {
+      const theme2 = themeFromPrefs(ctx.prefs?.get());
+      installFirstEncounter({
+        core: liveCore,
+        state: liveState,
+        theme: theme2,
+        ...ctx.ui ? { ui: ctx.ui } : {},
         ...ctx.prefs ? { prefs: ctx.prefs } : {},
-        ...ctx.snapshot ? { snapshot: ctx.snapshot } : {},
-        ...ctx.subwindows ? { subwindows: ctx.subwindows } : {},
-        ...liveState ? { state: liveState } : {},
+        ...ctx.tiles ? { tiles: ctx.tiles } : {},
         log: ctx.log
       });
-      displayCleanups.push(uninstallZoomPan);
-      if (ctx.display.setFullMapOverview && ctx.display.setMapView && ctx.display.setTileScaling) {
-        displayCleanups.push(installMapOverview({
-          flags,
-          display: ctx.display,
-          ...liveState ? { state: liveState } : {},
-          ...ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {},
-          ...ctx.prefs ? { prefs: ctx.prefs } : {},
-          log: ctx.log
-        }));
-      }
-      displayCleanups.push(installMapHoverCards({
-        flags,
-        ...liveCore ? { core: liveCore } : { core: null },
-        ...liveState ? { state: liveState } : {},
-        ...ctx.prefs ? { prefs: ctx.prefs } : {},
-        display
-      }));
-      displayCleanups.push(installHoverCards({
-        flags: { ...flags, "anybandui.mapHoverCards": false },
-        display,
-        ...ctx.snapshot ? { snapshot: ctx.snapshot } : {},
-        ...ctx.inspect ? { inspect: ctx.inspect } : {},
-        ...liveCore ? { core: liveCore } : {},
-        ...ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {},
-        ...liveState ? { state: liveState } : {},
-        ...ctx.prefs ? { prefs: ctx.prefs } : {},
-        log: ctx.log
-      }));
-    } else if (flags["anybandui.crispTiles"] && ctx.display?.setTileScaling) {
-      tileDisplay = ctx.display;
-      ctx.display.setTileScaling("crisp");
-      if (ctx.display.setFullMapOverview) {
-        ctx.display.setFullMapOverview(true);
-        tileFullOverviewApplied = true;
-      }
-    }
-    if (flags["anybandui.mapHoverCards"] && !(ctx.display?.snapshot && ctx.display.onKey && ctx.display.setGrid && ctx.display.setCamera && ctx.display.setSidebarExtent && ctx.display.repaint)) {
-      displayCleanups.push(installMapHoverCards({
-        flags,
-        core: liveCore ?? null,
-        ...liveState ? { state: liveState } : {},
-        ...ctx.prefs ? { prefs: ctx.prefs } : {},
-        ...ctx.display?.snapshot ? { display: ctx.display } : {}
-      }));
-    }
-    displayCleanups.push(installMapMouse({
-      flags,
-      ...ctx.display?.snapshot ? { display: ctx.display } : {},
-      ...ctx.snapshot ? { snapshot: ctx.snapshot } : {},
-      ...ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {},
-      ...ctx.intent ? { intent: ctx.intent } : {},
-      ...ctx.prompt ? { prompt: ctx.prompt } : {},
-      ...ctx.inspect ? { inspect: ctx.inspect } : {},
-      ...ctx.prefs ? { prefs: ctx.prefs } : {},
-      log: ctx.log
-    }));
-    displayCleanups.push(installMinimapTravel({
-      flags,
-      ...ctx.display?.snapshot ? { display: { snapshot: ctx.display.snapshot.bind(ctx.display) } } : {},
-      ...ctx.snapshot ? { snapshot: ctx.snapshot } : {},
-      ...ctx.knownLevel ? { knownLevel: ctx.knownLevel } : {},
-      ...ctx.intent ? { intent: ctx.intent } : {},
-      ...ctx.prompt ? { prompt: ctx.prompt } : {},
-      ...ctx.driver ? { driver: ctx.driver.bind(ctx) } : {},
-      log: ctx.log
-    }));
-    displayCleanups.push(installPhase4({
-      flags,
-      log: ctx.log,
-      ...ctx.snapshot ? { snapshot: ctx.snapshot } : {},
-      ...ctx.intent ? { intent: ctx.intent } : {},
-      ...ctx.prompt ? { prompt: ctx.prompt } : {},
-      ...ctx.inspect ? { inspect: ctx.inspect } : {},
-      ...ctx.ui ? { ui: ctx.ui } : {},
-      ...ctx.prefs ? { prefs: ctx.prefs } : {},
-      ...ctx.display?.snapshot ? { display: { snapshot: ctx.display.snapshot.bind(ctx.display) } } : {},
-      ...ctx.driver ? { driver: ctx.driver } : {},
-      ...ctx.character ? { character: ctx.character } : {},
-      ...liveState ? { state: liveState } : {}
-    }));
-    if (flags["anybandui.firstEncounter"]) {
-      if (liveCore && liveState) {
-        const theme2 = themeFromPrefs(ctx.prefs?.get());
-        installFirstEncounter({
-          core: liveCore,
-          state: liveState,
-          theme: theme2,
-          ...ctx.ui ? { ui: ctx.ui } : {},
-          ...ctx.prefs ? { prefs: ctx.prefs } : {},
-          ...ctx.tiles ? { tiles: ctx.tiles } : {},
-          log: ctx.log
-        });
-      } else ctx.log("first-encounter alerts: no live game at register time");
-    }
-  },
-  uninstall() {
-    characterPane?.close();
-    characterPane = null;
-    for (const cleanup of displayCleanups.splice(0).reverse()) cleanup();
-    setThemePacks(false);
-    uninstallFirstEncounter();
-    uninstallAccessibilityAccommodations();
-    quiverDisplay?.setQuiverItemization?.(false);
-    if (tileDisplay?.setTileScaling) releaseTileSettings(tileDisplay, tileFullOverviewApplied);
-    quiverDisplay = void 0;
-    tileDisplay = void 0;
-    tileFullOverviewApplied = false;
-  },
-  /** The save roster as cards. Undefined with the switch off, so Core asks every menu itself. */
-  menu(ctx) {
-    return menuPresenter({ ...ctx, flags: coexistingFlags(ctx.flags ?? {}, ctx.mods?.bind(ctx)) });
-  },
-  /** The hall of fame as a table. Undefined with the switch off, so Core draws every screen itself. */
-  screen(ctx) {
-    return screenPresenter({ ...ctx, flags: coexistingFlags(ctx.flags ?? {}, ctx.mods?.bind(ctx)) });
-  },
-  /* Character creation (ui:birth.replace). Off, or without the panel seam,
-   * this returns undefined and the game shows its own birth screens. */
-  birth(ctx) {
-    return installBirthWizard(ctx);
-  },
-  hud(ctx) {
-    characterPane?.close();
-    characterPane = null;
-    const doc = globalThis.document;
-    if (!doc?.body) return void 0;
-    const enabled = {
-      sidebar: ctx.flags["anybandui.sidebar"] === true,
-      status: ctx.flags["anybandui.status"] === true,
-      messages: ctx.flags["anybandui.messages"] === true
+    } else ctx.log("first-encounter alerts: no live game at register time");
+  }
+}
+function uninstall() {
+  characterPane?.close();
+  characterPane = null;
+  for (const cleanup of displayCleanups.splice(0).reverse()) cleanup();
+  setThemePacks(false);
+  uninstallFirstEncounter();
+  uninstallAccessibilityAccommodations();
+  quiverDisplay?.setQuiverItemization?.(false);
+  if (tileDisplay?.setTileScaling) releaseTileSettings(tileDisplay, tileFullOverviewApplied);
+  quiverDisplay = void 0;
+  tileDisplay = void 0;
+  tileFullOverviewApplied = false;
+}
+function menu(ctx) {
+  return menuPresenter({ ...ctx, flags: coexistingFlags(ctx.flags ?? {}, ctx.mods?.bind(ctx)) });
+}
+function screen(ctx) {
+  return screenPresenter({ ...ctx, flags: coexistingFlags(ctx.flags ?? {}, ctx.mods?.bind(ctx)) });
+}
+function birth(ctx) {
+  return installBirthWizard(ctx);
+}
+function hud(ctx) {
+  characterPane?.close();
+  characterPane = null;
+  const doc = globalThis.document;
+  if (!doc?.body) return void 0;
+  const enabled = {
+    sidebar: ctx.flags["anybandui.sidebar"] === true,
+    status: ctx.flags["anybandui.status"] === true,
+    messages: ctx.flags["anybandui.messages"] === true
+  };
+  const zoomSidebar = !enabled.sidebar && (ctx.flags["anybandui.zoom"] || ctx.flags["anybandui.enlargedDisplay"]);
+  if (!enabled.sidebar && !enabled.status && !enabled.messages && !zoomSidebar) return void 0;
+  const source = createSource(ctx);
+  const theme = themeFromPrefs(ctx.prefs?.get());
+  const output = {};
+  const cardPanels = [
+    { key: "character", render: renderCharacterCard, select: (m) => {
+      const p = m.player;
+      return [p.name, p.race, p.class, p.title, p.hp, p.max_hp, p.sp, p.max_sp, p.food, p.food_max, p.experience, p.level_start_experience, p.next_level_experience, p.level, p.stats, p.gold, p.armour, p.speed, p.extra_moves];
+    } },
+    { key: "tracked", render: renderTrackedCreature, select: (m) => m.player.tracked_creature }
+  ];
+  const pane = enabled.sidebar ? installCharacterPane({ flags: ctx.flags, ui: ctx.ui, prefs: ctx.prefs, display: ctx.display, log: ctx.log ?? (() => {
+  }) }, cardPanels) : null;
+  characterPane = pane;
+  if (pane) {
+    output.sidebar = { present(section2, frame) {
+      zoomPanHud({ flags: ctx.flags })?.sidebar?.present(section2, frame);
+      source.hud.sidebar.present(section2, frame);
+      pane.claimSidebar();
+      const model = source.snapshot();
+      if (model) pane.paint(model);
+    } };
+  } else if (enabled.sidebar) {
+    const host = createPanelHost(doc, cardPanels, theme);
+    output.sidebar = { present(section2, frame) {
+      zoomPanHud({ flags: ctx.flags })?.sidebar?.present(section2, frame);
+      source.hud.sidebar.present(section2, frame);
+      const model = source.snapshot();
+      if (model) host.present(section2, frame, model);
+    } };
+  } else if (zoomSidebar) {
+    const sink = zoomPanHud({ flags: ctx.flags })?.sidebar;
+    if (sink) output.sidebar = sink;
+  }
+  if (enabled.status) {
+    const host = createPanelHost(doc, [
+      { key: "driver", render: (mount) => renderDriverBadge(mount, currentDriver(ctx)), select: () => currentDriver(ctx) },
+      { key: "status", render: renderStatusBadges, select: (m) => [m.player.statuses, m.player.study] },
+      { key: "dungeon", render: renderDungeonCard, select: (m) => [m.dungeon, m.player.trap_detected, m.player.recall, m.player.descent, m.player.resting, m.player.running, m.player.repeat, m.player.unignoring] }
+    ], theme);
+    let last = null;
+    output.status = { present(section2, frame) {
+      last = [section2, frame];
+      source.hud.status.present(section2, frame);
+      const model = source.snapshot();
+      if (model) host.present(section2, frame, model);
+      if (model) pane?.paint(model);
+    } };
+    statusRepaint = () => {
+      if (last) output.status.present(last[0], last[1]);
     };
-    const zoomSidebar = !enabled.sidebar && (ctx.flags["anybandui.zoom"] || ctx.flags["anybandui.enlargedDisplay"]);
-    if (!enabled.sidebar && !enabled.status && !enabled.messages && !zoomSidebar) return void 0;
-    const source = createSource(ctx);
-    const theme = themeFromPrefs(ctx.prefs?.get());
-    const output = {};
-    const cardPanels = [
-      { key: "character", render: renderCharacterCard, select: (m) => {
-        const p = m.player;
-        return [p.name, p.race, p.class, p.title, p.hp, p.max_hp, p.sp, p.max_sp, p.food, p.food_max, p.experience, p.level_start_experience, p.next_level_experience, p.level, p.stats, p.gold, p.armour, p.speed, p.extra_moves];
-      } },
-      { key: "tracked", render: renderTrackedCreature, select: (m) => m.player.tracked_creature }
-    ];
-    const pane = enabled.sidebar ? installCharacterPane({ flags: ctx.flags, ui: ctx.ui, prefs: ctx.prefs, display: ctx.display, log: ctx.log ?? (() => {
-    }) }, cardPanels) : null;
-    characterPane = pane;
-    if (pane) {
-      output.sidebar = { present(section2, frame) {
-        zoomPanHud({ flags: ctx.flags })?.sidebar?.present(section2, frame);
-        source.hud.sidebar.present(section2, frame);
-        pane.claimSidebar();
-        const model = source.snapshot();
-        if (model) pane.paint(model);
-      } };
-    } else if (enabled.sidebar) {
-      const host = createPanelHost(doc, cardPanels, theme);
-      output.sidebar = { present(section2, frame) {
-        zoomPanHud({ flags: ctx.flags })?.sidebar?.present(section2, frame);
-        source.hud.sidebar.present(section2, frame);
-        const model = source.snapshot();
-        if (model) host.present(section2, frame, model);
-      } };
-    } else if (zoomSidebar) {
-      const sink = zoomPanHud({ flags: ctx.flags })?.sidebar;
-      if (sink) output.sidebar = sink;
-    }
-    if (enabled.status) {
-      const host = createPanelHost(doc, [
-        { key: "driver", render: (mount) => renderDriverBadge(mount, currentDriver(ctx)), select: () => currentDriver(ctx) },
-        { key: "status", render: renderStatusBadges, select: (m) => [m.player.statuses, m.player.study] },
-        { key: "dungeon", render: renderDungeonCard, select: (m) => [m.dungeon, m.player.trap_detected, m.player.recall, m.player.descent, m.player.resting, m.player.running, m.player.repeat, m.player.unignoring] }
-      ], theme);
-      let last = null;
-      output.status = { present(section2, frame) {
-        last = [section2, frame];
-        source.hud.status.present(section2, frame);
-        const model = source.snapshot();
-        if (model) host.present(section2, frame, model);
-        if (model) pane?.paint(model);
-      } };
-      statusRepaint = () => {
-        if (last) output.status.present(last[0], last[1]);
-      };
-    }
-    if (enabled.messages) {
-      const acknowledge = source.acknowledge;
-      const host = createPanelHost(doc, [{ key: "messages", render: (mount, model) => renderMessageLog(mount, model, acknowledge ? { acknowledge } : {}), select: (m) => [m.messages, m.message_pending] }], theme);
-      output.messages = { present(section2, frame) {
-        source.hud.messages.present(section2, frame);
-        const model = source.snapshot({ messages: true });
-        if (model) host.present(section2, frame, model);
-        if (model) pane?.paint(model);
-      } };
-    }
-    return output;
+  }
+  if (enabled.messages) {
+    const acknowledge = source.acknowledge;
+    const host = createPanelHost(doc, [{ key: "messages", render: (mount, model) => renderMessageLog(mount, model, acknowledge ? { acknowledge } : {}), select: (m) => [m.messages, m.message_pending] }], theme);
+    let last = null;
+    output.messages = { present(section2, frame) {
+      last = [section2, frame];
+      source.hud.messages.present(section2, frame);
+      const model = source.snapshot({ messages: true });
+      if (model) host.present(section2, frame, model);
+      if (model) pane?.paint(model);
+    } };
+    messagesRepaint = () => {
+      if (last) output.messages.present(last[0], last[1]);
+    };
+  }
+  return output;
+}
+var shared = null;
+var primed = null;
+var stopManager = null;
+function bridgeFor(mod) {
+  if (!shared) {
+    shared = createBridge(mod);
+    primed = shared.prime();
+  }
+  return shared;
+}
+var definition = {
+  api: ">=2.0.0 <3.0.0",
+  /* Stored preferences keep their API 1 shape; the version only starts counting. */
+  prefs: { version: 1, migrate: (value2) => value2 },
+  async start(mod) {
+    const bridge = bridgeFor(mod);
+    await primed;
+    registerAll(bridge.ctx);
+    const host = await createManageHost(mod);
+    if (host) stopManager = installNeoManager({ host, panels: mod.presentation?.panels, title: mod.presentation?.title, log: mod.meta.log });
+  },
+  stop() {
+    stopManager?.();
+    stopManager = null;
+    messagesRepaint = null;
+    uninstall();
+    shared?.dispose();
+    shared = null;
+    primed = null;
+  },
+  presentation: {
+    menu: (mod) => menu(bridgeFor(mod).ctx),
+    screen: (mod) => screen(bridgeFor(mod).ctx),
+    birth: (mod) => birth(bridgeFor(mod).ctx),
+    hud: (mod) => hud(bridgeFor(mod).ctx)
   }
 };
+var plugin_default = definition;
+var internals = { register: registerAll, uninstall, menu, screen, birth, hud };
 export {
-  plugin_default as default
+  plugin_default as default,
+  internals
 };

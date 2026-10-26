@@ -11,7 +11,7 @@
  * character knows.
  */
 import type { ActualCell, AgentView, GameObject, GameState, KnownLevelView, ModCoreApi } from "@rpgm-tools/neo-angband-core";
-import type { ActionBuilders, Grid, ItemsContext, LoadoutSimulation } from "./seams.js";
+import type { Grid, ItemsContext, LoadoutSimulation } from "./seams.js";
 
 /** A plugin context, or the core and state pair a feature or a test hands in. */
 export interface LiveGame { readonly core?: unknown; readonly state?: unknown }
@@ -27,7 +27,6 @@ interface HostCore {
   squareIsVisibleTrap?(state: unknown, grid: Grid): boolean;
   floorObject?(grid: Grid, floorIndex: number): GameObject | null;
   createAgentView?(state: unknown): { simulateLoadout?(change: unknown): LoadoutSimulation | null };
-  createAgentActions?(state: unknown): ActionBuilders;
 }
 
 /* The live state fields this file reads. */
@@ -88,12 +87,12 @@ export function liveGame<C, S>(ctx: { readonly core?: C; readonly state?: S }): 
   return { liveCore: ctx.core, liveState: ctx.state };
 }
 
-/** The agent view, action builders and floor lookup the item panels take,
+/** The agent view and floor lookup the item panels take,
  * bound to the live state, or nothing without both. API 2: none; the panels
  * would read view.world() and submit through act. */
 export function itemsGame(core: ModCoreApi | undefined, state: GameState | undefined): Pick<ItemsContext, "core" | "state"> {
   if (!core || !state) return {};
-  return { state, core: { createAgentView: () => core.createAgentView(state), createAgentActions: () => core.createAgentActions(state),
+  return { state, core: { createAgentView: () => core.createAgentView(state),
     floorObject: (grid, floorIndex) => listedFloorObject(core, state, grid, floorIndex) } };
 }
 
@@ -248,12 +247,6 @@ export function liveHud(game: { readonly core: Pick<ModCoreApi, "createAgentView
     descent: state.actor.player.deepDescent,
     extraMoves: state.playerState?.numMoves ?? 0,
   };
-}
-
-/** The command builders for item actions, or undefined on an engine without
- * them. API 2: act.submit() with an intent. */
-export function itemActionBuilders(game: LiveGame): ActionBuilders | undefined {
-  return coreOf(game)?.createAgentActions?.(game.state);
 }
 
 /** The races of the monsters the character can see. API 2: view.monsters(). */

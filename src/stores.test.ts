@@ -23,7 +23,7 @@ const snap = (phase: StoreSnapshot["phase"] = "store", prompt: StoreSnapshot["pr
 // An engine from before storeStatus: no field at all on the snapshot.
 const oldSnap = (prompt: StoreSnapshot["prompt"] = null): StoreSnapshot => snap("store", prompt, "absent");
 const homeOf = (source: StoreSnapshot): StoreSnapshot => ({ ...source, core: { ...source.core, stores: [{ ...source.core.stores![0]!, isHome: true }] } });
-const known: KnownLevel = { token, levelId: 1, depth: 1, width: 5, height: 5, cells: [{ x: 2, y: 3, visible: true, remembered: { feat: 21, traps: [], objects: [] } }] };
+const known = { token, levelId: 1, depth: 1, width: 5, height: 5, cells: [{ x: 2, y: 3, visible: true, remembered: { feat: 21, traps: [], objects: [] } }] } as unknown as KnownLevel;
 const quantity: StoreQuantityPrompt = { kind: "quantity", promptId: 10, label: "Buy how many? (max 3) ", min: 0, max: 3, defaultValue: 1, unitPrice: 20, totalPrice: 20, gold: 50 };
 const confirm = { kind: "confirm", promptId: 11, label: "Buy a Long Sword? [ESC, any other key to accept]" } as const;
 

@@ -244,9 +244,9 @@ export function playerOnStairs(known: { cells?: readonly TerrainCell[] } | null,
   const kind = sceneTerrain(featureCode(cell));
   return kind === "up" || kind === "down";
 }
-/** The player's grid while Word of Recall still has turns left, else nothing. */
-export function recallGrid(player: { grid?: Grid; recall?: number } | null | undefined): Grid | null {
-  if (!player?.grid || !(typeof player.recall === "number" && player.recall > 0)) return null;
+/** The player's grid while Word of Recall is active, else nothing. recall is API 1's turns left or API 2's active flag. */
+export function recallGrid(player: { grid?: Grid; recall?: number | boolean } | null | undefined): Grid | null {
+  if (!player?.grid || !(player.recall === true || (typeof player.recall === "number" && player.recall > 0))) return null;
   return player.grid;
 }
 /** Sparks as fractions of a cell. Reduced motion holds each spark where it would be at time zero. */
