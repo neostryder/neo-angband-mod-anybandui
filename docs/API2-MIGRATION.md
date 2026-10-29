@@ -28,7 +28,7 @@ The API 1 adapter listed sixteen requests for Core. On API 2 a first-party mod h
 
 | # | Need | State |
 | --- | --- | --- |
-| 1 | Ask for the real map when "Glow shows hidden magic" is turned on | Open. `truth` exists only for a mod that declares `state:map-actual.read`, and while that grant is held it marks every character that loads. Without it, the option draws nothing past what the character knows. Closing this needs a consent that belongs to the rule and is asked when the player turns the rule on. |
+| 1 | Ask for the real map when "Glow shows hidden magic" is turned on | Closed. The mod calls `permissions.requestTruth` the first time the option is turned on, and the game asks its own question. A yes returns the `truth` domain, which the bridge reads into the remembered map's cells, and the game keeps the answer for later sessions. A no leaves the glow at what the character knows, and the question is asked again only after the option is turned off and on. The manifest still has no `state:map-actual.read`. |
 | 2 to 11 | Remembered objects on unremembered squares, whether a grid is seen, look text, loadout simulation, every timed effect, artifact ids, depth text and colors, the HUD's remaining figures, inspection reads, character sheet and run report | Served by the engine domain's own functions through the bridge. |
 | 12 | Bolt and explosion events | Served by the engine event bus, with `event:bolt` and `event:explosion` consented. |
 | 13 | Presentation members | Served by the presentation domain: the four presenters, panels, title rows, and the display. |
@@ -36,7 +36,7 @@ The API 1 adapter listed sixteen requests for Core. On API 2 a first-party mod h
 | 15 | A boot phase signal | Open. `src/zoom.ts` tells the title screen from birth by reading session storage keys and URL parameters. |
 | 16 | Management reads and writes | Served by `manage.options`, `manage.keys`, `manage.saves`, and `view.knowledge`, through the seam cache described above. |
 
-Until Core adds rows 1, 14, and 15, the mod keeps the page reads and leaves the glow option inert. None of the three blocks any other work.
+Until Core adds rows 14 and 15, the mod keeps the page reads. Neither blocks any other work.
 
 ## Checking a build
 

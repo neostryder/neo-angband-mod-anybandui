@@ -4,12 +4,12 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
 
-/* Only the two adapters, host-adapter.ts and host-adapter-api2.ts, may read
+/* Only the adapters (host-adapter.ts, host-adapter-api2.ts, and the bridge with its truth seam) may read
  * the core, the live state, the registries, a raw snapshot or the truth
  * domain. A feature that reads one directly would still work today, and would
  * break silently when the features move to mod API 2. */
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
-const ADAPTERS = new Set([join("src", "host-adapter.ts"), join("src", "host-adapter-api2.ts"), join("src", "bridge.ts")]);
+const ADAPTERS = new Set([join("src", "host-adapter.ts"), join("src", "host-adapter-api2.ts"), join("src", "bridge.ts"), join("src", "bridge-truth.ts")]);
 const RULES: readonly [string, RegExp][] = [
   ["ctx.core, ctx.state or ctx.registries", /\bctx!?\??\.(?:core|state|registries)\b/],
   ["a .core member, such as a snapshot's", /\.core\b/],
