@@ -20,9 +20,11 @@ function fakeMod(options: { flag: boolean; answer?: "yes" | "no"; permissions?: 
 }
 
 describe("the glow's real map", () => {
-  it("asks once with its reason when the option turns on, then caches the cells that hold objects", async () => {
+  it("waits through the first look at a freshly loaded game, then asks once with its reason and caches the cells that hold objects", async () => {
     const { mod, request, read } = fakeMod({ flag: true });
     const seam = createTruthSeam(mod);
+    await seam.sync({ epoch: 1, revision: 0 });
+    expect(request).not.toHaveBeenCalled();
     await seam.sync({ epoch: 1, revision: 1 });
     await seam.sync({ epoch: 1, revision: 1 });
     expect(request).toHaveBeenCalledTimes(1);
@@ -34,6 +36,7 @@ describe("the glow's real map", () => {
   it("reads again when the level token moves", async () => {
     const { mod, read } = fakeMod({ flag: true });
     const seam = createTruthSeam(mod);
+    await seam.sync({ epoch: 1, revision: 0 });
     await seam.sync({ epoch: 1, revision: 1 });
     await seam.sync({ epoch: 1, revision: 2 });
     expect(read).toHaveBeenCalledTimes(2);
@@ -52,12 +55,13 @@ describe("the glow's real map", () => {
     const seam = createTruthSeam(mod);
     await seam.sync({ epoch: 1, revision: 1 });
     await seam.sync({ epoch: 1, revision: 2 });
+    await seam.sync({ epoch: 1, revision: 3 });
     expect(request).toHaveBeenCalledTimes(1);
     expect(seam.cells()).toBeNull();
     flags[GLOW_FLAG] = false;
-    await seam.sync({ epoch: 1, revision: 3 });
-    flags[GLOW_FLAG] = true;
     await seam.sync({ epoch: 1, revision: 4 });
+    flags[GLOW_FLAG] = true;
+    await seam.sync({ epoch: 1, revision: 5 });
     expect(request).toHaveBeenCalledTimes(2);
   });
 

@@ -282,6 +282,7 @@ function createTruthSeam(mod) {
   let asked = false;
   let busy = false;
   let readAt = null;
+  let firstSeen = null;
   let cache = null;
   const wanted = () => mod.meta.flags[GLOW_FLAG] === true;
   async function run2(token) {
@@ -292,9 +293,16 @@ function createTruthSeam(mod) {
       return;
     }
     if (!truth) {
-      if (!mod.permissions) return;
+      if (!mod.permissions) {
+        if (!asked) mod.meta.log("glow: the game gave this mod no permissions object, so the real map cannot be asked for");
+        asked = true;
+        return;
+      }
       if (asked) return;
+      if (token && !firstSeen) firstSeen = token;
+      if (!token || sameToken(firstSeen, token)) return;
       asked = true;
+      mod.meta.log("glow: asking the game for the real map");
       const answer = await mod.permissions.requestTruth(GLOW_REASON);
       if (!answer.ok) {
         mod.meta.log(`glow: the real map was not granted (${"code" in answer ? String(answer.code) : "not granted"})`);
