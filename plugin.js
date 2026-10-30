@@ -10352,15 +10352,16 @@ function installNeoManager(deps) {
   let handle = null;
   let panel = null;
   let stopped = false;
-  const open = (tab) => {
-    if (stopped) return;
-    if (handle) {
+  let done = null;
+  const show = (tab) => {
+    if (stopped) return Promise.resolve();
+    if (handle && done) {
       handle.open(tab);
-      return;
+      return done;
     }
     if (!deps.panels) {
       deps.log("neo-manager: this host has no panels to open it in");
-      return;
+      return Promise.reject(new Error("no panels"));
     }
     try {
       const shown = deps.panels.openPanel({ id: PANEL_ID, modal: true, label: TITLE });
@@ -10371,23 +10372,32 @@ function installNeoManager(deps) {
         if (panel === shown) shown.close();
       });
       handle = mounted;
-      void shown.closed.then(() => {
+      done = shown.closed.then(() => {
         if (panel !== shown) return;
         panel = null;
         handle = null;
+        done = null;
         mounted.dispose();
       });
       mounted.open(tab);
+      return done;
     } catch (error) {
       handle?.dispose();
       handle = null;
       panel = null;
+      done = null;
       deps.log(`neo-manager: could not open (${String(error)})`);
+      return Promise.reject(error instanceof Error ? error : new Error(String(error)));
     }
+  };
+  const open = (tab) => {
+    void show(tab).catch(() => {
+    });
   };
   const stopOpener = registerOpener(NEO_MANAGER_KEY, () => open());
   let row = null;
-  if (deps.title) {
+  const addRow = () => {
+    if (!deps.title || stopped) return;
     void deps.title.registerRow({ id: "anybandui:mods", label: TITLE, run: () => open() }).then((result) => {
       if (!result.ok) {
         deps.log(`neo-manager: title row refused (${result.message})`);
@@ -10396,7 +10406,20 @@ function installNeoManager(deps) {
       if (stopped) void deps.title?.removeRow(result.value);
       else row = result;
     }).catch((error) => deps.log(`neo-manager: title row failed (${String(error)})`));
-  }
+  };
+  if (deps.screens) {
+    void deps.screens.take({ mods: () => show() }).then((result) => {
+      if (result.ok) {
+        deps.log("neo-manager: took the game's Mods screen");
+        return;
+      }
+      deps.log(`neo-manager: the game kept its own Mods screen (${result.message})`);
+      addRow();
+    }).catch((error) => {
+      deps.log(`neo-manager: taking the Mods screen failed (${String(error)})`);
+      addRow();
+    });
+  } else addRow();
   return () => {
     if (stopped) return;
     stopped = true;
@@ -15134,7 +15157,7 @@ var definition = {
     await primed;
     registerAll(bridge.ctx);
     const host = await createManageHost(mod);
-    if (host) stopManager = installNeoManager({ host, panels: mod.presentation?.panels, title: mod.presentation?.title, log: mod.meta.log });
+    if (host) stopManager = installNeoManager({ host, panels: mod.presentation?.panels, title: mod.presentation?.title, screens: mod.manage?.screens, log: mod.meta.log });
   },
   stop() {
     stopManager?.();
