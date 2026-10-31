@@ -41,7 +41,7 @@ describe("the AnybandUI plugin", () => {
   });
 
   it("offers menu and screen presenters only for the phase 8 switches that are on", () => {
-    const base = { id: "anybandui", engine: "1.22.0", log: () => {} };
+    const base = { id: "anybandui", engine: "1.23.0-beta.1", log: () => {} };
     expect(internals.menu({ ...base, flags: {} })).toBeUndefined();
     expect(internals.screen({ ...base, flags: {} })).toBeUndefined();
     expect(internals.menu({ ...base, flags: { "anybandui.saveCards": true } })).toBeDefined();
