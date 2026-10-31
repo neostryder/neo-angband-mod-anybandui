@@ -8,7 +8,7 @@ import { comparisonSummary, renderItemComparison, slotOptionLabel } from "./item
 import { renderEquipmentPortrait, type PortraitItem } from "./equipment-portrait.js";
 import { playerIsDriving } from "../input-owner.js";
 import { carriedCount, carriedText, previewFloorItem } from "../pickup-preview.js";
-import { itemActionBuilders, viewInput, viewWorld } from "../host-adapter.js";
+import { viewInput, viewWorld } from "../host-adapter.js";
 
 const CSS = `:host{color:var(--anyband-text);font:var(--anyband-font-size)/var(--anyband-line) var(--anyband-font)}.items{position:absolute;right:12px;top:12px;width:min(440px,44vw);max-height:calc(100vh - 24px);overflow:auto;padding:10px;background:var(--anyband-surface);border:1px solid var(--anyband-accent);border-radius:var(--anyband-rounding);pointer-events:auto}button,input,select{font:inherit;color:var(--anyband-text);background:var(--anyband-background);border:1px solid var(--anyband-accent);border-radius:3px;padding:3px 5px}button{cursor:pointer}button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--anyband-accent)}input[type=search]{width:100%}.tabs,.actions,.quick{display:flex;gap:5px;flex-wrap:wrap;margin:6px 0}table{width:100%;border-collapse:collapse}th{text-align:left;position:sticky;top:0;background:var(--anyband-surface)}td,th{padding:3px;border-bottom:1px solid var(--anyband-accent)}tr.new{background:#437d5541}tr.chosen{outline:1px solid var(--anyband-accent)}.row{width:100%;text-align:left;border:0;background:transparent}details{margin:8px 0}summary{color:var(--anyband-accent);cursor:pointer;font-weight:bold}.muted{opacity:.65}.gain{color:#80b891}.loss{color:#ff7559}.error{color:#ff7559}.prompt{border:1px solid var(--anyband-accent);padding:8px;margin:8px 0}.rule{display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;padding:3px 0;border-bottom:1px solid var(--anyband-accent)}.rule .name{flex:1 1 12em}.rule input[type=text]{width:9em}.info{white-space:pre-wrap;margin:4px 0}summary.lead{font-weight:normal;color:inherit}.portrait .body{display:grid;grid-template-columns:minmax(8em,auto) auto minmax(8em,auto);align-items:center;column-gap:8px;margin:8px 0}.portrait .figure{grid-column:2;grid-row:1 / span 6;margin:0;white-space:pre;font:inherit}.portrait .left{grid-column:1;justify-self:end;text-align:right}.portrait .right{grid-column:3;justify-self:start;text-align:left}.slotcard{display:flex;flex-direction:column;gap:2px;max-width:14em}.portrait .extras{margin-top:8px}`;
 const ACTIONS = ["wield", "takeoff", "drop", "inscribe", "use"] as const;
@@ -94,19 +94,18 @@ export function installItems(ctx: ItemPanelContext): () => void {
     if (!current(model) || !ctx.intent?.submit) { error = "Action unavailable at this input wait."; paint(true); return; }
     const actualCode = code === "use" ? USE_CODES.find((candidate) => usable(model, item, candidate)) : code;
     if (!actualCode) { error = "No usable command is available for this item."; paint(true); return; }
-    const builders = itemActionBuilders(ctx);
     let inscription: string | undefined;
     if (code === "inscribe") { const input = globalThis.prompt?.("Inscription", item.inscription ?? ""); if (input === null || input === undefined) return; inscription = input; }
     if (item.location === "floor") {
       if (item.floorIndex === undefined || !model.player) { error = "Action unavailable at this input wait."; paint(true); return; }
-      const command = buildFloorCommand(builders, actualCode, item.floorIndex, inscription);
+      const command = buildFloorCommand(actualCode, item.floorIndex, inscription);
       const floor = { x: model.player.x, y: model.player.y, index: item.floorIndex };
       const result = submitFloorItem(ctx.intent, ctx.inspect, model.token, actualCode, floor, command);
       report({ ...result, quiet: (result as { code?: string }).code === "controller-owned" }, "Action rejected.");
       paint(true);
       return;
     }
-    const command = buildItemCommand(builders, actualCode, item.handle, inscription);
+    const command = buildItemCommand(actualCode, item.handle, inscription);
     const result = submitItem(ctx.intent, ctx.inspect, model.token, actualCode, item.handle, command);
     report({ ...result, quiet: (result as { code?: string }).code === "controller-owned" }, "Action rejected.");
     paint(true);
@@ -114,8 +113,7 @@ export function installItems(ctx: ItemPanelContext): () => void {
   const pickup = (model: ItemsModel, item: ItemRow): void => {
     if (!current(model) || !ctx.intent?.submit) { error = "Action unavailable at this input wait."; paint(true); return; }
     if (item.location !== "floor" || item.floorIndex === undefined || !model.player) { error = "Action unavailable at this input wait."; paint(true); return; }
-    const builders = itemActionBuilders(ctx);
-    const command = buildFloorCommand(builders, "pickup", item.floorIndex);
+    const command = buildFloorCommand("pickup", item.floorIndex);
     // The item tester has no pickup code, so this is not tester-gated: the host
     // checks the floor index itself and refuses one with no object behind it.
     const result = ctx.intent.submit(model.token, { kind: "command", command });

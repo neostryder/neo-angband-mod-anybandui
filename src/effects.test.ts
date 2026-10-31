@@ -5,15 +5,15 @@ describe("phase 7 effects", () => {
   it("selects visible sleeping, unique and known artifact grids", () => {
     const s = { core: { monsters: [{ id: 1, race: "Morgoth, Lord of Darkness", raceIndex: 1, grid: {x:2,y:3}, visible: true, hp: 4, maxHp: 4, asleep: true, level: 100, raceFlags: ["UNIQUE"] }] } } as unknown as EffectSnapshot;
     // An older engine: no unique or finalGuardian flags and no aura, so the race flag, the name and the artifact field decide.
-    expect(effectGrids(s, { token: {epoch:1,revision:1}, levelId: 1, depth: 1, width: 10, height: 10, cells: [{x:4,y:5,visible:true,remembered:{feat:1,traps:[],objects:[{sensed:false,aware:true,kindIndex:1,aura:"artifact"}]}}] })).toEqual({ asleep:[{x:2,y:3}], afraid:[], uniques:[{ grid:{x:2,y:3}, final:true }], glows:[{ grid:{x:4,y:5}, aura:"artifact" }] });
+    expect(effectGrids(s, { token: {epoch:1,revision:1}, levelId: 1, depth: 1, width: 10, height: 10, cells: [{x:4,y:5,visible:true,lit:null,seen:true,glow:false,remembered:{feat:1,traps:[],passable:true,items:[],objects:[{sensed:false,aware:true,name:"Item",kindIndex:1,aura:"artifact"}]}}] })).toEqual({ asleep:[{x:2,y:3}], afraid:[], uniques:[{ grid:{x:2,y:3}, final:true }], glows:[{ grid:{x:4,y:5}, aura:"artifact" }] });
   });
   it("reads unique, finalGuardian and aura where the engine has them", () => {
     const monster = (id: number, x: number, extra: object) => ({ id, race: "Grip, Farmer Maggot's Dog", raceIndex: id, grid: {x,y:1}, visible: true, hp: 5, maxHp: 5, asleep: false, level: 2, raceFlags: [], ...extra });
     const s = { core: { monsters: [monster(1, 1, { unique: true, finalGuardian: false }), monster(2, 2, { unique: true, finalGuardian: true }), monster(3, 3, { unique: false, raceFlags: ["UNIQUE"] })] } } as unknown as EffectSnapshot;
     const cells: KnownLevel["cells"] = [
-      { x: 7, y: 7, visible: true, remembered: { feat: 1, traps: [], objects: [{ sensed: false, aware: true, kindIndex: 1, aura: "rune" }, { sensed: false, aware: true, kindIndex: 2, aura: "cursed" }] } },
-      { x: 8, y: 7, visible: true, remembered: { feat: 1, traps: [], objects: [{ sensed: false, aware: true, kindIndex: 3, aura: "rune" }, { sensed: true, money: false }] } },
-      { x: 9, y: 7, visible: true, remembered: { feat: 1, traps: [], objects: [{ sensed: false, aware: true, kindIndex: 4 }] } },
+      { x: 7, y: 7, visible: true, lit: null, seen: true, glow: false, remembered: { feat: 1, traps: [], passable: true, items: [], objects: [{ sensed: false, aware: true, name: "Item", kindIndex: 1, aura: "rune" }, { sensed: false, aware: true, name: "Item", kindIndex: 2, aura: "cursed" }] } },
+      { x: 8, y: 7, visible: true, lit: null, seen: true, glow: false, remembered: { feat: 1, traps: [], passable: true, items: [], objects: [{ sensed: false, aware: true, name: "Item", kindIndex: 3, aura: "rune" }, { sensed: true, money: false }] } },
+      { x: 9, y: 7, visible: true, lit: null, seen: true, glow: false, remembered: { feat: 1, traps: [], passable: true, items: [], objects: [{ sensed: false, aware: true, name: "Item", kindIndex: 4 }] } },
     ];
     const grids = effectGrids(s, { token: {epoch:1,revision:1}, levelId: 1, depth: 1, width: 10, height: 10, cells });
     // The engine's flag wins over the race flag list, in both directions.
@@ -285,7 +285,7 @@ describe("effect strength", () => {
 
 describe("the hidden-magic glow", () => {
   const plain = { artifact: false, ego: false, curses: [], flags: [], modifiers: [], brands: [], slays: [], resists: [], toH: 0, toD: 0, toA: 0 };
-  const cell = (actual: object, extra: object = {}) => ({ x: 1, y: 1, visible: true, remembered: { feat: 1, objects: [{}] }, actual: { monster: 0, objects: [actual] }, ...extra });
+  const cell = (actual: object, extra: object = {}) => ({ x: 1, y: 1, visible: true, lit: null, seen: true, glow: false, remembered: { feat: 1, objects: [{}] }, actual: { monster: 0, objects: [actual] }, ...extra });
   const level = (c: object) => ({ token: { epoch: 1, revision: 1 }, cells: [c] }) as never;
 
   it("reads the true item only when the switch is on", () => {
@@ -355,6 +355,8 @@ describe("recall ring and embers", () => {
   it("places the ring only while recall has turns left", () => {
     expect(recallGrid({ grid: { x: 4, y: 5 }, recall: 3 })).toEqual({ x: 4, y: 5 });
     expect(recallGrid({ grid: { x: 4, y: 5 }, recall: 0 })).toBeNull();
+    expect(recallGrid({ grid: { x: 4, y: 5 }, recall: true })).toEqual({ x: 4, y: 5 });
+    expect(recallGrid({ grid: { x: 4, y: 5 }, recall: false })).toBeNull();
     expect(recallGrid({ recall: 4 })).toBeNull();
     expect(recallGrid({ grid: { x: 4, y: 5 } })).toBeNull();
     expect(recallGrid(null)).toBeNull();

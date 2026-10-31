@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { HudFrame, HudSection } from "@rpgm-tools/neo-angband-mod-sdk";
-import plugin from "../plugin.js";
+import { internals as plugin } from "../plugin.js";
 import { controllerOwned, currentDriver, playerIsDriving } from "./input-owner.js";
 import { coexistingFlags, MOVED_FROM_QOL, qolKeepsMovedFeatures } from "./mod-coexistence.js";
 import type { DriverSeams, InputDriver, PublicMod } from "./seams.js";
@@ -96,7 +96,7 @@ describe("coexisting with an older Quality of Life", () => {
       const setQuiverItemization = vi.fn();
       const setVisualFilter = vi.fn();
       const logged: string[] = [];
-      plugin.register(undefined, { id: "anybandui", engine: "1.19.0", log: (m) => logged.push(m),
+      plugin.register({ id: "anybandui", engine: "1.19.0", log: (m) => logged.push(m),
         flags: { "anybandui.quiverItemization": true, "anybandui.highContrast": true },
         mods: () => [{ id: "qol", version }],
         display: { setVisualFilter, setQuiverItemization } });
@@ -134,7 +134,7 @@ describe("the driving badge in the status panel", () => {
     let driver: InputDriver = { kind: "player" };
     const ctx = { id: "anybandui", engine: "1.19.0", log: () => {}, events, driver: () => driver,
       flags: { "anybandui.status": true }, core: { createAgentView: () => { throw new Error("no game"); } } };
-    plugin.register(undefined, ctx as unknown as Parameters<typeof plugin.register>[1]);
+    plugin.register(ctx as unknown as Parameters<typeof plugin.register>[0]);
     expect(events.on).toHaveBeenCalledWith("driver-changed", expect.any(Function));
     const output = plugin.hud(ctx as unknown as Parameters<typeof plugin.hud>[0])!;
     const section = { entries: [] } as unknown as HudSection;
@@ -151,6 +151,6 @@ describe("the driving badge in the status panel", () => {
 
   it("registers on an engine whose event stream refuses driver-changed", () => {
     const events = { on: vi.fn(() => { throw new Error('capability "event:driver-changed" is not granted'); }), off: vi.fn() };
-    expect(() => plugin.register(undefined, { id: "anybandui", engine: "1.18.0", log: () => {}, events } as unknown as Parameters<typeof plugin.register>[1])).not.toThrow();
+    expect(() => plugin.register({ id: "anybandui", engine: "1.18.0", log: () => {}, events } as unknown as Parameters<typeof plugin.register>[0])).not.toThrow();
   });
 });
