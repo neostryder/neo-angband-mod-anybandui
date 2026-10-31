@@ -8,6 +8,8 @@ An entry opens with one or more bracketed tags. `[Visible]` marks a change a pla
 
 ## [Unreleased]
 
+## 1.2.0-beta.1 - 2026-10-30
+
 ### Added
 
 - [Visible] [UI] **More combat and movement effects: fear marks, damage numbers, walking slides, a teleport ripple, bolt trails and breath cones.** A frightened creature shows a `!` where a sleeping one shows its mark. Damage floats up red over your character and gold over a creature, and healing floats up green. A creature you can see slides into the square it steps to, and a ripple spreads from where a teleport lands. A bolt leaves a trail that points the way it flew, and a breath washes outward from where it starts. Each has its own switch and strength and starts off, and the moving ones hold still when your system asks for reduced motion.
@@ -33,9 +35,7 @@ An entry opens with one or more bracketed tags. `[Visible]` marks a change a pla
 
 - [Visible] [UI] **An artifact on the floor glows with a gold sunburst instead of a circle.**
 - [Visible] [UI] **Hovering on the map overview waits for the shared hover delay instead of two seconds.**
-- [Internal] [Modding-API] **AnybandUI reads the game through one file, src/host-adapter.ts.** Features used to call the engine core, the live state and the input snapshot themselves. Now they call functions in that file, each named for the mod API 2 call that will take its place, so porting to API 2 means rewriting one file. The real-map read behind the hidden-magic glow has its own function, separate from what the character knows, and a new test fails if any other file reaches into the host. Play is the same as before.
-- [Internal] [Modding-API] **The manifest is a schema 2 document, and src/host-adapter-api2.ts answers the adapter's reads through mod API 2.** The mod stays on API 1, and only a game that reads schema 2 manifests can load it. Nothing calls the API 2 adapter yet. Its tests check it against the API 1 adapter, and docs/API2-MIGRATION.md lists where every read goes and what Core still has to add. The item panels now build their own command objects instead of asking the engine for them, and send the same commands as before.
-- [Visible] [Compatibility] **AnybandUI now needs Neo Angband 1.22.0 or later.** It is built and tested against that version.
+- [Visible] [Compatibility] [Modding-API] **AnybandUI now runs on mod API 2 and needs Neo Angband 1.23.0-beta.1 or later.** It reads the game through the API 2 calls and lists the capabilities it uses in its manifest, so the Mods screen shows them before you enable it. Nothing about play changes. This is a beta, the first release on the new API.
 
 ## 1.1.0 - 2026-10-01
 
