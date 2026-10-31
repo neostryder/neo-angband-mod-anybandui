@@ -343,7 +343,7 @@ const definition: Api2ModDefinition = {
     await primed;
     registerAll(bridge.ctx as RegisterCtx);
     const host = await createManageHost(mod);
-    if (host) stopManager = installNeoManager({ host, panels: mod.presentation?.panels, title: mod.presentation?.title, log: mod.meta.log });
+    if (host) stopManager = installNeoManager({ host, panels: mod.presentation?.panels, title: mod.presentation?.title, screens: mod.manage?.screens, log: mod.meta.log });
   },
 
   stop() {

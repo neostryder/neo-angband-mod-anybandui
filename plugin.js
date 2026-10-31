@@ -273,10 +273,71 @@ function createManagedSeams(mod, now = Date.now) {
   };
 }
 
+// src/bridge-truth.ts
+var GLOW_FLAG = "anybandui.itemGlowReveals";
+var GLOW_REASON = "Shows hidden magic on the floor.";
+var sameToken = (a, b) => !!a && !!b && a.epoch === b.epoch && a.revision === b.revision;
+function createTruthSeam(mod) {
+  let truth = mod.truth;
+  let asked = false;
+  let busy = false;
+  let readAt = null;
+  let firstSeen = null;
+  let cache = null;
+  const wanted = () => mod.meta.flags[GLOW_FLAG] === true;
+  async function run2(token) {
+    if (!wanted()) {
+      asked = false;
+      cache = null;
+      readAt = null;
+      return;
+    }
+    if (!truth) {
+      if (!mod.permissions) {
+        if (!asked) mod.meta.log("glow: the game gave this mod no permissions object, so the real map cannot be asked for");
+        asked = true;
+        return;
+      }
+      if (asked) return;
+      if (token && !firstSeen) firstSeen = token;
+      if (!token || sameToken(firstSeen, token)) return;
+      asked = true;
+      mod.meta.log("glow: asking the game for the real map");
+      const answer = await mod.permissions.requestTruth(GLOW_REASON);
+      if (!answer.ok) {
+        mod.meta.log(`glow: the real map was not granted (${"code" in answer ? String(answer.code) : "not granted"})`);
+        return;
+      }
+      truth = answer.value;
+    }
+    if (cache && sameToken(readAt, token)) return;
+    const level = await truth.level();
+    if (!level.ok) return;
+    const map = /* @__PURE__ */ new Map();
+    for (const cell2 of level.value.cells) if (cell2.objects.length > 0) map.set(cell2.y * 65536 + cell2.x, cell2);
+    cache = map;
+    readAt = token;
+  }
+  return {
+    async sync(token) {
+      if (busy) return;
+      busy = true;
+      try {
+        await run2(token);
+      } catch (error) {
+        mod.meta.log(`glow: reading the real map failed (${String(error)})`);
+      } finally {
+        busy = false;
+      }
+    },
+    cells: () => wanted() ? cache : null
+  };
+}
+
 // src/bridge.ts
 var MAP_ACTUAL = "state:map-actual.read";
 var BRIDGE_CAPS = Object.freeze({ has: (capability) => capability !== MAP_ACTUAL });
-var sameToken = (a, b) => !!a && !!b && a.epoch === b.epoch && a.revision === b.revision;
+var sameToken2 = (a, b) => !!a && !!b && a.epoch === b.epoch && a.revision === b.revision;
 function createBridge(mod) {
   const engine = mod.engine;
   const display = mod.presentation?.display;
@@ -293,6 +354,7 @@ function createBridge(mod) {
   const cleanups = [];
   const log = (message) => mod.meta.log(message);
   const managed = createManagedSeams(mod);
+  const truth = createTruthSeam(mod);
   const stateOf2 = () => engine?.state;
   const viewOf = (state) => engine.core.createAgentView(state, void 0, { ...state.knownWorldDeps, perceivedMonstersOnly: true }, BRIDGE_CAPS);
   function applyInput(next) {
@@ -313,6 +375,7 @@ function createBridge(mod) {
           const read = await mod.view.input();
           if (disposed) return;
           applyInput(read.ok ? read.value : null);
+          void truth.sync(read.ok ? read.value.token : null);
           busy = false;
         } while (again);
       } catch (error) {
@@ -335,9 +398,9 @@ function createBridge(mod) {
     if (!state || !engine) return null;
     const core = viewOf(state).capture();
     const wait = input;
-    if (!sameToken(wait?.token, core.token)) void refresh();
+    if (!sameToken2(wait?.token, core.token)) void refresh();
     return Object.freeze({
-      token: wait && sameToken(wait.token, core.token) ? wait.token : core.token,
+      token: wait && sameToken2(wait.token, core.token) ? wait.token : core.token,
       driver: wait?.driver ?? { kind: "player" },
       phase: wait?.phase ?? null,
       messagePending: wait?.messagePending ?? null,
@@ -352,7 +415,13 @@ function createBridge(mod) {
   };
   const knownLevel = () => {
     const state = stateOf2();
-    return state && engine ? viewOf(state).knownLevel?.() ?? null : null;
+    const level = state && engine ? viewOf(state).knownLevel?.() ?? null : null;
+    const real = truth.cells();
+    if (!level || !real) return level;
+    return { ...level, cells: level.cells.map((cell2) => {
+      const actual = real.get(cell2.y * 65536 + cell2.x);
+      return actual ? { ...cell2, actual } : cell2;
+    }) };
   };
   const inspectView = () => {
     const state = stateOf2();
@@ -408,7 +477,7 @@ function createBridge(mod) {
   function precheck(token) {
     if (!input) return { accepted: false, reason: "No input wait is open." };
     if (input.driver.kind === "controller" && input.driver.owner !== mod.meta.id) return { accepted: false, reason: "Another mod holds the keyboard.", code: "controller-owned" };
-    if (token && !sameToken(token, input.token)) return { accepted: false, reason: "That input wait is over." };
+    if (token && !sameToken2(token, input.token)) return { accepted: false, reason: "That input wait is over." };
     if (busy) return { accepted: false, reason: "The game is still working." };
     return null;
   }
@@ -540,7 +609,7 @@ function createBridge(mod) {
 function sameInput(a, b) {
   if (a === b) return true;
   if (!a || !b) return false;
-  return sameToken(a.token, b.token) && a.phase === b.phase && a.messagePending === b.messagePending && a.driver.kind === b.driver.kind && a.driver.owner === b.driver.owner && (a.prompt?.promptId ?? null) === (b.prompt?.promptId ?? null);
+  return sameToken2(a.token, b.token) && a.phase === b.phase && a.messagePending === b.messagePending && a.driver.kind === b.driver.kind && a.driver.owner === b.driver.owner && (a.prompt?.promptId ?? null) === (b.prompt?.promptId ?? null);
 }
 
 // src/view-model/adapter.ts
@@ -7974,7 +8043,7 @@ function installKeybindingEditor(ctx) {
 }
 
 // src/view-model/spells.ts
-var sameToken2 = (a, b) => a.epoch === b.epoch && a.revision === b.revision;
+var sameToken3 = (a, b) => a.epoch === b.epoch && a.revision === b.revision;
 var itemKey = (item) => item.kindId ?? `${item.tval}:${item.sval}`;
 function bookFor(snap, item, books, inspect) {
   if (!books.some((book) => book.tval === item.tval)) return null;
@@ -7985,7 +8054,7 @@ function bookFor(snap, item, books, inspect) {
     } catch {
       mapped = null;
     }
-    if (!mapped || !sameToken2(mapped.token, snap.token)) return null;
+    if (!mapped || !sameToken3(mapped.token, snap.token)) return null;
     return books[mapped.bookIndex] ?? null;
   }
   const siblings = books.filter((book) => book.tval === item.tval);
@@ -8001,7 +8070,7 @@ function adaptSpells(snap, inspect) {
     if (!book || books.some((entry2) => entry2.key === itemKey(item))) continue;
     const spells = book.spells.map((spell) => {
       const info = inspect?.spellInfo?.(spell.sidx);
-      const detail = info && sameToken2(info.token, snap.token) ? info : null;
+      const detail = info && sameToken3(info.token, snap.token) ? info : null;
       const canCast = !!detail?.canCastNow && spell.learned && !spell.forgotten;
       const eligible = spell.studyEligible ?? (!spell.learned && !spell.forgotten && spell.level <= (player.level ?? 0));
       const canStudy = eligible && learnable !== 0;
@@ -8038,7 +8107,7 @@ var DEFAULT_COLORS = ["rgba(245,185,70,.095)", "rgba(245,190,80,.745)"];
 var elementEdgeColour = (element) => (element ? ELEMENT_COLORS[element]?.[1] : void 0) ?? DEFAULT_COLORS[1];
 function blastGrids(ctx, snap, hovered) {
   const blast = snap?.activeBlast, prompt = snap?.prompt;
-  if (!snap || !blast || !sameToken2(blast.token, snap.token) || blast.radius < 1) return null;
+  if (!snap || !blast || !sameToken3(blast.token, snap.token) || blast.radius < 1) return null;
   if (prompt?.kind !== "target" && prompt?.kind !== "direction") return null;
   const at = (prompt.kind === "target" ? prompt.cursor : null) ?? hovered;
   if (!at) return null;
@@ -8048,7 +8117,7 @@ function blastGrids(ctx, snap, hovered) {
   } catch {
     area = null;
   }
-  if (!area || !sameToken2(area.token, snap.token) || !area.grids.length) return null;
+  if (!area || !sameToken3(area.token, snap.token) || !area.grids.length) return null;
   return { grids: area.grids, element: area.element ?? blast.element ?? null };
 }
 function installBlastPreview(ctx) {
@@ -10283,15 +10352,16 @@ function installNeoManager(deps) {
   let handle = null;
   let panel = null;
   let stopped = false;
-  const open = (tab) => {
-    if (stopped) return;
-    if (handle) {
+  let done = null;
+  const show = (tab) => {
+    if (stopped) return Promise.resolve();
+    if (handle && done) {
       handle.open(tab);
-      return;
+      return done;
     }
     if (!deps.panels) {
       deps.log("neo-manager: this host has no panels to open it in");
-      return;
+      return Promise.reject(new Error("no panels"));
     }
     try {
       const shown = deps.panels.openPanel({ id: PANEL_ID, modal: true, label: TITLE });
@@ -10302,23 +10372,32 @@ function installNeoManager(deps) {
         if (panel === shown) shown.close();
       });
       handle = mounted;
-      void shown.closed.then(() => {
+      done = shown.closed.then(() => {
         if (panel !== shown) return;
         panel = null;
         handle = null;
+        done = null;
         mounted.dispose();
       });
       mounted.open(tab);
+      return done;
     } catch (error) {
       handle?.dispose();
       handle = null;
       panel = null;
+      done = null;
       deps.log(`neo-manager: could not open (${String(error)})`);
+      return Promise.reject(error instanceof Error ? error : new Error(String(error)));
     }
+  };
+  const open = (tab) => {
+    void show(tab).catch(() => {
+    });
   };
   const stopOpener = registerOpener(NEO_MANAGER_KEY, () => open());
   let row = null;
-  if (deps.title) {
+  const addRow = () => {
+    if (!deps.title || stopped) return;
     void deps.title.registerRow({ id: "anybandui:mods", label: TITLE, run: () => open() }).then((result) => {
       if (!result.ok) {
         deps.log(`neo-manager: title row refused (${result.message})`);
@@ -10327,7 +10406,20 @@ function installNeoManager(deps) {
       if (stopped) void deps.title?.removeRow(result.value);
       else row = result;
     }).catch((error) => deps.log(`neo-manager: title row failed (${String(error)})`));
-  }
+  };
+  if (deps.screens) {
+    void deps.screens.take({ mods: () => show() }).then((result) => {
+      if (result.ok) {
+        deps.log("neo-manager: took the game's Mods screen");
+        return;
+      }
+      deps.log(`neo-manager: the game kept its own Mods screen (${result.message})`);
+      addRow();
+    }).catch((error) => {
+      deps.log(`neo-manager: taking the Mods screen failed (${String(error)})`);
+      addRow();
+    });
+  } else addRow();
   return () => {
     if (stopped) return;
     stopped = true;
@@ -11001,7 +11093,7 @@ async function createManageHost(mod, env = pageEnvironment()) {
 function ready(snap) {
   return !!snap && snap.phase === "play" && !snap.messagePending && !snap.prompt && !!viewPlayer(snap);
 }
-function sameToken3(a, b) {
+function sameToken4(a, b) {
   return a.epoch === b.epoch && a.revision === b.revision;
 }
 function walkIntent(player, at) {
@@ -11041,11 +11133,11 @@ function tileMenuActions(ctx, snap, at) {
   actions.push({ label: "Look", intent: { kind: "command", command: { code: "look", args: { x: at.x, y: at.y } } } });
   actions.push({ label: "Target", intent: { kind: "target", ...at } });
   const known = viewLevel(ctx);
-  if (known && sameToken3(known.token, snap.token) && known.cells.some((cell2) => cell2.x === at.x && cell2.y === at.y && cell2.remembered.objects.length > 0)) {
+  if (known && sameToken4(known.token, snap.token) && known.cells.some((cell2) => cell2.x === at.x && cell2.y === at.y && cell2.remembered.objects.length > 0)) {
     actions.push({ label: "Pick up", pickup: true });
   }
   const offered = ctx.inspect?.tileActions?.(at);
-  if (offered && sameToken3(offered.token, snap.token)) {
+  if (offered && sameToken4(offered.token, snap.token)) {
     const player = viewPlayer(snap).grid;
     const dx = at.x - player.x, dy = at.y - player.y;
     const dir = 5 + Math.sign(dx) - 3 * Math.sign(dy);
@@ -11091,11 +11183,11 @@ function runMenuAction(ctx, at, label2) {
 function finishPickup(ctx, at, previous) {
   if (!playerIsDriving(ctx)) return false;
   const next = viewInput(ctx);
-  if (!ready(next) || !next || sameToken3(previous.token, next.token) || !ctx.intent) return false;
+  if (!ready(next) || !next || sameToken4(previous.token, next.token) || !ctx.intent) return false;
   const grid = viewPlayer(next).grid;
   if (grid.x !== at.x || grid.y !== at.y) return false;
   const level = viewLevel(ctx);
-  if (!level || !sameToken3(level.token, next.token) || !level.cells.some((cell2) => cell2.x === at.x && cell2.y === at.y && cell2.remembered.objects.length > 0)) return false;
+  if (!level || !sameToken4(level.token, next.token) || !level.cells.some((cell2) => cell2.x === at.x && cell2.y === at.y && cell2.remembered.objects.length > 0)) return false;
   return ctx.intent.submit(next.token, { kind: "command", command: { code: "pickup" } }).accepted;
 }
 function aimingPath(ctx, snap, hovered) {
@@ -11103,12 +11195,12 @@ function aimingPath(ctx, snap, hovered) {
   if (snap.prompt.kind === "target") return snap.prompt.path;
   const cursor = hovered;
   const path = cursor ? ctx.inspect?.projectionPath?.(cursor) : null;
-  return path && sameToken3(path.token, snap.token) ? path.grids : [];
+  return path && sameToken4(path.token, snap.token) ? path.grids : [];
 }
 function walkingPath(ctx, snap, hovered) {
   if (!ready(snap) || !snap || !hovered) return [];
   const path = ctx.inspect?.travelPath?.(hovered);
-  return path && sameToken3(path.token, snap.token) ? path.grids : [];
+  return path && sameToken4(path.token, snap.token) ? path.grids : [];
 }
 function installMapMouse(ctx) {
   const flags = ctx.flags;
@@ -11209,7 +11301,7 @@ function installMapMouse(ctx) {
       });
       button7.addEventListener("click", () => {
         const current = viewInput(ctx);
-        if (!menuAt || !current || !menuToken || !sameToken3(menuToken, current.token) || menuPromptId !== (current.prompt?.promptId ?? null)) {
+        if (!menuAt || !current || !menuToken || !sameToken4(menuToken, current.token) || menuPromptId !== (current.prompt?.promptId ?? null)) {
           hide();
           return;
         }
@@ -11243,7 +11335,7 @@ function installMapMouse(ctx) {
   const render = () => {
     if (pickupAt && pickupSnap) {
       const next = viewInput(ctx);
-      if (next && !sameToken3(next.token, pickupSnap.token)) {
+      if (next && !sameToken4(next.token, pickupSnap.token)) {
         finishPickup(ctx, pickupAt, pickupSnap);
         pickupAt = null;
         pickupSnap = null;
@@ -11314,7 +11406,7 @@ function installMapMouse(ctx) {
 // src/spell-actions.ts
 function actionReady(ctx, snap) {
   const next = viewInput(ctx);
-  return !!next && sameToken2(next.token, snap.token) && next.phase === "play" && !next.prompt && !next.messagePending && playerIsDriving(ctx);
+  return !!next && sameToken3(next.token, snap.token) && next.phase === "play" && !next.prompt && !next.messagePending && playerIsDriving(ctx);
 }
 function castSpell(ctx, snap, spell) {
   if (!spell.canCast || !actionReady(ctx, snap)) return false;
@@ -11326,13 +11418,13 @@ function studySpell(ctx, snap, book, spell) {
 }
 function answerSpell(ctx, snap, index) {
   const next = viewInput(ctx);
-  if (snap.prompt?.kind !== "spell" || !next || !sameToken2(next.token, snap.token) || next.prompt?.promptId !== snap.prompt.promptId || !playerIsDriving(ctx)) return false;
+  if (snap.prompt?.kind !== "spell" || !next || !sameToken3(next.token, snap.token) || next.prompt?.promptId !== snap.prompt.promptId || !playerIsDriving(ctx)) return false;
   if (!snap.prompt.choices.some((choice) => choice.index === index)) return false;
   return ctx.prompt?.reply(snap.prompt.promptId, index).accepted ?? false;
 }
 function cancelSpell(ctx, snap) {
   const next = viewInput(ctx);
-  if (snap.prompt?.kind !== "spell" || !next || !sameToken2(next.token, snap.token) || next.prompt?.promptId !== snap.prompt.promptId || !playerIsDriving(ctx) || !ctx.prompt?.reply) return false;
+  if (snap.prompt?.kind !== "spell" || !next || !sameToken3(next.token, snap.token) || next.prompt?.promptId !== snap.prompt.promptId || !playerIsDriving(ctx) || !ctx.prompt?.reply) return false;
   return ctx.prompt.reply(snap.prompt.promptId, { action: "cancel" }).accepted ?? false;
 }
 var validRest = (count) => [-3, -2, -1].includes(count) || Number.isInteger(count) && count >= 1 && count <= 9999;
@@ -15065,7 +15157,7 @@ var definition = {
     await primed;
     registerAll(bridge.ctx);
     const host = await createManageHost(mod);
-    if (host) stopManager = installNeoManager({ host, panels: mod.presentation?.panels, title: mod.presentation?.title, log: mod.meta.log });
+    if (host) stopManager = installNeoManager({ host, panels: mod.presentation?.panels, title: mod.presentation?.title, screens: mod.manage?.screens, log: mod.meta.log });
   },
   stop() {
     stopManager?.();

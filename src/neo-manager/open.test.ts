@@ -90,4 +90,67 @@ describe("opening the Neo Angband manager", () => {
     openMenu(NEO_MANAGER_KEY);
     expect(log).toHaveBeenCalledWith(expect.stringContaining("no panels"));
   });
+
+  describe("taking the game's Mods screen", () => {
+    const fakeScreens = (answer: "ok" | "taken") => {
+      const taken: Record<string, () => void | Promise<void>>[] = [];
+      const screens = {
+        take: async (handlers: Record<string, () => void | Promise<void>>) => {
+          if (answer === "taken") return { ok: false as const, code: "taken", message: "another mod holds it" };
+          taken.push(handlers);
+          return { ok: true as const, value: null };
+        },
+      };
+      return { screens: screens as never, taken };
+    };
+
+    it("hands over a handler that opens the panel and resolves when it closes, and adds no title row", async () => {
+      const { panels, opened } = fakePanels();
+      const { title, rows } = fakeTitle();
+      const { screens, taken } = fakeScreens("ok");
+      stops.push(installNeoManager({ host: testHost().host, panels, title, screens, log: vi.fn() }));
+      await flush();
+      expect(Object.keys(taken[0]!)).toEqual(["mods"]);
+      expect(rows).toHaveLength(0);
+      let resolved = false;
+      const shown = Promise.resolve(taken[0]!.mods!()).then(() => { resolved = true; });
+      await flush();
+      expect(opened).toHaveLength(1);
+      expect(resolved).toBe(false);
+      opened[0]!.finish();
+      await shown;
+      expect(resolved).toBe(true);
+    });
+
+    it("resolves a second call with the panel already open when that panel closes", async () => {
+      const { panels, opened } = fakePanels();
+      const { screens, taken } = fakeScreens("ok");
+      stops.push(installNeoManager({ host: testHost().host, panels, title: undefined, screens, log: vi.fn() }));
+      await flush();
+      const first = Promise.resolve(taken[0]!.mods!());
+      const second = Promise.resolve(taken[0]!.mods!());
+      await flush();
+      expect(opened).toHaveLength(1);
+      opened[0]!.finish();
+      await Promise.all([first, second]);
+    });
+
+    it("rejects when the host has no panels, so the game keeps its own screen", async () => {
+      const { screens, taken } = fakeScreens("ok");
+      stops.push(installNeoManager({ host: testHost().host, panels: undefined, title: undefined, screens, log: vi.fn() }));
+      await flush();
+      await expect(Promise.resolve(taken[0]!.mods!())).rejects.toThrow("no panels");
+    });
+
+    it("falls back to the title row when the game refuses the screen", async () => {
+      const { panels } = fakePanels();
+      const { title, rows } = fakeTitle();
+      const { screens } = fakeScreens("taken");
+      const log = vi.fn();
+      stops.push(installNeoManager({ host: testHost().host, panels, title, screens, log }));
+      await flush();
+      expect(rows.map((row) => row.label)).toEqual(["Mods"]);
+      expect(log).toHaveBeenCalledWith(expect.stringContaining("kept its own Mods screen"));
+    });
+  });
 });

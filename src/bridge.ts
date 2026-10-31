@@ -12,9 +12,10 @@
  *   state. Anything that is a plain read of that state (the known world, the
  *   known level, item inspection, game events) is computed synchronously with
  *   the engine's own functions, exactly as the host does for an API 1 mod. The
- *   real map is never read here: knownLevel is asked for with every domain
- *   except state:map-actual.read, and the glow reads the real map through the
- *   truth domain and its own consent.
+ *   real map is never read from the engine here: knownLevel is asked for with
+ *   every domain except state:map-actual.read. The glow gets the real map from
+ *   the truth domain after the player says yes to the game's own question
+ *   (bridge-truth.ts), and knownLevel carries those cells as `actual`.
  * - API 2 calls fill a cache after each frame, event and action. The input wait
  *   (phase, prompt, who holds the keyboard, the message pause), the stored
  *   preferences, the settings and the mod list come from there. Acting is
@@ -36,6 +37,7 @@ import type {
   ModApi2,
 } from "@rpgm-tools/neo-angband-mod-sdk";
 import { createManagedSeams } from "./bridge-seams.js";
+import { createTruthSeam } from "./bridge-truth.js";
 import type { GameEventType, GameState, InputDriver, InputSnapshot, IntentResult, ModPluginContext, PlayerIntent, PromptAnswer, PromptReplyResult } from "@rpgm-tools/neo-angband-core";
 
 /** What the features read, as the register callback has always received it. */
@@ -80,6 +82,7 @@ export function createBridge(mod: ModApi2): Bridge {
   const cleanups: Array<() => void> = [];
   const log = (message: string): void => mod.meta.log(message);
   const managed = createManagedSeams(mod);
+  const truth = createTruthSeam(mod);
 
   const stateOf = (): GameState | undefined => engine?.state;
   const viewOf = (state: GameState) =>
@@ -103,6 +106,7 @@ export function createBridge(mod: ModApi2): Bridge {
           const read = await mod.view.input();
           if (disposed) return;
           applyInput(read.ok ? read.value : null);
+          void truth.sync(read.ok ? (read.value.token as KnownToken) : null);
           busy = false;
         } while (again);
       } catch (error) {
@@ -148,7 +152,10 @@ export function createBridge(mod: ModApi2): Bridge {
 
   const knownLevel = (): ReturnType<NonNullable<ModPluginContext["knownLevel"]>> => {
     const state = stateOf();
-    return state && engine ? viewOf(state).knownLevel?.() ?? null : null;
+    const level = state && engine ? viewOf(state).knownLevel?.() ?? null : null;
+    const real = truth.cells();
+    if (!level || !real) return level;
+    return { ...level, cells: level.cells.map((cell) => { const actual = real.get(cell.y * 65536 + cell.x); return actual ? { ...cell, actual } : cell; }) } as typeof level;
   };
 
   const inspectView = () => {

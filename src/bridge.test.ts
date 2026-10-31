@@ -20,7 +20,7 @@ function fakeMod(options: { readonly manage?: boolean; readonly owner?: string }
   };
   const events = { on: () => ok({ id: "s1" }), off: () => ok(null) };
   const mod = {
-    meta: { id: "anybandui", api: "2.0.0", engine: "1.22.0", tier: "first-party", flags: {}, log: vi.fn(), granted: () => [], settings: () => ok({ "anybandui.crtStrength": 100 }), setSetting: (_id: string, value: number) => ok(value), mods: () => ok([]) },
+    meta: { id: "anybandui", api: "2.0.0", engine: "1.23.0-beta.1", tier: "first-party", flags: {}, log: vi.fn(), granted: () => [], settings: () => ok({ "anybandui.crtStrength": 100 }), setSetting: (_id: string, value: number) => ok(value), mods: () => ok([]) },
     view: {
       input: () => ok(fake.input),
       catalogue: () => ok({ commands: [] }),
