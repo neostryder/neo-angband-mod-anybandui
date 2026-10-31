@@ -30,7 +30,7 @@ describe("the two version sites", () => {
 
   it("are the version the changelog's newest released section names", () => {
     const text = changelog();
-    const newest = /^## (\d+\.\d+\.\d+) - /mu.exec(text);
+    const newest = /^## (\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?) - /mu.exec(text);
 
     if (newest === null) {
       /* No released section yet. Assert the changelog is actually in that state
