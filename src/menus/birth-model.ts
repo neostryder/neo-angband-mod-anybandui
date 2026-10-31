@@ -99,16 +99,23 @@ export interface StatRowView {
   readonly cls: string;
   readonly total: string;
   readonly spent: number;
+  /** What the next point costs, null at 18 or with the roller. */
+  readonly buyCost: number | null;
+  /** What lowering the stat one point gives back, null at 10 or with the roller. */
+  readonly sellRefund: number | null;
+  /** Whether the game would take a buy or a sell now. */
+  readonly canBuy: boolean;
   readonly canSell: boolean;
   readonly atMaximum: boolean;
 }
 
-/** birth_panel.h:65-93: Stat, Base, Race, Class, Total and, in point-buy, Spent. */
+/** birth_panel.h:65-93: Stat, Base, Race, Class, Total and, in point-buy, Spent, with the game's own costs. */
 export function statRows(draft: BirthDraftView, catalogue: BirthCatalogue): StatRowView[] {
   return catalogue.stats.map((name, index) => {
     const preview = draft.preview?.stats[index];
     const natural = draft.stats[index] ?? 0;
     const spent = draft.pointsSpent[index] ?? 0;
+    const cost = draft.statCosts[index];
     return {
       index, name,
       base: preview?.natural.trim() || formatStat(natural),
@@ -116,7 +123,10 @@ export function statRows(draft: BirthDraftView, catalogue: BirthCatalogue): Stat
       cls: preview?.classBonus.trim() || "-",
       total: preview?.best.trim() || "-",
       spent,
-      canSell: draft.method === "point" && spent > 0,
+      buyCost: cost?.buyCost ?? null,
+      sellRefund: cost?.sellRefund ?? null,
+      canBuy: cost?.canBuy ?? false,
+      canSell: cost?.canSell ?? false,
       atMaximum: natural >= 18,
     };
   });
@@ -168,8 +178,6 @@ export class BirthWizard {
   readonly catalogue: BirthCatalogue;
   /** The last refusal, shown under the step as upstream shows menu_error (:202). */
   error = "";
-  /** The background Core generated, kept so an edit can be taken back. */
-  generatedHistory = "";
   private cached: BirthDraftView | null = null;
   /** Something other than the name, background or options changed after the previous character was applied. */
   private changedSincePrevious = true;
@@ -177,17 +185,11 @@ export class BirthWizard {
 
   constructor(readonly session: ModBirthSession) {
     this.catalogue = session.catalogue();
-    this.remember();
   }
 
   draft(): BirthDraftView {
     if (!this.cached) this.cached = this.session.draft();
     return this.cached;
-  }
-
-  private remember(): void {
-    const draft = this.draft();
-    if (!draft.historyEdited) this.generatedHistory = draft.history;
   }
 
   /** Run one session change, keep its refusal, and read the draft again. */
@@ -198,7 +200,6 @@ export class BirthWizard {
     this.cached = null;
     this.error = result.ok ? "" : result.reason;
     if (result.ok && build) this.changedSincePrevious = true;
-    this.remember();
     return result.ok;
   }
 

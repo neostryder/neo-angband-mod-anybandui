@@ -11,7 +11,7 @@ const snap = (revision = 1, grid = { x: 5, y: 5 }): InputSnapshot => ({
 });
 const level = (revision = 1, at = { x: 8, y: 8 }): KnownLevel => ({
   token: token(revision), levelId: 1, depth: 1, width: 20, height: 20,
-  cells: [{ ...at, visible: true, remembered: { feat: 1, traps: [], objects: [{ sensed: false, aware: true, kindIndex: 1 }] } }],
+  cells: [{ ...at, visible: true, lit: null, seen: true, glow: false, remembered: { feat: 1, traps: [], passable: true, items: [], objects: [{ sensed: false, aware: true, kindIndex: 1, name: "Item" }] } }],
 });
 function fixture(snapshot: InputSnapshot = snap(), known: KnownLevel | null = null) {
   const submitted: { token: InputSnapshot["token"]; intent: PlayerIntent }[] = [];

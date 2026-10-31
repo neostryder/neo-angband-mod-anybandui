@@ -3,15 +3,17 @@
  * Changes are a draft until Save, as upstream's editor applies them only on
  * Save and Close; Save asks first, then removes and sets keymaps one by one
  * through the seam, which stores each at once. Choosing a key says what that
- * key runs now, as upstream's "Currently:" line does.
+ * key runs now, as upstream's "Currently:" line does: its keymap, or else the
+ * game command on that key in the keyset being edited. Either keyset can be
+ * edited, as upstream's keyset selector allows, whichever one is in use.
  *
  * While a capture waits, the host takes the next key pressed anywhere in the
  * game, and only that key or Escape ends it. Nothing in this panel keeps the
- * focus then, so Escape goes to the capture, and the form's Cancel is off. If
- * the host hides the panel mid-capture, the form drops the capture and ignores
- * whichever key ends it.
+ * focus then, so Escape goes to the capture. Cancel keymap stops the capture
+ * through the seam, and so does the host hiding the panel, so the next key
+ * reaches the game.
  */
-import type { ModKeybinding, ModKeybindings } from "@rpgm-tools/neo-angband-core";
+import type { ModGameCommand, ModKeybinding, ModKeybindings } from "@rpgm-tools/neo-angband-core";
 import type { SurfaceContext } from "../panels/surface.js";
 import { CONFIRM_NO, renderConfirm, type Confirmation } from "./inline-confirm.js";
 import { button, el, listStep, matches, swallow } from "./keys.js";
@@ -47,8 +49,28 @@ export function bindingDiff(original: readonly ModKeybinding[], draft: BindingDr
   return { remove, set };
 }
 
+export type Keyset = "original" | "roguelike";
+
+export const KEYSET_NAMES: Readonly<Record<Keyset, string>> = { original: "Original", roguelike: "Roguelike" };
+
+/** The game command a plain key runs in a keyset when no keymap is bound to it. */
+export function commandOnKey(commands: readonly ModGameCommand[], trigger: string, keyset: Keyset): ModGameCommand | null {
+  return commands.find((command) => command.keys[keyset] === trigger) ?? null;
+}
+
+/** The keys that run a command, as the catalogue lists them: "a in Original, z in Roguelike, Ctrl-A". */
+export function commandKeys(command: ModGameCommand): string {
+  const parts: string[] = [];
+  for (const keyset of ["original", "roguelike"] as const) {
+    const key = command.keys[keyset];
+    if (key !== null) parts.push(`${key} in ${KEYSET_NAMES[keyset]}`);
+  }
+  if (command.control) parts.push(`Ctrl-${command.control}`);
+  return parts.length > 0 ? parts.join(", ") : "no key";
+}
+
 /** The conflict line for a key about to be bound (keybinding_editor.h:31-36, :90). */
-export function conflictNote(trigger: string, draft: BindingDraft, editing: string | null): string {
+export function conflictNote(trigger: string, draft: BindingDraft, editing: string | null, command: ModGameCommand | null = null): string {
   const current = draft.get(trigger);
   if (current) {
     const owner = current.owner ? ` It was set by the ${current.owner} mod, and saving makes it yours.` : "";
@@ -57,17 +79,26 @@ export function conflictNote(trigger: string, draft: BindingDraft, editing: stri
   }
   // keybinding_editor.h:10-13 keeps the number keys for movement and counts.
   if (/^[0-9]$/u.test(trigger)) return `Currently: ${trigger} moves your character or enters a number. A keymap here replaces that.`;
-  return `Currently: ${trigger} has no keymap. A keymap runs instead of the game's own command for that key.`;
+  if (command) return `Currently: ${trigger} runs the game command ${command.name}. A keymap here runs instead.`;
+  return `Currently: ${trigger} has no keymap and runs no game command.`;
 }
 
 interface Form { trigger: string | null; action: string; editing: string | null; capturing: boolean; error: string }
+
+/** How many game commands the list shows before it asks for a search. */
+const COMMAND_LIMIT = 40;
 
 const rowFocus = (trigger: string): string => `key:${trigger}`;
 
 export function installKeybindingEditor(ctx: KeybindingContext): () => void {
   if (ctx.flags?.["anybandui.keybindingEditor"] !== true) return () => {};
   if (!ctx.keybindings) ctx.log("keybinding editor: this game does not share its keymaps");
-  let keyset: "original" | "roguelike" = "original";
+  /* The keyset being edited. It starts as the one in use, and the player can
+   * switch to the other. */
+  let keyset: Keyset = "original";
+  let started = false;
+  let commands: readonly ModGameCommand[] = [];
+  let showCommands = false;
   let original: readonly ModKeybinding[] = [];
   let draft: BindingDraft = new Map();
   let selected: string | null = null;
@@ -81,7 +112,11 @@ export function installKeybindingEditor(ctx: KeybindingContext): () => void {
   const reload = (): void => {
     const seam = ctx.keybindings;
     if (!seam) return;
-    try { keyset = seam.keyset(); original = seam.list(); } catch (err) { original = []; note = `The keymaps could not be read: ${err instanceof Error ? err.message : String(err)}`; }
+    try {
+      if (!started) { keyset = seam.keyset(); started = true; }
+      original = seam.list(keyset);
+      commands = seam.commands();
+    } catch (err) { original = []; note = `The keymaps could not be read: ${err instanceof Error ? err.message : String(err)}`; }
     draft = draftFromList(original);
     form = null;
   };
@@ -113,16 +148,14 @@ export function installKeybindingEditor(ctx: KeybindingContext): () => void {
       repaint("capture");
     });
   };
-  /* Called when the panel goes away mid-capture. The host still takes the next
-   * key, so bumping captureRun makes that key a no-op here. A host with
-   * cancelCapture (newer than Core 1.21.1) stops the capture outright. */
+  /* Stops a waiting capture, so the next key reaches the game. Bumping
+   * captureRun makes the null the cancelled capture resolves with a no-op here. */
   const dropCapture = (): void => {
     if (!form?.capturing) return;
     captureRun++;
     form.capturing = false;
     if (form.trigger === null) form = null;
-    const seam = ctx.keybindings as (ModKeybindings & { cancelCapture?: () => boolean }) | undefined;
-    try { seam?.cancelCapture?.(); } catch { /* the capture ends with the next key instead */ }
+    try { ctx.keybindings?.cancelCapture(); } catch { /* the capture ends with the next key instead */ }
   };
   const openForm = (binding: readonly [string, DraftBinding] | null): void => {
     form = binding
@@ -130,7 +163,7 @@ export function installKeybindingEditor(ctx: KeybindingContext): () => void {
       : { trigger: null, action: "", editing: null, capturing: false, error: "" };
     if (binding) repaint("action"); else capture();
   };
-  const closeForm = (): void => { if (form?.capturing) return; form = null; repaint(selected ? rowFocus(selected) : "add"); };
+  const closeForm = (): void => { dropCapture(); form = null; repaint(selected ? rowFocus(selected) : "add"); };
   const applyForm = (): void => {
     if (!form) return;
     if (!form.trigger) { form.error = "Press a key for this keymap first."; repaint("capture"); return; }
@@ -160,9 +193,8 @@ export function installKeybindingEditor(ctx: KeybindingContext): () => void {
     ask({ question: `Save ${count} ${count === 1 ? "change" : "changes"} to your ${keyset} keymaps? This replaces what is stored now.`, yes: "Save", onYes: () => {
       let failed: string[] = [];
       try {
-        if (seam.keyset() !== keyset) { note = "The keyset changed while you were editing. Cancel, then make your changes again."; repaint("cancel"); return; }
-        for (const trigger of diff.remove) seam.remove(trigger);
-        failed = diff.set.filter(([trigger, action]) => !seam.set(trigger, action)).map(([trigger]) => trigger);
+        for (const trigger of diff.remove) seam.remove(trigger, keyset);
+        failed = diff.set.filter(([trigger, action]) => !seam.set(trigger, action, keyset)).map(([trigger]) => trigger);
       } catch (err) { note = `The keymaps could not be saved: ${err instanceof Error ? err.message : String(err)}`; repaint("save"); return; }
       reload();
       note = failed.length > 0 ? `The game refused a keymap for ${failed.join(", ")}.` : "Saved.";
@@ -172,6 +204,12 @@ export function installKeybindingEditor(ctx: KeybindingContext): () => void {
   const cancel = (): void => {
     if (changes() === 0) { reload(); note = ""; repaint("add"); return; }
     ask({ question: "Throw away your changes to the keymaps?", yes: "Discard", onYes: () => { reload(); note = "Changes discarded."; repaint("add"); } });
+  };
+  const switchKeyset = (next: Keyset): void => {
+    if (next === keyset) return;
+    const go = (): void => { dropCapture(); keyset = next; selected = null; reload(); note = ""; repaint(`keyset:${next}`); };
+    if (changes() === 0) { go(); return; }
+    ask({ question: `Throw away your changes to the ${keyset} keymaps and edit the ${next} ones?`, yes: "Discard", onYes: go });
   };
   const clearKeyset = (): void => {
     for (const [trigger, binding] of [...draft]) if (binding.owner === null) draft.delete(trigger);
@@ -183,7 +221,17 @@ export function installKeybindingEditor(ctx: KeybindingContext): () => void {
   const render = (mount: HTMLElement): void => {
     el(mount, "h2", "Keybindings");
     if (!ctx.keybindings) { el(mount, "p", "This game does not share its keymaps.").className = "muted"; return; }
-    el(mount, "p", `Keyset: ${keyset === "roguelike" ? "Roguelike" : "Original"}. The roguelike keys option chooses which one is active. Your changes apply when you press Save.`).className = "muted";
+    let inUse: Keyset | null = null;
+    try { inUse = ctx.keybindings.keyset(); } catch { inUse = null; }
+    const sets = el(mount, "div");
+    sets.className = "tabs";
+    sets.setAttribute("aria-label", "Keyset to edit");
+    for (const choice of ["original", "roguelike"] as const) {
+      const tab = button(sets, `${KEYSET_NAMES[choice]} keyset`, `keyset:${choice}`, () => switchKeyset(choice));
+      tab.setAttribute("aria-pressed", String(choice === keyset));
+      tab.disabled = form?.capturing === true || confirm !== null;
+    }
+    el(mount, "p", `Editing: ${KEYSET_NAMES[keyset]}.${inUse ? ` In use: ${KEYSET_NAMES[inUse]}.` : ""} The roguelike keys option chooses which one is in use. Your changes apply when you press Save.`).className = "muted";
     if (form) {
       const active = form;
       const box = el(mount, "div");
@@ -193,7 +241,7 @@ export function installKeybindingEditor(ctx: KeybindingContext): () => void {
         el(box, "p", "Press the key to bind. Escape cancels.").setAttribute("role", "status");
       } else {
         el(box, "p", `Key: ${active.trigger ?? "none yet"}`);
-        if (active.trigger) el(box, "p", conflictNote(active.trigger, draft, active.editing)).className = "warn";
+        if (active.trigger) el(box, "p", conflictNote(active.trigger, draft, active.editing, commandOnKey(commands, active.trigger, keyset))).className = "warn";
       }
       const field = el(box, "label");
       field.className = "field";
@@ -212,7 +260,7 @@ export function installKeybindingEditor(ctx: KeybindingContext): () => void {
       actions.className = "actions";
       button(actions, "Use this key", "apply", applyForm).disabled = active.capturing;
       button(actions, active.trigger ? "Choose another key" : "Choose a key", "capture", capture).disabled = active.capturing;
-      button(actions, "Cancel keymap", "form-cancel", closeForm).disabled = active.capturing;
+      button(actions, "Cancel keymap", "form-cancel", closeForm);
       box.addEventListener("keydown", (event: KeyboardEvent) => {
         if (active.capturing) return;
         if (event.key === "Escape") { swallow(event); closeForm(); }
@@ -243,7 +291,8 @@ export function installKeybindingEditor(ctx: KeybindingContext): () => void {
       row.setAttribute("aria-selected", String(trigger === selected));
       el(row, "span", trigger);
       el(row, "span", binding.action);
-      el(row, "span", binding.owner ? `from ${binding.owner}` : "yours").className = "muted";
+      const hidden = commandOnKey(commands, trigger, keyset);
+      el(row, "span", `${binding.owner ? `from ${binding.owner}` : "yours"}${hidden ? `, hides ${hidden.name}` : ""}`).className = "muted";
       row.addEventListener("focus", () => { selected = trigger; });
     }
     list.addEventListener("keydown", (event: KeyboardEvent) => {
@@ -271,6 +320,28 @@ export function installKeybindingEditor(ctx: KeybindingContext): () => void {
       button(actions, `Remove ${chosen}`, "remove", () => removeRow(chosen));
     }
     if (note) el(mount, "p", note).className = "note";
+    /* The game's commands with their keys in both keysets (upstream lists its
+     * catalogue the same way), narrowed by the search box. */
+    if (commands.length > 0) {
+      const toggle = button(mount, showCommands ? "Hide game commands" : "Show game commands", "commands", () => { showCommands = !showCommands; repaint("commands"); });
+      toggle.setAttribute("aria-expanded", String(showCommands));
+      if (showCommands) {
+        const shown = commands.filter((command) => matches(`${command.name} ${command.group} ${commandKeys(command)}`, search));
+        const table = el(mount, "div");
+        table.className = "list";
+        table.setAttribute("aria-label", "Game commands");
+        if (shown.length === 0) el(table, "p", "No matching game commands.").className = "muted";
+        let group = "";
+        for (const command of shown.slice(0, COMMAND_LIMIT)) {
+          if (command.group !== group) { el(table, "div", command.group).className = "section"; group = command.group; }
+          const row = el(table, "div");
+          row.className = "field";
+          el(row, "span", command.name);
+          el(row, "span", commandKeys(command)).className = "muted";
+        }
+        if (shown.length > COMMAND_LIMIT) el(table, "p", `${shown.length - COMMAND_LIMIT} more. Search to narrow the list.`).className = "muted";
+      }
+    }
     // Escape backs out one level: the form first, then a draft with changes.
     mount.addEventListener("keydown", (event: KeyboardEvent) => {
       if (event.key !== "Escape" || form || confirm || changes() === 0) return;
@@ -279,7 +350,7 @@ export function installKeybindingEditor(ctx: KeybindingContext): () => void {
     });
   };
 
-  surface = openMenuSurface(ctx, { key: KEYBINDINGS_KEY, label: "Keybindings", tab: "Settings", minSize: { width: 360, height: 240 }, placement: { kind: "dock", target: "main", edge: "right" }, firstFocus: "add", onHidden: dropCapture }, render);
+  surface = openMenuSurface(ctx, { key: KEYBINDINGS_KEY, label: "Keybindings", tab: "Keys", minSize: { width: 360, height: 240 }, placement: { kind: "dock", target: "main", edge: "right" }, firstFocus: "add", onHidden: dropCapture }, render);
   if (!surface) { ctx.log("keybinding editor: panel seam unavailable"); return () => {}; }
   return () => { dropCapture(); closed = true; surface?.close(); surface = null; };
 }

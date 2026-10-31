@@ -7,7 +7,7 @@
   "author": "Wurli Monkhaven and neostryder (RPGM Tools)",
   "homepage": "https://github.com/neostryder/neo-angband-mod-anybandui",
   "type": "module",
-  "packageManager": "pnpm@12.16.1",
+  "packageManager": "pnpm@12.3.4",
   "//private": [
     "Not published to npm. A mod is distributed as a FOLDER the game fetches:",
     "manifest.json plus plugin.js, at a tag. npm is not in that path, and publishing",
@@ -29,9 +29,9 @@
     "verify": "pnpm typecheck && pnpm test && pnpm check"
   },
   "devDependencies": {
-    "@rpgm-tools/neo-angband-content": "1.21.1",
-    "@rpgm-tools/neo-angband-core": "1.21.1",
-    "@rpgm-tools/neo-angband-mod-sdk": "1.21.1",
+    "@rpgm-tools/neo-angband-content": "1.23.0-beta.1",
+    "@rpgm-tools/neo-angband-core": "1.23.0-beta.1",
+    "@rpgm-tools/neo-angband-mod-sdk": "1.23.0-beta.1",
     "@types/node": "^22.20.1",
     "esbuild": "^0.28.1",
     "typescript": "^5.9.3",

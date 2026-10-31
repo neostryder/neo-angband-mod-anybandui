@@ -110,9 +110,9 @@ export function installOptionsEditor(ctx: OptionsContext): () => void {
     const change = pending();
     const count = changeCount(change);
     if (count === 0 || !ctx.options?.set) return;
-    ask({ question: `Save ${count} changed ${count === 1 ? "option" : "options"}? This replaces the game's current values.`, yes: "Save", onYes: () => {
+    ask({ question: `Save ${count} changed ${count === 1 ? "option" : "options"}? This replaces the game's current values.`, yes: "Save", onYes: async () => {
       let result;
-      try { result = ctx.options!.set!(change); } catch (err) { result = { ok: false as const, reason: err instanceof Error ? err.message : String(err) }; }
+      try { result = await ctx.options!.set!(change); } catch (err) { result = { ok: false as const, reason: err instanceof Error ? err.message : String(err) }; }
       if (result.ok) { reload(); note = "Saved."; } else note = result.reason;
       repaint("save");
     } });
@@ -220,7 +220,7 @@ export function installOptionsEditor(ctx: OptionsContext): () => void {
     });
   };
 
-  surface = openMenuSurface(ctx, { key: OPTIONS_KEY, label: "Game options", tab: "Settings", minSize: { width: 360, height: 240 }, placement: { kind: "dock", target: "main", edge: "right" }, firstFocus: "search" }, render);
+  surface = openMenuSurface(ctx, { key: OPTIONS_KEY, label: "Game options", tab: "Options", minSize: { width: 360, height: 240 }, placement: { kind: "dock", target: "main", edge: "right" }, firstFocus: "search" }, render);
   if (!surface) { ctx.log("options editor: panel seam unavailable"); return () => {}; }
   return () => { surface?.close(); surface = null; };
 }
