@@ -173,8 +173,8 @@ importers:
         specifier: 1.23.0-beta.1
         version: 1.23.0-beta.1
       '@rpgm-tools/neo-angband-mod-sdk':
-        specifier: 1.23.0-beta.1
-        version: 1.23.0-beta.1
+        specifier: 1.23.0-beta.2
+        version: 1.23.0-beta.2
       '@types/node':
         specifier: ^22.20.1
         version: 22.20.4
@@ -461,6 +461,11 @@ packages:
 
   '@rpgm-tools/neo-angband-mod-sdk@1.23.0-beta.1':
     resolution: {integrity: sha512-yo64lJay1LW/UDW6E+qd8hAYqfrUiy0n6wuYncO9uqaK2fBZSo965Orb0v+YRWWga9I7QzcDYEM5+0Lkvtt3+A==}
+    engines: {node: '>=22'}
+    hasBin: true
+
+  '@rpgm-tools/neo-angband-mod-sdk@1.23.0-beta.2':
+    resolution: {integrity: sha512-tZF/Nwl+ivjc07uXIb6PgMt6fobrmxySD3biUyFCaCv8xk+fKedOKIoHLALmWn/hjVm7dHaP18v4+ei+JR2D9w==}
     engines: {node: '>=22'}
     hasBin: true
 
@@ -925,6 +930,10 @@ snapshots:
       '@rpgm-tools/neo-angband-mod-sdk': 1.23.0-beta.1
 
   '@rpgm-tools/neo-angband-mod-sdk@1.23.0-beta.1':
+    dependencies:
+      acorn: 8.19.0
+
+  '@rpgm-tools/neo-angband-mod-sdk@1.23.0-beta.2':
     dependencies:
       acorn: 8.19.0
 
