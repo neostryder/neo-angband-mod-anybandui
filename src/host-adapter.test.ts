@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import ts from "typescript";
+import ts from "@typescript/typescript6";
 
 /* Only the adapters (host-adapter.ts, host-adapter-api2.ts, and the bridge with its truth seam) may read
  * the core, the live state, the registries, a raw snapshot or the truth
