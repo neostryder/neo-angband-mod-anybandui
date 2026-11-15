@@ -574,6 +574,7 @@ function createBridge(mod) {
     mods: () => mods,
     prefs: prefsSeam,
     settings: settingsSeam,
+    ...presentation ? { presentation } : {},
     ...displayHandle ? { display: displayHandle } : {},
     ...presentation?.panels ? { ui: presentation.panels } : {},
     ...presentation?.subwindows ? { subwindows: presentation.subwindows } : {},
@@ -2566,7 +2567,7 @@ function activateGameplayGrid(rt, action) {
   if (rt.activationTimer !== null) return;
   rt.activationTimer = setTimeout(() => {
     rt.activationTimer = null;
-    if (runtime !== rt) return;
+    if (runtime !== rt || rt.ctx.presentation && rt.ctx.presentation.phase() !== "play") return;
     rt.gridActive = true;
     markGridState("game");
     applyGridAndSidebar(rt);
@@ -2838,6 +2839,7 @@ function scheduleScreenFit(rt) {
   }, 0);
 }
 function installTitleBoundary(rt) {
+  if (rt.ctx.presentation) return;
   const onKey = (event) => {
     if (rt.gridActive || event.ctrlKey || event.altKey || event.metaKey) return;
     const key = event.key.toLowerCase();
@@ -3333,6 +3335,16 @@ function installZoomPan(ctx) {
     appliedDisplaySettings
   };
   runtime = rt;
+  if (enabled && ctx.presentation) {
+    const syncPhase = () => {
+      const phase = ctx.presentation.phase();
+      rt.bootPhase = phase === "play" ? "game-pending" : phase;
+      markGridState(rt.bootPhase);
+      if (phase === "play") activateGameplayGrid(rt);
+    };
+    rt.cleanups.push(ctx.presentation.onPhaseChanged(syncPhase));
+    syncPhase();
+  }
   if (enabled) markGridState(rt.bootPhase);
   if (enabled && typeof document !== "undefined" && document.body) {
     const htmlOverflow = document.documentElement.style.overflow;
@@ -14937,6 +14949,7 @@ function registerAll(ctx) {
       ...ctx.prefs ? { prefs: ctx.prefs } : {},
       ...ctx.snapshot ? { snapshot: ctx.snapshot } : {},
       ...ctx.subwindows ? { subwindows: ctx.subwindows } : {},
+      ...ctx.presentation ? { presentation: ctx.presentation } : {},
       ...liveState ? { state: liveState } : {},
       log: ctx.log
     });

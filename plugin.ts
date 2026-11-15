@@ -57,7 +57,7 @@ import { installMinimapTravel } from "./src/minimap-travel.js";
 import { setThemePacks } from "./src/theme.js";
 
 /** The register callback reads a subset of the published plugin context. */
-type RegisterCtx = Pick<ModPluginContext, "id" | "engine" | "log"> & Partial<Omit<ModPluginContext, "id" | "engine" | "log" | "display">> & { readonly display?: Pick<ModDisplay, "setVisualFilter"> & Partial<Omit<ModDisplay, "setVisualFilter">> };
+type RegisterCtx = Pick<ZoomPanContext, "presentation"> & Pick<ModPluginContext, "id" | "engine" | "log"> & Partial<Omit<ModPluginContext, "id" | "engine" | "log" | "display">> & { readonly display?: Pick<ModDisplay, "setVisualFilter"> & Partial<Omit<ModDisplay, "setVisualFilter">> };
 
 let quiverDisplay: RegisterCtx["display"];
 let tileDisplay: RegisterCtx["display"];
@@ -137,6 +137,7 @@ function registerAll(ctx: RegisterCtx): void {
     installZoomPan({ flags, display: gateSidebarExtent(display), manageTileSettings: false, ...(ctx.prefs ? { prefs: ctx.prefs as NonNullable<ZoomPanContext["prefs"]> } : {}),
       ...(ctx.snapshot ? { snapshot: ctx.snapshot as NonNullable<ZoomPanContext["snapshot"]> } : {}),
       ...(ctx.subwindows ? { subwindows: ctx.subwindows } : {}),
+      ...(ctx.presentation ? { presentation: ctx.presentation } : {}),
       ...(liveState ? { state: liveState as unknown as NonNullable<ZoomPanContext["state"]> } : {}), log: ctx.log });
     displayCleanups.push(uninstallZoomPan);
     if (ctx.display.setFullMapOverview && ctx.display.setMapView && ctx.display.setTileScaling) {

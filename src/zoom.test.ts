@@ -36,6 +36,51 @@ import {
   type SubwindowsLike,
 } from "./zoom";
 
+describe("presentation boot phase (neo-angband #467)", () => {
+  it.each([false, true])("activates after panel birth without a key, with sidebar %s", (sidebar) => {
+    vi.useFakeTimers();
+    const fake = fakeDisplay();
+    let phase: "title" | "birth" | "play" = "title";
+    let changed = (_phase: typeof phase): void => {};
+    const release = vi.fn();
+    const ctx = {
+      flags: { "anybandui.zoom": true, "anybandui.enlargedDisplay": true, "anybandui.sidebar": sidebar },
+      display: fake.display,
+      presentation: { phase: () => phase, onPhaseChanged: (listener: typeof changed) => { changed = listener; return release; } },
+    };
+    installZoomPan(ctx);
+    for (const next of ["title", "birth"] as const) {
+      phase = next; changed(next);
+      fake.key(fakeKey("l", { ctrlKey: false }));
+      fake.key(fakeKey("5", { ctrlKey: false }));
+      zoomPanHud(ctx)?.sidebar?.present({ entries: [] }, { layout: "left" });
+      vi.advanceTimersByTime(0);
+      expect(fake.setGrid).not.toHaveBeenCalledWith(expect.objectContaining({ cellHeight: 36 }));
+    }
+    phase = "play"; changed(phase);
+    vi.advanceTimersByTime(0);
+    expect(fake.setGrid).toHaveBeenLastCalledWith(expect.objectContaining({ cellHeight: 36 }));
+    const key = fakeKey("=");
+    fake.key(key);
+    expect(key.preventDefault).toHaveBeenCalledOnce();
+    expect(fake.setGrid).toHaveBeenLastCalledWith(expect.objectContaining({ cellHeight: 40 }));
+    uninstallZoomPan();
+    expect(release).toHaveBeenCalledOnce();
+  });
+
+  it("activates when installed into an existing play session", () => {
+    vi.useFakeTimers();
+    const fake = fakeDisplay();
+    const ctx = {
+      flags: { "anybandui.enlargedDisplay": true }, display: fake.display,
+      presentation: { phase: () => "play" as const, onPhaseChanged: () => () => {} },
+    };
+    installZoomPan(ctx);
+    vi.advanceTimersByTime(0);
+    expect(fake.setGrid).toHaveBeenLastCalledWith(expect.objectContaining({ cellHeight: 36 }));
+  });
+});
+
 describe("independent free-camera flags", () => {
   it("does not install subwindow zoom for a camera-only feature", () => {
     const fake = fakeDisplay();

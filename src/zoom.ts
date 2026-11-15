@@ -6,6 +6,7 @@ import {
   withSubwindowZoomPreference,
   type DisplayPreference,
 } from "./preferences";
+import type { Api2Presentation } from "@rpgm-tools/neo-angband-mod-sdk";
 import { FONT_16X24 } from "./bitmap-font";
 import { paintBitmapButtonLabel, paintBitmapLine } from "./bitmap-text";
 import { levelKey, playerGrid, viewInput } from "./host-adapter.js";
@@ -189,6 +190,7 @@ interface PreferenceStoreLike {
 }
 
 export interface ZoomPanContext {
+  readonly presentation?: Pick<Api2Presentation, "phase" | "onPhaseChanged">;
   readonly flags: Readonly<Record<string, boolean>>;
   readonly manageTileSettings?: boolean;
   readonly prefs?: PreferenceStoreLike | undefined;
@@ -708,7 +710,7 @@ function activateGameplayGrid(rt: ZoomRuntime, action?: () => void): void {
   if (rt.activationTimer !== null) return;
   rt.activationTimer = setTimeout(() => {
     rt.activationTimer = null;
-    if (runtime !== rt) return;
+    if (runtime !== rt || (rt.ctx.presentation && rt.ctx.presentation.phase() !== "play")) return;
     rt.gridActive = true;
     markGridState("game");
     applyGridAndSidebar(rt);
@@ -1051,6 +1053,7 @@ function scheduleScreenFit(rt: ZoomRuntime): void {
  * art - which is letterboxed at a fixed 80x24 and never expects a zoomed grid.
  */
 function installTitleBoundary(rt: ZoomRuntime): void {
+  if (rt.ctx.presentation) return;
   const onKey = (event: KeyboardEvent): void => {
     if (rt.gridActive || event.ctrlKey || event.altKey || event.metaKey) return;
     const key = event.key.toLowerCase();
@@ -1609,6 +1612,16 @@ export function installZoomPan(ctx: ZoomPanContext): void {
     appliedDisplaySettings,
   };
   runtime = rt;
+  if (enabled && ctx.presentation) {
+    const syncPhase = (): void => {
+      const phase = ctx.presentation!.phase();
+      rt.bootPhase = phase === "play" ? "game-pending" : phase;
+      markGridState(rt.bootPhase);
+      if (phase === "play") activateGameplayGrid(rt);
+    };
+    rt.cleanups.push(ctx.presentation.onPhaseChanged(syncPhase));
+    syncPhase();
+  }
   if (enabled) markGridState(rt.bootPhase);
   if (enabled && typeof document !== "undefined" && document.body) {
     const htmlOverflow = document.documentElement.style.overflow;

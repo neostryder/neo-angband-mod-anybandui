@@ -31,6 +31,7 @@ import type {
   Api2Intent,
   Api2ModSummary,
   Api2PromptAnswer,
+  Api2Presentation,
   Api2Subscription,
   JsonValue,
   KnownToken,
@@ -41,7 +42,7 @@ import { createTruthSeam } from "./bridge-truth.js";
 import type { GameEventType, GameState, InputDriver, InputSnapshot, IntentResult, ModPluginContext, PlayerIntent, PromptAnswer, PromptReplyResult } from "@rpgm-tools/neo-angband-core";
 
 /** What the features read, as the register callback has always received it. */
-export type BridgeContext = Pick<ModPluginContext, "id" | "engine" | "log" | "flags"> & Partial<Omit<ModPluginContext, "id" | "engine" | "log" | "flags">>;
+export type BridgeContext = { readonly presentation?: Pick<Api2Presentation, "phase" | "onPhaseChanged"> } & Pick<ModPluginContext, "id" | "engine" | "log" | "flags"> & Partial<Omit<ModPluginContext, "id" | "engine" | "log" | "flags">>;
 
 export interface Bridge {
   readonly ctx: BridgeContext;
@@ -309,6 +310,7 @@ export function createBridge(mod: ModApi2): Bridge {
     mods: () => mods as never,
     prefs: prefsSeam,
     settings: settingsSeam,
+    ...(presentation ? { presentation } : {}),
     ...(displayHandle ? { display: displayHandle } : {}),
     ...(presentation?.panels ? { ui: presentation.panels } : {}),
     ...(presentation?.subwindows ? { subwindows: presentation.subwindows } : {}),
