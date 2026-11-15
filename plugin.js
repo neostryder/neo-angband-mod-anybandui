@@ -128,12 +128,23 @@ function canSimulateLoadout(game) {
 function simulateLoadout(game, change) {
   return coreOf(game)?.createAgentView?.(game.state).simulateLoadout?.(change) ?? null;
 }
+function trackedMonsterIdentity(game, view) {
+  const state = game.state;
+  const target = view.target();
+  return target && target.midx > 0 ? state?.monsters?.[target.midx] ?? void 0 : void 0;
+}
+function monsterStillPresent(game, identity2) {
+  const state = game.state;
+  return state?.monsters?.some((monster) => monster === identity2) ?? false;
+}
 function liveHud(game) {
   const state = game.state;
   if (state === void 0) return void 0;
   return {
     view: game.core.createAgentView(state, void 0, state.knownWorldDeps),
-    level: state.chunk,
+    level: levelKey(game),
+    character: state.actor.player,
+    dead: state.isDead,
     name: state.actor.player.fullName,
     messages: state.messages,
     study: state.actor.player.upkeep.newSpells,
@@ -2037,11 +2048,11 @@ function playerCenter(rt, snapshot) {
   };
 }
 function subwindowZoomPreferenceEntries(rt) {
-  const panels = {};
+  const panels2 = {};
   for (const [id, step] of rt.subwindowZoomSteps) {
-    panels[id] = { step, manual: rt.subwindowZoomManual.has(id) };
+    panels2[id] = { step, manual: rt.subwindowZoomManual.has(id) };
   }
-  return panels;
+  return panels2;
 }
 function writePreference(rt) {
   try {
@@ -2065,24 +2076,24 @@ function parseSubwindowZoomPrefBlock(text) {
   try {
     const parsed = JSON.parse(text);
     if (!isRecord2(parsed) || !isRecord2(parsed.panels)) return null;
-    const panels = {};
+    const panels2 = {};
     if (parsed.v === 1) {
       for (const [id, step] of Object.entries(parsed.panels)) {
         if (id.length === 0 || typeof step !== "number" || !Number.isInteger(step) || step < 0 || step >= SUBWINDOW_ZOOM_CELL_HEIGHTS.length) {
           return null;
         }
-        panels[id] = { step, manual: true };
+        panels2[id] = { step, manual: true };
       }
-      return { panels };
+      return { panels: panels2 };
     }
     if (parsed.v !== 2) return null;
     for (const [id, value2] of Object.entries(parsed.panels)) {
       if (id.length === 0 || !isRecord2(value2) || typeof value2.step !== "number" || !Number.isInteger(value2.step) || value2.step < 0 || value2.step >= SUBWINDOW_ZOOM_CELL_HEIGHTS.length || typeof value2.manual !== "boolean") {
         return null;
       }
-      panels[id] = { step: value2.step, manual: value2.manual };
+      panels2[id] = { step: value2.step, manual: value2.manual };
     }
-    return { panels };
+    return { panels: panels2 };
   } catch {
     return null;
   }
@@ -2298,8 +2309,8 @@ function syncSubwindowControls(rt) {
     clearSubwindowControls(rt);
     return;
   }
-  const panels = subwindows.list();
-  const visible = new Set(panels.map((panel) => panel.id));
+  const panels2 = subwindows.list();
+  const visible = new Set(panels2.map((panel) => panel.id));
   for (const [id, cleanups] of rt.subwindowControlCleanups) {
     if (!visible.has(id)) {
       for (const cleanup of cleanups) cleanup();
@@ -2308,7 +2319,7 @@ function syncSubwindowControls(rt) {
       rt.subwindowPanelSizes.delete(id);
     }
   }
-  for (const panel of panels) {
+  for (const panel of panels2) {
     restoreSubwindowZoom(rt, panel);
     autoFitSubwindowZoom(rt, panel);
     if (rt.subwindowControlCleanups.has(panel.id)) continue;
@@ -3823,17 +3834,17 @@ function badgePayload(source, frame) {
   }
   return result;
 }
-function trackedPayload(view, frame) {
+function trackedPayload(view) {
   const target = view.target();
   if (target === null || target.midx <= 0) return void 0;
   if (view.knownWorld) {
     const world = view.knownWorld();
     const monster2 = world.monsters?.find((item) => item.id === world.target?.monster);
-    if (!monster2?.visible) return { id: target.midx, visible: false, name: "", hp: void 0, max_hp: void 0 };
+    if (!monster2?.visible) return { ...world.target?.monster == null ? {} : { id: world.target.monster }, visible: false, name: "", hp: void 0, max_hp: void 0 };
     const { glyph, look, status, blows, knownSpells, spellFrequency, innateFrequency, knownFlags } = monster2;
     const recall = visibleCreatureRecall(view, monster2)?.text;
     return {
-      id: target.midx,
+      id: monster2.id,
       visible: true,
       name: monster2.race,
       hp: void 0,
@@ -3847,8 +3858,8 @@ function trackedPayload(view, frame) {
   return {
     visible: monster.visible,
     name: monster.race,
-    hp: value(frame, "health", "current"),
-    max_hp: value(frame, "health", "max")
+    hp: void 0,
+    max_hp: void 0
   };
 }
 function playerPayload(view, frame, input) {
@@ -3879,7 +3890,7 @@ function playerPayload(view, frame, input) {
     armour: value(frame, "ac", "ac") ?? source.ac,
     speed: value(frame, "speed", "speed") ?? source.speed,
     extra_moves: input.extraMoves ?? (moves ? Number(moves.match(/[+-]\d+/)?.[0]) : void 0),
-    tracked_creature: trackedPayload(view, frame),
+    tracked_creature: trackedPayload(view),
     depth: value(frame, "depth", "depth") ?? source.depth,
     depth_feet: value(frame, "depth", "feet") ?? source.depth * 50,
     light: Number(label(frame, "light")?.match(/-?\d+/)?.[0] ?? source.light),
@@ -4004,8 +4015,9 @@ function messagePending(snap) {
 }
 function createSource(ctx) {
   let latest;
-  let lastCreature;
+  const creatures = /* @__PURE__ */ new Map();
   let lastLevel;
+  let lastCharacter;
   const present = (_section, frame) => {
     latest = frame;
   };
@@ -4026,7 +4038,11 @@ function createSource(ctx) {
     hud: { sidebar: { present }, messages: { present }, status: { present } },
     ...ctx.prompt ? { acknowledge } : {},
     snapshot(options = {}) {
-      if (!hasLiveState(ctx)) return void 0;
+      if (!hasLiveState(ctx)) {
+        creatures.clear();
+        lastCharacter = void 0;
+        return void 0;
+      }
       const snap = options.messages ? read() : null;
       const pending = messagePending(snap);
       const live = liveHud(ctx);
@@ -4043,13 +4059,24 @@ function createSource(ctx) {
         extraMoves: live.extraMoves,
         ...pending === void 0 ? {} : { messagePending: pending }
       });
-      if (lastLevel !== live.level) lastCreature = void 0;
-      lastLevel = live.level;
-      const target = model.player.tracked_creature;
-      if (target && !target.visible && target.id !== void 0 && target.id === lastCreature?.id) {
-        model.player.tracked_creature = { ...lastCreature, visible: false };
+      const level = live.level;
+      const character = live.character;
+      if (lastLevel !== level || lastCharacter !== character || live.dead) creatures.clear();
+      lastLevel = level;
+      lastCharacter = character;
+      for (const [id, creature] of creatures) {
+        if (!monsterStillPresent(ctx, creature.identity)) creatures.delete(id);
       }
-      lastCreature = model.player.tracked_creature;
+      const target = model.player.tracked_creature;
+      const identity2 = trackedMonsterIdentity(ctx, live.view);
+      if (target && identity2 && !live.dead) {
+        if (target.visible && target.id !== void 0) creatures.set(target.id, { identity: identity2, facts: target });
+        else if (!target.visible) {
+          const retained = target.id === void 0 ? [...creatures.values()].find((creature) => creature.identity === identity2) : creatures.get(target.id);
+          if (retained?.identity === identity2) model.player.tracked_creature = { ...retained.facts, visible: false };
+        }
+      }
+      if (live.dead) model.player.tracked_creature = void 0;
       return model;
     }
   };
@@ -4115,8 +4142,8 @@ function meter(parent, label2, value2, amount, colour, tip2) {
 function intersects(a, b) {
   return a.col < b.col + b.cols && b.col < a.col + a.cols && a.row < b.row + b.rows && b.row < a.row + a.rows;
 }
-function createPanelContent(surface, panels) {
-  const mounts = panels.map(() => node(surface, "div", "group"));
+function createPanelContent(surface, panels2) {
+  const mounts = panels2.map(() => node(surface, "div", "group"));
   const tip2 = node(surface, "div", "tip");
   const signatures = [];
   surface.addEventListener("mouseover", (event) => {
@@ -4134,7 +4161,7 @@ function createPanelContent(surface, panels) {
   });
   return {
     render(model) {
-      panels.forEach((panel, index) => {
+      panels2.forEach((panel, index) => {
         const signature = JSON.stringify([surface.className, panel.select(model)]);
         if (signatures[index] === signature) return;
         signatures[index] = signature;
@@ -4143,7 +4170,7 @@ function createPanelContent(surface, panels) {
     }
   };
 }
-function createPanelHost(doc, panels, theme) {
+function createPanelHost(doc, panels2, theme) {
   const element = doc.createElement("div");
   element.className = "anyband-panel";
   panelHosts.add(element);
@@ -4153,7 +4180,7 @@ function createPanelHost(doc, panels, theme) {
   else applyTheme(shadow);
   node(shadow, "style", "", CSS);
   const surface = node(shadow, "div", "surface");
-  const content = createPanelContent(surface, panels);
+  const content = createPanelContent(surface, panels2);
   doc.body.appendChild(element);
   const stopTheme2 = onThemeChange((next) => {
     if (!element.isConnected) {
@@ -4309,7 +4336,7 @@ function gateSidebarExtent(display) {
     has: (_empty, property) => Reflect.has(display, property)
   });
 }
-function installCharacterPane(ctx, panels) {
+function installCharacterPane(ctx, panels2) {
   if (!ctx.ui?.registerPanelKind) return null;
   let latest;
   const contents = /* @__PURE__ */ new WeakMap();
@@ -4319,7 +4346,7 @@ function installCharacterPane(ctx, panels) {
     for (const container of surfaces.mounts().values()) {
       let content = contents.get(container);
       if (!content) {
-        content = createPanelContent(container, panels);
+        content = createPanelContent(container, panels2);
         contents.set(container, content);
       }
       content.render(latest);
@@ -4648,7 +4675,42 @@ function renderDriverBadge(mount, driver) {
 }
 
 // src/panels/tracked-creature.ts
-var expanded = /* @__PURE__ */ new WeakMap();
+var traits = /* @__PURE__ */ new Set([
+  "NEVER_BLOW",
+  "NEVER_MOVE",
+  "RAND_25",
+  "RAND_50",
+  "MULTIPLY",
+  "REGENERATE",
+  "STUPID",
+  "SMART",
+  "SPIRIT",
+  "POWERFUL",
+  "INVISIBLE",
+  "COLD_BLOOD",
+  "EMPTY_MIND",
+  "WEIRD_MIND",
+  "OPEN_DOOR",
+  "BASH_DOOR",
+  "PASS_WALL",
+  "KILL_WALL",
+  "SMASH_WALL",
+  "MOVE_BODY",
+  "KILL_BODY",
+  "TAKE_ITEM",
+  "KILL_ITEM",
+  "CLEAR_WEB",
+  "PASS_WEB"
+]);
+var protections = {
+  NO_FEAR: "Cannot be frightened",
+  NO_STUN: "Cannot be stunned",
+  NO_CONF: "Cannot be confused",
+  NO_SLEEP: "Cannot be put to sleep",
+  NO_HOLD: "Cannot be held",
+  NO_SLOW: "Cannot be slowed"
+};
+var panels = /* @__PURE__ */ new WeakMap();
 var words = (code) => code.toLowerCase().replaceAll("_", " ").replace(
   /\b(elec|pois|conf|disen)\b/g,
   (word) => ({ elec: "lightning", pois: "poison", conf: "confusion", disen: "disenchantment" })[word]
@@ -4663,49 +4725,78 @@ function spellName(code) {
   return sentence(words(code));
 }
 function renderTrackedCreature(mount, model) {
-  let state = expanded.get(mount);
-  if (!state) {
-    state = /* @__PURE__ */ new Map();
-    expanded.set(mount, state);
+  let panel = panels.get(mount);
+  if (!panel) {
+    const heading = node(mount, "div", "heading", "Tracked creature");
+    heading.setAttribute("role", "heading");
+    heading.setAttribute("aria-level", "2");
+    heading.tabIndex = -1;
+    const name2 = node(mount, "div", "creature-name");
+    const sight2 = node(mount, "div", "muted");
+    sight2.setAttribute("role", "status");
+    sight2.setAttribute("aria-atomic", "true");
+    panel = { heading, name: name2, sight: sight2, condition: node(mount, "div", ""), sections: node(mount, "div", ""), entries: /* @__PURE__ */ new Map() };
+    panels.set(mount, panel);
   }
   const root = mount.getRootNode?.();
-  const focus = root?.activeElement?.dataset?.["recallSection"];
+  const active = root?.activeElement;
+  const focus = active && mount.contains(active) ? active.dataset["recallSection"] : void 0;
+  let restore;
+  const visibleSections = [];
   const section2 = (title, lines, open = false) => {
     if (!lines.length) return;
-    const details = node(mount, "details", "creature-section");
-    details.open = state.get(title) ?? open;
-    const summary = node(details, "summary", "", title);
-    summary.dataset["recallSection"] = title;
-    details.addEventListener("toggle", () => state.set(title, details.open));
-    const body = node(details, "div", "creature-facts");
-    body.tabIndex = 0;
-    body.dataset["recallSection"] = `${title} details`;
-    body.setAttribute("role", "region");
-    body.setAttribute("aria-label", `${title} details`);
-    for (const line of lines) node(body, "div", "", line);
-    if (focus === title) summary.focus();
-    if (focus === `${title} details`) body.focus();
+    let entry2 = panel.entries.get(title);
+    if (!entry2) {
+      const details = node(panel.sections, "details", "creature-section");
+      details.open = open;
+      const summary = node(details, "summary", "", title);
+      summary.dataset["recallSection"] = title;
+      const body = node(details, "div", "creature-facts");
+      body.tabIndex = 0;
+      body.dataset["recallSection"] = `${title} details`;
+      entry2 = { details, summary, body, signature: "" };
+      panel.entries.set(title, entry2);
+    }
+    const signature = JSON.stringify(lines);
+    if (entry2.signature !== signature) {
+      entry2.body.replaceChildren();
+      for (const line of lines) node(entry2.body, "div", "", line);
+      entry2.signature = signature;
+    }
+    visibleSections.push(entry2.details);
+    if (focus === title) restore = entry2.summary;
+    if (focus === `${title} details`) restore = entry2.body;
   };
-  mount.replaceChildren();
-  node(mount, "div", "heading", "Tracked creature");
+  const finish = () => {
+    const children = [...panel.sections.children];
+    if (children.length !== visibleSections.length || children.some((child, index) => child !== visibleSections[index])) {
+      panel.sections.replaceChildren();
+      for (const details of visibleSections) panel.sections.appendChild(details);
+    }
+    if (focus) (restore ?? panel.heading).focus();
+  };
+  panel.name.replaceChildren();
+  panel.condition.replaceChildren();
   const target = model.player.tracked_creature;
   if (!target) {
-    node(mount, "div", "muted", "No creature tracked");
-    meter(mount, "HP", "-- / --", 0, "#8f5e1f");
+    if (panel.sight.textContent !== "No creature tracked") panel.sight.textContent = "No creature tracked";
+    meter(panel.condition, "HP", "-- / --", 0, "#8f5e1f");
+    finish();
     return;
   }
   const known = target.known;
-  const name = node(mount, "div", "creature-name");
+  const name = panel.name;
   if (known?.glyph) node(name, "span", "creature-glyph", `${known.glyph} `).setAttribute("aria-hidden", "true");
-  node(name, "span", "", target.name).dataset.tip = target.name;
-  if (!target.visible) node(mount, "div", "", "Out of sight");
-  if (known?.look) node(mount, "div", "", sentence(known.look.split(",")[0]));
+  node(name, "span", "", target.name);
+  const sight = target.visible ? "" : "Out of sight";
+  if (panel.sight.textContent !== sight) panel.sight.textContent = sight;
+  if (known?.look) node(panel.condition, "div", "", sentence(known.look.split(",")[0]));
   if (known?.status.length) {
-    const marks = node(mount, "div", "badges");
+    const marks = node(panel.condition, "div", "badges");
     for (const status of known.status) node(marks, "span", "badge", sentence(status));
   }
   if (target.hp !== void 0 && target.max_hp !== void 0) {
-    meter(mount, "HP", `${Math.max(0, target.hp)} / ${target.max_hp}`, fraction(target.hp, target.max_hp), "#8f5e1f");
+    meter(panel.condition, "HP", `${Math.max(0, target.hp)} / ${target.max_hp}`, fraction(target.hp, target.max_hp), "#8f5e1f");
   }
   if (known) {
     section2("Melee", known.blows.map((blow) => {
@@ -4718,17 +4809,21 @@ function renderTrackedCreature(mount, model) {
       return `${sentence(words(blow.method))}${blow.effect ? ` - ${words(blow.effect)}` : ""}${dice ? ` (${dice})` : ""}`;
     }), true);
     const spells = known.knownSpells.map(spellName);
-    if (spells.length) {
-      for (const [label2, frequency] of [["Spell frequency", known.spellFrequency], ["Innate frequency", known.innateFrequency]]) {
-        if (frequency) spells.push(`${label2}: ${frequency.exact ? "" : "about "}${frequency.percent}%`);
-      }
-    }
     section2("Spells seen", spells, true);
-    section2("Resistances", known.knownFlags.filter((flag) => /^(IM_|RES_|NO_)/.test(flag)).map((flag) => sentence(words(flag.replace(/^(IM_|RES_|NO_)/, "")))));
+    const frequencies = [];
+    for (const [label2, frequency] of [["Spell frequency", known.spellFrequency], ["Innate frequency", known.innateFrequency]]) {
+      const percent = Math.round(frequency?.percent ?? 0);
+      if (frequency && percent > 0) frequencies.push(`${label2}: ${frequency.exact ? "" : "about "}${percent}%`);
+    }
+    section2("Casting frequency", frequencies, true);
+    section2("Resistances", known.knownFlags.filter((flag) => /^(IM_|RES_)/.test(flag)).map((flag) => sentence(words(flag.replace(/^(IM_|RES_)/, "")))));
+    section2("Status protections", known.knownFlags.flatMap((flag) => Object.hasOwn(protections, flag) ? [protections[flag]] : []));
     section2("Vulnerabilities", known.knownFlags.filter((flag) => flag.startsWith("HURT_")).map((flag) => sentence(words(flag.slice(5)))));
-    section2("Known traits", known.knownFlags.filter((flag) => !/^(IM_|RES_|NO_|HURT_)/.test(flag)).map((flag) => sentence(words(flag))));
+    section2("Known traits", known.knownFlags.filter((flag) => traits.has(flag)).map((flag) => sentence(words(flag))));
   }
-  if (target.recall) section2("Recall", [target.recall.split("\n").slice(1).join("\n").trim()].filter(Boolean));
+  const recall = recallLine(target.recall ? { text: target.recall } : null);
+  if (recall) section2("Recall", [recall]);
+  finish();
 }
 
 // src/accessibility.ts
@@ -6761,9 +6856,9 @@ function renderCharacterSheet(parent, data, page, onPage) {
     for (const panel of data.panels) if (!OVERVIEW.has(panel.key) && !COMBAT.has(panel.key)) drawPanel(parent, panel);
     drawStats(parent, data);
   } else if (name === "Combat") {
-    const panels = data.panels.filter((panel) => COMBAT.has(panel.key));
-    if (!panels.length) el4(parent, "p", "No combat details.").className = "muted";
-    for (const panel of panels) drawPanel(parent, panel);
+    const panels2 = data.panels.filter((panel) => COMBAT.has(panel.key));
+    if (!panels2.length) el4(parent, "p", "No combat details.").className = "muted";
+    for (const panel of panels2) drawPanel(parent, panel);
   } else if (name === "Flags") drawGrids(parent, data);
   else {
     el4(parent, "h3", "History");
@@ -14291,19 +14386,19 @@ function skillLabel(key) {
 function choiceView(entry2, race = null) {
   const added = "magic" in entry2 ? race : null;
   const note = added ? { note: "Includes your race." } : {};
-  const traits = [
+  const traits2 = [
     { label: "Hit die", value: String(entry2.hitDie + (added?.hitDie ?? 0)), ...note },
     { label: "XP modifier", value: `${entry2.expFactor + (added?.expFactor ?? 0)}%`, ...note }
   ];
-  if ("infravisionFeet" in entry2) traits.push({ label: "Infravision", value: `${entry2.infravisionFeet} ft` });
+  if ("infravisionFeet" in entry2) traits2.push({ label: "Infravision", value: `${entry2.infravisionFeet} ft` });
   if ("magic" in entry2) {
     const casts = entry2.magic.length > 0;
-    traits.push({ label: "Magic", value: casts ? "Yes" : "No", note: casts ? `Can learn spells: ${entry2.magic.join(", ")}.` : "Does not cast spells." });
+    traits2.push({ label: "Magic", value: casts ? "Yes" : "No", note: casts ? `Can learn spells: ${entry2.magic.join(", ")}.` : "Does not cast spells." });
   }
   return {
     name: entry2.name,
     modifiers: [...entry2.statAdj],
-    traits,
+    traits: traits2,
     abilities: entry2.abilities.map((ability) => ({ name: ability.name, description: ability.description })),
     skills: Object.entries(entry2.skills).map(([key, value2]) => ({ label: skillLabel(key), value: signed(value2) }))
   };

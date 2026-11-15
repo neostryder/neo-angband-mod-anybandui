@@ -21,6 +21,8 @@ export interface AdapterInput {
 }
 
 export const GAPS: readonly { field: string; reason: string }[] = [
+  { field: "player.tracked_creature.hp", reason: "Only known-world health bands are shown; exact HUD monster hit points are not player knowledge." },
+  { field: "player.tracked_creature.max_hp", reason: "Only known-world health bands are shown; exact HUD monster hit points are not player knowledge." },
   { field: "player.food_max", reason: "The food grade ceiling is in the bound timed-effect registry, not AgentView, HudFrame, or GameState." },
   { field: "player.level_start_experience", reason: "The previous level threshold needs the core experience table, which is not published through plugin context." },
   { field: "player.feeling_description", reason: "HUD has compact LF text and indices, but no prose description." },
@@ -94,24 +96,24 @@ function badgePayload(source: PlayerView, frame: HudFrame | undefined): StatusPa
   return result;
 }
 
-function trackedPayload(view: AgentView, frame: HudFrame | undefined): PlayerPayload["tracked_creature"] {
-  // AgentView identifies the target; HUD health numbers may be absent.
+function trackedPayload(view: AgentView): PlayerPayload["tracked_creature"] {
+  // Known-world handles survive monster index compaction and slot reuse.
   const target = view.target();
   if (target === null || target.midx <= 0) return undefined;
   if (view.knownWorld) {
     const world = view.knownWorld();
     const monster = world.monsters?.find((item) => item.id === world.target?.monster);
-    if (!monster?.visible) return { id: target.midx, visible: false, name: "", hp: undefined, max_hp: undefined };
+    if (!monster?.visible) return { ...(world.target?.monster == null ? {} : { id: world.target.monster }), visible: false, name: "", hp: undefined, max_hp: undefined };
     const { glyph, look, status, blows, knownSpells, spellFrequency, innateFrequency, knownFlags } = monster;
     const recall = visibleCreatureRecall(view, monster)?.text;
-    return { id: target.midx, visible: true, name: monster.race, hp: undefined, max_hp: undefined,
+    return { id: monster.id, visible: true, name: monster.race, hp: undefined, max_hp: undefined,
       known: { ...(glyph === undefined ? {} : { glyph }), look, status, blows, knownSpells, spellFrequency, innateFrequency, knownFlags },
       ...(recall ? { recall } : {}) };
   }
   const monster = view.monsters().find((item) => item.id === target.midx);
   if (!monster) return undefined;
   return { visible: monster.visible, name: monster.race,
-    hp: value(frame, "health", "current"), max_hp: value(frame, "health", "max") };
+    hp: undefined, max_hp: undefined };
 }
 
 function playerPayload(view: AgentView, frame: HudFrame | undefined, input: AdapterInput): PlayerPayload {
@@ -139,7 +141,7 @@ function playerPayload(view: AgentView, frame: HudFrame | undefined, input: Adap
     armour: value(frame, "ac", "ac") ?? source.ac,
     speed: value(frame, "speed", "speed") ?? source.speed,
     extra_moves: input.extraMoves ?? (moves ? Number(moves.match(/[+-]\d+/)?.[0]) : undefined),
-    tracked_creature: trackedPayload(view, frame),
+    tracked_creature: trackedPayload(view),
     depth: value(frame, "depth", "depth") ?? source.depth,
     depth_feet: value(frame, "depth", "feet") ?? source.depth * 50,
     light: Number(label(frame, "light")?.match(/-?\d+/)?.[0] ?? source.light),

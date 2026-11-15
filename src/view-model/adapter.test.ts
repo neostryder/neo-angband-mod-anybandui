@@ -99,7 +99,7 @@ describe("Anyband Protocol phase 1 adapter", () => {
       { label: "Fed", name: undefined, visible: true, priority: undefined,
         kind: undefined, duration: 5000, description: undefined },
     ]);
-    expect(actual.player.tracked_creature).toEqual({ visible: true, name: "orc", hp: 12, max_hp: 20 });
+    expect(actual.player.tracked_creature).toEqual({ visible: true, name: "orc", hp: undefined, max_hp: undefined });
     expect(actual.dungeon).toEqual({ depth: 4, depth_feet: 200, light: 4,
       feeling: "LF:3-5", feeling_indices: { monster: 7, object: 6, squares: 12, need: 10 },
       feeling_description: undefined, floor: "Granite wall" });
