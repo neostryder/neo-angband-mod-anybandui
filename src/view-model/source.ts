@@ -4,7 +4,7 @@ import { adapt } from "./adapter.js";
 import type { TrackedCreaturePayload, ViewModel } from "./protocol.js";
 import type { MessageSeams, MessageSnapshot } from "../seams.js";
 import { playerIsDriving } from "../input-owner.js";
-import { hasLiveState, liveHud, viewInput } from "../host-adapter.js";
+import { hasLiveState, liveHud, monsterStillPresent, trackedMonsterIdentity, viewInput } from "../host-adapter.js";
 
 type SourceCtx = MessageSeams & Pick<ModPluginContext, "state"> & { readonly core: Pick<ModPluginContext["core"], "createAgentView"> };
 
@@ -103,8 +103,9 @@ export function createSource(ctx: SourceCtx): {
   readonly acknowledge?: () => boolean;
 } {
   let latest: HudFrame | undefined;
-  let lastCreature: TrackedCreaturePayload | undefined;
-  let lastLevel: GameState["chunk"] | undefined;
+  const creatures = new Map<number, { identity: object; facts: TrackedCreaturePayload }>();
+  let lastLevel: number | undefined;
+  let lastCharacter: GameState["actor"]["player"] | undefined;
   const present = (_section: unknown, frame: HudFrame): void => { latest = frame; };
   const read = (): MessageSnapshot | null => {
     try { return viewInput(ctx); } catch { return null; }
@@ -122,7 +123,7 @@ export function createSource(ctx: SourceCtx): {
     hud: { sidebar: { present }, messages: { present }, status: { present } },
     ...(ctx.prompt ? { acknowledge } : {}),
     snapshot(options: { readonly messages?: boolean } = {}): ViewModel | undefined {
-      if (!hasLiveState(ctx)) return undefined;
+      if (!hasLiveState(ctx)) { creatures.clear(); lastCharacter = undefined; return undefined; }
       /* The input snapshot copies the whole capture and the last map frame,
        * so it is read only for the message log, the one panel that shows the
        * history and the pause. The other panels keep the plain log read. */
@@ -142,13 +143,27 @@ export function createSource(ctx: SourceCtx): {
         extraMoves: live.extraMoves,
         ...(pending === undefined ? {} : { messagePending: pending }),
       });
-      if (lastLevel !== live.level) lastCreature = undefined;
-      lastLevel = live.level;
-      const target = model.player.tracked_creature;
-      if (target && !target.visible && target.id !== undefined && target.id === lastCreature?.id) {
-        model.player.tracked_creature = { ...lastCreature, visible: false };
+      const level = live.level;
+      const character = live.character;
+      if (lastLevel !== level || lastCharacter !== character || live.dead) creatures.clear();
+      lastLevel = level;
+      lastCharacter = character;
+      for (const [id, creature] of creatures) {
+        if (!monsterStillPresent(ctx, creature.identity)) creatures.delete(id);
       }
-      lastCreature = model.player.tracked_creature;
+      const target = model.player.tracked_creature;
+      const identity = trackedMonsterIdentity(ctx, live.view);
+      if (target && identity && !live.dead) {
+        if (target.visible && target.id !== undefined) creatures.set(target.id, { identity, facts: target });
+        else if (!target.visible) {
+          // The known world omits an unseen target, so its record reconnects only previously learned facts.
+          const retained = target.id === undefined
+            ? [...creatures.values()].find((creature) => creature.identity === identity)
+            : creatures.get(target.id);
+          if (retained?.identity === identity) model.player.tracked_creature = { ...retained.facts, visible: false };
+        }
+      }
+      if (live.dead) model.player.tracked_creature = undefined;
       return model;
     },
   };

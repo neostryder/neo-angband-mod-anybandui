@@ -240,15 +240,30 @@ export function simulateLoadout(game: LiveGame, change: unknown): LoadoutSimulat
   return coreOf(game)?.createAgentView?.(game.state).simulateLoadout?.(change) ?? null;
 }
 
+/** An opaque record identity keeps an unseen target separate from a reused slot. */
+export function trackedMonsterIdentity(game: LiveGame, view: Pick<AgentView, "target">): object | undefined {
+  const state = game.state as Pick<GameState, "monsters"> | undefined;
+  const target = view.target();
+  return target && target.midx > 0 ? state?.monsters?.[target.midx] ?? undefined : undefined;
+}
+
+/** A removed creature cannot contribute retained recall, even if its slot is reused. */
+export function monsterStillPresent(game: LiveGame, identity: object): boolean {
+  const state = game.state as Pick<GameState, "monsters"> | undefined;
+  return state?.monsters?.some((monster) => monster === identity) ?? false;
+}
+
 /** The engine's agent view over the live state, with the HUD figures it
  * leaves out, or undefined without a state. API 2: view.world(), view.player()
  * and view.input(); the command queue has no API 2 read. */
-export function liveHud(game: { readonly core: Pick<ModCoreApi, "createAgentView">; readonly state?: GameState }): { readonly view: AgentView; readonly level: GameState["chunk"]; readonly name: string; readonly messages: GameState["messages"]; readonly study: number; readonly repeat: number; readonly resting: boolean; readonly running: boolean; readonly unignoring: number; readonly recall: number; readonly descent: number; readonly extraMoves: number } | undefined {
+export function liveHud(game: { readonly core: Pick<ModCoreApi, "createAgentView">; readonly state?: GameState }): { readonly view: AgentView; readonly level: number | undefined; readonly character: GameState["actor"]["player"]; readonly dead: boolean; readonly name: string; readonly messages: GameState["messages"]; readonly study: number; readonly repeat: number; readonly resting: boolean; readonly running: boolean; readonly unignoring: number; readonly recall: number; readonly descent: number; readonly extraMoves: number } | undefined {
   const state = game.state;
   if (state === undefined) return undefined;
   return {
     view: game.core.createAgentView(state, undefined, state.knownWorldDeps),
-    level: state.chunk,
+    level: levelKey(game),
+    character: state.actor.player,
+    dead: state.isDead,
     name: state.actor.player.fullName,
     messages: state.messages,
     study: state.actor.player.upkeep.newSpells,

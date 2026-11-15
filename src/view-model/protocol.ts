@@ -20,6 +20,7 @@ export interface StatusPayload {
 }
 
 export interface TrackedCreaturePayload {
+  /** The known-world handle prevents index reuse from matching another creature. */
   id?: number;
   known?: Pick<KnownMonster, "glyph" | "look" | "status" | "blows" | "knownSpells" | "spellFrequency" | "innateFrequency" | "knownFlags">;
   recall?: string;
