@@ -68,6 +68,18 @@ export function viewLevel<L>(seam: { readonly knownLevel?: (() => L | null) | un
   return seam.knownLevel?.() ?? null;
 }
 
+/** Saved awareness outlives the last consumed item and survives a reload. */
+export function itemKindKey(game: LiveGame, key: string): string {
+  const match = /^(\d+):-(\d+)$/.exec(key);
+  if (!match) return key;
+  const state = game.state as Pick<GameState, "knownWorldDeps" | "isAware" | "flavorGlyph"> | undefined;
+  const deps = state?.knownWorldDeps;
+  const aware = deps?.aware ?? state?.isAware;
+  if (!aware || !state?.flavorGlyph) return key;
+  const kind = deps?.reg?.kinds.find((entry) => entry.tval === Number(match[1]) && aware(entry) && state.flavorGlyph!(entry)?.fidx === Number(match[2]));
+  return kind ? deps?.resolver?.kindIdOrNull(kind.kidx) ?? `${kind.tval}:${kind.sval}` : key;
+}
+
 // Truth: the real map, read only for the hidden-magic glow.
 
 /** The real contents of each cell the remembered map carries them for, with

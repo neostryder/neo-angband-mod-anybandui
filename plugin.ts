@@ -42,7 +42,7 @@ import { installKeybindingEditor } from "./src/menus/keybinding-editor.js";
 import { installSettingsWindow } from "./src/menus/settings-window.js";
 import { createManageHost } from "./src/neo-manager/host.js";
 import { installNeoManager } from "./src/neo-manager/open.js";
-import type { ItemsContext } from "./src/seams.js";
+import type { ItemsContext, Phase4Context } from "./src/seams.js";
 import { installMapMouse } from "./src/map-mouse.js";
 import { installPhase4 } from "./src/phase4.js";
 import { installStores } from "./src/panels/stores.js";
@@ -57,7 +57,7 @@ import { installMinimapTravel } from "./src/minimap-travel.js";
 import { setThemePacks } from "./src/theme.js";
 
 /** The register callback reads a subset of the published plugin context. */
-type RegisterCtx = Pick<ZoomPanContext, "presentation"> & Pick<ModPluginContext, "id" | "engine" | "log"> & Partial<Omit<ModPluginContext, "id" | "engine" | "log" | "display">> & { readonly display?: Pick<ModDisplay, "setVisualFilter"> & Partial<Omit<ModDisplay, "setVisualFilter">> };
+type RegisterCtx = Pick<ZoomPanContext, "presentation"> & Pick<Phase4Context, "itemKindKey"> & Pick<ModPluginContext, "id" | "engine" | "log"> & Partial<Omit<ModPluginContext, "id" | "engine" | "log" | "display">> & { readonly display?: Pick<ModDisplay, "setVisualFilter"> & Partial<Omit<ModDisplay, "setVisualFilter">> };
 
 let quiverDisplay: RegisterCtx["display"];
 let tileDisplay: RegisterCtx["display"];
@@ -188,6 +188,7 @@ function registerAll(ctx: RegisterCtx): void {
     ...(ctx.prompt ? { prompt: ctx.prompt } : {}),
     ...(ctx.driver ? { driver: ctx.driver.bind(ctx) } : {}), log: ctx.log }));
   displayCleanups.push(installPhase4({ flags, log: ctx.log,
+    ...(ctx.itemKindKey ? { itemKindKey: ctx.itemKindKey } : {}),
     ...(ctx.snapshot ? { snapshot: ctx.snapshot } : {}), ...(ctx.intent ? { intent: ctx.intent } : {}),
     ...(ctx.prompt ? { prompt: ctx.prompt } : {}), ...(ctx.inspect ? { inspect: ctx.inspect } : {}),
     ...(ctx.ui ? { ui: ctx.ui } : {}), ...(ctx.prefs ? { prefs: ctx.prefs } : {}),

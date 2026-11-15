@@ -43,6 +43,21 @@ function fakeMod(options: { readonly manage?: boolean; readonly owner?: string }
 }
 
 describe("the API 2 bridge", () => {
+  it("resolves flavour bindings from the current session after registration", () => {
+    const kind = { kidx: 1, tval: 75, sval: 1 };
+    let state: unknown;
+    const engine = { get state() { return state; } };
+    const bridge = createBridge({ ...fakeMod().mod, engine } as unknown as ModApi2);
+    expect(bridge.ctx.itemKindKey?.("75:-8")).toBe("75:-8");
+    state = { isAware: () => true, flavorGlyph: () => ({ fidx: 8 }), knownWorldDeps: {
+      reg: { kinds: [kind] }, resolver: { kindIdOrNull: () => "potion:healing" },
+    } };
+    expect(bridge.ctx.itemKindKey?.("75:-8")).toBe("potion:healing");
+    state = { isAware: () => false, flavorGlyph: () => ({ fidx: 8 }), knownWorldDeps: { reg: { kinds: [kind] } } };
+    expect(bridge.ctx.itemKindKey?.("75:-8")).toBe("75:-8");
+    bridge.dispose();
+  });
+
   it("hands the presentation lifecycle to display features", () => {
     const fake = fakeMod();
     const presentation = { cancelInput: () => ok(null), phase: () => "birth" as const, onPhaseChanged: vi.fn(() => () => {}) };
