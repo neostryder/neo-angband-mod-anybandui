@@ -43,6 +43,14 @@ function fakeMod(options: { readonly manage?: boolean; readonly owner?: string }
 }
 
 describe("the API 2 bridge", () => {
+  it("hands the presentation lifecycle to display features", () => {
+    const fake = fakeMod();
+    const presentation = { cancelInput: () => ok(null), phase: () => "birth" as const, onPhaseChanged: vi.fn(() => () => {}) };
+    const bridge = createBridge({ ...fake.mod, presentation } as ModApi2);
+    expect(bridge.ctx.presentation).toBe(presentation);
+    bridge.dispose();
+  });
+
   it("primes the stored values and the input wait before the features read them", async () => {
     const { mod } = fakeMod();
     const bridge = createBridge(mod);
