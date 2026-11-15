@@ -18,6 +18,9 @@ export const PANEL_CSS = `
 .bar{height:6px;background:var(--anyband-background);border:1px solid var(--anyband-accent);margin-top:2px}.fill{height:100%}.stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));text-align:center}.drained{opacity:.55}
 .badges{display:flex;flex-wrap:wrap;gap:4px}.badge{border:1px solid currentColor;border-left-width:2px;padding:2px 5px;border-radius:3px}
 .muted{opacity:.55}.messages{overflow:auto;max-height:min(24em,50vh)}.message{white-space:pre-wrap}.message .body{white-space:inherit}.ribbon{color:#f5bc5a;border:1px solid #f5bc5a;padding:2px 5px;pointer-events:none}
+.creature-name,.creature-facts{overflow-wrap:anywhere}.creature-glyph{font-weight:700}.creature-section{margin-top:4px;border-top:1px solid var(--anyband-accent)}
+.creature-section summary{cursor:pointer;color:var(--anyband-accent)}.creature-facts{max-height:7em;overflow:auto;white-space:pre-wrap;padding:2px 0}
+.creature-section summary:focus-visible,.creature-facts:focus-visible{outline:2px solid var(--anyband-accent);outline-offset:-2px}
 .messages-filter{width:100%;background:var(--anyband-background);color:var(--anyband-text);border:1px solid var(--anyband-accent)}
 .pause{display:inline-flex;align-items:flex-end;gap:2px;height:1em;vertical-align:middle}.pause i,.pause b{display:inline-block;background:currentColor;font-style:normal;font-weight:normal}
 .pause i{width:.13em;height:.7em}.pause b{width:.16em;height:.16em;border-radius:50%;animation:anyband-breathe 1.1s ease-in-out infinite}

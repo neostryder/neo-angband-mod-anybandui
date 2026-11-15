@@ -132,7 +132,8 @@ function liveHud(game) {
   const state = game.state;
   if (state === void 0) return void 0;
   return {
-    view: game.core.createAgentView(state),
+    view: game.core.createAgentView(state, void 0, state.knownWorldDeps),
+    level: state.chunk,
     name: state.actor.player.fullName,
     messages: state.messages,
     study: state.actor.player.upkeep.newSpells,
@@ -771,293 +772,37 @@ function sameInput(a, b) {
   return sameToken2(a.token, b.token) && a.phase === b.phase && a.messagePending === b.messagePending && a.driver.kind === b.driver.kind && a.driver.owner === b.driver.owner && (a.prompt?.promptId ?? null) === (b.prompt?.promptId ?? null);
 }
 
-// src/view-model/adapter.ts
-function entry(frame, key) {
-  return frame?.sidebar?.entries.find((item) => item.key === key) ?? frame?.status.entries.find((item) => item.key === key);
-}
-function value(frame, key, field) {
-  return entry(frame, key)?.values?.[field];
-}
-function label(frame, key) {
-  const item = entry(frame, key);
-  if (!item || item.runs.length === 0) return void 0;
-  return item.runs.map((run2) => run2.text).join("").trim();
-}
-function feelingIndices(frame) {
-  const values = entry(frame, "level_feeling")?.values;
-  if (values?.object === void 0 || values.monster === void 0 || values.squares === void 0 || values.need === void 0) return void 0;
-  return {
-    object: values.object,
-    monster: values.monster,
-    squares: values.squares,
-    need: values.need
-  };
-}
-function statPayload(source, frame) {
-  return ["STR", "INT", "WIS", "DEX", "CON"].map((name, index) => {
-    const key = name.toLowerCase();
-    const current = value(frame, key, "cur");
-    const maximum2 = value(frame, key, "max");
-    return {
-      label: name,
-      value: value(frame, key, "use") ?? source.stats[index] ?? 0,
-      drained: current === void 0 || maximum2 === void 0 ? void 0 : current < maximum2
-    };
-  });
-}
-function badgePayload(source, frame) {
-  const status = source.status;
-  const aliases = {
-    haste: "fast",
-    "paralyzed!": "paralyzed",
-    graze: "cut",
-    "light cut": "cut",
-    "bad cut": "cut",
-    "nasty cut": "cut",
-    "severe cut": "cut",
-    "deep gash": "cut",
-    "mortal wound": "cut",
-    "stunned": "stun",
-    "heavy stun": "stun",
-    "knocked out": "stun",
-    protevil: "protEvil",
-    berserk: "shero",
-    blssd: "blessed",
-    racid: "resAcid",
-    relec: "resElec",
-    rfire: "resFire",
-    rcold: "resCold",
-    rpois: "resPois",
-    stone: "stoneskin",
-    fastcast: "fastcast",
-    fed: "food",
-    full: "food",
-    hungry: "food",
-    weak: "food",
-    faint: "food",
-    starving: "food"
-  };
-  const result = [];
-  for (const run2 of entry(frame, "tmd")?.runs ?? []) {
-    const text = run2.text.trim();
-    if (!text || /^\d+\s*%$/.test(text)) continue;
-    const key = aliases[text.toLowerCase()] ?? text.toLowerCase().replace(/[^a-z]/g, "");
-    result.push({
-      label: text,
-      name: void 0,
-      visible: true,
-      priority: void 0,
-      kind: void 0,
-      duration: status[key],
-      description: void 0
-    });
+// src/fonts.ts
+var FONT_FILES = [
+  "Cousine-Regular.ttf",
+  "ConsolaMono-Book.ttf",
+  "Erika Type.ttf",
+  "F25_Bank_Printer.ttf",
+  "Flexi_IBM_VGA_True.ttf",
+  "Hack-Regular.ttf",
+  "LiberationMono-Regular.ttf",
+  "MonospaceTypewriter.ttf",
+  "Nouveau_IBM.ttf",
+  "RetraConsole.ttf",
+  "Sono-Regular.ttf",
+  "SVBasicManual.ttf",
+  "Terminal F4.ttf",
+  "Xanmono-Regular.ttf",
+  "Zector.ttf"
+];
+var EFFECT_FONT = "tengwar-annatar/tngan.ttf";
+async function loadFonts(ctx, files = [...FONT_FILES, EFFECT_FONT]) {
+  if (typeof FontFace === "undefined" || typeof document === "undefined" || !document.fonts) return [];
+  const loaded = [];
+  for (const file of files) {
+    const url = await ctx.assetUrl(`fonts/${file}`);
+    if (url === null) continue;
+    const face = new FontFace(file, `url(${JSON.stringify(url)})`);
+    await face.load();
+    document.fonts.add(face);
+    loaded.push(file);
   }
-  return result;
-}
-function trackedPayload(view, frame) {
-  const target = view.target();
-  if (target === null) return void 0;
-  const monster = view.monsters().find((item) => item.id === target.midx);
-  if (!monster) return void 0;
-  return {
-    visible: monster.visible,
-    name: monster.race,
-    hp: value(frame, "health", "current"),
-    max_hp: value(frame, "health", "max")
-  };
-}
-function playerPayload(view, frame, input) {
-  const source = view.player();
-  const experience = value(frame, "exp", "exp") ?? source.exp;
-  const advance = value(frame, "exp", "advance");
-  const state = label(frame, "state") ?? "";
-  const moves = label(frame, "moves");
-  return {
-    name: input.name,
-    race: label(frame, "race") ?? source.race,
-    class: label(frame, "class") ?? source.cls,
-    title: label(frame, "title"),
-    hp: value(frame, "hp", "current") ?? source.hp,
-    max_hp: value(frame, "hp", "max") ?? source.maxHp,
-    sp: value(frame, "sp", "current") ?? source.sp,
-    max_sp: value(frame, "sp", "max") ?? source.maxSp,
-    food: source.status.food,
-    food_max: input.foodMax,
-    experience,
-    max_experience: value(frame, "exp", "maxExp") ?? source.maxExp,
-    level_start_experience: input.levelStartExperience,
-    next_level_experience: advance === void 0 ? void 0 : advance === 0 ? 0 : experience + advance,
-    level: value(frame, "level", "level") ?? source.level,
-    max_level: value(frame, "level", "maxLevel") ?? source.maxLevel,
-    stats: statPayload(source, frame),
-    gold: value(frame, "gold", "au") ?? source.gold,
-    armour: value(frame, "ac", "ac") ?? source.ac,
-    speed: value(frame, "speed", "speed") ?? source.speed,
-    extra_moves: input.extraMoves ?? (moves ? Number(moves.match(/[+-]\d+/)?.[0]) : void 0),
-    tracked_creature: trackedPayload(view, frame),
-    depth: value(frame, "depth", "depth") ?? source.depth,
-    depth_feet: value(frame, "depth", "feet") ?? source.depth * 50,
-    light: Number(label(frame, "light")?.match(/-?\d+/)?.[0] ?? source.light),
-    feeling: label(frame, "level_feeling"),
-    feeling_indices: feelingIndices(frame),
-    feeling_description: void 0,
-    floor: label(frame, "terrain"),
-    trap_detected: Boolean(label(frame, "dtrap")),
-    recall: input.recall ?? (label(frame, "recall") ? true : void 0),
-    descent: input.descent ?? (label(frame, "descent") ? true : void 0),
-    resting: input.resting ?? state.startsWith("Rest"),
-    running: input.running,
-    repeat: input.repeat ?? (state.startsWith("Repeat") ? Number(state.match(/\d+/)?.[0]) : void 0),
-    unignoring: input.unignoring ?? (label(frame, "unignore") ? true : void 0),
-    statuses: badgePayload(source, frame),
-    study: input.study ?? Number(label(frame, "study")?.match(/\d+/)?.[0] ?? 0)
-  };
-}
-function messagePayload(input) {
-  return (input.history ?? []).map((item) => ({
-    text: item.text,
-    count: item.count,
-    system: void 0,
-    category: item.category,
-    group: void 0,
-    color: item.color
-  }));
-}
-function dungeonPayload(player) {
-  return {
-    depth: player.depth,
-    depth_feet: player.depth_feet,
-    light: player.light,
-    feeling: player.feeling,
-    feeling_indices: player.feeling_indices,
-    feeling_description: player.feeling_description,
-    floor: player.floor
-  };
-}
-function adapt(view, frame, input = {}) {
-  const player = playerPayload(view, frame, input);
-  return {
-    player,
-    dungeon: dungeonPayload(player),
-    messages: messagePayload(input),
-    message_pending: input.messagePending
-  };
-}
-
-// src/input-owner.ts
-var PLAYER = Object.freeze({ kind: "player" });
-function currentDriver(ctx) {
-  const read = ctx?.driver;
-  const driver = typeof read === "function" ? read() : void 0;
-  return driver?.kind === "controller" && typeof driver.owner === "string" ? driver : PLAYER;
-}
-function playerIsDriving(ctx) {
-  return currentDriver(ctx).kind === "player";
-}
-
-// src/view-model/source.ts
-var MATCH_WINDOW = 8;
-function messageHistory(entries, log, hostLog) {
-  if (hostLog) {
-    const core2 = log === void 0 ? [] : Array.from({ length: log.num() }, (_, age) => ({
-      text: log.str(age),
-      category: log.type(age)
-    }));
-    const history2 = [];
-    let next2 = 0;
-    for (let index = hostLog.length - 1; index >= 0; index--) {
-      const entry2 = hostLog[index];
-      let category;
-      let found = -1;
-      for (let age = next2; age < Math.min(core2.length, next2 + MATCH_WINDOW); age++) {
-        if (core2[age].text === entry2.text) {
-          found = age;
-          break;
-        }
-      }
-      if (found >= 0) {
-        category = core2[found].category;
-        next2 = found + 1;
-      }
-      history2.push({ text: entry2.text, count: entry2.count, category, color: entry2.color });
-    }
-    return history2;
-  }
-  const core = log === void 0 ? [] : Array.from({ length: log.num() }, (_, age) => ({
-    text: log.str(age),
-    count: log.count(age),
-    category: log.type(age),
-    color: void 0
-  }));
-  if (!entries) return core;
-  const history = [];
-  let next = 0;
-  for (let index = entries.length - 1; index >= 0; index--) {
-    const text = entries[index];
-    let found = -1;
-    for (let age = next; age < Math.min(core.length, next + MATCH_WINDOW); age++) {
-      if (core[age].text === text) {
-        found = age;
-        break;
-      }
-    }
-    if (found < 0) {
-      history.push({ text, count: void 0, category: void 0, color: void 0 });
-      continue;
-    }
-    const foundEntry = core[found];
-    history.push({ text: foundEntry.text, count: foundEntry.count, category: foundEntry.category, color: void 0 });
-    next = found + 1;
-  }
-  return history;
-}
-function messagePending(snap) {
-  if (!snap) return void 0;
-  if (snap.prompt?.kind === "ack" && snap.prompt.tag === "more") return true;
-  if (snap.phase === null || snap.phase === void 0) return void 0;
-  return snap.messagePending === true;
-}
-function createSource(ctx) {
-  let latest;
-  const present = (_section, frame) => {
-    latest = frame;
-  };
-  const read = () => {
-    try {
-      return viewInput(ctx);
-    } catch {
-      return null;
-    }
-  };
-  const acknowledge = () => {
-    if (!ctx.prompt || !playerIsDriving(ctx)) return false;
-    const prompt = read()?.prompt;
-    if (prompt?.kind !== "ack" || prompt.tag !== "more") return false;
-    return ctx.prompt.reply(prompt.promptId, { action: "acknowledge" }).accepted;
-  };
-  return {
-    hud: { sidebar: { present }, messages: { present }, status: { present } },
-    ...ctx.prompt ? { acknowledge } : {},
-    snapshot(options = {}) {
-      if (!hasLiveState(ctx)) return void 0;
-      const snap = options.messages ? read() : null;
-      const pending = messagePending(snap);
-      const live = liveHud(ctx);
-      return adapt(live.view, latest, {
-        name: live.name,
-        history: messageHistory(snap?.messages?.entries, live.messages, snap?.messages?.log),
-        study: live.study,
-        repeat: live.repeat,
-        resting: live.resting,
-        running: live.running,
-        unignoring: live.unignoring,
-        recall: live.recall,
-        descent: live.descent,
-        extraMoves: live.extraMoves,
-        ...pending === void 0 ? {} : { messagePending: pending }
-      });
-    }
-  };
+  return loaded;
 }
 
 // src/bitmap-font.ts
@@ -1678,10 +1423,10 @@ function paintBitmapLine(canvas, runs, cellWidth, cellHeight, dpr) {
 }
 function wrapBitmapText(text, maxChars) {
   if (maxChars < 1) return [text];
-  const words = text.split(/\s+/u).filter(Boolean);
+  const words2 = text.split(/\s+/u).filter(Boolean);
   const lines = [];
   let line = "";
-  for (const word of words) {
+  for (const word of words2) {
     const candidate = line ? `${line} ${word}` : word;
     if ([...candidate].length > maxChars && line) {
       lines.push(line);
@@ -1982,128 +1727,57 @@ function applyTheme(root, theme = THEMES["terminal-original"]) {
   }
 }
 
-// src/panels/panel-host.ts
-var HOST_CSS = `:host{position:fixed;display:none;z-index:50;box-sizing:border-box;color:var(--anyband-text);font:var(--anyband-font-size)/var(--anyband-line) var(--anyband-font)}`;
-var PANEL_CSS = `
-*{box-sizing:border-box}.surface{width:100%;height:100%;overflow:auto;background:var(--anyband-surface);border:1px solid var(--anyband-accent);border-radius:var(--anyband-rounding);padding:5px}
-.group{min-height:0;overflow:auto}.heading{color:var(--anyband-accent);font-weight:700;border-bottom:1px solid var(--anyband-accent);margin:0 0 4px;padding-bottom:2px}
-.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}.metric-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}
-.metric{text-align:center;border:1px solid var(--anyband-accent);border-radius:3px;padding:2px;min-width:0}.metric b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.bar{height:6px;background:var(--anyband-background);border:1px solid var(--anyband-accent);margin-top:2px}.fill{height:100%}.stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));text-align:center}.drained{opacity:.55}
-.badges{display:flex;flex-wrap:wrap;gap:4px}.badge{border:1px solid currentColor;border-left-width:2px;padding:2px 5px;border-radius:3px}
-.muted{opacity:.55}.messages{overflow:auto;max-height:min(24em,50vh)}.message{white-space:pre-wrap}.message .body{white-space:inherit}.ribbon{color:#f5bc5a;border:1px solid #f5bc5a;padding:2px 5px;pointer-events:none}
-.messages-filter{width:100%;background:var(--anyband-background);color:var(--anyband-text);border:1px solid var(--anyband-accent)}
-.pause{display:inline-flex;align-items:flex-end;gap:2px;height:1em;vertical-align:middle}.pause i,.pause b{display:inline-block;background:currentColor;font-style:normal;font-weight:normal}
-.pause i{width:.13em;height:.7em}.pause b{width:.16em;height:.16em;border-radius:50%;animation:anyband-breathe 1.1s ease-in-out infinite}
-.pause b:nth-child(4){animation-delay:.15s}.pause b:nth-child(5){animation-delay:.3s}
-@keyframes anyband-breathe{0%,100%{opacity:.35}50%{opacity:1}}
-.pause.still b{animation:none;opacity:.8}@media (prefers-reduced-motion:reduce){.pause b{animation:none;opacity:.8}}
-.sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
-.cut{flex:none;margin-left:.25em}
-.tip{display:none;position:absolute;z-index:2;max-width:26em;white-space:pre-wrap;pointer-events:none;background:var(--anyband-background);color:var(--anyband-text);border:1px solid var(--anyband-accent);border-radius:3px;padding:6px}
-input{width:100%;background:var(--anyband-background);color:var(--anyband-text);border:1px solid var(--anyband-accent)}
-.compact{display:flex;align-items:center;gap:10px;overflow:hidden;white-space:nowrap;padding:0 5px}.compact .group{display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden}.compact .group:empty{display:none}
-.compact .heading,.compact input,.compact .messages-filter{display:none}.compact .badges{flex-wrap:nowrap}.compact .badge{padding:0 4px}.compact .grid,.compact .metric-grid{display:flex;gap:8px}
-.compact .metric{border:0;padding:0;display:flex;gap:3px}.compact .metric b{display:inline}.compact .messages{overflow:hidden;max-height:none;min-width:0}
-.compact .message{display:flex;align-items:baseline;overflow:hidden;white-space:nowrap;min-width:0}.compact .message .body{overflow:hidden;white-space:nowrap;min-width:0;flex:1}
-.compact .message~.message{display:none}.compact .ribbon{width:auto!important;flex:none}
-`;
-var COMPACT_ROWS = 3;
-var CSS = `${HOST_CSS}${PANEL_CSS}`;
-var panelHosts = /* @__PURE__ */ new Set();
-var panelVisualFilter = null;
-function setPanelHostVisualFilter(filter) {
-  panelVisualFilter = filter;
-  for (const host of panelHosts) host.style.filter = filter ?? "";
+// src/settings.ts
+var DEFAULT_SETTINGS = {
+  theme: "terminal-original",
+  customTheme: null,
+  interfaceFont: "Nouveau_IBM.ttf",
+  dungeonFont: "",
+  showHeadings: true,
+  hoverDelayMs: 550,
+  zoomIndex: 7,
+  panelZoom: {},
+  effects: {}
+};
+function themeFromPrefs(raw) {
+  const settings = validateSettings(raw);
+  return resolveTheme(settings.theme, settings.customTheme);
 }
-function node(parent, tag, className = "", value2) {
-  const child = parent.ownerDocument.createElement(tag);
-  child.className = className;
-  if (value2 !== void 0) child.textContent = value2;
-  parent.appendChild(child);
-  return child;
-}
-function fraction(current, maximum2) {
-  return maximum2 > 0 ? Math.max(0, Math.min(1, current / maximum2)) : 0;
-}
-function meter(parent, label2, value2, amount, colour, tip2) {
-  const cell2 = node(parent, "div", "meter");
-  node(cell2, "span", "", label2);
-  node(cell2, "span", "", ` ${value2}`);
-  const track = node(cell2, "div", "bar");
-  const fill = node(track, "div", "fill");
-  fill.style.width = `${Math.round(amount * 100)}%`;
-  fill.style.backgroundColor = colour;
-  if (tip2) cell2.dataset.tip = tip2;
-}
-function intersects(a, b) {
-  return a.col < b.col + b.cols && b.col < a.col + a.cols && a.row < b.row + b.rows && b.row < a.row + a.rows;
-}
-function createPanelContent(surface, panels) {
-  const mounts = panels.map(() => node(surface, "div", "group"));
-  const tip2 = node(surface, "div", "tip");
-  const signatures = [];
-  surface.addEventListener("mouseover", (event) => {
-    const target = event.target;
-    const subject = target instanceof HTMLElement ? target.closest("[data-tip]") : null;
-    tip2.textContent = subject?.dataset.tip ?? "";
-    tip2.style.display = subject ? "block" : "none";
-    if (subject) {
-      tip2.style.left = `${Math.min(subject.offsetLeft, Math.max(0, surface.clientWidth - tip2.offsetWidth))}px`;
-      tip2.style.top = `${Math.min(subject.offsetTop + subject.offsetHeight, Math.max(0, surface.clientHeight - tip2.offsetHeight))}px`;
-    }
-  });
-  surface.addEventListener("mouseleave", () => {
-    tip2.style.display = "none";
-  });
+var themes = /* @__PURE__ */ new Set(["terminal-original", "dark-graphite", "light-paper", "amber-terminal", "midnight-ice", "linoleum", "plain-terminal"]);
+var fonts = new Set(FONT_FILES);
+function validateSettings(value2) {
+  const record2 = value2 !== null && typeof value2 === "object" && !Array.isArray(value2) ? value2 : {};
   return {
-    render(model) {
-      panels.forEach((panel, index) => {
-        const signature = JSON.stringify([surface.className, panel.select(model)]);
-        if (signatures[index] === signature) return;
-        signatures[index] = signature;
-        panel.render(mounts[index], model);
-      });
-    }
+    theme: typeof record2["theme"] === "string" && themes.has(record2["theme"]) ? record2["theme"] : DEFAULT_SETTINGS.theme,
+    customTheme: parseCustomTheme(record2["customTheme"]),
+    interfaceFont: typeof record2["interfaceFont"] === "string" && fonts.has(record2["interfaceFont"]) ? record2["interfaceFont"] : DEFAULT_SETTINGS.interfaceFont,
+    dungeonFont: typeof record2["dungeonFont"] === "string" && (record2["dungeonFont"] === "" || fonts.has(record2["dungeonFont"])) ? record2["dungeonFont"] : DEFAULT_SETTINGS.dungeonFont,
+    showHeadings: typeof record2["showHeadings"] === "boolean" ? record2["showHeadings"] : DEFAULT_SETTINGS.showHeadings,
+    hoverDelayMs: typeof record2["hoverDelayMs"] === "number" && Number.isInteger(record2["hoverDelayMs"]) ? Math.max(0, Math.min(5e3, record2["hoverDelayMs"])) : DEFAULT_SETTINGS.hoverDelayMs,
+    zoomIndex: typeof record2["zoomIndex"] === "number" && Number.isInteger(record2["zoomIndex"]) ? Math.max(0, Math.min(18, record2["zoomIndex"])) : DEFAULT_SETTINGS.zoomIndex,
+    panelZoom: record2["panelZoom"] && typeof record2["panelZoom"] === "object" && !Array.isArray(record2["panelZoom"]) ? Object.fromEntries(Object.entries(record2["panelZoom"]).filter(([id, step]) => id.length > 0 && typeof step === "number" && Number.isInteger(step) && step >= 0 && step <= 6)) : DEFAULT_SETTINGS.panelZoom,
+    effects: record2["effects"] && typeof record2["effects"] === "object" && !Array.isArray(record2["effects"]) ? Object.fromEntries(Object.entries(record2["effects"]).filter(([id, value3]) => id.length > 0 && typeof value3 === "number" && Number.isFinite(value3)).map(([id, value3]) => [id, Math.max(0, Math.min(100, Math.round(value3)))])) : DEFAULT_SETTINGS.effects
   };
 }
-function createPanelHost(doc, panels, theme) {
-  const element = doc.createElement("div");
-  element.className = "anyband-panel";
-  panelHosts.add(element);
-  element.style.filter = panelVisualFilter ?? "";
-  const shadow = element.attachShadow({ mode: "open" });
-  if (theme) applyTheme(shadow, theme);
-  else applyTheme(shadow);
-  node(shadow, "style", "", CSS);
-  const surface = node(shadow, "div", "surface");
-  const content = createPanelContent(surface, panels);
-  doc.body.appendChild(element);
-  const stopTheme2 = onThemeChange((next) => {
-    if (!element.isConnected) {
-      stopTheme2();
-      return;
-    }
-    applyTheme(shadow, next);
-  });
+function createSettingsStore(ctx) {
+  let current = validateSettings(ctx.prefs.get());
+  const listeners = /* @__PURE__ */ new Set();
   return {
-    element,
-    present(section2, frame, model) {
-      const region = section2.region;
-      const box = region?.pixels;
-      const at = frame.stack?.findIndex((item) => item.id === region?.name) ?? -1;
-      const covered = at >= 0 && frame.stack.slice(at + 1).some((item) => intersects(item.cells, region.cells));
-      if (!box || box.width <= 0 || box.height <= 0 || covered || frame.stack && at < 0) {
-        element.style.display = "none";
-        return;
-      }
-      element.style.display = "block";
-      element.style.left = `${box.x}px`;
-      element.style.top = `${box.y}px`;
-      element.style.width = `${box.width}px`;
-      element.style.height = `${box.height}px`;
-      surface.className = region.cells.rows < COMPACT_ROWS ? "surface compact" : "surface";
-      content.render(model);
+    get: () => ({ ...current }),
+    set(patch) {
+      const next = validateSettings({ ...current, ...patch });
+      if (JSON.stringify(next) === JSON.stringify(current)) return;
+      const stored = ctx.prefs.get();
+      const preserved = stored !== null && typeof stored === "object" && !Array.isArray(stored) ? stored : {};
+      ctx.prefs.set({ ...preserved, ...next });
+      current = next;
+      for (const listener of listeners) listener({ ...current });
+    },
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
     }
   };
 }
@@ -2195,94 +1869,6 @@ function withDisplayPreference(raw, display) {
 }
 function withSubwindowZoomPreference(raw, subwindowZoom) {
   return { ...isRecord(raw) ? raw : {}, v: 2, ...preservedPreferences(raw), subwindowZoom };
-}
-
-// src/fonts.ts
-var FONT_FILES = [
-  "Cousine-Regular.ttf",
-  "ConsolaMono-Book.ttf",
-  "Erika Type.ttf",
-  "F25_Bank_Printer.ttf",
-  "Flexi_IBM_VGA_True.ttf",
-  "Hack-Regular.ttf",
-  "LiberationMono-Regular.ttf",
-  "MonospaceTypewriter.ttf",
-  "Nouveau_IBM.ttf",
-  "RetraConsole.ttf",
-  "Sono-Regular.ttf",
-  "SVBasicManual.ttf",
-  "Terminal F4.ttf",
-  "Xanmono-Regular.ttf",
-  "Zector.ttf"
-];
-var EFFECT_FONT = "tengwar-annatar/tngan.ttf";
-async function loadFonts(ctx, files = [...FONT_FILES, EFFECT_FONT]) {
-  if (typeof FontFace === "undefined" || typeof document === "undefined" || !document.fonts) return [];
-  const loaded = [];
-  for (const file of files) {
-    const url = await ctx.assetUrl(`fonts/${file}`);
-    if (url === null) continue;
-    const face = new FontFace(file, `url(${JSON.stringify(url)})`);
-    await face.load();
-    document.fonts.add(face);
-    loaded.push(file);
-  }
-  return loaded;
-}
-
-// src/settings.ts
-var DEFAULT_SETTINGS = {
-  theme: "terminal-original",
-  customTheme: null,
-  interfaceFont: "Nouveau_IBM.ttf",
-  dungeonFont: "",
-  showHeadings: true,
-  hoverDelayMs: 550,
-  zoomIndex: 7,
-  panelZoom: {},
-  effects: {}
-};
-function themeFromPrefs(raw) {
-  const settings = validateSettings(raw);
-  return resolveTheme(settings.theme, settings.customTheme);
-}
-var themes = /* @__PURE__ */ new Set(["terminal-original", "dark-graphite", "light-paper", "amber-terminal", "midnight-ice", "linoleum", "plain-terminal"]);
-var fonts = new Set(FONT_FILES);
-function validateSettings(value2) {
-  const record2 = value2 !== null && typeof value2 === "object" && !Array.isArray(value2) ? value2 : {};
-  return {
-    theme: typeof record2["theme"] === "string" && themes.has(record2["theme"]) ? record2["theme"] : DEFAULT_SETTINGS.theme,
-    customTheme: parseCustomTheme(record2["customTheme"]),
-    interfaceFont: typeof record2["interfaceFont"] === "string" && fonts.has(record2["interfaceFont"]) ? record2["interfaceFont"] : DEFAULT_SETTINGS.interfaceFont,
-    dungeonFont: typeof record2["dungeonFont"] === "string" && (record2["dungeonFont"] === "" || fonts.has(record2["dungeonFont"])) ? record2["dungeonFont"] : DEFAULT_SETTINGS.dungeonFont,
-    showHeadings: typeof record2["showHeadings"] === "boolean" ? record2["showHeadings"] : DEFAULT_SETTINGS.showHeadings,
-    hoverDelayMs: typeof record2["hoverDelayMs"] === "number" && Number.isInteger(record2["hoverDelayMs"]) ? Math.max(0, Math.min(5e3, record2["hoverDelayMs"])) : DEFAULT_SETTINGS.hoverDelayMs,
-    zoomIndex: typeof record2["zoomIndex"] === "number" && Number.isInteger(record2["zoomIndex"]) ? Math.max(0, Math.min(18, record2["zoomIndex"])) : DEFAULT_SETTINGS.zoomIndex,
-    panelZoom: record2["panelZoom"] && typeof record2["panelZoom"] === "object" && !Array.isArray(record2["panelZoom"]) ? Object.fromEntries(Object.entries(record2["panelZoom"]).filter(([id, step]) => id.length > 0 && typeof step === "number" && Number.isInteger(step) && step >= 0 && step <= 6)) : DEFAULT_SETTINGS.panelZoom,
-    effects: record2["effects"] && typeof record2["effects"] === "object" && !Array.isArray(record2["effects"]) ? Object.fromEntries(Object.entries(record2["effects"]).filter(([id, value3]) => id.length > 0 && typeof value3 === "number" && Number.isFinite(value3)).map(([id, value3]) => [id, Math.max(0, Math.min(100, Math.round(value3)))])) : DEFAULT_SETTINGS.effects
-  };
-}
-function createSettingsStore(ctx) {
-  let current = validateSettings(ctx.prefs.get());
-  const listeners = /* @__PURE__ */ new Set();
-  return {
-    get: () => ({ ...current }),
-    set(patch) {
-      const next = validateSettings({ ...current, ...patch });
-      if (JSON.stringify(next) === JSON.stringify(current)) return;
-      const stored = ctx.prefs.get();
-      const preserved = stored !== null && typeof stored === "object" && !Array.isArray(stored) ? stored : {};
-      ctx.prefs.set({ ...preserved, ...next });
-      current = next;
-      for (const listener of listeners) listener({ ...current });
-    },
-    subscribe(listener) {
-      listeners.add(listener);
-      return () => {
-        listeners.delete(listener);
-      };
-    }
-  };
 }
 
 // src/zoom.ts
@@ -3430,6 +3016,1174 @@ function uninstallZoomPan() {
   }
 }
 
+// src/map-overview.ts
+function mapProjection(snapshot) {
+  if (snapshot.mode === "map" && typeof document !== "undefined") {
+    const graphics = Array.from(document.querySelectorAll('body > canvas[aria-hidden="true"]')).find((canvas) => canvas.style.zIndex === "1");
+    if (graphics) {
+      const rect = graphics.getBoundingClientRect();
+      return { x: rect.left, y: rect.top, width: rect.width, height: rect.height };
+    }
+  }
+  return snapshot.regions.map?.pixels;
+}
+function featureCode(cell2) {
+  const builtIn = [
+    "NONE",
+    "FLOOR",
+    "CLOSED",
+    "OPEN",
+    "BROKEN",
+    "LESS",
+    "MORE",
+    "STORE_GENERAL",
+    "STORE_ARMOR",
+    "STORE_WEAPON",
+    "STORE_BOOK",
+    "STORE_ALCHEMY",
+    "STORE_MAGIC",
+    "STORE_BLACK",
+    "HOME",
+    "SECRET",
+    "RUBBLE",
+    "MAGMA",
+    "QUARTZ",
+    "MAGMA_K",
+    "QUARTZ_K",
+    "GRANITE",
+    "PERM",
+    "LAVA",
+    "PASS_RUBBLE"
+  ];
+  return cell2.remembered.featCode ?? builtIn[cell2.remembered.feat];
+}
+function landmarkKind(code) {
+  if (!code) return null;
+  if (/(?:LESS|STAIR_UP|UP_STAIR)/i.test(code)) return "up";
+  if (/(?:MORE|STAIR_DOWN|DOWN_STAIR)/i.test(code)) return "down";
+  if (/(?:STORE|SHOP)/i.test(code)) return "shop";
+  return null;
+}
+function schematicColour(code) {
+  if (!code) return "#1b2732";
+  if (/(?:WALL|GRANITE|PERM)/i.test(code)) return "#435265";
+  if (/DOOR/i.test(code)) return "#a4774a";
+  return "#263b48";
+}
+function drawMarker(g, x, y, r, kind) {
+  const color = kind === "up" ? "#5fcdff" : kind === "down" ? "#ffc155" : kind === "shop" ? "#da8dff" : "#f5faff";
+  g.fillStyle = "rgba(8,13,20,0.92)";
+  g.beginPath();
+  g.arc(x, y, r + 2, 0, Math.PI * 2);
+  g.fill();
+  g.fillStyle = color;
+  g.beginPath();
+  if (kind === "shop") g.rect(x - r, y - r, 2 * r, 2 * r);
+  else if (kind === "player") {
+    g.moveTo(x, y - r);
+    g.lineTo(x + r, y);
+    g.lineTo(x, y + r);
+    g.lineTo(x - r, y);
+    g.closePath();
+  } else if (kind === "up") {
+    g.moveTo(x, y - r);
+    g.lineTo(x - r, y + r);
+    g.lineTo(x + r, y + r);
+    g.closePath();
+  } else {
+    g.moveTo(x, y + r);
+    g.lineTo(x - r, y - r);
+    g.lineTo(x + r, y - r);
+    g.closePath();
+  }
+  g.fill();
+}
+function fitView(snapshot) {
+  return { origin: { x: 0, y: 0 }, size: { width: snapshot.level.width, height: snapshot.level.height } };
+}
+function zoomMapAt(snapshot, direction, pointer) {
+  const rect = mapProjection(snapshot);
+  const old = snapshot.viewport.size;
+  const width = Math.max(2, Math.min(snapshot.level.width, Math.round(old.width * (direction > 0 ? 0.8 : 1.25))));
+  const height = Math.max(2, Math.min(snapshot.level.height, Math.round(old.height * (direction > 0 ? 0.8 : 1.25))));
+  if (!rect || !pointInRect(pointer, rect)) return { origin: clampOrigin({ ...snapshot, viewport: { ...snapshot.viewport, size: { width, height } } }, snapshot.viewport.origin), size: { width, height } };
+  const fx = (pointer.x - rect.x) / rect.width, fy = (pointer.y - rect.y) / rect.height;
+  const caveX = snapshot.viewport.origin.x + fx * old.width;
+  const caveY = snapshot.viewport.origin.y + fy * old.height;
+  const resized = { ...snapshot, viewport: { ...snapshot.viewport, size: { width, height } } };
+  return { origin: clampOrigin(resized, { x: caveX - fx * width, y: caveY - fy * height }), size: { width, height } };
+}
+function installMapOverview(ctx) {
+  const display = ctx.display;
+  if (!display || !ctx.flags["anybandui.mapOverview"] && !ctx.flags["anybandui.mapSchematic"] && !ctx.flags["anybandui.crispTiles"]) return () => {
+  };
+  let appliedMapView = false;
+  const setMapView = (view) => {
+    display.setMapView(view);
+    appliedMapView = view !== null;
+  };
+  display.setFullMapOverview(true);
+  const appliedTileScaling = ctx.flags["anybandui.crispTiles"] === true;
+  if (appliedTileScaling) display.setTileScaling("crisp");
+  const restoreDisplay = () => {
+    if (appliedMapView) display.setMapView(null);
+    const perMod = keepsDisplayRequestsPerMod(display);
+    display.setFullMapOverview(perMod ? null : false);
+    if (appliedTileScaling) display.setTileScaling(perMod ? null : "auto");
+  };
+  if (!ctx.flags["anybandui.mapOverview"] && !ctx.flags["anybandui.mapSchematic"] || typeof document === "undefined" || typeof window === "undefined") {
+    return restoreDisplay;
+  }
+  let theme = themeFromPrefs(ctx.prefs?.get());
+  const strip = document.createElement("div");
+  strip.style.cssText = `position:fixed;z-index:900;display:none;height:24px;align-items:center;gap:8px;padding:0 6px;background:${theme.surface};color:${theme.text};font:${PAINT_FONT_SIZE}px/${PAINT_LINE_HEIGHT}px ${PAINT_FONT};border-bottom:1px solid ${paintColours(theme).border}`;
+  const fit = document.createElement("button");
+  fit.textContent = "Fit floor";
+  const center = document.createElement("button");
+  center.textContent = "Centre on player";
+  const readout = document.createElement("span");
+  for (const control of [fit, center]) control.style.cssText = `font:inherit;color:inherit;background:${theme.background};border:1px solid ${paintColours(theme).border};border-radius:${Math.round(theme.rounding * 0.4)}px;padding:1px 6px;cursor:pointer`;
+  strip.append(fit, center, readout);
+  const legend = document.createElement("span");
+  legend.style.cssText = "display:inline-flex;align-items:center;gap:8px";
+  for (const [kind, label2] of [["player", "You"], ["up", "Up"], ["down", "Down"], ["shop", "Shop"]]) {
+    const item = document.createElement("span");
+    item.style.cssText = "display:inline-flex;align-items:center;gap:3px";
+    const swatch = document.createElement("canvas");
+    swatch.width = 16;
+    swatch.height = 16;
+    const ink2 = swatch.getContext("2d");
+    if (ink2) drawMarker(ink2, 8, 8, 4, kind);
+    item.append(swatch, document.createTextNode(label2));
+    legend.appendChild(item);
+  }
+  strip.appendChild(legend);
+  document.body.appendChild(strip);
+  const toggle = document.createElement("button");
+  toggle.type = "button";
+  toggle.textContent = "Map controls";
+  toggle.setAttribute("aria-label", "Show map controls");
+  toggle.style.cssText = `position:fixed;z-index:901;display:none;background:${theme.surface};color:${theme.text}`;
+  document.body.appendChild(toggle);
+  const paintChrome = () => {
+    const colours2 = paintColours(theme);
+    const radius = `${Math.round(theme.rounding * 0.4)}px`;
+    strip.style.background = theme.surface;
+    strip.style.color = theme.text;
+    strip.style.borderBottom = `1px solid ${colours2.border}`;
+    for (const control of [fit, center]) {
+      control.style.background = theme.background;
+      control.style.border = `1px solid ${colours2.border}`;
+      control.style.borderRadius = radius;
+    }
+    toggle.style.background = theme.surface;
+    toggle.style.color = theme.text;
+  };
+  const stopTheme2 = onThemeChange((next) => {
+    theme = next;
+    paintChrome();
+  });
+  let controlsOpen = false;
+  toggle.addEventListener("click", () => {
+    controlsOpen = !controlsOpen;
+    update();
+  });
+  const overlay = document.createElement("canvas");
+  overlay.setAttribute("aria-hidden", "true");
+  overlay.style.cssText = "position:fixed;z-index:899;display:none;pointer-events:none";
+  document.body.appendChild(overlay);
+  let known = null;
+  let playView = null;
+  let marginReported = false;
+  let lastMode = "";
+  let drag = null;
+  const update = () => {
+    const snap = display.snapshot();
+    if (snap.mode !== "map") {
+      strip.style.display = "none";
+      toggle.style.display = "none";
+      controlsOpen = false;
+      overlay.style.display = "none";
+      if (snap.mode === "play") playView = snap.viewport;
+      lastMode = snap.mode;
+      return;
+    }
+    if (lastMode !== "map") {
+      if (!ctx.flags["anybandui.zoom"] && !ctx.flags["anybandui.enlargedDisplay"]) setMapView(fitView(snap));
+      try {
+        known = viewLevel(ctx);
+      } catch {
+        known = null;
+      }
+    }
+    lastMode = "map";
+    const rect = mapProjection(snap);
+    if (rect && known) {
+      overlay.style.display = "block";
+      overlay.style.left = `${rect.x}px`;
+      overlay.style.top = `${rect.y}px`;
+      overlay.style.width = `${rect.width}px`;
+      overlay.style.height = `${rect.height}px`;
+      overlay.width = Math.max(1, Math.round(rect.width));
+      overlay.height = Math.max(1, Math.round(rect.height));
+      const g = overlay.getContext("2d");
+      if (g) {
+        const cw = rect.width / snap.viewport.size.width, ch = rect.height / snap.viewport.size.height;
+        for (const cell2 of known.cells) {
+          const x = (cell2.x - snap.viewport.origin.x) * cw, y = (cell2.y - snap.viewport.origin.y) * ch;
+          if (x + cw < 0 || y + ch < 0 || x >= rect.width || y >= rect.height) continue;
+          if (ctx.flags["anybandui.mapSchematic"]) {
+            g.fillStyle = schematicColour(featureCode(cell2));
+            g.fillRect(x, y, Math.ceil(cw), Math.ceil(ch));
+          }
+          const kind = landmarkKind(featureCode(cell2));
+          if (kind) drawMarker(g, x + cw / 2, y + ch / 2, Math.max(3, Math.min(7, Math.min(cw, ch) * 0.4)), kind);
+        }
+        if (playView) {
+          g.strokeStyle = "#7aacd4";
+          g.lineWidth = 2;
+          g.strokeRect(
+            (playView.origin.x - snap.viewport.origin.x) * cw,
+            (playView.origin.y - snap.viewport.origin.y) * ch,
+            playView.size.width * cw,
+            playView.size.height * ch
+          );
+        }
+        const player = playerGrid(ctx);
+        if (player) drawMarker(
+          g,
+          (player.x + 0.5 - snap.viewport.origin.x) * cw,
+          (player.y + 0.5 - snap.viewport.origin.y) * ch,
+          Math.max(4, Math.min(8, Math.min(cw, ch) * 0.45)),
+          "player"
+        );
+      }
+    } else overlay.style.display = "none";
+    if (!rect || rect.y < 24 || rect.width < 480) {
+      toggle.style.display = rect ? "block" : "none";
+      if (rect) {
+        toggle.style.left = `${rect.x + 4}px`;
+        toggle.style.top = `${rect.y + 4}px`;
+      }
+      strip.style.display = controlsOpen && rect ? "flex" : "none";
+      if (controlsOpen && rect) {
+        strip.style.left = `${rect.x}px`;
+        strip.style.top = `${rect.y + 30}px`;
+      }
+      if (!marginReported) {
+        marginReported = true;
+        ctx.log?.("map controls: host provides no clear margin above this map size");
+      }
+      return;
+    }
+    toggle.style.display = "none";
+    strip.style.display = "flex";
+    strip.style.left = `${rect.x}px`;
+    strip.style.top = `${rect.y - 24}px`;
+    const zoom = Math.round(100 * snap.level.width / Math.max(1, snap.viewport.size.width));
+    readout.textContent = `${zoom}%`;
+  };
+  fit.addEventListener("click", () => setMapView(fitView(display.snapshot())));
+  center.addEventListener("click", () => {
+    const player = playerGrid(ctx);
+    if (!player) return;
+    const snap = display.snapshot();
+    setMapView({ origin: clampOrigin(snap, { x: player.x - snap.viewport.size.width / 2, y: player.y - snap.viewport.size.height / 2 }), size: snap.viewport.size });
+  });
+  const wheel = (event) => {
+    if (ctx.flags["anybandui.zoom"] || ctx.flags["anybandui.enlargedDisplay"]) return;
+    const snap = display.snapshot();
+    const point = { x: event.clientX, y: event.clientY };
+    if (snap.mode !== "map" || !pointInRect(point, mapProjection(snap))) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    setMapView(zoomMapAt(snap, event.deltaY < 0 ? 1 : -1, point));
+  };
+  const down = (event) => {
+    if (event.button === 0 && display.snapshot().mode === "map" && pointInRect({ x: event.clientX, y: event.clientY }, mapProjection(display.snapshot()))) drag = { x: event.clientX, y: event.clientY };
+  };
+  const move = (event) => {
+    if (!drag) return;
+    const snap = display.snapshot();
+    if (snap.mode !== "map") {
+      drag = null;
+      return;
+    }
+    const rect = mapProjection(snap);
+    if (!rect) return;
+    const dx = Math.trunc((event.clientX - drag.x) * snap.viewport.size.width / rect.width);
+    const dy = Math.trunc((event.clientY - drag.y) * snap.viewport.size.height / rect.height);
+    if (!dx && !dy) return;
+    setMapView({ origin: clampOrigin(snap, { x: snap.viewport.origin.x - dx, y: snap.viewport.origin.y - dy }), size: snap.viewport.size });
+    drag = { x: event.clientX, y: event.clientY };
+    event.preventDefault();
+  };
+  const up = () => {
+    drag = null;
+  };
+  const offKey = display.onKey((event) => {
+    const snap = display.snapshot();
+    if (snap.mode === "play" && event.key === "M" && !event.ctrlKey && !event.altKey && !event.metaKey) {
+      playView = snap.viewport;
+      return;
+    }
+    if (ctx.flags["anybandui.zoom"] || ctx.flags["anybandui.enlargedDisplay"]) return;
+    if (snap.mode !== "map" || !event.ctrlKey || event.altKey || event.metaKey) return;
+    const key = event.key;
+    const dx = key === "ArrowLeft" ? -2 : key === "ArrowRight" ? 2 : 0;
+    const dy = key === "ArrowUp" ? -2 : key === "ArrowDown" ? 2 : 0;
+    if (dx || dy) setMapView({ origin: clampOrigin(snap, { x: snap.viewport.origin.x + dx, y: snap.viewport.origin.y + dy }), size: snap.viewport.size });
+    else if (key === "=" || key === "+" || key === "-" || key === "_") {
+      const rect = mapProjection(snap);
+      const at = rect ? { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 } : { x: 0, y: 0 };
+      setMapView(zoomMapAt(snap, key === "-" || key === "_" ? -1 : 1, at));
+    } else return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  });
+  window.addEventListener("wheel", wheel, { capture: true, passive: false });
+  window.addEventListener("pointerdown", down, true);
+  window.addEventListener("pointermove", move, true);
+  window.addEventListener("pointerup", up, true);
+  const timer2 = setInterval(update, 150);
+  return () => {
+    stopTheme2();
+    clearInterval(timer2);
+    offKey();
+    strip.remove();
+    toggle.remove();
+    overlay.remove();
+    restoreDisplay();
+    window.removeEventListener("wheel", wheel, true);
+    window.removeEventListener("pointerdown", down, true);
+    window.removeEventListener("pointermove", move, true);
+    window.removeEventListener("pointerup", up, true);
+  };
+}
+
+// src/panels/item-comparison.ts
+var METRICS = [["speed", "Speed", 1], ["ac", "Armour", 1], ["toH", "To hit", 1], ["toD", "To damage", 1], ["blows", "Blows", 100], ["shots", "Shots", 10], ["maxHp", "Max HP", 1], ["maxSp", "Max SP", 1], ["totalWeight", "Weight", 10]];
+var tip = "Whole-character preview. The replaced item stays in your pack; an item from outside your belongings adds its weight.";
+function readableFlag(flag) {
+  const words2 = flag.replace(/^(OF|OBJ_MOD|ELEM)_/, "").replaceAll("_", " ").toLowerCase();
+  return words2.charAt(0).toUpperCase() + words2.slice(1);
+}
+function el(parent, tag, value2) {
+  const node2 = parent.ownerDocument.createElement(tag);
+  if (value2 !== void 0) node2.textContent = value2;
+  parent.appendChild(node2);
+  return node2;
+}
+function comparisonSummary(sim) {
+  if (!sim || sim.unresolved.length || !sim.placements.length) return null;
+  const parts = [];
+  for (const [key, label2, scale] of METRICS) {
+    if (key === "totalWeight") continue;
+    const delta = sim.after.stats[key] - sim.before.stats[key];
+    if (delta) parts.push(`${label2} ${delta > 0 ? "+" : ""}${delta / scale}`);
+  }
+  for (const [index, name] of ["STR", "INT", "WIS", "DEX", "CON"].entries()) {
+    const before = sim.before.stats.statUse[index], after = sim.after.stats.statUse[index];
+    if (before !== void 0 && after !== void 0 && after !== before) parts.push(`${name} ${after > before ? "+" : ""}${after - before}`);
+  }
+  return parts.length ? `If worn: ${parts.join(", ")}` : "If worn: no change to known stats";
+}
+function slotOptionLabel(name, displaced) {
+  const slot = name ? name.charAt(0).toUpperCase() + name.slice(1) : "Slot";
+  return `${slot}: ${displaced ?? "empty"}`;
+}
+function renderItemComparison(parent, sim, unchanged, toggle, choice) {
+  if (sim.unresolved.length) return;
+  const details = el(parent, "details");
+  details.open = true;
+  el(details, "summary", "Equipment comparison");
+  if (!sim.placements.length) {
+    el(details, "p", "No compatible equipment slot.");
+    return;
+  }
+  if (choice && choice.options.length > 1) {
+    const label2 = el(details, "label", "Replace slot ");
+    const select = el(label2, "select");
+    for (const option of choice.options) {
+      const entry2 = el(select, "option", option.label);
+      entry2.value = String(option.slot);
+      entry2.selected = option.slot === choice.chosen;
+    }
+    select.addEventListener("change", () => choice.choose(Number(select.value)));
+  }
+  const placement = (choice ? sim.placements.find((entry2) => entry2.slot === choice.chosen) : void 0) ?? sim.placements[0];
+  el(details, "p", `Replacing: ${placement.displaced?.label ?? "empty slot"}`);
+  el(details, "p", "Known properties only; unidentified effects may differ.");
+  const checkbox = el(details, "input");
+  checkbox.type = "checkbox";
+  checkbox.checked = unchanged;
+  checkbox.addEventListener("change", () => toggle(checkbox.checked));
+  el(details, "span", " Show unchanged stats");
+  const table = el(details, "table");
+  const head = el(table, "tr");
+  for (const label2 of ["Stat", "Current", "Selected", "Change"]) el(head, "th", label2);
+  for (const [key, label2, scale] of METRICS) {
+    const before = sim.before.stats[key];
+    const after = sim.after.stats[key];
+    const delta = after - before;
+    if (!unchanged && !delta && !["speed", "ac", "blows"].includes(key)) continue;
+    const row = el(table, "tr");
+    const name = el(row, "td", label2);
+    name.title = tip;
+    el(row, "td", String(before / scale));
+    el(row, "td", String(after / scale));
+    const change = el(row, "td", delta ? `${delta > 0 ? "+" : ""}${delta / scale}` : "-");
+    change.className = delta === 0 ? "muted" : key === "totalWeight" ? delta < 0 ? "gain" : "loss" : delta > 0 ? "gain" : "loss";
+  }
+  for (const [index, name] of ["STR", "INT", "WIS", "DEX", "CON"].entries()) {
+    const before = sim.before.stats.statUse[index], after = sim.after.stats.statUse[index];
+    if (before === void 0 || after === void 0 || !unchanged && before === after) continue;
+    const row = el(table, "tr");
+    for (const value2 of [name, String(before), String(after), after === before ? "-" : `${after > before ? "+" : ""}${after - before}`]) el(row, "td", value2);
+  }
+  el(details, "h4", "Resistances and abilities");
+  sim.after.stats.resists.forEach((after, index) => {
+    const before = sim.before.stats.resists[index] ?? 0;
+    if (unchanged || after !== before) el(details, "div", `${sim.after.stats.resistElements[index] ?? `Element ${index + 1}`}: ${before} to ${after}`);
+  });
+  for (const flag of /* @__PURE__ */ new Set([...sim.before.stats.objectFlags, ...sim.after.stats.objectFlags])) {
+    const before = sim.before.stats.objectFlags.includes(flag), after = sim.after.stats.objectFlags.includes(flag);
+    if (unchanged || before !== after) el(details, "div", `${readableFlag(flag)}: ${before ? "Yes" : "No"} to ${after ? "Yes" : "No"}`);
+  }
+}
+
+// src/hover-cards.ts
+function hoverGrid(snapshot, point) {
+  const rect = mapProjection(snapshot);
+  if (!pointInRect(point, rect) || !rect) return null;
+  const col = Math.floor((point.x - rect.x) * snapshot.viewport.size.width / rect.width);
+  const row = Math.floor((point.y - rect.y) * snapshot.viewport.size.height / rect.height);
+  if (col < 0 || row < 0 || col >= snapshot.viewport.size.width || row >= snapshot.viewport.size.height) return null;
+  return { x: snapshot.viewport.origin.x + col, y: snapshot.viewport.origin.y + row };
+}
+function snapLandmark(snapshot, point, cells) {
+  const rect = mapProjection(snapshot);
+  if (!rect) return null;
+  const cellW = rect.width / snapshot.viewport.size.width, cellH = rect.height / snapshot.viewport.size.height;
+  let nearest = 64;
+  let chosen = null;
+  for (const cell2 of cells) {
+    if (!landmarkKind(featureCode(cell2))) continue;
+    const x = rect.x + (cell2.x - snapshot.viewport.origin.x + 0.5) * cellW;
+    const y = rect.y + (cell2.y - snapshot.viewport.origin.y + 0.5) * cellH;
+    const distance = (x - point.x) ** 2 + (y - point.y) ** 2;
+    if (distance < nearest) {
+      nearest = distance;
+      chosen = { x: cell2.x, y: cell2.y };
+    }
+  }
+  return chosen;
+}
+var NO_BATTLES = "No battles to the death are recalled.";
+var RECALL_LIMIT = 90;
+function recallLine(recall) {
+  const body = recall?.text.split("\n").slice(1).join(" ").replace(/\s+/g, " ").trim();
+  if (!body) return null;
+  const sentences = body.split(/(?<=[.!?])\s+/).filter((sentence2) => sentence2 && sentence2 !== NO_BATTLES);
+  const first = sentences[0];
+  if (!first) return null;
+  if (first.length <= RECALL_LIMIT) return first;
+  const cut = first.slice(0, RECALL_LIMIT - 3);
+  return `${cut.slice(0, Math.max(cut.lastIndexOf(" "), 1)).replace(/[,;:]$/, "")}...`;
+}
+function creatureRecall(ctx, grid) {
+  if (!ctx.inspect?.monsterRecall || !ctx.snapshot) return null;
+  try {
+    const monster = viewMonsters(viewInput(ctx))?.find((entry2) => entry2.visible && entry2.grid.x === grid.x && entry2.grid.y === grid.y);
+    return recallLine(visibleCreatureRecall(ctx.inspect, monster));
+  } catch {
+    return null;
+  }
+}
+function visibleCreatureRecall(inspect, monster) {
+  if (!monster?.visible) return null;
+  try {
+    return inspect?.monsterRecall?.(monster.raceIndex) ?? null;
+  } catch {
+    return null;
+  }
+}
+function gameWornLine(game, object) {
+  try {
+    return comparisonSummary(simulateLoadout(game, { wield: [{ from: "object", object }] }));
+  } catch {
+    return null;
+  }
+}
+function gameCard(game, grid, map, recall, pickupPreview = false) {
+  const look = lookAt(game, grid);
+  const text = look?.text?.trim();
+  if (!look || !text) return null;
+  const at = playerGrid(game);
+  const self = at?.x === grid.x && at?.y === grid.y;
+  const hallucinating = playerHallucinating(game);
+  const pile = hallucinating ? [] : rememberedPile(game, grid);
+  const kind = self ? "You are here" : look.creature ? "Creature" : pile.length > 0 ? "Items" : "Terrain";
+  const lines = [`${map ? `(${grid.x}, ${grid.y}) - ` : ""}${kind}`, text];
+  if (hallucinating) {
+    lines.push("Appearance unreliable (hallucinating)");
+    return lines.join("\n");
+  }
+  const own = self ? playerHitPoints(game) : null;
+  const hp = own ? own.hp : look.hp;
+  const max = own ? own.maxHp : look.maxHp;
+  if (typeof hp === "number" && typeof max === "number" && max > 0) {
+    const count = Math.max(0, Math.min(10, Math.round(10 * hp / max)));
+    lines.push(`[${"#".repeat(count)}${"-".repeat(10 - count)}]`);
+  }
+  if (!self && look.creature && recall) lines.push(recall);
+  const timed = self ? playerTimedEffects(game) : null;
+  if (timed) {
+    const statuses = timed.map((name) => name.toLowerCase().replaceAll("_", " "));
+    if (statuses.length) lines.push(`Statuses: ${statuses.join(", ")}`);
+  }
+  const terrain = apparentTerrain(game, grid);
+  if (terrain) lines.push(`Terrain: ${terrain}`);
+  const visible = gridInView(game, grid);
+  for (const entry2 of pile.slice(0, 5)) {
+    const name = entry2.sensed || !entry2.obj ? null : describeObject(game, entry2.obj);
+    lines.push(name === null ? "Remembered item" : `${visible ? "Ground" : "Remembered"}: ${name}`);
+    const worn = pickupPreview && (visible || self) && !entry2.sensed && entry2.obj ? gameWornLine(game, entry2.obj) : null;
+    if (worn) lines.push(`  ${worn}`);
+  }
+  if (pile.length > 5) lines.push("More items; use Look");
+  return lines.join("\n");
+}
+function installHoverCards(ctx) {
+  if (!ctx.flags["anybandui.mapHoverCards"] && !ctx.flags["anybandui.dungeonHoverCards"]) return () => {
+  };
+  if (!offers(ctx, ["describeLookGrid"]) || !ctx.display || typeof document === "undefined" || typeof window === "undefined") {
+    ctx.log?.("hover cards: look or display API unavailable");
+    return () => {
+    };
+  }
+  const display = ctx.display;
+  const settings = validateSettings(ctx.prefs?.get());
+  let theme = themeFromPrefs(ctx.prefs?.get());
+  const card = document.createElement("div");
+  card.setAttribute("role", "tooltip");
+  card.style.cssText = `position:fixed;z-index:1000;display:none;pointer-events:none;white-space:pre-wrap;max-width:320px;padding:8px 10px;border:1px solid ${paintColours(theme).border};border-radius:${Math.round(theme.rounding * 0.6)}px;background:${theme.surface};color:${theme.text};font:${PAINT_FONT_SIZE}px/${PAINT_LINE_HEIGHT}px ${PAINT_FONT};box-shadow:0 4px 16px #0008`;
+  const paintCard = () => {
+    const colours2 = paintColours(theme);
+    card.style.background = theme.surface;
+    card.style.color = theme.text;
+    card.style.border = `1px solid ${colours2.border}`;
+    card.style.borderRadius = `${Math.round(theme.rounding * 0.6)}px`;
+  };
+  const stopTheme2 = onThemeChange((next) => {
+    theme = next;
+    paintCard();
+  });
+  const preview = document.createElement("canvas");
+  preview.width = 64;
+  preview.height = 64;
+  preview.style.cssText = "display:none;width:64px;height:64px;float:right;margin:0 0 4px 8px;image-rendering:pixelated";
+  const body = document.createElement("span");
+  card.append(preview, body);
+  document.body.appendChild(card);
+  let timer2 = null;
+  let key = "";
+  let pinned = false;
+  let holdId = null;
+  let down = null;
+  let known = null;
+  let mapWasOpen = false;
+  const cancel = () => {
+    if (timer2) clearTimeout(timer2);
+    timer2 = null;
+  };
+  const hide = () => {
+    cancel();
+    card.style.display = "none";
+    key = "";
+    pinned = false;
+  };
+  const resolve2 = (point) => {
+    const input = viewInput(ctx);
+    if (ctx.snapshot && (!input || input.phase !== "play" || input.messagePending || input.prompt)) return null;
+    const snap = display.snapshot();
+    const map = snap.mode === "map";
+    if (!pointInRect(point, mapProjection(snap))) return null;
+    if (!map) {
+      known = null;
+      mapWasOpen = false;
+    } else if (!mapWasOpen) {
+      mapWasOpen = true;
+      try {
+        known = viewLevel(ctx);
+      } catch {
+        known = null;
+      }
+    }
+    if (map ? !ctx.flags["anybandui.mapHoverCards"] : snap.mode !== "play" || !ctx.flags["anybandui.dungeonHoverCards"]) return null;
+    const grid = map && known ? snapLandmark(snap, point, known.cells) ?? hoverGrid(snap, point) : hoverGrid(snap, point);
+    if (!grid || grid.x >= snap.level.width || grid.y >= snap.level.height) return null;
+    return { grid, map };
+  };
+  const show = (point, grid, map) => {
+    const current = resolve2(point);
+    if (!current || current.grid.x !== grid.x || current.grid.y !== grid.y || current.map !== map) {
+      hide();
+      return;
+    }
+    if (!hasLiveState(ctx)) return;
+    const content = gameCard(ctx, grid, map, map ? null : creatureRecall(ctx, grid), !map && ctx.flags["anybandui.itemsPickupPreview"] === true);
+    if (!content) return;
+    body.textContent = content;
+    preview.style.display = paintPreview(display.snapshot(), grid, map, preview) ? "block" : "none";
+    card.style.display = "block";
+    card.style.left = `${Math.max(0, Math.min(window.innerWidth - card.offsetWidth, point.x + 14))}px`;
+    card.style.top = `${Math.max(0, Math.min(window.innerHeight - card.offsetHeight, point.y + 14))}px`;
+  };
+  const onMove = (event) => {
+    const point = { x: event.clientX, y: event.clientY };
+    if (event.pointerType === "mouse" && event.buttons) {
+      if (!pinned) hide();
+      return;
+    }
+    if (holdId === event.pointerId && down && Math.hypot(point.x - down.x, point.y - down.y) > 8) {
+      holdId = null;
+      cancel();
+    }
+    if (event.pointerType === "touch" || pinned) return;
+    const resolved = resolve2(point);
+    const next = resolved ? `${resolved.map}:${resolved.grid.x},${resolved.grid.y}` : "";
+    if (next === key) return;
+    hide();
+    if (!resolved) return;
+    key = next;
+    timer2 = setTimeout(() => {
+      if (key === next) show(point, resolved.grid, resolved.map);
+    }, settings.hoverDelayMs);
+  };
+  const onDown = (event) => {
+    hide();
+    if (event.pointerType !== "touch" && event.pointerType !== "pen") return;
+    const point = { x: event.clientX, y: event.clientY };
+    const resolved = resolve2(point);
+    if (!resolved) return;
+    if (resolved.map) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }
+    down = point;
+    holdId = event.pointerId;
+    timer2 = setTimeout(() => {
+      if (holdId === event.pointerId) {
+        show(point, resolved.grid, resolved.map);
+        pinned = true;
+      }
+    }, 1e3);
+  };
+  const onUp = (event) => {
+    if (holdId === event.pointerId) {
+      holdId = null;
+      cancel();
+    }
+  };
+  const onKey = () => hide();
+  const onBlur = () => hide();
+  document.addEventListener("pointermove", onMove);
+  window.addEventListener("pointerdown", onDown, true);
+  document.addEventListener("pointerup", onUp);
+  document.addEventListener("pointercancel", onUp);
+  document.addEventListener("keydown", onKey);
+  window.addEventListener("blur", onBlur);
+  return () => {
+    stopTheme2();
+    hide();
+    card.remove();
+    document.removeEventListener("pointermove", onMove);
+    window.removeEventListener("pointerdown", onDown, true);
+    document.removeEventListener("pointerup", onUp);
+    document.removeEventListener("pointercancel", onUp);
+    document.removeEventListener("keydown", onKey);
+    window.removeEventListener("blur", onBlur);
+  };
+}
+function paintPreview(snapshot, grid, map, preview) {
+  const graphics = map ? Array.from(document.querySelectorAll('body > canvas[aria-hidden="true"]')).find((canvas) => canvas.style.zIndex === "1") : null;
+  const source = graphics ?? document.getElementById("game");
+  if (!(source instanceof HTMLCanvasElement)) return false;
+  const projection = mapProjection(snapshot);
+  if (!projection || !projection.width || !projection.height) return false;
+  const cellW = projection.width / snapshot.viewport.size.width;
+  const cellH = projection.height / snapshot.viewport.size.height;
+  const x = projection.x + (grid.x - snapshot.viewport.origin.x) * cellW;
+  const y = projection.y + (grid.y - snapshot.viewport.origin.y) * cellH;
+  const sourceRect = source.getBoundingClientRect();
+  if (!sourceRect.width || !sourceRect.height) return false;
+  const ctx = preview.getContext("2d");
+  if (!ctx) return false;
+  try {
+    ctx.clearRect(0, 0, 64, 64);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(
+      source,
+      (x - sourceRect.left) * source.width / sourceRect.width,
+      (y - sourceRect.top) * source.height / sourceRect.height,
+      cellW * source.width / sourceRect.width,
+      cellH * source.height / sourceRect.height,
+      0,
+      0,
+      64,
+      64
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// src/view-model/adapter.ts
+function entry(frame, key) {
+  return frame?.sidebar?.entries.find((item) => item.key === key) ?? frame?.status.entries.find((item) => item.key === key);
+}
+function value(frame, key, field) {
+  return entry(frame, key)?.values?.[field];
+}
+function label(frame, key) {
+  const item = entry(frame, key);
+  if (!item || item.runs.length === 0) return void 0;
+  return item.runs.map((run2) => run2.text).join("").trim();
+}
+function feelingIndices(frame) {
+  const values = entry(frame, "level_feeling")?.values;
+  if (values?.object === void 0 || values.monster === void 0 || values.squares === void 0 || values.need === void 0) return void 0;
+  return {
+    object: values.object,
+    monster: values.monster,
+    squares: values.squares,
+    need: values.need
+  };
+}
+function statPayload(source, frame) {
+  return ["STR", "INT", "WIS", "DEX", "CON"].map((name, index) => {
+    const key = name.toLowerCase();
+    const current = value(frame, key, "cur");
+    const maximum2 = value(frame, key, "max");
+    return {
+      label: name,
+      value: value(frame, key, "use") ?? source.stats[index] ?? 0,
+      drained: current === void 0 || maximum2 === void 0 ? void 0 : current < maximum2
+    };
+  });
+}
+function badgePayload(source, frame) {
+  const status = source.status;
+  const aliases = {
+    haste: "fast",
+    "paralyzed!": "paralyzed",
+    graze: "cut",
+    "light cut": "cut",
+    "bad cut": "cut",
+    "nasty cut": "cut",
+    "severe cut": "cut",
+    "deep gash": "cut",
+    "mortal wound": "cut",
+    "stunned": "stun",
+    "heavy stun": "stun",
+    "knocked out": "stun",
+    protevil: "protEvil",
+    berserk: "shero",
+    blssd: "blessed",
+    racid: "resAcid",
+    relec: "resElec",
+    rfire: "resFire",
+    rcold: "resCold",
+    rpois: "resPois",
+    stone: "stoneskin",
+    fastcast: "fastcast",
+    fed: "food",
+    full: "food",
+    hungry: "food",
+    weak: "food",
+    faint: "food",
+    starving: "food"
+  };
+  const result = [];
+  for (const run2 of entry(frame, "tmd")?.runs ?? []) {
+    const text = run2.text.trim();
+    if (!text || /^\d+\s*%$/.test(text)) continue;
+    const key = aliases[text.toLowerCase()] ?? text.toLowerCase().replace(/[^a-z]/g, "");
+    result.push({
+      label: text,
+      name: void 0,
+      visible: true,
+      priority: void 0,
+      kind: void 0,
+      duration: status[key],
+      description: void 0
+    });
+  }
+  return result;
+}
+function trackedPayload(view, frame) {
+  const target = view.target();
+  if (target === null || target.midx <= 0) return void 0;
+  if (view.knownWorld) {
+    const world = view.knownWorld();
+    const monster2 = world.monsters?.find((item) => item.id === world.target?.monster);
+    if (!monster2?.visible) return { id: target.midx, visible: false, name: "", hp: void 0, max_hp: void 0 };
+    const { glyph, look, status, blows, knownSpells, spellFrequency, innateFrequency, knownFlags } = monster2;
+    const recall = visibleCreatureRecall(view, monster2)?.text;
+    return {
+      id: target.midx,
+      visible: true,
+      name: monster2.race,
+      hp: void 0,
+      max_hp: void 0,
+      known: { ...glyph === void 0 ? {} : { glyph }, look, status, blows, knownSpells, spellFrequency, innateFrequency, knownFlags },
+      ...recall ? { recall } : {}
+    };
+  }
+  const monster = view.monsters().find((item) => item.id === target.midx);
+  if (!monster) return void 0;
+  return {
+    visible: monster.visible,
+    name: monster.race,
+    hp: value(frame, "health", "current"),
+    max_hp: value(frame, "health", "max")
+  };
+}
+function playerPayload(view, frame, input) {
+  const source = view.player();
+  const experience = value(frame, "exp", "exp") ?? source.exp;
+  const advance = value(frame, "exp", "advance");
+  const state = label(frame, "state") ?? "";
+  const moves = label(frame, "moves");
+  return {
+    name: input.name,
+    race: label(frame, "race") ?? source.race,
+    class: label(frame, "class") ?? source.cls,
+    title: label(frame, "title"),
+    hp: value(frame, "hp", "current") ?? source.hp,
+    max_hp: value(frame, "hp", "max") ?? source.maxHp,
+    sp: value(frame, "sp", "current") ?? source.sp,
+    max_sp: value(frame, "sp", "max") ?? source.maxSp,
+    food: source.status.food,
+    food_max: input.foodMax,
+    experience,
+    max_experience: value(frame, "exp", "maxExp") ?? source.maxExp,
+    level_start_experience: input.levelStartExperience,
+    next_level_experience: advance === void 0 ? void 0 : advance === 0 ? 0 : experience + advance,
+    level: value(frame, "level", "level") ?? source.level,
+    max_level: value(frame, "level", "maxLevel") ?? source.maxLevel,
+    stats: statPayload(source, frame),
+    gold: value(frame, "gold", "au") ?? source.gold,
+    armour: value(frame, "ac", "ac") ?? source.ac,
+    speed: value(frame, "speed", "speed") ?? source.speed,
+    extra_moves: input.extraMoves ?? (moves ? Number(moves.match(/[+-]\d+/)?.[0]) : void 0),
+    tracked_creature: trackedPayload(view, frame),
+    depth: value(frame, "depth", "depth") ?? source.depth,
+    depth_feet: value(frame, "depth", "feet") ?? source.depth * 50,
+    light: Number(label(frame, "light")?.match(/-?\d+/)?.[0] ?? source.light),
+    feeling: label(frame, "level_feeling"),
+    feeling_indices: feelingIndices(frame),
+    feeling_description: void 0,
+    floor: label(frame, "terrain"),
+    trap_detected: Boolean(label(frame, "dtrap")),
+    recall: input.recall ?? (label(frame, "recall") ? true : void 0),
+    descent: input.descent ?? (label(frame, "descent") ? true : void 0),
+    resting: input.resting ?? state.startsWith("Rest"),
+    running: input.running,
+    repeat: input.repeat ?? (state.startsWith("Repeat") ? Number(state.match(/\d+/)?.[0]) : void 0),
+    unignoring: input.unignoring ?? (label(frame, "unignore") ? true : void 0),
+    statuses: badgePayload(source, frame),
+    study: input.study ?? Number(label(frame, "study")?.match(/\d+/)?.[0] ?? 0)
+  };
+}
+function messagePayload(input) {
+  return (input.history ?? []).map((item) => ({
+    text: item.text,
+    count: item.count,
+    system: void 0,
+    category: item.category,
+    group: void 0,
+    color: item.color
+  }));
+}
+function dungeonPayload(player) {
+  return {
+    depth: player.depth,
+    depth_feet: player.depth_feet,
+    light: player.light,
+    feeling: player.feeling,
+    feeling_indices: player.feeling_indices,
+    feeling_description: player.feeling_description,
+    floor: player.floor
+  };
+}
+function adapt(view, frame, input = {}) {
+  const player = playerPayload(view, frame, input);
+  return {
+    player,
+    dungeon: dungeonPayload(player),
+    messages: messagePayload(input),
+    message_pending: input.messagePending
+  };
+}
+
+// src/input-owner.ts
+var PLAYER = Object.freeze({ kind: "player" });
+function currentDriver(ctx) {
+  const read = ctx?.driver;
+  const driver = typeof read === "function" ? read() : void 0;
+  return driver?.kind === "controller" && typeof driver.owner === "string" ? driver : PLAYER;
+}
+function playerIsDriving(ctx) {
+  return currentDriver(ctx).kind === "player";
+}
+
+// src/view-model/source.ts
+var MATCH_WINDOW = 8;
+function messageHistory(entries, log, hostLog) {
+  if (hostLog) {
+    const core2 = log === void 0 ? [] : Array.from({ length: log.num() }, (_, age) => ({
+      text: log.str(age),
+      category: log.type(age)
+    }));
+    const history2 = [];
+    let next2 = 0;
+    for (let index = hostLog.length - 1; index >= 0; index--) {
+      const entry2 = hostLog[index];
+      let category;
+      let found = -1;
+      for (let age = next2; age < Math.min(core2.length, next2 + MATCH_WINDOW); age++) {
+        if (core2[age].text === entry2.text) {
+          found = age;
+          break;
+        }
+      }
+      if (found >= 0) {
+        category = core2[found].category;
+        next2 = found + 1;
+      }
+      history2.push({ text: entry2.text, count: entry2.count, category, color: entry2.color });
+    }
+    return history2;
+  }
+  const core = log === void 0 ? [] : Array.from({ length: log.num() }, (_, age) => ({
+    text: log.str(age),
+    count: log.count(age),
+    category: log.type(age),
+    color: void 0
+  }));
+  if (!entries) return core;
+  const history = [];
+  let next = 0;
+  for (let index = entries.length - 1; index >= 0; index--) {
+    const text = entries[index];
+    let found = -1;
+    for (let age = next; age < Math.min(core.length, next + MATCH_WINDOW); age++) {
+      if (core[age].text === text) {
+        found = age;
+        break;
+      }
+    }
+    if (found < 0) {
+      history.push({ text, count: void 0, category: void 0, color: void 0 });
+      continue;
+    }
+    const foundEntry = core[found];
+    history.push({ text: foundEntry.text, count: foundEntry.count, category: foundEntry.category, color: void 0 });
+    next = found + 1;
+  }
+  return history;
+}
+function messagePending(snap) {
+  if (!snap) return void 0;
+  if (snap.prompt?.kind === "ack" && snap.prompt.tag === "more") return true;
+  if (snap.phase === null || snap.phase === void 0) return void 0;
+  return snap.messagePending === true;
+}
+function createSource(ctx) {
+  let latest;
+  let lastCreature;
+  let lastLevel;
+  const present = (_section, frame) => {
+    latest = frame;
+  };
+  const read = () => {
+    try {
+      return viewInput(ctx);
+    } catch {
+      return null;
+    }
+  };
+  const acknowledge = () => {
+    if (!ctx.prompt || !playerIsDriving(ctx)) return false;
+    const prompt = read()?.prompt;
+    if (prompt?.kind !== "ack" || prompt.tag !== "more") return false;
+    return ctx.prompt.reply(prompt.promptId, { action: "acknowledge" }).accepted;
+  };
+  return {
+    hud: { sidebar: { present }, messages: { present }, status: { present } },
+    ...ctx.prompt ? { acknowledge } : {},
+    snapshot(options = {}) {
+      if (!hasLiveState(ctx)) return void 0;
+      const snap = options.messages ? read() : null;
+      const pending = messagePending(snap);
+      const live = liveHud(ctx);
+      const model = adapt(live.view, latest, {
+        name: live.name,
+        history: messageHistory(snap?.messages?.entries, live.messages, snap?.messages?.log),
+        study: live.study,
+        repeat: live.repeat,
+        resting: live.resting,
+        running: live.running,
+        unignoring: live.unignoring,
+        recall: live.recall,
+        descent: live.descent,
+        extraMoves: live.extraMoves,
+        ...pending === void 0 ? {} : { messagePending: pending }
+      });
+      if (lastLevel !== live.level) lastCreature = void 0;
+      lastLevel = live.level;
+      const target = model.player.tracked_creature;
+      if (target && !target.visible && target.id !== void 0 && target.id === lastCreature?.id) {
+        model.player.tracked_creature = { ...lastCreature, visible: false };
+      }
+      lastCreature = model.player.tracked_creature;
+      return model;
+    }
+  };
+}
+
+// src/panels/panel-host.ts
+var HOST_CSS = `:host{position:fixed;display:none;z-index:50;box-sizing:border-box;color:var(--anyband-text);font:var(--anyband-font-size)/var(--anyband-line) var(--anyband-font)}`;
+var PANEL_CSS = `
+*{box-sizing:border-box}.surface{width:100%;height:100%;overflow:auto;background:var(--anyband-surface);border:1px solid var(--anyband-accent);border-radius:var(--anyband-rounding);padding:5px}
+.group{min-height:0;overflow:auto}.heading{color:var(--anyband-accent);font-weight:700;border-bottom:1px solid var(--anyband-accent);margin:0 0 4px;padding-bottom:2px}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}.metric-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}
+.metric{text-align:center;border:1px solid var(--anyband-accent);border-radius:3px;padding:2px;min-width:0}.metric b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar{height:6px;background:var(--anyband-background);border:1px solid var(--anyband-accent);margin-top:2px}.fill{height:100%}.stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));text-align:center}.drained{opacity:.55}
+.badges{display:flex;flex-wrap:wrap;gap:4px}.badge{border:1px solid currentColor;border-left-width:2px;padding:2px 5px;border-radius:3px}
+.muted{opacity:.55}.messages{overflow:auto;max-height:min(24em,50vh)}.message{white-space:pre-wrap}.message .body{white-space:inherit}.ribbon{color:#f5bc5a;border:1px solid #f5bc5a;padding:2px 5px;pointer-events:none}
+.creature-name,.creature-facts{overflow-wrap:anywhere}.creature-glyph{font-weight:700}.creature-section{margin-top:4px;border-top:1px solid var(--anyband-accent)}
+.creature-section summary{cursor:pointer;color:var(--anyband-accent)}.creature-facts{max-height:7em;overflow:auto;white-space:pre-wrap;padding:2px 0}
+.creature-section summary:focus-visible,.creature-facts:focus-visible{outline:2px solid var(--anyband-accent);outline-offset:-2px}
+.messages-filter{width:100%;background:var(--anyband-background);color:var(--anyband-text);border:1px solid var(--anyband-accent)}
+.pause{display:inline-flex;align-items:flex-end;gap:2px;height:1em;vertical-align:middle}.pause i,.pause b{display:inline-block;background:currentColor;font-style:normal;font-weight:normal}
+.pause i{width:.13em;height:.7em}.pause b{width:.16em;height:.16em;border-radius:50%;animation:anyband-breathe 1.1s ease-in-out infinite}
+.pause b:nth-child(4){animation-delay:.15s}.pause b:nth-child(5){animation-delay:.3s}
+@keyframes anyband-breathe{0%,100%{opacity:.35}50%{opacity:1}}
+.pause.still b{animation:none;opacity:.8}@media (prefers-reduced-motion:reduce){.pause b{animation:none;opacity:.8}}
+.sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.cut{flex:none;margin-left:.25em}
+.tip{display:none;position:absolute;z-index:2;max-width:26em;white-space:pre-wrap;pointer-events:none;background:var(--anyband-background);color:var(--anyband-text);border:1px solid var(--anyband-accent);border-radius:3px;padding:6px}
+input{width:100%;background:var(--anyband-background);color:var(--anyband-text);border:1px solid var(--anyband-accent)}
+.compact{display:flex;align-items:center;gap:10px;overflow:hidden;white-space:nowrap;padding:0 5px}.compact .group{display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden}.compact .group:empty{display:none}
+.compact .heading,.compact input,.compact .messages-filter{display:none}.compact .badges{flex-wrap:nowrap}.compact .badge{padding:0 4px}.compact .grid,.compact .metric-grid{display:flex;gap:8px}
+.compact .metric{border:0;padding:0;display:flex;gap:3px}.compact .metric b{display:inline}.compact .messages{overflow:hidden;max-height:none;min-width:0}
+.compact .message{display:flex;align-items:baseline;overflow:hidden;white-space:nowrap;min-width:0}.compact .message .body{overflow:hidden;white-space:nowrap;min-width:0;flex:1}
+.compact .message~.message{display:none}.compact .ribbon{width:auto!important;flex:none}
+`;
+var COMPACT_ROWS = 3;
+var CSS = `${HOST_CSS}${PANEL_CSS}`;
+var panelHosts = /* @__PURE__ */ new Set();
+var panelVisualFilter = null;
+function setPanelHostVisualFilter(filter) {
+  panelVisualFilter = filter;
+  for (const host of panelHosts) host.style.filter = filter ?? "";
+}
+function node(parent, tag, className = "", value2) {
+  const child = parent.ownerDocument.createElement(tag);
+  child.className = className;
+  if (value2 !== void 0) child.textContent = value2;
+  parent.appendChild(child);
+  return child;
+}
+function fraction(current, maximum2) {
+  return maximum2 > 0 ? Math.max(0, Math.min(1, current / maximum2)) : 0;
+}
+function meter(parent, label2, value2, amount, colour, tip2) {
+  const cell2 = node(parent, "div", "meter");
+  node(cell2, "span", "", label2);
+  node(cell2, "span", "", ` ${value2}`);
+  const track = node(cell2, "div", "bar");
+  const fill = node(track, "div", "fill");
+  fill.style.width = `${Math.round(amount * 100)}%`;
+  fill.style.backgroundColor = colour;
+  if (tip2) cell2.dataset.tip = tip2;
+}
+function intersects(a, b) {
+  return a.col < b.col + b.cols && b.col < a.col + a.cols && a.row < b.row + b.rows && b.row < a.row + a.rows;
+}
+function createPanelContent(surface, panels) {
+  const mounts = panels.map(() => node(surface, "div", "group"));
+  const tip2 = node(surface, "div", "tip");
+  const signatures = [];
+  surface.addEventListener("mouseover", (event) => {
+    const target = event.target;
+    const subject = target instanceof HTMLElement ? target.closest("[data-tip]") : null;
+    tip2.textContent = subject?.dataset.tip ?? "";
+    tip2.style.display = subject ? "block" : "none";
+    if (subject) {
+      tip2.style.left = `${Math.min(subject.offsetLeft, Math.max(0, surface.clientWidth - tip2.offsetWidth))}px`;
+      tip2.style.top = `${Math.min(subject.offsetTop + subject.offsetHeight, Math.max(0, surface.clientHeight - tip2.offsetHeight))}px`;
+    }
+  });
+  surface.addEventListener("mouseleave", () => {
+    tip2.style.display = "none";
+  });
+  return {
+    render(model) {
+      panels.forEach((panel, index) => {
+        const signature = JSON.stringify([surface.className, panel.select(model)]);
+        if (signatures[index] === signature) return;
+        signatures[index] = signature;
+        panel.render(mounts[index], model);
+      });
+    }
+  };
+}
+function createPanelHost(doc, panels, theme) {
+  const element = doc.createElement("div");
+  element.className = "anyband-panel";
+  panelHosts.add(element);
+  element.style.filter = panelVisualFilter ?? "";
+  const shadow = element.attachShadow({ mode: "open" });
+  if (theme) applyTheme(shadow, theme);
+  else applyTheme(shadow);
+  node(shadow, "style", "", CSS);
+  const surface = node(shadow, "div", "surface");
+  const content = createPanelContent(surface, panels);
+  doc.body.appendChild(element);
+  const stopTheme2 = onThemeChange((next) => {
+    if (!element.isConnected) {
+      stopTheme2();
+      return;
+    }
+    applyTheme(shadow, next);
+  });
+  return {
+    element,
+    present(section2, frame, model) {
+      const region = section2.region;
+      const box = region?.pixels;
+      const at = frame.stack?.findIndex((item) => item.id === region?.name) ?? -1;
+      const covered = at >= 0 && frame.stack.slice(at + 1).some((item) => intersects(item.cells, region.cells));
+      if (!box || box.width <= 0 || box.height <= 0 || covered || frame.stack && at < 0) {
+        element.style.display = "none";
+        return;
+      }
+      element.style.display = "block";
+      element.style.left = `${box.x}px`;
+      element.style.top = `${box.y}px`;
+      element.style.width = `${box.width}px`;
+      element.style.height = `${box.height}px`;
+      surface.className = region.cells.rows < COMPACT_ROWS ? "surface compact" : "surface";
+      content.render(model);
+    }
+  };
+}
+
 // src/panels/surface.ts
 var PANE_FILL_CSS = ":host{display:block;height:100%;overflow:auto}section.pane{position:relative;inset:auto;width:auto;max-width:none;height:auto;max-height:none;overflow:visible}";
 function interfaceScale(ctx) {
@@ -3894,19 +4648,87 @@ function renderDriverBadge(mount, driver) {
 }
 
 // src/panels/tracked-creature.ts
+var expanded = /* @__PURE__ */ new WeakMap();
+var words = (code) => code.toLowerCase().replaceAll("_", " ").replace(
+  /\b(elec|pois|conf|disen)\b/g,
+  (word) => ({ elec: "lightning", pois: "poison", conf: "confusion", disen: "disenchantment" })[word]
+);
+var sentence = (text) => text.charAt(0).toUpperCase() + text.slice(1);
+function spellName(code) {
+  const name = words(code.slice(code.indexOf("_") + 1));
+  if (code.startsWith("BR_")) return `Breathe ${name}`;
+  if (code.startsWith("BO_")) return `${sentence(name)} bolt`;
+  if (code.startsWith("BA_")) return `${sentence(name)} ball`;
+  if (code.startsWith("S_")) return `Summon ${name}`;
+  return sentence(words(code));
+}
 function renderTrackedCreature(mount, model) {
+  let state = expanded.get(mount);
+  if (!state) {
+    state = /* @__PURE__ */ new Map();
+    expanded.set(mount, state);
+  }
+  const root = mount.getRootNode?.();
+  const focus = root?.activeElement?.dataset?.["recallSection"];
+  const section2 = (title, lines, open = false) => {
+    if (!lines.length) return;
+    const details = node(mount, "details", "creature-section");
+    details.open = state.get(title) ?? open;
+    const summary = node(details, "summary", "", title);
+    summary.dataset["recallSection"] = title;
+    details.addEventListener("toggle", () => state.set(title, details.open));
+    const body = node(details, "div", "creature-facts");
+    body.tabIndex = 0;
+    body.dataset["recallSection"] = `${title} details`;
+    body.setAttribute("role", "region");
+    body.setAttribute("aria-label", `${title} details`);
+    for (const line of lines) node(body, "div", "", line);
+    if (focus === title) summary.focus();
+    if (focus === `${title} details`) body.focus();
+  };
   mount.replaceChildren();
   node(mount, "div", "heading", "Tracked creature");
   const target = model.player.tracked_creature;
-  if (!target || !target.visible) {
-    node(mount, "div", "muted", target ? "Out of sight" : "No creature tracked");
+  if (!target) {
+    node(mount, "div", "muted", "No creature tracked");
     meter(mount, "HP", "-- / --", 0, "#8f5e1f");
     return;
   }
-  node(mount, "div", "", target.name).dataset.tip = target.name;
+  const known = target.known;
+  const name = node(mount, "div", "creature-name");
+  if (known?.glyph) node(name, "span", "creature-glyph", `${known.glyph} `).setAttribute("aria-hidden", "true");
+  node(name, "span", "", target.name).dataset.tip = target.name;
+  if (!target.visible) node(mount, "div", "", "Out of sight");
+  if (known?.look) node(mount, "div", "", sentence(known.look.split(",")[0]));
+  if (known?.status.length) {
+    const marks = node(mount, "div", "badges");
+    for (const status of known.status) node(marks, "span", "badge", sentence(status));
+  }
   if (target.hp !== void 0 && target.max_hp !== void 0) {
     meter(mount, "HP", `${Math.max(0, target.hp)} / ${target.max_hp}`, fraction(target.hp, target.max_hp), "#8f5e1f");
   }
+  if (known) {
+    section2("Melee", known.blows.map((blow) => {
+      const damage = blow.damage;
+      const dice = damage ? [
+        damage.dice && damage.sides ? `${damage.dice}d${damage.sides}` : "",
+        damage.base || "",
+        damage.mBonus ? `M${damage.mBonus}` : ""
+      ].filter(Boolean).join("+").replace("+-", "-") : "";
+      return `${sentence(words(blow.method))}${blow.effect ? ` - ${words(blow.effect)}` : ""}${dice ? ` (${dice})` : ""}`;
+    }), true);
+    const spells = known.knownSpells.map(spellName);
+    if (spells.length) {
+      for (const [label2, frequency] of [["Spell frequency", known.spellFrequency], ["Innate frequency", known.innateFrequency]]) {
+        if (frequency) spells.push(`${label2}: ${frequency.exact ? "" : "about "}${frequency.percent}%`);
+      }
+    }
+    section2("Spells seen", spells, true);
+    section2("Resistances", known.knownFlags.filter((flag) => /^(IM_|RES_|NO_)/.test(flag)).map((flag) => sentence(words(flag.replace(/^(IM_|RES_|NO_)/, "")))));
+    section2("Vulnerabilities", known.knownFlags.filter((flag) => flag.startsWith("HURT_")).map((flag) => sentence(words(flag.slice(5)))));
+    section2("Known traits", known.knownFlags.filter((flag) => !/^(IM_|RES_|NO_|HURT_)/.test(flag)).map((flag) => sentence(words(flag))));
+  }
+  if (target.recall) section2("Recall", [target.recall.split("\n").slice(1).join("\n").trim()].filter(Boolean));
 }
 
 // src/accessibility.ts
@@ -4276,722 +5098,6 @@ function uninstallFirstEncounter() {
   activePanel = null;
   activeContent = null;
   queue = [];
-}
-
-// src/map-overview.ts
-function mapProjection(snapshot) {
-  if (snapshot.mode === "map" && typeof document !== "undefined") {
-    const graphics = Array.from(document.querySelectorAll('body > canvas[aria-hidden="true"]')).find((canvas) => canvas.style.zIndex === "1");
-    if (graphics) {
-      const rect = graphics.getBoundingClientRect();
-      return { x: rect.left, y: rect.top, width: rect.width, height: rect.height };
-    }
-  }
-  return snapshot.regions.map?.pixels;
-}
-function featureCode(cell2) {
-  const builtIn = [
-    "NONE",
-    "FLOOR",
-    "CLOSED",
-    "OPEN",
-    "BROKEN",
-    "LESS",
-    "MORE",
-    "STORE_GENERAL",
-    "STORE_ARMOR",
-    "STORE_WEAPON",
-    "STORE_BOOK",
-    "STORE_ALCHEMY",
-    "STORE_MAGIC",
-    "STORE_BLACK",
-    "HOME",
-    "SECRET",
-    "RUBBLE",
-    "MAGMA",
-    "QUARTZ",
-    "MAGMA_K",
-    "QUARTZ_K",
-    "GRANITE",
-    "PERM",
-    "LAVA",
-    "PASS_RUBBLE"
-  ];
-  return cell2.remembered.featCode ?? builtIn[cell2.remembered.feat];
-}
-function landmarkKind(code) {
-  if (!code) return null;
-  if (/(?:LESS|STAIR_UP|UP_STAIR)/i.test(code)) return "up";
-  if (/(?:MORE|STAIR_DOWN|DOWN_STAIR)/i.test(code)) return "down";
-  if (/(?:STORE|SHOP)/i.test(code)) return "shop";
-  return null;
-}
-function schematicColour(code) {
-  if (!code) return "#1b2732";
-  if (/(?:WALL|GRANITE|PERM)/i.test(code)) return "#435265";
-  if (/DOOR/i.test(code)) return "#a4774a";
-  return "#263b48";
-}
-function drawMarker(g, x, y, r, kind) {
-  const color = kind === "up" ? "#5fcdff" : kind === "down" ? "#ffc155" : kind === "shop" ? "#da8dff" : "#f5faff";
-  g.fillStyle = "rgba(8,13,20,0.92)";
-  g.beginPath();
-  g.arc(x, y, r + 2, 0, Math.PI * 2);
-  g.fill();
-  g.fillStyle = color;
-  g.beginPath();
-  if (kind === "shop") g.rect(x - r, y - r, 2 * r, 2 * r);
-  else if (kind === "player") {
-    g.moveTo(x, y - r);
-    g.lineTo(x + r, y);
-    g.lineTo(x, y + r);
-    g.lineTo(x - r, y);
-    g.closePath();
-  } else if (kind === "up") {
-    g.moveTo(x, y - r);
-    g.lineTo(x - r, y + r);
-    g.lineTo(x + r, y + r);
-    g.closePath();
-  } else {
-    g.moveTo(x, y + r);
-    g.lineTo(x - r, y - r);
-    g.lineTo(x + r, y - r);
-    g.closePath();
-  }
-  g.fill();
-}
-function fitView(snapshot) {
-  return { origin: { x: 0, y: 0 }, size: { width: snapshot.level.width, height: snapshot.level.height } };
-}
-function zoomMapAt(snapshot, direction, pointer) {
-  const rect = mapProjection(snapshot);
-  const old = snapshot.viewport.size;
-  const width = Math.max(2, Math.min(snapshot.level.width, Math.round(old.width * (direction > 0 ? 0.8 : 1.25))));
-  const height = Math.max(2, Math.min(snapshot.level.height, Math.round(old.height * (direction > 0 ? 0.8 : 1.25))));
-  if (!rect || !pointInRect(pointer, rect)) return { origin: clampOrigin({ ...snapshot, viewport: { ...snapshot.viewport, size: { width, height } } }, snapshot.viewport.origin), size: { width, height } };
-  const fx = (pointer.x - rect.x) / rect.width, fy = (pointer.y - rect.y) / rect.height;
-  const caveX = snapshot.viewport.origin.x + fx * old.width;
-  const caveY = snapshot.viewport.origin.y + fy * old.height;
-  const resized = { ...snapshot, viewport: { ...snapshot.viewport, size: { width, height } } };
-  return { origin: clampOrigin(resized, { x: caveX - fx * width, y: caveY - fy * height }), size: { width, height } };
-}
-function installMapOverview(ctx) {
-  const display = ctx.display;
-  if (!display || !ctx.flags["anybandui.mapOverview"] && !ctx.flags["anybandui.mapSchematic"] && !ctx.flags["anybandui.crispTiles"]) return () => {
-  };
-  let appliedMapView = false;
-  const setMapView = (view) => {
-    display.setMapView(view);
-    appliedMapView = view !== null;
-  };
-  display.setFullMapOverview(true);
-  const appliedTileScaling = ctx.flags["anybandui.crispTiles"] === true;
-  if (appliedTileScaling) display.setTileScaling("crisp");
-  const restoreDisplay = () => {
-    if (appliedMapView) display.setMapView(null);
-    const perMod = keepsDisplayRequestsPerMod(display);
-    display.setFullMapOverview(perMod ? null : false);
-    if (appliedTileScaling) display.setTileScaling(perMod ? null : "auto");
-  };
-  if (!ctx.flags["anybandui.mapOverview"] && !ctx.flags["anybandui.mapSchematic"] || typeof document === "undefined" || typeof window === "undefined") {
-    return restoreDisplay;
-  }
-  let theme = themeFromPrefs(ctx.prefs?.get());
-  const strip = document.createElement("div");
-  strip.style.cssText = `position:fixed;z-index:900;display:none;height:24px;align-items:center;gap:8px;padding:0 6px;background:${theme.surface};color:${theme.text};font:${PAINT_FONT_SIZE}px/${PAINT_LINE_HEIGHT}px ${PAINT_FONT};border-bottom:1px solid ${paintColours(theme).border}`;
-  const fit = document.createElement("button");
-  fit.textContent = "Fit floor";
-  const center = document.createElement("button");
-  center.textContent = "Centre on player";
-  const readout = document.createElement("span");
-  for (const control of [fit, center]) control.style.cssText = `font:inherit;color:inherit;background:${theme.background};border:1px solid ${paintColours(theme).border};border-radius:${Math.round(theme.rounding * 0.4)}px;padding:1px 6px;cursor:pointer`;
-  strip.append(fit, center, readout);
-  const legend = document.createElement("span");
-  legend.style.cssText = "display:inline-flex;align-items:center;gap:8px";
-  for (const [kind, label2] of [["player", "You"], ["up", "Up"], ["down", "Down"], ["shop", "Shop"]]) {
-    const item = document.createElement("span");
-    item.style.cssText = "display:inline-flex;align-items:center;gap:3px";
-    const swatch = document.createElement("canvas");
-    swatch.width = 16;
-    swatch.height = 16;
-    const ink2 = swatch.getContext("2d");
-    if (ink2) drawMarker(ink2, 8, 8, 4, kind);
-    item.append(swatch, document.createTextNode(label2));
-    legend.appendChild(item);
-  }
-  strip.appendChild(legend);
-  document.body.appendChild(strip);
-  const toggle = document.createElement("button");
-  toggle.type = "button";
-  toggle.textContent = "Map controls";
-  toggle.setAttribute("aria-label", "Show map controls");
-  toggle.style.cssText = `position:fixed;z-index:901;display:none;background:${theme.surface};color:${theme.text}`;
-  document.body.appendChild(toggle);
-  const paintChrome = () => {
-    const colours2 = paintColours(theme);
-    const radius = `${Math.round(theme.rounding * 0.4)}px`;
-    strip.style.background = theme.surface;
-    strip.style.color = theme.text;
-    strip.style.borderBottom = `1px solid ${colours2.border}`;
-    for (const control of [fit, center]) {
-      control.style.background = theme.background;
-      control.style.border = `1px solid ${colours2.border}`;
-      control.style.borderRadius = radius;
-    }
-    toggle.style.background = theme.surface;
-    toggle.style.color = theme.text;
-  };
-  const stopTheme2 = onThemeChange((next) => {
-    theme = next;
-    paintChrome();
-  });
-  let controlsOpen = false;
-  toggle.addEventListener("click", () => {
-    controlsOpen = !controlsOpen;
-    update();
-  });
-  const overlay = document.createElement("canvas");
-  overlay.setAttribute("aria-hidden", "true");
-  overlay.style.cssText = "position:fixed;z-index:899;display:none;pointer-events:none";
-  document.body.appendChild(overlay);
-  let known = null;
-  let playView = null;
-  let marginReported = false;
-  let lastMode = "";
-  let drag = null;
-  const update = () => {
-    const snap = display.snapshot();
-    if (snap.mode !== "map") {
-      strip.style.display = "none";
-      toggle.style.display = "none";
-      controlsOpen = false;
-      overlay.style.display = "none";
-      if (snap.mode === "play") playView = snap.viewport;
-      lastMode = snap.mode;
-      return;
-    }
-    if (lastMode !== "map") {
-      if (!ctx.flags["anybandui.zoom"] && !ctx.flags["anybandui.enlargedDisplay"]) setMapView(fitView(snap));
-      try {
-        known = viewLevel(ctx);
-      } catch {
-        known = null;
-      }
-    }
-    lastMode = "map";
-    const rect = mapProjection(snap);
-    if (rect && known) {
-      overlay.style.display = "block";
-      overlay.style.left = `${rect.x}px`;
-      overlay.style.top = `${rect.y}px`;
-      overlay.style.width = `${rect.width}px`;
-      overlay.style.height = `${rect.height}px`;
-      overlay.width = Math.max(1, Math.round(rect.width));
-      overlay.height = Math.max(1, Math.round(rect.height));
-      const g = overlay.getContext("2d");
-      if (g) {
-        const cw = rect.width / snap.viewport.size.width, ch = rect.height / snap.viewport.size.height;
-        for (const cell2 of known.cells) {
-          const x = (cell2.x - snap.viewport.origin.x) * cw, y = (cell2.y - snap.viewport.origin.y) * ch;
-          if (x + cw < 0 || y + ch < 0 || x >= rect.width || y >= rect.height) continue;
-          if (ctx.flags["anybandui.mapSchematic"]) {
-            g.fillStyle = schematicColour(featureCode(cell2));
-            g.fillRect(x, y, Math.ceil(cw), Math.ceil(ch));
-          }
-          const kind = landmarkKind(featureCode(cell2));
-          if (kind) drawMarker(g, x + cw / 2, y + ch / 2, Math.max(3, Math.min(7, Math.min(cw, ch) * 0.4)), kind);
-        }
-        if (playView) {
-          g.strokeStyle = "#7aacd4";
-          g.lineWidth = 2;
-          g.strokeRect(
-            (playView.origin.x - snap.viewport.origin.x) * cw,
-            (playView.origin.y - snap.viewport.origin.y) * ch,
-            playView.size.width * cw,
-            playView.size.height * ch
-          );
-        }
-        const player = playerGrid(ctx);
-        if (player) drawMarker(
-          g,
-          (player.x + 0.5 - snap.viewport.origin.x) * cw,
-          (player.y + 0.5 - snap.viewport.origin.y) * ch,
-          Math.max(4, Math.min(8, Math.min(cw, ch) * 0.45)),
-          "player"
-        );
-      }
-    } else overlay.style.display = "none";
-    if (!rect || rect.y < 24 || rect.width < 480) {
-      toggle.style.display = rect ? "block" : "none";
-      if (rect) {
-        toggle.style.left = `${rect.x + 4}px`;
-        toggle.style.top = `${rect.y + 4}px`;
-      }
-      strip.style.display = controlsOpen && rect ? "flex" : "none";
-      if (controlsOpen && rect) {
-        strip.style.left = `${rect.x}px`;
-        strip.style.top = `${rect.y + 30}px`;
-      }
-      if (!marginReported) {
-        marginReported = true;
-        ctx.log?.("map controls: host provides no clear margin above this map size");
-      }
-      return;
-    }
-    toggle.style.display = "none";
-    strip.style.display = "flex";
-    strip.style.left = `${rect.x}px`;
-    strip.style.top = `${rect.y - 24}px`;
-    const zoom = Math.round(100 * snap.level.width / Math.max(1, snap.viewport.size.width));
-    readout.textContent = `${zoom}%`;
-  };
-  fit.addEventListener("click", () => setMapView(fitView(display.snapshot())));
-  center.addEventListener("click", () => {
-    const player = playerGrid(ctx);
-    if (!player) return;
-    const snap = display.snapshot();
-    setMapView({ origin: clampOrigin(snap, { x: player.x - snap.viewport.size.width / 2, y: player.y - snap.viewport.size.height / 2 }), size: snap.viewport.size });
-  });
-  const wheel = (event) => {
-    if (ctx.flags["anybandui.zoom"] || ctx.flags["anybandui.enlargedDisplay"]) return;
-    const snap = display.snapshot();
-    const point = { x: event.clientX, y: event.clientY };
-    if (snap.mode !== "map" || !pointInRect(point, mapProjection(snap))) return;
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    setMapView(zoomMapAt(snap, event.deltaY < 0 ? 1 : -1, point));
-  };
-  const down = (event) => {
-    if (event.button === 0 && display.snapshot().mode === "map" && pointInRect({ x: event.clientX, y: event.clientY }, mapProjection(display.snapshot()))) drag = { x: event.clientX, y: event.clientY };
-  };
-  const move = (event) => {
-    if (!drag) return;
-    const snap = display.snapshot();
-    if (snap.mode !== "map") {
-      drag = null;
-      return;
-    }
-    const rect = mapProjection(snap);
-    if (!rect) return;
-    const dx = Math.trunc((event.clientX - drag.x) * snap.viewport.size.width / rect.width);
-    const dy = Math.trunc((event.clientY - drag.y) * snap.viewport.size.height / rect.height);
-    if (!dx && !dy) return;
-    setMapView({ origin: clampOrigin(snap, { x: snap.viewport.origin.x - dx, y: snap.viewport.origin.y - dy }), size: snap.viewport.size });
-    drag = { x: event.clientX, y: event.clientY };
-    event.preventDefault();
-  };
-  const up = () => {
-    drag = null;
-  };
-  const offKey = display.onKey((event) => {
-    const snap = display.snapshot();
-    if (snap.mode === "play" && event.key === "M" && !event.ctrlKey && !event.altKey && !event.metaKey) {
-      playView = snap.viewport;
-      return;
-    }
-    if (ctx.flags["anybandui.zoom"] || ctx.flags["anybandui.enlargedDisplay"]) return;
-    if (snap.mode !== "map" || !event.ctrlKey || event.altKey || event.metaKey) return;
-    const key = event.key;
-    const dx = key === "ArrowLeft" ? -2 : key === "ArrowRight" ? 2 : 0;
-    const dy = key === "ArrowUp" ? -2 : key === "ArrowDown" ? 2 : 0;
-    if (dx || dy) setMapView({ origin: clampOrigin(snap, { x: snap.viewport.origin.x + dx, y: snap.viewport.origin.y + dy }), size: snap.viewport.size });
-    else if (key === "=" || key === "+" || key === "-" || key === "_") {
-      const rect = mapProjection(snap);
-      const at = rect ? { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 } : { x: 0, y: 0 };
-      setMapView(zoomMapAt(snap, key === "-" || key === "_" ? -1 : 1, at));
-    } else return;
-    event.preventDefault();
-    event.stopImmediatePropagation();
-  });
-  window.addEventListener("wheel", wheel, { capture: true, passive: false });
-  window.addEventListener("pointerdown", down, true);
-  window.addEventListener("pointermove", move, true);
-  window.addEventListener("pointerup", up, true);
-  const timer2 = setInterval(update, 150);
-  return () => {
-    stopTheme2();
-    clearInterval(timer2);
-    offKey();
-    strip.remove();
-    toggle.remove();
-    overlay.remove();
-    restoreDisplay();
-    window.removeEventListener("wheel", wheel, true);
-    window.removeEventListener("pointerdown", down, true);
-    window.removeEventListener("pointermove", move, true);
-    window.removeEventListener("pointerup", up, true);
-  };
-}
-
-// src/panels/item-comparison.ts
-var METRICS = [["speed", "Speed", 1], ["ac", "Armour", 1], ["toH", "To hit", 1], ["toD", "To damage", 1], ["blows", "Blows", 100], ["shots", "Shots", 10], ["maxHp", "Max HP", 1], ["maxSp", "Max SP", 1], ["totalWeight", "Weight", 10]];
-var tip = "Whole-character preview. The replaced item stays in your pack; an item from outside your belongings adds its weight.";
-function readableFlag(flag) {
-  const words = flag.replace(/^(OF|OBJ_MOD|ELEM)_/, "").replaceAll("_", " ").toLowerCase();
-  return words.charAt(0).toUpperCase() + words.slice(1);
-}
-function el(parent, tag, value2) {
-  const node2 = parent.ownerDocument.createElement(tag);
-  if (value2 !== void 0) node2.textContent = value2;
-  parent.appendChild(node2);
-  return node2;
-}
-function comparisonSummary(sim) {
-  if (!sim || sim.unresolved.length || !sim.placements.length) return null;
-  const parts = [];
-  for (const [key, label2, scale] of METRICS) {
-    if (key === "totalWeight") continue;
-    const delta = sim.after.stats[key] - sim.before.stats[key];
-    if (delta) parts.push(`${label2} ${delta > 0 ? "+" : ""}${delta / scale}`);
-  }
-  for (const [index, name] of ["STR", "INT", "WIS", "DEX", "CON"].entries()) {
-    const before = sim.before.stats.statUse[index], after = sim.after.stats.statUse[index];
-    if (before !== void 0 && after !== void 0 && after !== before) parts.push(`${name} ${after > before ? "+" : ""}${after - before}`);
-  }
-  return parts.length ? `If worn: ${parts.join(", ")}` : "If worn: no change to known stats";
-}
-function slotOptionLabel(name, displaced) {
-  const slot = name ? name.charAt(0).toUpperCase() + name.slice(1) : "Slot";
-  return `${slot}: ${displaced ?? "empty"}`;
-}
-function renderItemComparison(parent, sim, unchanged, toggle, choice) {
-  if (sim.unresolved.length) return;
-  const details = el(parent, "details");
-  details.open = true;
-  el(details, "summary", "Equipment comparison");
-  if (!sim.placements.length) {
-    el(details, "p", "No compatible equipment slot.");
-    return;
-  }
-  if (choice && choice.options.length > 1) {
-    const label2 = el(details, "label", "Replace slot ");
-    const select = el(label2, "select");
-    for (const option of choice.options) {
-      const entry2 = el(select, "option", option.label);
-      entry2.value = String(option.slot);
-      entry2.selected = option.slot === choice.chosen;
-    }
-    select.addEventListener("change", () => choice.choose(Number(select.value)));
-  }
-  const placement = (choice ? sim.placements.find((entry2) => entry2.slot === choice.chosen) : void 0) ?? sim.placements[0];
-  el(details, "p", `Replacing: ${placement.displaced?.label ?? "empty slot"}`);
-  el(details, "p", "Known properties only; unidentified effects may differ.");
-  const checkbox = el(details, "input");
-  checkbox.type = "checkbox";
-  checkbox.checked = unchanged;
-  checkbox.addEventListener("change", () => toggle(checkbox.checked));
-  el(details, "span", " Show unchanged stats");
-  const table = el(details, "table");
-  const head = el(table, "tr");
-  for (const label2 of ["Stat", "Current", "Selected", "Change"]) el(head, "th", label2);
-  for (const [key, label2, scale] of METRICS) {
-    const before = sim.before.stats[key];
-    const after = sim.after.stats[key];
-    const delta = after - before;
-    if (!unchanged && !delta && !["speed", "ac", "blows"].includes(key)) continue;
-    const row = el(table, "tr");
-    const name = el(row, "td", label2);
-    name.title = tip;
-    el(row, "td", String(before / scale));
-    el(row, "td", String(after / scale));
-    const change = el(row, "td", delta ? `${delta > 0 ? "+" : ""}${delta / scale}` : "-");
-    change.className = delta === 0 ? "muted" : key === "totalWeight" ? delta < 0 ? "gain" : "loss" : delta > 0 ? "gain" : "loss";
-  }
-  for (const [index, name] of ["STR", "INT", "WIS", "DEX", "CON"].entries()) {
-    const before = sim.before.stats.statUse[index], after = sim.after.stats.statUse[index];
-    if (before === void 0 || after === void 0 || !unchanged && before === after) continue;
-    const row = el(table, "tr");
-    for (const value2 of [name, String(before), String(after), after === before ? "-" : `${after > before ? "+" : ""}${after - before}`]) el(row, "td", value2);
-  }
-  el(details, "h4", "Resistances and abilities");
-  sim.after.stats.resists.forEach((after, index) => {
-    const before = sim.before.stats.resists[index] ?? 0;
-    if (unchanged || after !== before) el(details, "div", `${sim.after.stats.resistElements[index] ?? `Element ${index + 1}`}: ${before} to ${after}`);
-  });
-  for (const flag of /* @__PURE__ */ new Set([...sim.before.stats.objectFlags, ...sim.after.stats.objectFlags])) {
-    const before = sim.before.stats.objectFlags.includes(flag), after = sim.after.stats.objectFlags.includes(flag);
-    if (unchanged || before !== after) el(details, "div", `${readableFlag(flag)}: ${before ? "Yes" : "No"} to ${after ? "Yes" : "No"}`);
-  }
-}
-
-// src/hover-cards.ts
-function hoverGrid(snapshot, point) {
-  const rect = mapProjection(snapshot);
-  if (!pointInRect(point, rect) || !rect) return null;
-  const col = Math.floor((point.x - rect.x) * snapshot.viewport.size.width / rect.width);
-  const row = Math.floor((point.y - rect.y) * snapshot.viewport.size.height / rect.height);
-  if (col < 0 || row < 0 || col >= snapshot.viewport.size.width || row >= snapshot.viewport.size.height) return null;
-  return { x: snapshot.viewport.origin.x + col, y: snapshot.viewport.origin.y + row };
-}
-function snapLandmark(snapshot, point, cells) {
-  const rect = mapProjection(snapshot);
-  if (!rect) return null;
-  const cellW = rect.width / snapshot.viewport.size.width, cellH = rect.height / snapshot.viewport.size.height;
-  let nearest = 64;
-  let chosen = null;
-  for (const cell2 of cells) {
-    if (!landmarkKind(featureCode(cell2))) continue;
-    const x = rect.x + (cell2.x - snapshot.viewport.origin.x + 0.5) * cellW;
-    const y = rect.y + (cell2.y - snapshot.viewport.origin.y + 0.5) * cellH;
-    const distance = (x - point.x) ** 2 + (y - point.y) ** 2;
-    if (distance < nearest) {
-      nearest = distance;
-      chosen = { x: cell2.x, y: cell2.y };
-    }
-  }
-  return chosen;
-}
-var NO_BATTLES = "No battles to the death are recalled.";
-var RECALL_LIMIT = 90;
-function recallLine(recall) {
-  const body = recall?.text.split("\n").slice(1).join(" ").replace(/\s+/g, " ").trim();
-  if (!body) return null;
-  const sentences = body.split(/(?<=[.!?])\s+/).filter((sentence) => sentence && sentence !== NO_BATTLES);
-  const first = sentences[0];
-  if (!first) return null;
-  if (first.length <= RECALL_LIMIT) return first;
-  const cut = first.slice(0, RECALL_LIMIT - 3);
-  return `${cut.slice(0, Math.max(cut.lastIndexOf(" "), 1)).replace(/[,;:]$/, "")}...`;
-}
-function creatureRecall(ctx, grid) {
-  if (!ctx.inspect?.monsterRecall || !ctx.snapshot) return null;
-  try {
-    const monster = viewMonsters(viewInput(ctx))?.find((entry2) => entry2.visible && entry2.grid.x === grid.x && entry2.grid.y === grid.y);
-    return monster ? recallLine(ctx.inspect.monsterRecall(monster.raceIndex)) : null;
-  } catch {
-    return null;
-  }
-}
-function gameWornLine(game, object) {
-  try {
-    return comparisonSummary(simulateLoadout(game, { wield: [{ from: "object", object }] }));
-  } catch {
-    return null;
-  }
-}
-function gameCard(game, grid, map, recall, pickupPreview = false) {
-  const look = lookAt(game, grid);
-  const text = look?.text?.trim();
-  if (!look || !text) return null;
-  const at = playerGrid(game);
-  const self = at?.x === grid.x && at?.y === grid.y;
-  const hallucinating = playerHallucinating(game);
-  const pile = hallucinating ? [] : rememberedPile(game, grid);
-  const kind = self ? "You are here" : look.creature ? "Creature" : pile.length > 0 ? "Items" : "Terrain";
-  const lines = [`${map ? `(${grid.x}, ${grid.y}) - ` : ""}${kind}`, text];
-  if (hallucinating) {
-    lines.push("Appearance unreliable (hallucinating)");
-    return lines.join("\n");
-  }
-  const own = self ? playerHitPoints(game) : null;
-  const hp = own ? own.hp : look.hp;
-  const max = own ? own.maxHp : look.maxHp;
-  if (typeof hp === "number" && typeof max === "number" && max > 0) {
-    const count = Math.max(0, Math.min(10, Math.round(10 * hp / max)));
-    lines.push(`[${"#".repeat(count)}${"-".repeat(10 - count)}]`);
-  }
-  if (!self && look.creature && recall) lines.push(recall);
-  const timed = self ? playerTimedEffects(game) : null;
-  if (timed) {
-    const statuses = timed.map((name) => name.toLowerCase().replaceAll("_", " "));
-    if (statuses.length) lines.push(`Statuses: ${statuses.join(", ")}`);
-  }
-  const terrain = apparentTerrain(game, grid);
-  if (terrain) lines.push(`Terrain: ${terrain}`);
-  const visible = gridInView(game, grid);
-  for (const entry2 of pile.slice(0, 5)) {
-    const name = entry2.sensed || !entry2.obj ? null : describeObject(game, entry2.obj);
-    lines.push(name === null ? "Remembered item" : `${visible ? "Ground" : "Remembered"}: ${name}`);
-    const worn = pickupPreview && (visible || self) && !entry2.sensed && entry2.obj ? gameWornLine(game, entry2.obj) : null;
-    if (worn) lines.push(`  ${worn}`);
-  }
-  if (pile.length > 5) lines.push("More items; use Look");
-  return lines.join("\n");
-}
-function installHoverCards(ctx) {
-  if (!ctx.flags["anybandui.mapHoverCards"] && !ctx.flags["anybandui.dungeonHoverCards"]) return () => {
-  };
-  if (!offers(ctx, ["describeLookGrid"]) || !ctx.display || typeof document === "undefined" || typeof window === "undefined") {
-    ctx.log?.("hover cards: look or display API unavailable");
-    return () => {
-    };
-  }
-  const display = ctx.display;
-  const settings = validateSettings(ctx.prefs?.get());
-  let theme = themeFromPrefs(ctx.prefs?.get());
-  const card = document.createElement("div");
-  card.setAttribute("role", "tooltip");
-  card.style.cssText = `position:fixed;z-index:1000;display:none;pointer-events:none;white-space:pre-wrap;max-width:320px;padding:8px 10px;border:1px solid ${paintColours(theme).border};border-radius:${Math.round(theme.rounding * 0.6)}px;background:${theme.surface};color:${theme.text};font:${PAINT_FONT_SIZE}px/${PAINT_LINE_HEIGHT}px ${PAINT_FONT};box-shadow:0 4px 16px #0008`;
-  const paintCard = () => {
-    const colours2 = paintColours(theme);
-    card.style.background = theme.surface;
-    card.style.color = theme.text;
-    card.style.border = `1px solid ${colours2.border}`;
-    card.style.borderRadius = `${Math.round(theme.rounding * 0.6)}px`;
-  };
-  const stopTheme2 = onThemeChange((next) => {
-    theme = next;
-    paintCard();
-  });
-  const preview = document.createElement("canvas");
-  preview.width = 64;
-  preview.height = 64;
-  preview.style.cssText = "display:none;width:64px;height:64px;float:right;margin:0 0 4px 8px;image-rendering:pixelated";
-  const body = document.createElement("span");
-  card.append(preview, body);
-  document.body.appendChild(card);
-  let timer2 = null;
-  let key = "";
-  let pinned = false;
-  let holdId = null;
-  let down = null;
-  let known = null;
-  let mapWasOpen = false;
-  const cancel = () => {
-    if (timer2) clearTimeout(timer2);
-    timer2 = null;
-  };
-  const hide = () => {
-    cancel();
-    card.style.display = "none";
-    key = "";
-    pinned = false;
-  };
-  const resolve2 = (point) => {
-    const input = viewInput(ctx);
-    if (ctx.snapshot && (!input || input.phase !== "play" || input.messagePending || input.prompt)) return null;
-    const snap = display.snapshot();
-    const map = snap.mode === "map";
-    if (!pointInRect(point, mapProjection(snap))) return null;
-    if (!map) {
-      known = null;
-      mapWasOpen = false;
-    } else if (!mapWasOpen) {
-      mapWasOpen = true;
-      try {
-        known = viewLevel(ctx);
-      } catch {
-        known = null;
-      }
-    }
-    if (map ? !ctx.flags["anybandui.mapHoverCards"] : snap.mode !== "play" || !ctx.flags["anybandui.dungeonHoverCards"]) return null;
-    const grid = map && known ? snapLandmark(snap, point, known.cells) ?? hoverGrid(snap, point) : hoverGrid(snap, point);
-    if (!grid || grid.x >= snap.level.width || grid.y >= snap.level.height) return null;
-    return { grid, map };
-  };
-  const show = (point, grid, map) => {
-    const current = resolve2(point);
-    if (!current || current.grid.x !== grid.x || current.grid.y !== grid.y || current.map !== map) {
-      hide();
-      return;
-    }
-    if (!hasLiveState(ctx)) return;
-    const content = gameCard(ctx, grid, map, map ? null : creatureRecall(ctx, grid), !map && ctx.flags["anybandui.itemsPickupPreview"] === true);
-    if (!content) return;
-    body.textContent = content;
-    preview.style.display = paintPreview(display.snapshot(), grid, map, preview) ? "block" : "none";
-    card.style.display = "block";
-    card.style.left = `${Math.max(0, Math.min(window.innerWidth - card.offsetWidth, point.x + 14))}px`;
-    card.style.top = `${Math.max(0, Math.min(window.innerHeight - card.offsetHeight, point.y + 14))}px`;
-  };
-  const onMove = (event) => {
-    const point = { x: event.clientX, y: event.clientY };
-    if (event.pointerType === "mouse" && event.buttons) {
-      if (!pinned) hide();
-      return;
-    }
-    if (holdId === event.pointerId && down && Math.hypot(point.x - down.x, point.y - down.y) > 8) {
-      holdId = null;
-      cancel();
-    }
-    if (event.pointerType === "touch" || pinned) return;
-    const resolved = resolve2(point);
-    const next = resolved ? `${resolved.map}:${resolved.grid.x},${resolved.grid.y}` : "";
-    if (next === key) return;
-    hide();
-    if (!resolved) return;
-    key = next;
-    timer2 = setTimeout(() => {
-      if (key === next) show(point, resolved.grid, resolved.map);
-    }, settings.hoverDelayMs);
-  };
-  const onDown = (event) => {
-    hide();
-    if (event.pointerType !== "touch" && event.pointerType !== "pen") return;
-    const point = { x: event.clientX, y: event.clientY };
-    const resolved = resolve2(point);
-    if (!resolved) return;
-    if (resolved.map) {
-      event.preventDefault();
-      event.stopImmediatePropagation();
-    }
-    down = point;
-    holdId = event.pointerId;
-    timer2 = setTimeout(() => {
-      if (holdId === event.pointerId) {
-        show(point, resolved.grid, resolved.map);
-        pinned = true;
-      }
-    }, 1e3);
-  };
-  const onUp = (event) => {
-    if (holdId === event.pointerId) {
-      holdId = null;
-      cancel();
-    }
-  };
-  const onKey = () => hide();
-  const onBlur = () => hide();
-  document.addEventListener("pointermove", onMove);
-  window.addEventListener("pointerdown", onDown, true);
-  document.addEventListener("pointerup", onUp);
-  document.addEventListener("pointercancel", onUp);
-  document.addEventListener("keydown", onKey);
-  window.addEventListener("blur", onBlur);
-  return () => {
-    stopTheme2();
-    hide();
-    card.remove();
-    document.removeEventListener("pointermove", onMove);
-    window.removeEventListener("pointerdown", onDown, true);
-    document.removeEventListener("pointerup", onUp);
-    document.removeEventListener("pointercancel", onUp);
-    document.removeEventListener("keydown", onKey);
-    window.removeEventListener("blur", onBlur);
-  };
-}
-function paintPreview(snapshot, grid, map, preview) {
-  const graphics = map ? Array.from(document.querySelectorAll('body > canvas[aria-hidden="true"]')).find((canvas) => canvas.style.zIndex === "1") : null;
-  const source = graphics ?? document.getElementById("game");
-  if (!(source instanceof HTMLCanvasElement)) return false;
-  const projection = mapProjection(snapshot);
-  if (!projection || !projection.width || !projection.height) return false;
-  const cellW = projection.width / snapshot.viewport.size.width;
-  const cellH = projection.height / snapshot.viewport.size.height;
-  const x = projection.x + (grid.x - snapshot.viewport.origin.x) * cellW;
-  const y = projection.y + (grid.y - snapshot.viewport.origin.y) * cellH;
-  const sourceRect = source.getBoundingClientRect();
-  if (!sourceRect.width || !sourceRect.height) return false;
-  const ctx = preview.getContext("2d");
-  if (!ctx) return false;
-  try {
-    ctx.clearRect(0, 0, 64, 64);
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(
-      source,
-      (x - sourceRect.left) * source.width / sourceRect.width,
-      (y - sourceRect.top) * source.height / sourceRect.height,
-      cellW * source.width / sourceRect.width,
-      cellH * source.height / sourceRect.height,
-      0,
-      0,
-      64,
-      64
-    );
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 // src/qol-map-hover.ts
@@ -12076,8 +12182,8 @@ var STORE_NAMES = {
 function storeName(featName) {
   const known = STORE_NAMES[featName];
   if (known) return known;
-  const words = featName.replace(/^STORE_/, "").toLowerCase().replace(/_/g, " ");
-  return words.charAt(0).toUpperCase() + words.slice(1);
+  const words2 = featName.replace(/^STORE_/, "").toLowerCase().replace(/_/g, " ");
+  return words2.charAt(0).toUpperCase() + words2.slice(1);
 }
 function bookForStock(item, books) {
   const sameTval = books.filter((book) => book.tval === item.tval);
@@ -14179,8 +14285,8 @@ var SKILL_LABELS = {
 function skillLabel(key) {
   const known = SKILL_LABELS[key];
   if (known) return known;
-  const words = key.toLowerCase().split("_").filter(Boolean).join(" ");
-  return words ? `${words[0].toUpperCase()}${words.slice(1)}` : key;
+  const words2 = key.toLowerCase().split("_").filter(Boolean).join(" ");
+  return words2 ? `${words2[0].toUpperCase()}${words2.slice(1)}` : key;
 }
 function choiceView(entry2, race = null) {
   const added = "magic" in entry2 ? race : null;

@@ -1,7 +1,7 @@
 import type { GameState, InputSnapshot, ModPluginContext } from "@rpgm-tools/neo-angband-core";
 import type { HudFrame, HudOwnership } from "@rpgm-tools/neo-angband-mod-sdk";
 import { adapt } from "./adapter.js";
-import type { ViewModel } from "./protocol.js";
+import type { TrackedCreaturePayload, ViewModel } from "./protocol.js";
 import type { MessageSeams, MessageSnapshot } from "../seams.js";
 import { playerIsDriving } from "../input-owner.js";
 import { hasLiveState, liveHud, viewInput } from "../host-adapter.js";
@@ -103,6 +103,8 @@ export function createSource(ctx: SourceCtx): {
   readonly acknowledge?: () => boolean;
 } {
   let latest: HudFrame | undefined;
+  let lastCreature: TrackedCreaturePayload | undefined;
+  let lastLevel: GameState["chunk"] | undefined;
   const present = (_section: unknown, frame: HudFrame): void => { latest = frame; };
   const read = (): MessageSnapshot | null => {
     try { return viewInput(ctx); } catch { return null; }
@@ -127,7 +129,7 @@ export function createSource(ctx: SourceCtx): {
       const snap = options.messages ? read() : null;
       const pending = messagePending(snap);
       const live = liveHud(ctx)!;
-      return adapt(live.view, latest, {
+      const model = adapt(live.view, latest, {
         name: live.name,
         history: messageHistory(snap?.messages?.entries, live.messages, snap?.messages?.log),
         study: live.study,
@@ -140,6 +142,14 @@ export function createSource(ctx: SourceCtx): {
         extraMoves: live.extraMoves,
         ...(pending === undefined ? {} : { messagePending: pending }),
       });
+      if (lastLevel !== live.level) lastCreature = undefined;
+      lastLevel = live.level;
+      const target = model.player.tracked_creature;
+      if (target && !target.visible && target.id !== undefined && target.id === lastCreature?.id) {
+        model.player.tracked_creature = { ...lastCreature, visible: false };
+      }
+      lastCreature = model.player.tracked_creature;
+      return model;
     },
   };
 }

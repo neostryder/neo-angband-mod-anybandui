@@ -89,8 +89,14 @@ export function creatureRecall(ctx: Pick<HoverContext, "snapshot" | "inspect">, 
   if (!ctx.inspect?.monsterRecall || !ctx.snapshot) return null;
   try {
     const monster = viewMonsters(viewInput(ctx))?.find((entry) => entry.visible && entry.grid.x === grid.x && entry.grid.y === grid.y);
-    return monster ? recallLine(ctx.inspect.monsterRecall(monster.raceIndex)) : null;
+    return recallLine(visibleCreatureRecall(ctx.inspect, monster));
   } catch { return null; }
+}
+
+/** Shared gating keeps hover cards and the tracked panel from reading unseen lore. */
+export function visibleCreatureRecall(inspect: RecallSeam | undefined, monster: { visible: boolean; raceIndex: number } | undefined): MonsterRecallResult | null {
+  if (!monster?.visible) return null;
+  try { return inspect?.monsterRecall?.(monster.raceIndex) ?? null; } catch { return null; }
 }
 
 /* describeLookGrid is the game's own knowledge-gated formatter. Reading the
