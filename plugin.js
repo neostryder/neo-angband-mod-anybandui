@@ -1,6 +1,163 @@
 // anybandui - generated from plugin.ts by neo-angband-mod-build
 // (@rpgm-tools/neo-angband-mod-sdk). Edit the TypeScript source, not this file.
 
+// src/host-adapter.ts
+var coreOf = (game) => game?.core;
+var stateOf = (game) => game?.state;
+function viewInput(seam) {
+  return seam.snapshot?.() ?? null;
+}
+function viewWorld(input) {
+  return input?.core;
+}
+function viewPlayer(input) {
+  return input?.core?.player;
+}
+function viewMonsters(input) {
+  return input?.core?.monsters;
+}
+function viewLevel(seam) {
+  return seam.knownLevel?.() ?? null;
+}
+function itemKindKey(game, key) {
+  const match = /^(\d+):-(\d+)$/.exec(key);
+  if (!match) return key;
+  const state = game.state;
+  const deps = state?.knownWorldDeps;
+  const aware = deps?.aware ?? state?.isAware;
+  if (!aware || !state?.flavorGlyph) return key;
+  const kind = deps?.reg?.kinds.find((entry2) => entry2.tval === Number(match[1]) && aware(entry2) && state.flavorGlyph(entry2)?.fidx === Number(match[2]));
+  return kind ? deps?.resolver?.kindIdOrNull(kind.kidx) ?? `${kind.tval}:${kind.sval}` : key;
+}
+function truthLevel(level) {
+  const cells = [];
+  for (const cell2 of level?.cells ?? []) if (cell2.actual) cells.push({ ...cell2.actual, x: cell2.x, y: cell2.y });
+  return { cells };
+}
+function liveGame(ctx) {
+  return { liveCore: ctx.core, liveState: ctx.state };
+}
+function itemsGame(core, state) {
+  if (!core || !state) return {};
+  return { state, core: {
+    createAgentView: () => core.createAgentView(state),
+    floorObject: (grid, floorIndex) => listedFloorObject(core, state, grid, floorIndex)
+  } };
+}
+function offers(game, names) {
+  const core = game.core;
+  return !!core && names.every((name) => typeof core[name] === "function");
+}
+function hasLiveState(game) {
+  return !!game.state;
+}
+function playerGrid(game) {
+  return stateOf(game)?.actor?.grid;
+}
+function playerHitPoints(game) {
+  const player = stateOf(game)?.actor?.player;
+  return { hp: player?.chp, maxHp: player?.mhp };
+}
+function playerHallucinating(game) {
+  const core = coreOf(game);
+  return core?.TMD?.IMAGE !== void 0 && (stateOf(game)?.actor?.player?.timed?.[core.TMD.IMAGE] ?? 0) > 0;
+}
+function playerTimedEffects(game) {
+  const TMD = coreOf(game)?.TMD, timed = stateOf(game)?.actor?.player?.timed;
+  if (!TMD || !timed) return null;
+  return Object.entries(TMD).filter(([, index]) => (timed[index] ?? 0) > 0).map(([name]) => name);
+}
+function birthFacts(game) {
+  const player = stateOf(game)?.actor?.player;
+  if (!player) return null;
+  return { raceName: player.race?.name, clsName: player.cls?.name, auBirth: player.auBirth, htBirth: player.htBirth, wtBirth: player.wtBirth };
+}
+function levelKey(game) {
+  const state = stateOf(game);
+  return state?.levelSerial ?? state?.chunk?.depth;
+}
+function levelDepth(game) {
+  return game.state.chunk.depth;
+}
+function levelSize(game) {
+  const chunk = stateOf(game)?.chunk;
+  return chunk ? { width: chunk.width, height: chunk.height } : null;
+}
+function gridInView(game, grid) {
+  return coreOf(game)?.squareIsSeen?.(stateOf(game)?.chunk, grid) ?? false;
+}
+function gridHasVisibleTrap(game, grid) {
+  return !!coreOf(game)?.squareIsVisibleTrap?.(game.state, grid);
+}
+function gridIsShop(game, grid) {
+  return (stateOf(game)?.chunk?.feature?.(grid)?.shopnum ?? 0) > 0;
+}
+function lookAt(game, grid) {
+  const look = coreOf(game)?.describeLookGrid?.(game.state, grid, 0);
+  if (!look) return null;
+  return { text: look.text, creature: !!look.mon, hp: look.mon?.hp, maxHp: look.mon?.maxhp };
+}
+function rememberedPile(game, grid) {
+  return coreOf(game)?.knownPile?.(game.state, grid) ?? [];
+}
+function describeObject(game, object) {
+  const core = coreOf(game);
+  return core?.describeObject ? core.describeObject(game.state, object) : null;
+}
+function apparentTerrain(game, grid) {
+  return coreOf(game)?.squareApparentName?.(game.state, grid);
+}
+function listedFloorObject(core, state, grid, floorIndex) {
+  if (!Number.isInteger(floorIndex) || floorIndex < 0) return null;
+  try {
+    const listed = core.floorPile(state, grid).filter((obj) => {
+      const memory = core.knownFloorObject(state, grid, obj);
+      return !!memory && !memory.sensed;
+    });
+    return listed[floorIndex] ?? null;
+  } catch {
+    return null;
+  }
+}
+function floorObject(game, grid, floorIndex) {
+  return coreOf(game)?.floorObject?.(grid, floorIndex) ?? null;
+}
+function canSimulateLoadout(game) {
+  return !!coreOf(game)?.createAgentView && !!game.state;
+}
+function simulateLoadout(game, change) {
+  return coreOf(game)?.createAgentView?.(game.state).simulateLoadout?.(change) ?? null;
+}
+function liveHud(game) {
+  const state = game.state;
+  if (state === void 0) return void 0;
+  return {
+    view: game.core.createAgentView(state),
+    name: state.actor.player.fullName,
+    messages: state.messages,
+    study: state.actor.player.upkeep.newSpells,
+    repeat: state.cmdQueue?.[0]?.repeatRemaining ?? 0,
+    resting: state.resting !== void 0,
+    running: state.run !== void 0,
+    unignoring: state.unignoring ?? 0,
+    recall: state.actor.player.wordRecall,
+    descent: state.actor.player.deepDescent,
+    extraMoves: state.playerState?.numMoves ?? 0
+  };
+}
+function visibleMonsterRaces(game) {
+  return game.core.monsterListCollect(game.state).entries.map((entry2) => entry2.race);
+}
+function carriedGear(game) {
+  return game.state.gear.store.values();
+}
+function knownArtifactTest(game) {
+  return game.core.liveObjectIsKnownArtifact;
+}
+function coreFormatters(game) {
+  return { fmtDepth: game.core.fmtDepth, colorToCss: game.core.colorToCss };
+}
+
 // src/bridge-seams.ts
 function cell(load, initial, ttlMs, now) {
   let value2 = initial;
@@ -565,6 +722,7 @@ function createBridge(mod) {
       return stateOf2();
     },
     snapshot,
+    itemKindKey: (key) => itemKindKey({ state: stateOf2() }, key),
     knownLevel,
     inspect,
     intent,
@@ -795,153 +953,6 @@ function currentDriver(ctx) {
 }
 function playerIsDriving(ctx) {
   return currentDriver(ctx).kind === "player";
-}
-
-// src/host-adapter.ts
-var coreOf = (game) => game?.core;
-var stateOf = (game) => game?.state;
-function viewInput(seam) {
-  return seam.snapshot?.() ?? null;
-}
-function viewWorld(input) {
-  return input?.core;
-}
-function viewPlayer(input) {
-  return input?.core?.player;
-}
-function viewMonsters(input) {
-  return input?.core?.monsters;
-}
-function viewLevel(seam) {
-  return seam.knownLevel?.() ?? null;
-}
-function truthLevel(level) {
-  const cells = [];
-  for (const cell2 of level?.cells ?? []) if (cell2.actual) cells.push({ ...cell2.actual, x: cell2.x, y: cell2.y });
-  return { cells };
-}
-function liveGame(ctx) {
-  return { liveCore: ctx.core, liveState: ctx.state };
-}
-function itemsGame(core, state) {
-  if (!core || !state) return {};
-  return { state, core: {
-    createAgentView: () => core.createAgentView(state),
-    floorObject: (grid, floorIndex) => listedFloorObject(core, state, grid, floorIndex)
-  } };
-}
-function offers(game, names) {
-  const core = game.core;
-  return !!core && names.every((name) => typeof core[name] === "function");
-}
-function hasLiveState(game) {
-  return !!game.state;
-}
-function playerGrid(game) {
-  return stateOf(game)?.actor?.grid;
-}
-function playerHitPoints(game) {
-  const player = stateOf(game)?.actor?.player;
-  return { hp: player?.chp, maxHp: player?.mhp };
-}
-function playerHallucinating(game) {
-  const core = coreOf(game);
-  return core?.TMD?.IMAGE !== void 0 && (stateOf(game)?.actor?.player?.timed?.[core.TMD.IMAGE] ?? 0) > 0;
-}
-function playerTimedEffects(game) {
-  const TMD = coreOf(game)?.TMD, timed = stateOf(game)?.actor?.player?.timed;
-  if (!TMD || !timed) return null;
-  return Object.entries(TMD).filter(([, index]) => (timed[index] ?? 0) > 0).map(([name]) => name);
-}
-function birthFacts(game) {
-  const player = stateOf(game)?.actor?.player;
-  if (!player) return null;
-  return { raceName: player.race?.name, clsName: player.cls?.name, auBirth: player.auBirth, htBirth: player.htBirth, wtBirth: player.wtBirth };
-}
-function levelKey(game) {
-  const state = stateOf(game);
-  return state?.levelSerial ?? state?.chunk?.depth;
-}
-function levelDepth(game) {
-  return game.state.chunk.depth;
-}
-function levelSize(game) {
-  const chunk = stateOf(game)?.chunk;
-  return chunk ? { width: chunk.width, height: chunk.height } : null;
-}
-function gridInView(game, grid) {
-  return coreOf(game)?.squareIsSeen?.(stateOf(game)?.chunk, grid) ?? false;
-}
-function gridHasVisibleTrap(game, grid) {
-  return !!coreOf(game)?.squareIsVisibleTrap?.(game.state, grid);
-}
-function gridIsShop(game, grid) {
-  return (stateOf(game)?.chunk?.feature?.(grid)?.shopnum ?? 0) > 0;
-}
-function lookAt(game, grid) {
-  const look = coreOf(game)?.describeLookGrid?.(game.state, grid, 0);
-  if (!look) return null;
-  return { text: look.text, creature: !!look.mon, hp: look.mon?.hp, maxHp: look.mon?.maxhp };
-}
-function rememberedPile(game, grid) {
-  return coreOf(game)?.knownPile?.(game.state, grid) ?? [];
-}
-function describeObject(game, object) {
-  const core = coreOf(game);
-  return core?.describeObject ? core.describeObject(game.state, object) : null;
-}
-function apparentTerrain(game, grid) {
-  return coreOf(game)?.squareApparentName?.(game.state, grid);
-}
-function listedFloorObject(core, state, grid, floorIndex) {
-  if (!Number.isInteger(floorIndex) || floorIndex < 0) return null;
-  try {
-    const listed = core.floorPile(state, grid).filter((obj) => {
-      const memory = core.knownFloorObject(state, grid, obj);
-      return !!memory && !memory.sensed;
-    });
-    return listed[floorIndex] ?? null;
-  } catch {
-    return null;
-  }
-}
-function floorObject(game, grid, floorIndex) {
-  return coreOf(game)?.floorObject?.(grid, floorIndex) ?? null;
-}
-function canSimulateLoadout(game) {
-  return !!coreOf(game)?.createAgentView && !!game.state;
-}
-function simulateLoadout(game, change) {
-  return coreOf(game)?.createAgentView?.(game.state).simulateLoadout?.(change) ?? null;
-}
-function liveHud(game) {
-  const state = game.state;
-  if (state === void 0) return void 0;
-  return {
-    view: game.core.createAgentView(state),
-    name: state.actor.player.fullName,
-    messages: state.messages,
-    study: state.actor.player.upkeep.newSpells,
-    repeat: state.cmdQueue?.[0]?.repeatRemaining ?? 0,
-    resting: state.resting !== void 0,
-    running: state.run !== void 0,
-    unignoring: state.unignoring ?? 0,
-    recall: state.actor.player.wordRecall,
-    descent: state.actor.player.deepDescent,
-    extraMoves: state.playerState?.numMoves ?? 0
-  };
-}
-function visibleMonsterRaces(game) {
-  return game.core.monsterListCollect(game.state).entries.map((entry2) => entry2.race);
-}
-function carriedGear(game) {
-  return game.state.gear.store.values();
-}
-function knownArtifactTest(game) {
-  return game.core.liveObjectIsKnownArtifact;
-}
-function coreFormatters(game) {
-  return { fmtDepth: game.core.fmtDepth, colorToCss: game.core.colorToCss };
 }
 
 // src/view-model/source.ts
@@ -11532,6 +11543,18 @@ function migrateSlots(raw, from, to) {
   const { [from]: moved, ...rest2 } = profiles;
   return { ...root, quickbar: { ...rest2, [to]: moved } };
 }
+function rekeyItemSlots(ctx, slots) {
+  if (!ctx.itemKindKey) return slots;
+  let changed = false;
+  const next = slots.map((binding) => {
+    if (binding?.type !== "item") return binding;
+    const key = ctx.itemKindKey(binding.key);
+    if (key === binding.key) return binding;
+    changed = true;
+    return { ...binding, key };
+  });
+  return changed ? next : slots;
+}
 function itemBindings(snap, ctx) {
   const codes = ["quaff", "read", "aim-wand", "activate"];
   return (viewWorld(snap).inventory ?? []).flatMap((item) => codes.filter((code) => {
@@ -11566,7 +11589,8 @@ function resolve(snap, binding, spells, ctx) {
       ...spell.canCast ? { command: { code: "cast", args: { spell: spell.index } } } : {}
     };
   }
-  const item = viewWorld(snap).inventory?.find((entry2) => itemKey(entry2) === binding.key);
+  const key = ctx.itemKindKey?.(binding.key) ?? binding.key;
+  const item = viewWorld(snap).inventory?.find((entry2) => itemKey(entry2) === key || `${entry2.tval}:${entry2.sval}` === key);
   if (!item) return { label: binding.name, detail: "Item no longer carried.", usable: false };
   const tester = ctx.inspect?.itemTester?.(binding.code);
   const usable = !!tester && tester.token.epoch === snap.token.epoch && tester.token.revision === snap.token.revision && tester.items.some((entry2) => "handle" in entry2 && entry2.handle === item.handle);
@@ -11703,13 +11727,18 @@ ${viewPlayer(snap)?.race ?? ""}`;
     if (closed) return;
     const mounts = surfaces.mounts();
     const spellMount = spellOn ? mounts.get("spells") : void 0, quickMount = quickOn ? mounts.get("quickbar") : void 0, restMount = restOn ? mounts.get("rest") : void 0;
-    if (!mounts.size) return;
     const snap = viewInput(ctx);
     const key = identify(snap);
     if (key !== character) {
       character = key;
       slots = key ? readSlots(ctx.prefs?.get(), key) : Array(30).fill(null);
     }
+    const rekeyed = rekeyItemSlots(ctx, slots);
+    if (rekeyed !== slots) {
+      slots = rekeyed;
+      save();
+    }
+    if (!mounts.size) return;
     const model = snap ? adaptSpells(snap, ctx.inspect) : null;
     const sig = JSON.stringify([[...mounts.keys()], snap, slots, bookKey, spellIndex, menu2, customize, appearance, restOpen, restMode, turns, promptChoice, error]);
     if (!force && sig === signature) return;
@@ -15023,6 +15052,7 @@ function registerAll(ctx) {
   displayCleanups.push(installPhase4({
     flags,
     log: ctx.log,
+    ...ctx.itemKindKey ? { itemKindKey: ctx.itemKindKey } : {},
     ...ctx.snapshot ? { snapshot: ctx.snapshot } : {},
     ...ctx.intent ? { intent: ctx.intent } : {},
     ...ctx.prompt ? { prompt: ctx.prompt } : {},

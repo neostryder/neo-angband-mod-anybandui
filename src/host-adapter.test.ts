@@ -3,6 +3,41 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "@typescript/typescript6";
+import { FlavorAssignment, FlavorKnowledge, type GameState, type ObjectKind } from "@rpgm-tools/neo-angband-core";
+import { itemKindKey } from "./host-adapter.js";
+
+describe("known item binding keys", () => {
+  it("maps only learned flavours using the engine's assignment and awareness", () => {
+    const healing = { kidx: 1, tval: 75, sval: 1 } as ObjectKind;
+    const poison = { kidx: 2, tval: 75, sval: 2 } as ObjectKind;
+    const assignment = new FlavorAssignment();
+    assignment.set(1, { fidx: 8, text: "Blue", attr: "blue", char: "!" });
+    assignment.set(2, { fidx: 9, text: "Red", attr: "red", char: "!" });
+    const knowledge = new FlavorKnowledge(3);
+    const state = {
+      isAware: (kind: ObjectKind) => knowledge.isAware(kind),
+      flavorGlyph: (kind: ObjectKind) => assignment.get(kind),
+      knownWorldDeps: { reg: { kinds: [healing, poison] }, resolver: { kindIdOrNull: (kidx: number) => kidx === 1 ? "potion:healing" : "potion:poison" } },
+    } as GameState;
+    expect(itemKindKey({ state }, "75:-8")).toBe("75:-8");
+    knowledge.setAware(healing);
+    expect(itemKindKey({ state }, "75:-8")).toBe("potion:healing");
+    expect(itemKindKey({ state }, "75:-9")).toBe("75:-9");
+    expect(itemKindKey({ state }, "70:-8")).toBe("70:-8");
+    state.knownWorldDeps!.aware = () => false;
+    expect(itemKindKey({ state }, "75:-8")).toBe("75:-8");
+    delete state.knownWorldDeps!.aware;
+    delete state.knownWorldDeps!.resolver;
+    expect(itemKindKey({ state }, "75:-8")).toBe("75:1");
+  });
+
+  it("keeps existing kind keys and declines when awareness data is absent", () => {
+    for (const key of ["potion:healing", "75:1", "75:-8", "bad:-8"]) {
+      expect(itemKindKey({}, key)).toBe(key);
+      expect(itemKindKey({ state: {} }, key)).toBe(key);
+    }
+  });
+});
 
 /* Only the adapters (host-adapter.ts, host-adapter-api2.ts, and the bridge with its truth seam) may read
  * the core, the live state, the registries, a raw snapshot or the truth

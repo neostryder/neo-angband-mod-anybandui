@@ -42,7 +42,7 @@ export type SpellbookView = CoreSpellbookView;
 export type SpellInspectResult = CoreSpellInspectResult;
 export type SpellPrompt = HostSpellPrompt;
 export type Phase4Snapshot = InputSnapshot;
-export type Phase4Context = Pick<ModPluginContext, "log"> & Partial<Pick<ModPluginContext, "flags" | "intent" | "prompt" | "prefs" | "driver">> & { readonly snapshot?: () => Phase4Snapshot | null; readonly inspect?: Partial<Pick<ModInspect, "spellInfo" | "bookForItem" | "itemTester" | "inspectItem" | "blastArea" | "tileActions">>; readonly ui?: ItemsContext["ui"]; readonly display?: Pick<NonNullable<ModPluginContext["display"]>, "snapshot">; readonly character?: Pick<NonNullable<ModPluginContext["character"]>, "key">; readonly state?: unknown };
+export type Phase4Context = { readonly itemKindKey?: (key: string) => string } & Pick<ModPluginContext, "log"> & Partial<Pick<ModPluginContext, "flags" | "intent" | "prompt" | "prefs" | "driver">> & { readonly snapshot?: () => Phase4Snapshot | null; readonly inspect?: Partial<Pick<ModInspect, "spellInfo" | "bookForItem" | "itemTester" | "inspectItem" | "blastArea" | "tileActions">>; readonly ui?: ItemsContext["ui"]; readonly display?: Pick<NonNullable<ModPluginContext["display"]>, "snapshot">; readonly character?: Pick<NonNullable<ModPluginContext["character"]>, "key">; readonly state?: unknown };
 export type StoreItemView = CoreStoreItemView;
 export type StoreView = CoreStoreView;
 export type StoreStatus = HostStoreStatus;

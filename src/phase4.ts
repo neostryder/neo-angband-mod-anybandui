@@ -4,7 +4,7 @@ import { playerIsDriving } from "./input-owner.js";
 import type { Phase4Context, Phase4Snapshot, SpellPrompt } from "./seams.js";
 import { adaptSpells, type BookRow, type SpellRow } from "./view-model/spells.js";
 import { actionReady, answerRest, answerSpell, cancelSpell, castSpell, rest, restPrompt, stopResting, studySpell } from "./spell-actions.js";
-import { activate, catalogueCommands, itemBindings, migrateSlots, quickbarOwnsKey, readSlots, resolve, slotIndex, writeSlots, type Appearance, type Binding, type Slots } from "./quickbar.js";
+import { activate, catalogueCommands, itemBindings, migrateSlots, quickbarOwnsKey, readSlots, rekeyItemSlots, resolve, slotIndex, writeSlots, type Appearance, type Binding, type Slots } from "./quickbar.js";
 import { installBlastPreview } from "./blast-preview.js";
 import { birthFacts, viewInput, viewPlayer } from "./host-adapter.js";
 
@@ -106,10 +106,12 @@ ${viewPlayer(snap)?.race ?? ""}`;
     if (closed) return;
     const mounts = surfaces.mounts();
     const spellMount = spellOn ? mounts.get("spells") : undefined, quickMount = quickOn ? mounts.get("quickbar") : undefined, restMount = restOn ? mounts.get("rest") : undefined;
-    if (!mounts.size) return;
     const snap = viewInput(ctx);
     const key = identify(snap);
     if (key !== character) { character = key; slots = key ? readSlots(ctx.prefs?.get(), key) : Array(30).fill(null); }
+    const rekeyed = rekeyItemSlots(ctx, slots);
+    if (rekeyed !== slots) { slots = rekeyed; save(); }
+    if (!mounts.size) return;
     const model = snap ? adaptSpells(snap, ctx.inspect) : null;
     const sig = JSON.stringify([[...mounts.keys()], snap, slots, bookKey, spellIndex, menu, customize, appearance, restOpen, restMode, turns, promptChoice, error]);
     if (!force && sig === signature) return; signature = sig;

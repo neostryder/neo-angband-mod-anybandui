@@ -2,9 +2,9 @@ import { describe, expect, it, vi } from "vitest";
 import type { CommandCatalogue, Phase4Context, Phase4Snapshot, SpellPrompt, TextPrompt } from "./seams.js";
 import { adaptSpells } from "./view-model/spells.js";
 import { actionReady, answerRest, answerSpell, cancelSpell, castSpell, rest, restAnswer, restPrompt, stopResting, studySpell } from "./spell-actions.js";
-import { activate, catalogueCommands, itemBindings, migrateSlots, quickbarOwnsKey, readSlots, resolve, slotIndex, writeSlots } from "./quickbar.js";
+import { activate, catalogueCommands, itemBindings, migrateSlots, quickbarOwnsKey, readSlots, rekeyItemSlots, resolve, slotIndex, writeSlots } from "./quickbar.js";
 import { blastGrids } from "./blast-preview.js";
-import { adoptLineage, characterFor, restingText } from "./phase4.js";
+import { adoptLineage, characterFor, installPhase4, restingText } from "./phase4.js";
 
 const token = { epoch: 2, revision: 4 };
 const targetPrompt = (cursor = { x: 9, y: 4 }): NonNullable<Phase4Snapshot["prompt"]> => ({ kind: "target", promptId: 3, label: "Target", mode: "free", cursor, candidates: [], path: [] });
@@ -21,6 +21,80 @@ const withSpellSlots = (): Phase4Snapshot => { const source = snap(); return { .
 const context = (snapshot = snap): Phase4Context & { intent: NonNullable<Phase4Context["intent"]> } => ({ snapshot, driver: () => ({ kind: "player" }), intent: { submit: vi.fn(() => ({ accepted: true })) },
   inspect: { spellInfo: (index) => ({ token, name: index === 3 ? "Magic Missile" : "Light", description: "A simple spell.", level: 1, mana: 2, failChance: 12, canCastNow: index === 3 }),
     itemTester: (code) => ({ token, items: code === "quaff" ? [{ handle: 11 }] : [] }) }, log: vi.fn() });
+
+describe("quickbar flavour identification (neo-angband #375)", () => {
+  it("persists learned keys from an older save without changing other slots or profiles", () => {
+    const appearance = { style: "text", text: "Heal", color: "#aabbcc" };
+    const old = { type: "item", key: "75:-8", code: "quaff", name: "Blue", appearance };
+    const other = { type: "item", key: "75:-9", code: "quaff", name: "Red" };
+    let stored: unknown = { theme: "dark-graphite", quickbar: { A: [old, other, { type: "command", code: "rest", name: "Rest" }], B: [old] } };
+    const ctx = { ...context(), prefs: { get: () => stored, set: (value: unknown) => { stored = value; } },
+      itemKindKey: (key: string) => key === "75:-8" ? potion.kindId : key };
+    const slots = readSlots(stored, "A");
+    const migrated = rekeyItemSlots(ctx, slots);
+    expect(migrated[0]).toEqual({ ...old, key: potion.kindId });
+    expect(migrated[1]).toBe(slots[1]);
+    expect(migrated[2]).toBe(slots[2]);
+    expect(migrated[3]).toBeNull();
+    writeSlots(ctx, "A", migrated);
+    expect(readSlots(stored, "A")[0]).toEqual(migrated[0]);
+    expect(readSlots(stored, "B")[0]).toEqual(old);
+    expect((stored as { theme: string }).theme).toBe("dark-graphite");
+    expect(rekeyItemSlots(ctx, migrated)).toBe(migrated);
+    expect(rekeyItemSlots(context(), slots)).toBe(slots);
+  });
+
+  it("migrates a hidden quickbar after the last item is consumed, once per character", () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("window", { setInterval, clearInterval, addEventListener: vi.fn(), removeEventListener: vi.fn() });
+    let known = false, character = "A";
+    const old = { type: "item", key: "75:-8", code: "quaff", name: "Blue" };
+    let stored: unknown = { quickbar: { A: [old], B: [old] } };
+    const prefs = { get: () => stored, set: vi.fn((value: unknown) => { stored = value; }) };
+    const empty: Phase4Snapshot = { ...snap(), core: { ...snap().core, inventory: [] } };
+    const ctx = { ...context(() => empty), flags: { "anybandui.quickbar": true }, prefs,
+      character: { key: () => character }, itemKindKey: (key: string) => known && key === "75:-8" ? potion.kindId : key,
+      ui: { openPanel: vi.fn(), registerPanelKind: vi.fn(() => () => {}) } };
+    const cleanup = installPhase4(ctx);
+    try {
+      expect(prefs.set).not.toHaveBeenCalled();
+      known = true;
+      vi.advanceTimersByTime(200);
+      expect(readSlots(stored, "A")[0]).toEqual({ ...old, key: potion.kindId });
+      expect(readSlots(stored, "B")[0]).toEqual(old);
+      vi.advanceTimersByTime(400);
+      expect(prefs.set).toHaveBeenCalledOnce();
+      const restored = readSlots(stored, "A")[0]!;
+      const carriedCtx = context();
+      expect(activate(carriedCtx, snap(), restored)).toBe(true);
+      character = "B"; known = false;
+      vi.advanceTimersByTime(200);
+      expect(readSlots(stored, "B")[0]).toEqual(old);
+      expect(prefs.set).toHaveBeenCalledOnce();
+    } finally { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); }
+  });
+
+  it("resolves older numeric kind keys alongside namespaced kind keys", () => {
+    for (const key of ["75:1", potion.kindId]) {
+      expect(resolve(snap(), { type: "item", key, code: "quaff", name: "Healing" }, null, context()).usable).toBe(true);
+    }
+  });
+  it.each(["quaff", "read", "aim-wand", "activate"] as const)("keeps the %s binding after identification and a handle change", (code) => {
+    const { kindId: _kindId, ...base } = potion;
+    const unknown = { ...base, aware: false, kindKey: "flavor:8", sval: -8, label: "Blue" };
+    const before: Phase4Snapshot = { ...snap(), core: { ...snap().core, inventory: [unknown] } };
+    const tester = { itemTester: () => ({ token, items: [{ handle: 11 }] }) };
+    const binding = itemBindings(before, { ...context(), inspect: tester }).find((b) => b.code === code)!;
+    expect(binding.key).toBe("75:-8");
+    expect(resolve(before, binding, null, { ...context(() => before), inspect: tester }).usable).toBe(true);
+    const after: Phase4Snapshot = { ...snap(), core: { ...snap().core, inventory: [{ ...potion, handle: 40 }] } };
+    const ctx = { ...context(() => after), itemKindKey: (key: string) => key === "75:-8" ? potion.kindId : key,
+      inspect: { itemTester: () => ({ token, items: [{ handle: 40 }] }) } };
+    expect(resolve(after, binding, null, ctx)).toMatchObject({ usable: true, label: potion.label });
+    expect(activate(ctx, after, binding)).toBe(true);
+    expect(ctx.intent.submit).toHaveBeenCalledWith(token, { kind: "command", command: { code, args: { handle: 40 } } });
+  });
+});
 
 describe("phase 4 spells and quickbar", () => {
   it("adapts carried books and inspection details", () => { const ctx = context(); const model = adaptSpells(snap(), ctx.inspect)!;

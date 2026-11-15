@@ -76,6 +76,18 @@ export function migrateSlots(raw: unknown, from: string, to: string): Record<str
   const { [from]: moved, ...rest } = profiles;
   return { ...root, quickbar: { ...rest, [to]: moved } };
 }
+export function rekeyItemSlots(ctx: Phase4Context, slots: Slots): Slots {
+  if (!ctx.itemKindKey) return slots;
+  let changed = false;
+  const next = slots.map((binding) => {
+    if (binding?.type !== "item") return binding;
+    const key = ctx.itemKindKey!(binding.key);
+    if (key === binding.key) return binding;
+    changed = true;
+    return { ...binding, key };
+  });
+  return changed ? next : slots;
+}
 export function itemBindings(snap: Phase4Snapshot, ctx: Phase4Context): Extract<Binding, { type: "item" }>[] {
   const codes = ["quaff", "read", "aim-wand", "activate"] as const;
   return (viewWorld(snap).inventory ?? []).flatMap((item) => codes.filter((code) => {
@@ -109,7 +121,8 @@ export function resolve(snap: Phase4Snapshot, binding: Binding | null, spells: S
     return { label: spell.name, amount: `${spell.mana} SP`, detail: `Mana ${spell.mana}, fail ${spell.fail}%. ${spell.state}. ${spell.description}`, usable: spell.canCast,
       ...(spell.canCast ? { command: { code: "cast", args: { spell: spell.index } } } : {}) };
   }
-  const item: ItemView | undefined = viewWorld(snap).inventory?.find((entry) => itemKey(entry) === binding.key);
+  const key = ctx.itemKindKey?.(binding.key) ?? binding.key;
+  const item: ItemView | undefined = viewWorld(snap).inventory?.find((entry) => itemKey(entry) === key || `${entry.tval}:${entry.sval}` === key);
   if (!item) return { label: binding.name, detail: "Item no longer carried.", usable: false };
   const tester = ctx.inspect?.itemTester?.(binding.code);
   const usable = !!tester && tester.token.epoch === snap.token.epoch && tester.token.revision === snap.token.revision && tester.items.some((entry) => "handle" in entry && entry.handle === item.handle);

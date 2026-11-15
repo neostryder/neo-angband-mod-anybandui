@@ -37,12 +37,13 @@ import type {
   KnownToken,
   ModApi2,
 } from "@rpgm-tools/neo-angband-mod-sdk";
+import { itemKindKey } from "./host-adapter.js";
 import { createManagedSeams } from "./bridge-seams.js";
 import { createTruthSeam } from "./bridge-truth.js";
 import type { GameEventType, GameState, InputDriver, InputSnapshot, IntentResult, ModPluginContext, PlayerIntent, PromptAnswer, PromptReplyResult } from "@rpgm-tools/neo-angband-core";
 
 /** What the features read, as the register callback has always received it. */
-export type BridgeContext = { readonly presentation?: Pick<Api2Presentation, "phase" | "onPhaseChanged"> } & Pick<ModPluginContext, "id" | "engine" | "log" | "flags"> & Partial<Omit<ModPluginContext, "id" | "engine" | "log" | "flags">>;
+export type BridgeContext = { readonly itemKindKey?: (key: string) => string; readonly presentation?: Pick<Api2Presentation, "phase" | "onPhaseChanged"> } & Pick<ModPluginContext, "id" | "engine" | "log" | "flags"> & Partial<Omit<ModPluginContext, "id" | "engine" | "log" | "flags">>;
 
 export interface Bridge {
   readonly ctx: BridgeContext;
@@ -301,6 +302,7 @@ export function createBridge(mod: ModApi2): Bridge {
     ...(engine ? { core: engine.core, registries: engine.registries } : {}),
     get state() { return stateOf(); },
     snapshot,
+    itemKindKey: (key: string) => itemKindKey({ state: stateOf() }, key),
     knownLevel,
     inspect,
     intent,
