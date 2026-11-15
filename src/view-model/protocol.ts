@@ -1,6 +1,8 @@
 /** Phase 1 state keys follow AnybandUI client.cpp and character_overview.h,
  * status_effects.h, and message_history.h. Undefined means the host did not
  * publish a fact; renderers may then apply the native client's display default. */
+import type { KnownMonster } from "@rpgm-tools/neo-angband-mod-sdk";
+
 export interface StatPayload {
   label: string;
   value: number;
@@ -18,6 +20,9 @@ export interface StatusPayload {
 }
 
 export interface TrackedCreaturePayload {
+  id?: number;
+  known?: Pick<KnownMonster, "glyph" | "look" | "status" | "blows" | "knownSpells" | "spellFrequency" | "innateFrequency" | "knownFlags">;
+  recall?: string;
   visible: boolean;
   name: string;
   hp: number | undefined;

@@ -1,6 +1,7 @@
 import type { AgentView, PlayerView } from "@rpgm-tools/neo-angband-core";
 import type { HudEntry, HudFrame } from "@rpgm-tools/neo-angband-mod-sdk";
 import type { DungeonSummaryPayload, FeelingIndicesPayload, MessagePayload, PlayerPayload, StatusPayload, ViewModel } from "./protocol.js";
+import { visibleCreatureRecall } from "../hover-cards.js";
 
 export interface AdapterInput {
   readonly name?: string;
@@ -96,7 +97,17 @@ function badgePayload(source: PlayerView, frame: HudFrame | undefined): StatusPa
 function trackedPayload(view: AgentView, frame: HudFrame | undefined): PlayerPayload["tracked_creature"] {
   // AgentView identifies the target; HUD health numbers may be absent.
   const target = view.target();
-  if (target === null) return undefined;
+  if (target === null || target.midx <= 0) return undefined;
+  if (view.knownWorld) {
+    const world = view.knownWorld();
+    const monster = world.monsters?.find((item) => item.id === world.target?.monster);
+    if (!monster?.visible) return { id: target.midx, visible: false, name: "", hp: undefined, max_hp: undefined };
+    const { glyph, look, status, blows, knownSpells, spellFrequency, innateFrequency, knownFlags } = monster;
+    const recall = visibleCreatureRecall(view, monster)?.text;
+    return { id: target.midx, visible: true, name: monster.race, hp: undefined, max_hp: undefined,
+      known: { ...(glyph === undefined ? {} : { glyph }), look, status, blows, knownSpells, spellFrequency, innateFrequency, knownFlags },
+      ...(recall ? { recall } : {}) };
+  }
   const monster = view.monsters().find((item) => item.id === target.midx);
   if (!monster) return undefined;
   return { visible: monster.visible, name: monster.race,
