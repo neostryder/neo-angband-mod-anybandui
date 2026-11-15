@@ -8,6 +8,10 @@ An entry opens with one or more bracketed tags. `[Visible]` marks a change a pla
 
 ## [Unreleased]
 
+### Added
+
+- [Visible] [UI] **The tracked creature panel now shows what your character has learned about the monster you are tracking or targeting.** It lists the monster's melee blows with their effects and damage, the spells you have seen it cast and how often it casts, its resistances, vulnerabilities, and status protections such as "Cannot be frightened", a short list of known traits, and a short recall line. Anything your character has not learned stays hidden, following the same rule as the game's monster recall, and the panel shows the health band from the look command instead of exact hit points. When the creature goes out of sight, the panel keeps the last facts it showed and marks the creature "Out of sight" until it dies, you change level, or the character changes. Each section opens and closes, and it keeps its state and keyboard focus as the facts update.
+
 ## 1.2.0-beta.1 - 2026-10-30
 
 ### Added
